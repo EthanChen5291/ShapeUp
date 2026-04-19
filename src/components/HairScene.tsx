@@ -167,9 +167,10 @@ interface SceneProps {
   splatScale: number;
   splatPosY: number;
   splatSrc: string;
+  hairstepPlyUrl?: string;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -206,6 +207,17 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         )
       )}
 
+      {hairstepPlyUrl && (
+        <HairStrandMesh
+          url={hairstepPlyUrl}
+          color="#3b1f0a"
+          scale={hairScale}
+          position={hairPos}
+          lineWidth={0.8}
+          renderOrder={0}
+        />
+      )}
+
       {showFlame && flameData && (
         <FlameMesh vertices={flameData.vertices} faces={flameData.faces} />
       )}
@@ -230,9 +242,10 @@ interface HairSceneProps {
   flameData?:            FlameData;
   autoFaceliftDataUrl?:  string;
   faceliftPlyReady?:     boolean;
+  hairstepPlyUrl?:       string;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -394,6 +407,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatScale={2.772}
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
+          hairstepPlyUrl={hairstepPlyUrl}
         />
       </Canvas>
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>

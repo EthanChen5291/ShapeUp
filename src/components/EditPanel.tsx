@@ -11,20 +11,27 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
-import { useLLM } from '@/hooks/useLLM';
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
 
 interface EditPanelProps {
   profile: UserHeadProfile;
   onParamsChange: (params: HairParams) => void;
+  sessionId: string | null;
+  latestImageUrl: string | null;
+  onImageUpdated: (newUrl: string) => void;
+  onPlyReady: (plyUrl: string) => void;
 }
 
-export default function EditPanel({ profile, onParamsChange }: EditPanelProps) {
+export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  const { editHair, loading, error } = useLLM(profile);
+  // Pipeline state
+  const processingRef = useRef(false);
+  const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+
   const [agentActive, setAgentActive] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const agent = useElevenLabsAgent((imageUrl) => setGeneratedImage(imageUrl));
@@ -36,7 +43,6 @@ export default function EditPanel({ profile, onParamsChange }: EditPanelProps) {
 
   const pushParams = useCallback(
     (next: HairParams) => {
-      // Truncate redo stack on new change
       const newHistory = [...history.slice(0, historyIndex + 1), next];
       setHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
@@ -51,11 +57,131 @@ export default function EditPanel({ profile, onParamsChange }: EditPanelProps) {
 
   const handlePromptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim()) return;
-    const result = await editHair(prompt);
-    if (result) {
-      pushParams(result.params);
+    console.log('[EditPanel] handlePromptSubmit — processingRef:', processingRef.current, '| phase:', phase, '| sessionId:', sessionId, '| latestImageUrl (first 80):', latestImageUrl?.slice(0, 80) ?? 'NULL');
+
+    if (processingRef.current) {
+      console.warn('[EditPanel] BLOCKED — processingRef is true, already running');
+      return;
+    }
+    if (!prompt.trim()) {
+      console.warn('[EditPanel] BLOCKED — empty prompt');
+      return;
+    }
+    if (!sessionId || !latestImageUrl) {
+      console.error('[EditPanel] BLOCKED — missing sessionId or latestImageUrl. sessionId:', sessionId, '| latestImageUrl:', latestImageUrl);
+      setPipelineError('No session or image available. Please scan first.');
+      return;
+    }
+
+    processingRef.current = true;
+    const submittedPrompt = prompt.trim();
+    setPipelineError(null);
+    setPhase('gemini');
+
+    console.log('[EditPanel] ========== PIPELINE START ==========');
+    console.log('[EditPanel] prompt:', submittedPrompt);
+    console.log('[EditPanel] sessionId:', sessionId);
+    console.log('[EditPanel] latestImageUrl (first 120):', latestImageUrl.slice(0, 120));
+
+    try {
+      // ── Step 1: Gemini image edit ─────────────────────────────────────────
+      console.log('[EditPanel] STEP 1 — calling /api/gemini-hair-edit...');
+      let geminiRes: Response;
+      try {
+        geminiRes = await fetch('/api/gemini-hair-edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: latestImageUrl, prompt: submittedPrompt, sessionId }),
+        });
+      } catch (netErr) {
+        console.error('[EditPanel] NETWORK ERROR calling /api/gemini-hair-edit:', netErr);
+        setPipelineError('Network error reaching /api/gemini-hair-edit: ' + String(netErr));
+        return;
+      }
+
+      console.log('[EditPanel] gemini HTTP status:', geminiRes.status, geminiRes.statusText);
+      const geminiRaw = await geminiRes.text();
+      console.log('[EditPanel] gemini raw response (first 600 chars):\n', geminiRaw.slice(0, 600));
+
+      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
+      try {
+        geminiData = JSON.parse(geminiRaw);
+      } catch {
+        console.error('[EditPanel] gemini response NOT valid JSON! Full body:', geminiRaw);
+        setPipelineError('Gemini returned non-JSON (HTTP ' + geminiRes.status + '). Check server logs.');
+        return;
+      }
+
+      console.log('[EditPanel] gemini parsed:', {
+        ok: geminiData.ok,
+        newImageUrl: geminiData.newImageUrl?.slice(0, 100) ?? 'MISSING',
+        error: geminiData.error ?? 'none',
+        detail: geminiData.detail?.slice(0, 200) ?? 'none',
+      });
+
+      if (!geminiData.ok || !geminiData.newImageUrl) {
+        const msg = geminiData.error ?? 'Unknown Gemini error';
+        const detail = geminiData.detail ? ' — ' + geminiData.detail.slice(0, 200) : '';
+        console.error('[EditPanel] GEMINI FAILED:', msg, detail);
+        setPipelineError('Gemini failed: ' + msg + detail);
+        return;
+      }
+
+      const newImageUrl = geminiData.newImageUrl;
+      console.log('[EditPanel] GEMINI SUCCESS — newImageUrl:', newImageUrl.slice(0, 120));
+      onImageUpdated(newImageUrl);
       setPrompt('');
+
+      // ── Step 2: HairStep ─────────────────────────────────────────────────
+      setPhase('hairstep');
+      console.log('[EditPanel] STEP 2 — calling /api/hairstep with newImageUrl:', newImageUrl.slice(0, 120));
+
+      let hairstepRes: Response;
+      try {
+        hairstepRes = await fetch('/api/hairstep', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: newImageUrl, sessionId }),
+        });
+      } catch (netErr) {
+        console.error('[EditPanel] NETWORK ERROR calling /api/hairstep:', netErr);
+        setPipelineError('Network error reaching /api/hairstep: ' + String(netErr));
+        return;
+      }
+
+      console.log('[EditPanel] hairstep HTTP status:', hairstepRes.status, hairstepRes.statusText);
+      const hairstepRaw = await hairstepRes.text();
+      console.log('[EditPanel] hairstep raw response (first 400 chars):\n', hairstepRaw.slice(0, 400));
+
+      let hairstepData: { ok: boolean; plyUrl?: string; error?: string };
+      try {
+        hairstepData = JSON.parse(hairstepRaw);
+      } catch {
+        console.error('[EditPanel] hairstep response NOT valid JSON! Full body:', hairstepRaw);
+        setPipelineError('HairStep returned non-JSON (HTTP ' + hairstepRes.status + '). Check server logs.');
+        return;
+      }
+
+      console.log('[EditPanel] hairstep parsed:', {
+        ok: hairstepData.ok,
+        plyUrl: hairstepData.plyUrl?.slice(0, 100) ?? 'MISSING',
+        error: hairstepData.error ?? 'none',
+      });
+
+      if (!hairstepData.ok || !hairstepData.plyUrl) {
+        console.error('[EditPanel] HAIRSTEP FAILED:', hairstepData.error);
+        setPipelineError('HairStep failed: ' + (hairstepData.error ?? 'unknown error'));
+        return;
+      }
+
+      console.log('[EditPanel] HAIRSTEP SUCCESS — plyUrl:', hairstepData.plyUrl.slice(0, 120));
+      onPlyReady(hairstepData.plyUrl);
+      console.log('[EditPanel] ========== PIPELINE COMPLETE ==========');
+
+    } finally {
+      console.log('[EditPanel] FINALLY — resetting phase to idle, releasing processingRef');
+      setPhase('idle');
+      processingRef.current = false;
     }
   };
 
@@ -117,10 +243,10 @@ export default function EditPanel({ profile, onParamsChange }: EditPanelProps) {
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={loading}
+            disabled={phase !== 'idle'}
             className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded px-4 py-2 text-sm font-medium transition-colors"
           >
-            {loading ? 'Styling…' : 'Apply Style'}
+            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Building 3D…' : 'Apply Style'}
           </button>
           <button
             type="button"
@@ -133,7 +259,7 @@ export default function EditPanel({ profile, onParamsChange }: EditPanelProps) {
             {agentActive ? '⏹ Stop' : '🎤 Voice'}
           </button>
         </div>
-        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {pipelineError && <p className="text-red-400 text-xs">{pipelineError}</p>}
       </form>
 
       {/* Undo / Redo */}

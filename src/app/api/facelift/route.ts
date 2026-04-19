@@ -109,18 +109,21 @@ function plyToSplat(plyBuf: Buffer): Buffer {
 
 export async function POST(req: NextRequest) {
   if (!FACELIFT_URL) {
+    console.error('[facelift] POST: FACELIFT_URL not configured');
     return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
   }
 
   const { imageDataUrl } = await req.json();
   if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image')) {
+    console.error('[facelift] POST: invalid imageDataUrl');
     return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
   }
 
   const base64 = imageDataUrl.split(',')[1];
   const buffer = Buffer.from(base64, 'base64');
-  const blob   = new Blob([buffer], { type: 'image/jpeg' });
+  console.log(`[facelift] POST: submitting image (${buffer.length} bytes) to ${FACELIFT_URL}/process_image`);
 
+  const blob = new Blob([buffer], { type: 'image/jpeg' });
   const form = new FormData();
   form.append('image', blob, 'face.jpg');
 
@@ -132,10 +135,12 @@ export async function POST(req: NextRequest) {
 
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '');
+    console.error(`[facelift] POST: server error ${upstream.status}: ${text}`);
     return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
   }
 
   const data = await upstream.json();
+  console.log(`[facelift] POST: job queued, jobId=${data.job_id}`);
   return NextResponse.json({ jobId: data.job_id });
 }
 
@@ -150,33 +155,42 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
   }
 
+  console.log(`[facelift] GET: checking status for jobId=${jobId}`);
   const statusRes = await fetch(`${FACELIFT_URL}/status/${jobId}`, { headers: NGROK_HEADERS });
   if (!statusRes.ok) {
     const text = await statusRes.text().catch(() => '');
+    console.error(`[facelift] GET: status endpoint returned ${statusRes.status}: ${text}`);
     return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
   }
 
   const status = await statusRes.json();
-  console.log(`[facelift] status check: ${status.status}`);
+  console.log(`[facelift] GET: jobId=${jobId} status=${status.status}`, status.error ? `error=${status.error}` : '');
 
   if (status.status === 'success') {
+    console.log(`[facelift] GET: job succeeded, downloading from ${FACELIFT_URL}/download/${jobId}`);
     const dlRes = await fetch(`${FACELIFT_URL}/download/${jobId}`, { headers: NGROK_HEADERS });
     if (!dlRes.ok) {
+      const text = await dlRes.text().catch(() => '');
+      console.error(`[facelift] GET: download failed ${dlRes.status}: ${text}`);
       return NextResponse.json({ error: 'Download failed' }, { status: 502 });
     }
     const plyBuffer = Buffer.from(await dlRes.arrayBuffer());
+    console.log(`[facelift] GET: downloaded PLY (${plyBuffer.length} bytes), converting to splat`);
     const publicDir = path.join(process.cwd(), 'public');
     const splatBuffer = plyToSplat(plyBuffer);
     await Promise.all([
       writeFile(path.join(publicDir, 'output.ply'), plyBuffer),
       writeFile(path.join(publicDir, 'output.splat'), splatBuffer),
     ]);
+    console.log(`[facelift] GET: wrote output.ply (${plyBuffer.length}B) + output.splat (${splatBuffer.length}B)`);
     return NextResponse.json({ status: 'success', plyPath: '/output.ply', splatPath: '/output.splat' });
   }
 
   if (status.status === 'error') {
+    console.error(`[facelift] GET: job failed — ${status.error ?? 'unknown error'}`);
     return NextResponse.json({ status: 'error', error: status.error ?? 'Unknown error' });
   }
 
+  console.log(`[facelift] GET: job still running, status=${status.status ?? 'processing'}`);
   return NextResponse.json({ status: status.status ?? 'processing' });
 }

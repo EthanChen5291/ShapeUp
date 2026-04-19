@@ -7,7 +7,7 @@ import HairEditLoop from '@/components/HairEditLoop';
 import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useSmirk } from '@/hooks/useSmirk';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const HairScene  = dynamic(() => import('@/components/HairScene'),  { ssr: false });
 const ScanCamera = dynamic(() => import('@/components/ScanCamera'), { ssr: false });
@@ -22,8 +22,23 @@ export default function Home() {
   const [imageUrl,  setImageUrl]    = useState<string | null>(null);
   const [baldifiedDataUrl, setBaldifiedDataUrl] = useState<string | null>(null);
   const [faceliftPlyReady, setFaceliftPlyReady] = useState(false);
+  const [hairstepPlyUrl, setHairstepPlyUrl]     = useState<string | null>(null);
 
   const smirk = useSmirk(profile?.faceScanData?.imageDataUrl);
+
+  // Fire hairstep in the background once we have a session + captured image (~30–60s)
+  useEffect(() => {
+    const imageDataUrl = profile?.faceScanData?.imageDataUrl;
+    if (!sessionId || !imageDataUrl) return;
+    fetch('/api/hairstep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl, sessionId }),
+    })
+      .then(r => r.json())
+      .then(data => { if (data.plyUrl) setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(data.plyUrl)}`); })
+      .catch(() => {});
+  }, [sessionId, profile]);
 
   const handleParamsChange = (next: HairParams) => {
     setParams(next);
@@ -70,6 +85,9 @@ export default function Home() {
           setFaceliftPlyReady(true);
           setAppState('3d');
         }}
+        onHairstepPlyReady={(plyUrl) => {
+          setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`);
+        }}
       />
     );
   }
@@ -78,12 +96,18 @@ export default function Home() {
   return (
     <main className="flex h-screen bg-gray-950 text-white overflow-hidden">
       <div className="flex-1 relative">
+        {imageUrl && (
+          <div className="absolute top-3 left-3 z-10 rounded-xl overflow-hidden border-2 border-white/20 shadow-lg" style={{ width: 80, height: 80 }}>
+            <img src={imageUrl} alt="scan" className="w-full h-full object-cover" />
+          </div>
+        )}
         <HairScene
           params={params}
           colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
           profile={profile ?? mockUserHeadProfile}
           autoFaceliftDataUrl={baldifiedDataUrl ?? undefined}
           faceliftPlyReady={faceliftPlyReady}
+          hairstepPlyUrl={hairstepPlyUrl ?? undefined}
           flameData={
             smirk.result
               ? {
@@ -105,7 +129,14 @@ export default function Home() {
           </button>
         </div>
         <div className="flex-1 overflow-hidden">
-          <EditPanel profile={profile ?? mockUserHeadProfile} onParamsChange={handleParamsChange} />
+          <EditPanel
+            profile={profile ?? mockUserHeadProfile}
+            onParamsChange={handleParamsChange}
+            sessionId={sessionId}
+            latestImageUrl={imageUrl}
+            onImageUpdated={(url) => setImageUrl(url)}
+            onPlyReady={(plyUrl) => setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`)}
+          />
         </div>
       </div>
     </main>
