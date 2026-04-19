@@ -14,6 +14,7 @@
 import { useState, useCallback } from 'react';
 import { UserHeadProfile, LLMEditResponse, HairParams } from '@/types';
 import { EDIT_LOOP_SYSTEM_PROMPT } from '@/lib/llmPrompt';
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 
 interface UseLLMReturn {
   editHair: (prompt: string) => Promise<LLMEditResponse | null>;
@@ -31,10 +32,11 @@ export function useLLM(profile: UserHeadProfile): UseLLMReturn {
       setError(null);
 
       // Attach current profile as context so the LLM can do relative edits
+      const currentProfilePayload = buildCurrentProfilePayload(profile);
       const userMessage = `
 ${prompt}
 
-CURRENT_PROFILE: ${JSON.stringify({ currentStyle: profile.currentStyle }, null, 2)}
+CURRENT_PROFILE: ${JSON.stringify(currentProfilePayload, null, 2)}
       `.trim();
 
       try {
