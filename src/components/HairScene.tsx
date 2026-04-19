@@ -17,13 +17,14 @@
 
 import * as THREE from 'three';
 
-import { HairParams, UserHeadProfile } from '@/types';
+import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Canvas } from '@react-three/fiber';
 import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { parseNPY } from '@/lib/parseNPY';
 
 // ── Polycam head ─────────────────────────────────────────────
@@ -150,6 +151,8 @@ const HAIR_LAYERS = [
   { type: 'npy', id: 'bruno_depth',  label: 'Bruno Depth', url: '/hair/brunohair_depth.npy', color: '#44aaff', lineWidth: 0, renderOrder: 0 },
 ] as const;
 
+type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
+
 
 interface FlameData {
   vertices: number[][];
@@ -168,9 +171,10 @@ interface SceneProps {
   splatPosY: number;
   splatSrc: string;
   hairstepPlyUrl?: string;
+  onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, onPrimaryHairBBoxReady }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -203,6 +207,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
             position={hairPos}
             lineWidth={l.lineWidth}
             renderOrder={l.renderOrder}
+            onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
           />
         )
       )}
@@ -215,6 +220,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
           position={hairPos}
           lineWidth={0.8}
           renderOrder={0}
+          onBBoxReady={onPrimaryHairBBoxReady}
         />
       )}
 
@@ -243,9 +249,10 @@ interface HairSceneProps {
   autoFaceliftDataUrl?:  string;
   faceliftPlyReady?:     boolean;
   hairstepPlyUrl?:       string;
+  onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -274,7 +281,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     fetch('/api/facelift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: autoFaceliftDataUrl }),
+      body: JSON.stringify({
+        imageDataUrl: autoFaceliftDataUrl,
+        currentProfile: _profile ? buildCurrentProfilePayload(_profile) : null,
+      }),
     })
       .then(r => r.json())
       .then(data => {
@@ -324,7 +334,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     const faceliftP = fetch('/api/facelift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: dataUrl }),
+      body: JSON.stringify({
+        imageDataUrl: dataUrl,
+        currentProfile: _profile ? buildCurrentProfilePayload(_profile) : null,
+      }),
     })
       .then(r => r.json())
       .then(data => {
@@ -408,6 +421,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
           hairstepPlyUrl={hairstepPlyUrl}
+          onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />
       </Canvas>
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
