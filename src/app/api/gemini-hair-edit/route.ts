@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
       // @ts-expect-error responseModalities not yet in type defs
-      generationConfig: { responseModalities: ['image', 'text'] },
+      generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
     });
 
     const fullPrompt = `You are a professional hair stylist visualizer. Edit only the hair in this photo based on the following request: "${prompt}". Keep the face, skin, background, and all non-hair elements completely unchanged. Return the full edited portrait image.

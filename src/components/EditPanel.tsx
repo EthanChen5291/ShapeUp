@@ -227,7 +227,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       </form>
 
       {/* Undo / Redo */}
-      <div className="flex gap-2">
+      {/* <div className="flex gap-2">
         <button
           onClick={undo}
           disabled={historyIndex === 0}
@@ -242,7 +242,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         >
           Redo →
         </button>
-      </div>
+      </div> */}
 
       {/* Manual sliders */}
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
