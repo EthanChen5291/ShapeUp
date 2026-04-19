@@ -1,15 +1,15 @@
 'use client';
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
+import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
+import { useCallback, useEffect, useState } from 'react';
 
 import EditPanel from '@/components/EditPanel';
 import HairEditLoop from '@/components/HairEditLoop';
-import dynamic from 'next/dynamic';
-import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useSmirk } from '@/hooks/useSmirk';
-import { useCallback, useEffect, useState } from 'react';
 
 const HairScene  = dynamic(() => import('@/components/HairScene'),  { ssr: false });
 const ScanCamera = dynamic(() => import('@/components/ScanCamera'), { ssr: false });

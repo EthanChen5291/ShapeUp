@@ -2,11 +2,11 @@
 
 import { useRef } from 'react';
 
-const VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
+const VOICE_ID = 'IKne3meq5aSn9XLyUdCD';
 const API_KEY  = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
 
 export function useElevenLabsAgent(
-  onFeedback: (generatedImageUrl: string) => void,
+  onTranscript: (text: string) => void,
 ) {
   const activeRef = useRef(false);
 
@@ -48,14 +48,7 @@ export function useElevenLabsAgent(
       const feedback = await listen();
       console.log('[ElevenLabs] feedback:', feedback);
       if (!activeRef.current) break;
-      const res = await fetch('/api/hair-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback }),
-      });
-      console.log('[ElevenLabs] image response:', res);
-      const { imageDataUrl: generated } = await res.json();
-      if (generated) onFeedback(generated);
+      if (feedback.trim()) onTranscript(feedback);
       await speak("Got it! Updating your hairstyle now.");
     }
   }

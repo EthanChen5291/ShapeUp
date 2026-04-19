@@ -19,7 +19,7 @@ import * as THREE from 'three';
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 
 import { Canvas } from '@react-three/fiber';
 import FlameMesh from './FlameMesh';
@@ -141,14 +141,12 @@ const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
 // type 'ply' → HairStrandMesh, type 'npy' → HairDepthPoints
 const HAIR_LAYERS = [
-  { type: 'ply', id: 'hair_modified', label: 'Modified',    url: '/hair/hair_modified.ply', color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'strands_1',    label: 'Strands 1',   url: '/hair/strands_1.ply',   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'depth_1',      label: 'Depth 1',     url: '/hair/depth_1.ply',     color: '#3b1f0a', lineWidth: 1.0, renderOrder: 1 },
-  { type: 'ply', id: 'preset_a',     label: 'Preset A',    url: '/hair/preset_a.ply',    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'guest',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: '/hair/hair_modified.ply', color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: '/hair/strands_1.ply',   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: '/hair/preset_a.ply',    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'medium long',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: '/hair/brunohair.ply',   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'redhead',      label: 'Redhead',     url: '/hair/redhead.ply',     color: '#b03010', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'npy', id: 'bruno_depth',  label: 'Bruno Depth', url: '/hair/brunohair_depth.npy', color: '#44aaff', lineWidth: 0, renderOrder: 0 },
+  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
 ] as const;
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
@@ -171,10 +169,11 @@ interface SceneProps {
   splatPosY: number;
   splatSrc: string;
   hairstepPlyUrl?: string;
+  hairColor?: string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, onPrimaryHairBBoxReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -194,7 +193,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
           <HairDepthPoints
             key={l.id}
             url={l.url}
-            color={l.color}
+            color={hairColor ?? l.color}
             scale={hairScale}
             position={hairPos}
           />
@@ -202,9 +201,9 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
           <HairStrandMesh
             key={l.id}
             url={l.url}
-            color={l.color}
+            color={hairColor ?? l.color}
             scale={hairScale}
-            position={hairPos}
+            position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
             lineWidth={l.lineWidth}
             renderOrder={l.renderOrder}
             onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
@@ -213,15 +212,27 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
       )}
 
       {hairstepPlyUrl && (
+        <>
         <HairStrandMesh
           url={hairstepPlyUrl}
-          color="#3b1f0a"
+          color={hairColor ?? "#3b1f0a"}
           scale={hairScale}
           position={hairPos}
           lineWidth={0.8}
           renderOrder={0}
           onBBoxReady={onPrimaryHairBBoxReady}
         />
+        {visibleLayers.has('top_hair') && (
+          <HairStrandMesh
+            url="/hair/top_hair.ply"
+            color={hairColor ?? "#3b1f0a"}
+            scale={hairScale}
+            position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
+            lineWidth={0.8}
+            renderOrder={0}
+          />
+        )}
+        </>
       )}
 
       {showFlame && flameData && (
@@ -257,10 +268,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
-    new Set(['hair_modified'])
+    new Set(['hair_modified', 'top_hair'])
   );
   // Local FLAME data fetched from a test image
-  const [localFlameData, setLocalFlameData] = useState<FlameData | null>(null);
+  const [localFlameData] = useState<FlameData | null>(null);
 
   // FaceLift job state for ethansample_bald test
   const [ethanJobId, setEthanJobId]       = useState<string | null>(null);
@@ -299,59 +310,6 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFaceliftDataUrl]);
 
-  // Loads ethansample_bald.png (falls back to ethansample.png), fires FaceLift +
-  // SMIRK in parallel.  FaceLift result becomes the active splat source; SMIRK
-  // result drives FLAME alignment for both the splat and Bruno hair.
-  const loadEthanBald = useCallback(async () => {
-    if (ethanJobStatus === 'submitting' || ethanJobStatus === 'processing') return;
-    setEthanJobStatus('submitting');
-
-    let dataUrl: string;
-    try {
-      const r = await fetch('/baldified/ethansample_bald.png');
-      const blob = await (r.ok ? r : await fetch('/hair/ethansample.png')).blob();
-      dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch {
-      setEthanJobStatus('error');
-      return;
-    }
-
-    // SMIRK runs immediately (fast); FaceLift is long (~3 min)
-    const smirkP = fetch('/api/smirk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: dataUrl }),
-    })
-      .then(r => r.json())
-      .then(data => { if (!data.error) setLocalFlameData({ vertices: data.vertices_canonical, faces: data.faces }); })
-      .catch(() => {});
-
-    const faceliftP = fetch('/api/facelift', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageDataUrl: dataUrl,
-        currentProfile: _profile ? buildCurrentProfilePayload(_profile) : null,
-      }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.jobId) {
-          setEthanJobId(data.jobId);
-          setEthanJobStatus('processing');
-        } else {
-          setEthanJobStatus('error');
-        }
-      })
-      .catch(() => setEthanJobStatus('error'));
-
-    await Promise.all([smirkP, faceliftP]);
-  }, [ethanJobStatus]);
 
   // Poll FaceLift until the job finishes, then set the splat + ply source URLs.
   useEffect(() => {
@@ -383,6 +341,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const hairScale = HAIR_PLY_SCALE_DEFAULT;
   const hairPos: [number, number, number] = HAIR_PLY_POS_DEFAULT;
 
+  const [showHair, setShowHair] = useState(true);
+  const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
+  const [hairColor, setHairColor] = useState('#3b1f0a');
+
   const toggleLayer = (id: string) =>
     setVisibleLayers(prev => {
       const next = new Set(prev);
@@ -390,16 +352,19 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
       return next;
     });
 
+  const effectiveVisibleLayers = useMemo(() => {
+    if (!showHair) return new Set<string>();
+    if (!hoveredLayer || visibleLayers.has(hoveredLayer)) return visibleLayers;
+    const next = new Set(visibleLayers);
+    next.add(hoveredLayer);
+    return next;
+  }, [visibleLayers, hoveredLayer, showHair]);
+
   const btnStyle: React.CSSProperties = {
     padding: '4px 10px', fontSize: 12,
     background: '#000', color: '#fff', border: 'none',
     borderRadius: 4, cursor: 'pointer',
   };
-
-  const ethanBaldLabel =
-    ethanJobStatus === 'submitting' ? 'submitting…' :
-    ethanJobStatus === 'processing' ? 'reconstructing…' :
-    'ethan bald';
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -414,43 +379,34 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           showSplat={showSplat}
           showFlame={showFlame}
           flameData={effectiveFlameData}
-          visibleLayers={visibleLayers}
+          visibleLayers={effectiveVisibleLayers}
           hairScale={hairScale}
           hairPos={hairPos}
           splatScale={2.772}
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
-          hairstepPlyUrl={hairstepPlyUrl}
+          hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
+          hairColor={hairColor}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />
       </Canvas>
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
-        <button onClick={() => setShowPolycam(v => !v)} style={{ ...btnStyle, opacity: showPolycam ? 1 : 0.4 }}>
-          polycam
-        </button>
-        <button onClick={() => setShowSplat(v => !v)} style={{ ...btnStyle, opacity: showSplat ? 1 : 0.4 }}>
-          gaussians
-        </button>
-        <button onClick={() => setShowFlame(v => !v)} style={{ ...btnStyle, opacity: showFlame ? 1 : 0.4, outline: effectiveFlameData ? '2px solid #44ffdd' : 'none' }}>
-          flame
-        </button>
-        <button
-          onClick={loadEthanBald}
-          disabled={ethanJobStatus === 'submitting' || ethanJobStatus === 'processing'}
-          style={{
-            ...btnStyle,
-            opacity: (ethanJobStatus === 'submitting' || ethanJobStatus === 'processing') ? 0.5 : 1,
-            outline: ethanJobStatus === 'done' ? '2px solid #44ffdd' : ethanJobStatus === 'error' ? '2px solid #ff4444' : 'none',
-          }}
-        >
-          {ethanBaldLabel}
+        <input type="color" value={hairColor} onChange={e => setHairColor(e.target.value)} title="Hair color" style={{ width: 28, height: 28, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 4 }} />
+        <button onClick={() => setShowHair(v => !v)} style={{ ...btnStyle, opacity: showHair ? 1 : 0.4, outline: '2px solid #aaa' }}>
+          {showHair ? 'hide hair' : 'show hair'}
         </button>
         {HAIR_LAYERS.map(l => (
-          <button key={l.id} onClick={() => toggleLayer(l.id)} style={{
-            ...btnStyle,
-            outline: visibleLayers.has(l.id) ? `2px solid ${l.color}` : 'none',
-            opacity: visibleLayers.has(l.id) ? 1 : 0.4,
-          }}>
+          <button
+            key={l.id}
+            onClick={() => toggleLayer(l.id)}
+            onMouseEnter={() => setHoveredLayer(l.id)}
+            onMouseLeave={() => setHoveredLayer(null)}
+            style={{
+              ...btnStyle,
+              outline: visibleLayers.has(l.id) ? `2px solid ${l.color}` : 'none',
+              opacity: visibleLayers.has(l.id) || hoveredLayer === l.id ? 1 : 0.4,
+            }}
+          >
             {l.label}
           </button>
         ))}

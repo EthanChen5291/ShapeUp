@@ -7,7 +7,9 @@
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useState, useCallback, useRef } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
+
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
+import { useLLM } from '@/hooks/useLLM';
 
 interface EditPanelProps {
   profile: UserHeadProfile;
@@ -28,8 +30,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [pipelineError, setPipelineError] = useState<string | null>(null);
 
   const [agentActive, setAgentActive] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const agent = useElevenLabsAgent((imageUrl) => setGeneratedImage(imageUrl));
+
+  const agent = useElevenLabsAgent((text) => runPromptPipeline(text));
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement>(null);
@@ -53,17 +55,15 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     pushParams({ ...currentParams, [key]: value });
   };
 
-  const handlePromptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
-    if (!prompt.trim()) return;
+    if (!submittedPrompt.trim()) return;
     if (!sessionId || !latestImageUrl) {
       setPipelineError('No session or image available. Please scan first.');
       return;
     }
 
     processingRef.current = true;
-    const submittedPrompt = prompt.trim();
     setPipelineError(null);
     setPhase('gemini');
 
@@ -179,14 +179,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         </div>
       </div>
 
-      {generatedImage && (
-        <div className="rounded-2xl border border-[var(--char)]/10 overflow-hidden shadow-sm">
-          <img src={generatedImage} alt="Generated hairstyle" className="w-full" />
-        </div>
-      )}
-
       {/* Prompt */}
-      <form onSubmit={handlePromptSubmit} className="flex flex-col gap-3">
+      <form onSubmit={(e) => { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">new request</span>
           <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
@@ -244,33 +238,31 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         </button>
       </div> */}
 
-      {/* Manual sliders */}
-      <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <div className="flex items-baseline justify-between">
-          <span className="pill">manual trim</span>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">5 dials</span>
-        </div>
+      {/* PCA sliders */}
+      <div className="flex flex-col gap-4">
+        <p className="text-xs text-gray-500 uppercase tracking-widest">Hair Parameters</p>
 
         {(
           [
-            { key: 'topLength',  label: 'Top length',   min: 0, max: 2, step: 0.05 },
-            { key: 'sideLength', label: 'Side length',  min: 0, max: 2, step: 0.05 },
-            { key: 'backLength', label: 'Back length',  min: 0, max: 2, step: 0.05 },
-            { key: 'messiness',  label: 'Messiness',    min: 0, max: 1, step: 0.05 },
-            { key: 'taper',      label: 'Taper',        min: 0, max: 1, step: 0.05 },
+            { key: 'pc1', label: 'Hair length' },
+            { key: 'pc2', label: 'Width' },
+            { key: 'pc3', label: 'Ponytail-ness' },
+            { key: 'pc4', label: 'Density' },
+            { key: 'pc5', label: 'Wavyness' },
+            { key: 'pc6', label: 'Parting' },
           ] as const
-        ).map(({ key, label, min, max, step }) => (
-          <div key={key} className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-baseline">
-              <span className="font-serif italic text-sm text-[var(--char)]">{label}</span>
-              <span className="font-mono text-[10px] text-[var(--smoke)]">{currentParams[key].toFixed(2)}</span>
+        ).map(({ key, label }) => (
+          <div key={key} className="flex flex-col gap-1">
+            <div className="flex justify-between text-sm">
+              <span>{label}</span>
+              <span className="text-gray-400">{(currentParams[key] ?? 0).toFixed(2)}</span>
             </div>
             <input
               type="range"
-              min={min}
-              max={max}
-              step={step}
-              value={currentParams[key]}
+              min={-3}
+              max={3}
+              step={0.1}
+              value={currentParams[key] ?? 0}
               onChange={(e) => handleSlider(key, parseFloat(e.target.value))}
               className="slider-warm w-full"
             />

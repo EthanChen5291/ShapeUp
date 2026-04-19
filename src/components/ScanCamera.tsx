@@ -203,7 +203,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
         preset:    'default',
         hairType,
         colorRGB:  '#3b1f0a',
-        params:    { topLength: 1, sideLength: 1, backLength: 1, messiness: 0, taper: 0.5 },
+        params:    { topLength: 1, sideLength: 1, backLength: 1, messiness: 0, taper: 0.5, pc1: 0, pc2: 0, pc3: 0, pc4: 0, pc5: 0, pc6: 0 },
       },
     };
 
