@@ -169,10 +169,11 @@ interface SceneProps {
   splatPosY: number;
   splatSrc: string;
   hairstepPlyUrl?: string;
+  hairColor?: string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, onPrimaryHairBBoxReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -192,7 +193,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
           <HairDepthPoints
             key={l.id}
             url={l.url}
-            color={l.color}
+            color={hairColor ?? l.color}
             scale={hairScale}
             position={hairPos}
           />
@@ -200,7 +201,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
           <HairStrandMesh
             key={l.id}
             url={l.url}
-            color={l.color}
+            color={hairColor ?? l.color}
             scale={hairScale}
             position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
             lineWidth={l.lineWidth}
@@ -214,7 +215,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         <>
         <HairStrandMesh
           url={hairstepPlyUrl}
-          color="#3b1f0a"
+          color={hairColor ?? "#3b1f0a"}
           scale={hairScale}
           position={hairPos}
           lineWidth={0.8}
@@ -224,7 +225,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         {visibleLayers.has('top_hair') && (
           <HairStrandMesh
             url="/hair/top_hair.ply"
-            color="#3b1f0a"
+            color={hairColor ?? "#3b1f0a"}
             scale={hairScale}
             position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
             lineWidth={0.8}
@@ -342,6 +343,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
 
   const [showHair, setShowHair] = useState(true);
   const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
+  const [hairColor, setHairColor] = useState('#3b1f0a');
 
   const toggleLayer = (id: string) =>
     setVisibleLayers(prev => {
@@ -384,10 +386,12 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
+          hairColor={hairColor}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />
       </Canvas>
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
+        <input type="color" value={hairColor} onChange={e => setHairColor(e.target.value)} title="Hair color" style={{ width: 28, height: 28, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 4 }} />
         <button onClick={() => setShowHair(v => !v)} style={{ ...btnStyle, opacity: showHair ? 1 : 0.4, outline: '2px solid #aaa' }}>
           {showHair ? 'hide hair' : 'show hair'}
         </button>
