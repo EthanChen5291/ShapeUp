@@ -7,8 +7,9 @@
 // ============================================================
 
 import { UserHeadProfile } from '@/types';
+import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 
-export const mockUserHeadProfile: UserHeadProfile = {
+export const mockUserHeadProfile: UserHeadProfile = ensureMeasurementSnapshot({
   headProportions: {
     width: 1.6,     // ~16 cm → 1.6 scene units
     height: 2.2,
@@ -23,6 +24,8 @@ export const mockUserHeadProfile: UserHeadProfile = {
     sideWidth:   0.2,
     backLength:  0.3,
     flatness:    0.5,
+    hairline:    0.32,
+    hairThickness: 0.18,
   },
   currentStyle: {
     preset: 'taper_fade',
@@ -36,7 +39,7 @@ export const mockUserHeadProfile: UserHeadProfile = {
       taper:      0.6,
     },
   },
-};
+});
 
 // Preset library — closest-match lookup used in RENDER phase
 export const HAIR_PRESETS: Record<string, typeof mockUserHeadProfile.currentStyle.params> = {
