@@ -1,14 +1,10 @@
 // ============================================================
-// EditPanel — ETHAN's domain
-//
-// Sidebar UI for:
-//   1. Manual sliders (dev/debug)
-//   2. Natural language prompt → LLM edit
-//   3. Undo/redo stack
+// EditPanel — the Barber's Toolbox
 // ============================================================
 
 'use client';
 
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useState, useCallback, useRef } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
@@ -27,7 +23,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // Pipeline state
   const processingRef = useRef(false);
   const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
@@ -40,6 +35,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const summaryRef = useRef<HTMLTextAreaElement>(null);
 
   const currentParams = history[historyIndex];
+  const llmPayload = buildCurrentProfilePayload(profile);
+  const liveMeasurementsJson = JSON.stringify(llmPayload.measurementSnapshot, null, 2);
+  const llmPayloadJson = JSON.stringify(llmPayload, null, 2);
 
   const pushParams = useCallback(
     (next: HairParams) => {
@@ -57,18 +55,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
   const handlePromptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[EditPanel] handlePromptSubmit — processingRef:', processingRef.current, '| phase:', phase, '| sessionId:', sessionId, '| latestImageUrl (first 80):', latestImageUrl?.slice(0, 80) ?? 'NULL');
-
-    if (processingRef.current) {
-      console.warn('[EditPanel] BLOCKED — processingRef is true, already running');
-      return;
-    }
-    if (!prompt.trim()) {
-      console.warn('[EditPanel] BLOCKED — empty prompt');
-      return;
-    }
+    if (processingRef.current) return;
+    if (!prompt.trim()) return;
     if (!sessionId || !latestImageUrl) {
-      console.error('[EditPanel] BLOCKED — missing sessionId or latestImageUrl. sessionId:', sessionId, '| latestImageUrl:', latestImageUrl);
       setPipelineError('No session or image available. Please scan first.');
       return;
     }
@@ -78,108 +67,62 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     setPipelineError(null);
     setPhase('gemini');
 
-    console.log('[EditPanel] ========== PIPELINE START ==========');
-    console.log('[EditPanel] prompt:', submittedPrompt);
-    console.log('[EditPanel] sessionId:', sessionId);
-    console.log('[EditPanel] latestImageUrl (first 120):', latestImageUrl.slice(0, 120));
-
     try {
-      // ── Step 1: Gemini image edit ─────────────────────────────────────────
-      console.log('[EditPanel] STEP 1 — calling /api/gemini-hair-edit...');
-      let geminiRes: Response;
-      try {
-        geminiRes = await fetch('/api/gemini-hair-edit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: latestImageUrl, prompt: submittedPrompt, sessionId }),
-        });
-      } catch (netErr) {
-        console.error('[EditPanel] NETWORK ERROR calling /api/gemini-hair-edit:', netErr);
-        setPipelineError('Network error reaching /api/gemini-hair-edit: ' + String(netErr));
-        return;
-      }
-
-      console.log('[EditPanel] gemini HTTP status:', geminiRes.status, geminiRes.statusText);
-      const geminiRaw = await geminiRes.text();
-      console.log('[EditPanel] gemini raw response (first 600 chars):\n', geminiRaw.slice(0, 600));
-
-      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
-      try {
-        geminiData = JSON.parse(geminiRaw);
-      } catch {
-        console.error('[EditPanel] gemini response NOT valid JSON! Full body:', geminiRaw);
-        setPipelineError('Gemini returned non-JSON (HTTP ' + geminiRes.status + '). Check server logs.');
-        return;
-      }
-
-      console.log('[EditPanel] gemini parsed:', {
-        ok: geminiData.ok,
-        newImageUrl: geminiData.newImageUrl?.slice(0, 100) ?? 'MISSING',
-        error: geminiData.error ?? 'none',
-        detail: geminiData.detail?.slice(0, 200) ?? 'none',
+      const geminiRes = await fetch('/api/gemini-hair-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: latestImageUrl,
+          prompt: submittedPrompt,
+          sessionId,
+          currentProfile: buildCurrentProfilePayload({
+            ...profile,
+            currentStyle: { ...profile.currentStyle, params: currentParams },
+          }),
+        }),
       });
-
+      const geminiRaw = await geminiRes.text();
+      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
+      try { geminiData = JSON.parse(geminiRaw); }
+      catch {
+        setPipelineError('Gemini returned non-JSON (HTTP ' + geminiRes.status + ').');
+        return;
+      }
       if (!geminiData.ok || !geminiData.newImageUrl) {
         const msg = geminiData.error ?? 'Unknown Gemini error';
-        const detail = geminiData.detail ? ' — ' + geminiData.detail.slice(0, 200) : '';
-        console.error('[EditPanel] GEMINI FAILED:', msg, detail);
-        setPipelineError('Gemini failed: ' + msg + detail);
+        setPipelineError('Gemini failed: ' + msg);
         return;
       }
-
       const newImageUrl = geminiData.newImageUrl;
-      console.log('[EditPanel] GEMINI SUCCESS — newImageUrl:', newImageUrl.slice(0, 120));
       onImageUpdated(newImageUrl);
       setPrompt('');
 
-      // ── Step 2: HairStep ─────────────────────────────────────────────────
       setPhase('hairstep');
-      console.log('[EditPanel] STEP 2 — calling /api/hairstep with newImageUrl:', newImageUrl.slice(0, 120));
-
-      let hairstepRes: Response;
-      try {
-        hairstepRes = await fetch('/api/hairstep', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: newImageUrl, sessionId }),
-        });
-      } catch (netErr) {
-        console.error('[EditPanel] NETWORK ERROR calling /api/hairstep:', netErr);
-        setPipelineError('Network error reaching /api/hairstep: ' + String(netErr));
-        return;
-      }
-
-      console.log('[EditPanel] hairstep HTTP status:', hairstepRes.status, hairstepRes.statusText);
-      const hairstepRaw = await hairstepRes.text();
-      console.log('[EditPanel] hairstep raw response (first 400 chars):\n', hairstepRaw.slice(0, 400));
-
-      let hairstepData: { ok: boolean; plyUrl?: string; error?: string };
-      try {
-        hairstepData = JSON.parse(hairstepRaw);
-      } catch {
-        console.error('[EditPanel] hairstep response NOT valid JSON! Full body:', hairstepRaw);
-        setPipelineError('HairStep returned non-JSON (HTTP ' + hairstepRes.status + '). Check server logs.');
-        return;
-      }
-
-      console.log('[EditPanel] hairstep parsed:', {
-        ok: hairstepData.ok,
-        plyUrl: hairstepData.plyUrl?.slice(0, 100) ?? 'MISSING',
-        error: hairstepData.error ?? 'none',
+      const hairstepRes = await fetch('/api/hairstep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: newImageUrl,
+          sessionId,
+          currentProfile: buildCurrentProfilePayload({
+            ...profile,
+            currentStyle: { ...profile.currentStyle, params: currentParams },
+          }),
+        }),
       });
-
+      const hairstepRaw = await hairstepRes.text();
+      let hairstepData: { ok: boolean; plyUrl?: string; error?: string };
+      try { hairstepData = JSON.parse(hairstepRaw); }
+      catch {
+        setPipelineError('HairStep returned non-JSON (HTTP ' + hairstepRes.status + ').');
+        return;
+      }
       if (!hairstepData.ok || !hairstepData.plyUrl) {
-        console.error('[EditPanel] HAIRSTEP FAILED:', hairstepData.error);
         setPipelineError('HairStep failed: ' + (hairstepData.error ?? 'unknown error'));
         return;
       }
-
-      console.log('[EditPanel] HAIRSTEP SUCCESS — plyUrl:', hairstepData.plyUrl.slice(0, 120));
       onPlyReady(hairstepData.plyUrl);
-      console.log('[EditPanel] ========== PIPELINE COMPLETE ==========');
-
     } finally {
-      console.log('[EditPanel] FINALLY — resetting phase to idle, releasing processingRef');
       setPhase('idle');
       processingRef.current = false;
     }
@@ -190,6 +133,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       const prev = history[historyIndex - 1];
       setHistoryIndex(historyIndex - 1);
       onParamsChange(prev);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      const next = history[historyIndex + 1];
+      setHistoryIndex(historyIndex + 1);
+      onParamsChange(next);
     }
   };
 
@@ -215,38 +166,46 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     if (summary) navigator.clipboard.writeText(summary);
   };
 
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const next = history[historyIndex + 1];
-      setHistoryIndex(historyIndex + 1);
-      onParamsChange(next);
-    }
-  };
+  const isBusy = phase !== 'idle';
 
   return (
-    <div className="flex flex-col gap-6 p-4 bg-gray-900 text-white h-full overflow-y-auto">
-      <h2 className="text-lg font-semibold">Edit Hair</h2>
+    <div className="flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }}>
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <span className="inline-block w-2 h-7 barber-pole" />
+        <div>
+          <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
+          <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
+        </div>
+      </div>
 
       {generatedImage && (
-        <img src={generatedImage} alt="Generated hairstyle" className="rounded w-full" />
+        <div className="rounded-2xl border border-[var(--char)]/10 overflow-hidden shadow-sm">
+          <img src={generatedImage} alt="Generated hairstyle" className="w-full" />
+        </div>
       )}
 
-      {/* LLM Prompt */}
-      <form onSubmit={handlePromptSubmit} className="flex flex-col gap-2">
-        <label className="text-sm text-gray-400">Describe the style</label>
+      {/* Prompt */}
+      <form onSubmit={handlePromptSubmit} className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <span className="pill pill-tomato">new request</span>
+          <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
+        </div>
         <textarea
-          className="bg-gray-800 rounded p-2 text-sm resize-none h-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          placeholder='e.g. "Give me a messy taper fade"'
+          className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
+          style={{ fontStyle: 'italic' }}
+          placeholder='"Messy taper fade, please."'
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={phase !== 'idle'}
-            className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded px-4 py-2 text-sm font-medium transition-colors"
+            disabled={isBusy}
+            className="btn btn-tomato flex-1"
+            style={{ padding: '10px 16px', fontSize: 13 }}
           >
-            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Building 3D…' : 'Apply Style'}
+            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Sculpting…' : '✂ Apply'}
           </button>
           <button
             type="button"
@@ -254,12 +213,17 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               if (agentActive) { agent.stop(); setAgentActive(false); }
               else             { agent.start(); setAgentActive(true); }
             }}
-            className={`rounded px-3 py-2 text-sm font-medium transition-colors ${agentActive ? 'bg-red-600 hover:bg-red-500' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`btn ${agentActive ? 'btn-tomato' : 'btn-denim'}`}
+            style={{ padding: '10px 14px', fontSize: 13 }}
           >
-            {agentActive ? '⏹ Stop' : '🎤 Voice'}
+            {agentActive ? '◼ Stop' : '🎙 Voice'}
           </button>
         </div>
-        {pipelineError && <p className="text-red-400 text-xs">{pipelineError}</p>}
+        {pipelineError && (
+          <div className="px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+            {pipelineError}
+          </div>
+        )}
       </form>
 
       {/* Undo / Redo */}
@@ -267,36 +231,39 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         <button
           onClick={undo}
           disabled={historyIndex === 0}
-          className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded px-3 py-1 text-sm"
+          className="btn-ghost flex-1 disabled:opacity-40"
         >
           ← Undo
         </button>
         <button
           onClick={redo}
           disabled={historyIndex === history.length - 1}
-          className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded px-3 py-1 text-sm"
+          className="btn-ghost flex-1 disabled:opacity-40"
         >
           Redo →
         </button>
       </div>
 
       {/* Manual sliders */}
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-gray-500 uppercase tracking-widest">Manual Overrides</p>
+      <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
+        <div className="flex items-baseline justify-between">
+          <span className="pill">manual trim</span>
+          <span className="font-mono text-[10px] text-[var(--smoke)]">5 dials</span>
+        </div>
 
         {(
           [
-            { key: 'topLength',  label: 'Top Length',   min: 0, max: 2, step: 0.05 },
-            { key: 'sideLength', label: 'Side Length',  min: 0, max: 2, step: 0.05 },
-            { key: 'backLength', label: 'Back Length',  min: 0, max: 2, step: 0.05 },
+            { key: 'topLength',  label: 'Top length',   min: 0, max: 2, step: 0.05 },
+            { key: 'sideLength', label: 'Side length',  min: 0, max: 2, step: 0.05 },
+            { key: 'backLength', label: 'Back length',  min: 0, max: 2, step: 0.05 },
             { key: 'messiness',  label: 'Messiness',    min: 0, max: 1, step: 0.05 },
             { key: 'taper',      label: 'Taper',        min: 0, max: 1, step: 0.05 },
           ] as const
         ).map(({ key, label, min, max, step }) => (
-          <div key={key} className="flex flex-col gap-1">
-            <div className="flex justify-between text-sm">
-              <span>{label}</span>
-              <span className="text-gray-400">{currentParams[key].toFixed(2)}</span>
+          <div key={key} className="flex flex-col gap-1.5">
+            <div className="flex justify-between items-baseline">
+              <span className="font-serif italic text-sm text-[var(--char)]">{label}</span>
+              <span className="font-mono text-[10px] text-[var(--smoke)]">{currentParams[key].toFixed(2)}</span>
             </div>
             <input
               type="range"
@@ -305,32 +272,70 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               step={step}
               value={currentParams[key]}
               onChange={(e) => handleSlider(key, parseFloat(e.target.value))}
-              className="w-full accent-blue-500"
+              className="slider-warm w-full"
             />
           </div>
         ))}
       </div>
 
+      <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
+        <div className="flex items-baseline justify-between">
+          <span className="pill pill-denim">live measurements</span>
+          <span className="font-mono text-[10px] text-[var(--smoke)]">auto</span>
+        </div>
+        <textarea
+          readOnly
+          value={liveMeasurementsJson}
+          className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-40 focus:outline-none"
+          style={{ fontStyle: 'normal' }}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
+        <div className="flex items-baseline justify-between">
+          <span className="pill pill-denim">llm payload</span>
+          <span className="font-mono text-[10px] text-[var(--smoke)]">current_profile</span>
+        </div>
+        <textarea
+          readOnly
+          value={llmPayloadJson}
+          className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-56 focus:outline-none"
+          style={{ fontStyle: 'normal' }}
+        />
+      </div>
+
       {/* Barber Summary */}
-      <div className="flex flex-col gap-2 pt-4 border-t border-gray-700">
+      <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
+        <span className="pill pill-tomato">take it to your barber</span>
         <button
           onClick={handleGetSummary}
           disabled={summaryLoading}
-          className="bg-green-700 hover:bg-green-600 disabled:bg-gray-600 rounded px-4 py-2 text-sm font-medium transition-colors"
+          className="btn btn-cream"
+          style={{ padding: '10px 16px', fontSize: 13 }}
         >
-          {summaryLoading ? 'Generating…' : 'Get Barber Summary'}
+          {summaryLoading ? 'Writing the order…' : '📜 Barber\u2019s order'}
         </button>
         {summary && (
-          <div className="flex flex-col gap-1">
-            <textarea
-              ref={summaryRef}
-              readOnly
-              value={summary}
-              className="bg-gray-800 rounded p-2 text-xs text-gray-200 resize-none h-36 focus:outline-none"
-            />
+          <div className="flex flex-col gap-2">
+            <div className="relative">
+              <textarea
+                ref={summaryRef}
+                readOnly
+                value={summary}
+                className="input-soft w-full rounded-xl p-4 pt-5 font-serif text-[13px] leading-snug resize-none h-40 focus:outline-none"
+                style={{ fontStyle: 'normal' }}
+              />
+              <div
+                aria-hidden
+                className="absolute -top-2 left-3 px-2 py-0.5 bg-[var(--tomato)] text-[var(--cream)] font-sans text-[9px] uppercase tracking-wider rounded-md"
+                style={{ fontWeight: 600 }}
+              >
+                order
+              </div>
+            </div>
             <button
               onClick={handleCopySummary}
-              className="bg-gray-700 hover:bg-gray-600 rounded px-3 py-1 text-xs"
+              className="btn-ghost"
             >
               Copy to clipboard
             </button>
@@ -339,10 +344,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       </div>
 
       {/* Current preset badge */}
-      <div className="mt-auto pt-4 border-t border-gray-700 text-xs text-gray-400">
-        Preset: <span className="text-white font-medium">{profile.currentStyle.preset}</span>
-        {' · '}
-        Hair type: <span className="text-white font-medium">{profile.currentStyle.hairType}</span>
+      <div className="mt-auto pt-4 border-t border-dashed border-[var(--char)]/20 font-mono text-[10px] text-[var(--smoke)] flex items-center justify-between">
+        <span>preset · <span className="text-[var(--ink)]">{profile.currentStyle.preset}</span></span>
+        <span>type · <span className="text-[var(--ink)]">{profile.currentStyle.hairType}</span></span>
       </div>
     </div>
   );
