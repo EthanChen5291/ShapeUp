@@ -143,11 +143,9 @@ const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 const HAIR_LAYERS = [
   { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: '/hair/hair_modified.ply', color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: '/hair/strands_1.ply',   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'deep',      label: 'Depth 1',     url: '/hair/depth_1.ply',     color: '#3b1f0a', lineWidth: 1.0, renderOrder: 1 },
   { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: '/hair/preset_a.ply',    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'medium long',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: '/hair/brunohair.ply',   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'npy', id: 'bruno depth',  label: 'Bruno Depth', url: '/hair/brunohair_depth.npy', color: '#44aaff', lineWidth: 0, renderOrder: 0 },
   { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
 ] as const;
 
@@ -392,15 +390,6 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
         <button onClick={() => setShowHair(v => !v)} style={{ ...btnStyle, opacity: showHair ? 1 : 0.4, outline: '2px solid #aaa' }}>
           {showHair ? 'hide hair' : 'show hair'}
-        </button>
-        <button onClick={() => setShowPolycam(v => !v)} style={{ ...btnStyle, opacity: showPolycam ? 1 : 0.4 }}>
-          polycam
-        </button>
-        <button onClick={() => setShowSplat(v => !v)} style={{ ...btnStyle, opacity: showSplat ? 1 : 0.4 }}>
-          gaussians
-        </button>
-        <button onClick={() => setShowFlame(v => !v)} style={{ ...btnStyle, opacity: showFlame ? 1 : 0.4, outline: effectiveFlameData ? '2px solid #44ffdd' : 'none' }}>
-          flame
         </button>
         {HAIR_LAYERS.map(l => (
           <button

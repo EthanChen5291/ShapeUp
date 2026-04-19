@@ -2,7 +2,8 @@
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { UserHeadProfile } from '@/types';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
 import Image from 'next/image';
 
 interface HairEditLoopProps {
@@ -43,13 +44,25 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const isBusy = phase !== 'idle' || isBaldifying;
 
-  const handleSubmit = async () => {
+  const handleSubmitRef = useRef<(p?: string) => void>(() => {});
+
+  const agent = useElevenLabsAgent((transcript) => {
+    handleSubmitRef.current(transcript);
+  });
+
+  useEffect(() => {
+    agent.start();
+    return () => agent.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = async (promptOverride?: string) => {
     if (processingRef.current) return;
-    if (!prompt.trim()) return;
+    const submittedPrompt = (promptOverride ?? prompt).trim();
+    if (!submittedPrompt) return;
     if (isBusy) return;
 
     processingRef.current = true;
-    const submittedPrompt = prompt.trim();
     setPipelineError(null);
     setPhase('gemini');
 
@@ -109,6 +122,8 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
       processingRef.current = false;
     }
   };
+
+  handleSubmitRef.current = handleSubmit;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -30,8 +30,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [pipelineError, setPipelineError] = useState<string | null>(null);
 
   const [agentActive, setAgentActive] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const agent = useElevenLabsAgent((imageUrl) => setGeneratedImage(imageUrl));
+
+  const agent = useElevenLabsAgent((text) => runPromptPipeline(text));
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement>(null);
@@ -55,17 +55,15 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     pushParams({ ...currentParams, [key]: value });
   };
 
-  const handlePromptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
-    if (!prompt.trim()) return;
+    if (!submittedPrompt.trim()) return;
     if (!sessionId || !latestImageUrl) {
       setPipelineError('No session or image available. Please scan first.');
       return;
     }
 
     processingRef.current = true;
-    const submittedPrompt = prompt.trim();
     setPipelineError(null);
     setPhase('gemini');
 
@@ -181,14 +179,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         </div>
       </div>
 
-      {generatedImage && (
-        <div className="rounded-2xl border border-[var(--char)]/10 overflow-hidden shadow-sm">
-          <img src={generatedImage} alt="Generated hairstyle" className="w-full" />
-        </div>
-      )}
-
       {/* Prompt */}
-      <form onSubmit={handlePromptSubmit} className="flex flex-col gap-3">
+      <form onSubmit={(e) => { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">new request</span>
           <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
