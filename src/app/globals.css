@@ -521,6 +521,32 @@ input[type="range"].slider-warm::-moz-range-thumb {
   animation: spin 900ms linear infinite;
 }
 
+/* ── Scissor mascot — gentle idle snip ───────────────────── */
+.scissor-blade-left,
+.scissor-blade-right {
+  transform-origin: 100px 180px;
+  transform-box: view-box;
+  will-change: transform;
+}
+.scissor-blade-left  { animation: scissor-snip-left  3.2s ease-in-out infinite; }
+.scissor-blade-right { animation: scissor-snip-right 3.2s ease-in-out infinite; }
+
+@keyframes scissor-snip-left {
+  0%, 70%, 100% { transform: rotate(0deg); }
+  82%           { transform: rotate(10deg); }
+  90%           { transform: rotate(8deg); }
+}
+@keyframes scissor-snip-right {
+  0%, 70%, 100% { transform: rotate(0deg); }
+  82%           { transform: rotate(-10deg); }
+  90%           { transform: rotate(-8deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scissor-blade-left,
+  .scissor-blade-right { animation: none; }
+}
+
 /* Scrollbar */
 .cozy-scroll::-webkit-scrollbar { width: 8px; }
 .cozy-scroll::-webkit-scrollbar-track { background: transparent; }

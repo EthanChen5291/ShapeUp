@@ -105,14 +105,14 @@ export default function Home() {
                 <em>U</em>P<span className="inline-block" style={{ width: '0.18em' }} />
               </h1>
 
-              {/* Mascot — retro barber pole / spotlight */}
+              {/* Mascot — retro barber scissors */}
               <div
                 className="absolute pointer-events-none anim-fade-up delay-300"
                 style={{
-                  left: '-18%',
+                  left: '-32%',
                   bottom: '-4%',
                   width: 'clamp(120px, 18vw, 240px)',
-                  transform: 'rotate(6deg)',
+                  transform: 'rotate(186deg)',
                 }}
               >
                 <BarberMascot />
@@ -342,52 +342,42 @@ export default function Home() {
   );
 }
 
-/* ─────────────── Mascot ─────────────── */
+/* ─────────────── Mascot — vintage barber scissors ─────────────── */
 function BarberMascot() {
   return (
-    <svg viewBox="0 0 200 360" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-lg">
-      {/* stepped base */}
-      <rect x="48" y="312" width="104" height="18" rx="2" fill="#2a201a" />
-      <rect x="34" y="330" width="132" height="18" rx="2" fill="#2a201a" />
-      <rect x="60" y="296" width="80" height="18" rx="2" fill="#2a201a" />
+    <svg viewBox="0 0 200 360" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto drop-shadow-lg scissor-mascot">
+      {/* Shanks (static) */}
+      <line x1="94" y1="188" x2="58" y2="266" stroke="#2a201a" strokeWidth="13" strokeLinecap="round" />
+      <line x1="106" y1="188" x2="142" y2="266" stroke="#2a201a" strokeWidth="13" strokeLinecap="round" />
 
-      {/* pole stem */}
-      <rect x="92" y="196" width="16" height="100" fill="#2a201a" />
-      <rect x="88" y="192" width="24" height="10" rx="2" fill="#2a201a" />
+      {/* Finger loops (static) */}
+      <circle cx="52" cy="300" r="34" fill="none" stroke="#2a201a" strokeWidth="14" />
+      <circle cx="148" cy="300" r="34" fill="none" stroke="#2a201a" strokeWidth="14" />
 
-      {/* shade bracket */}
-      <rect x="60" y="168" width="80" height="26" rx="3" fill="#2a201a" />
-
-      {/* pole body (cream cylinder with diagonal stripes) */}
-      <g>
-        <rect x="56" y="60" width="88" height="112" rx="6" fill="#fff8ea" stroke="#2a201a" strokeWidth="4" />
-        <defs>
-          <clipPath id="poleClip">
-            <rect x="58" y="62" width="84" height="108" rx="5" />
-          </clipPath>
-        </defs>
-        <g clipPath="url(#poleClip)">
-          {[-120, -90, -60, -30, 0, 30, 60, 90, 120].map((y) => (
-            <g key={y}>
-              <path d={`M 40 ${y + 36} L 160 ${y - 24} L 160 ${y - 4} L 40 ${y + 56} Z`} fill="#d94e3a" />
-              <path d={`M 40 ${y + 76} L 160 ${y + 16} L 160 ${y + 36} L 40 ${y + 96} Z`} fill="#3a6b93" />
-            </g>
-          ))}
-        </g>
+      {/* Left blade — snips around the pivot */}
+      <g className="scissor-blade-left">
+        <path
+          d="M 108 172 L 88 188 L 32 28 L 48 22 Z"
+          fill="#2a201a"
+          stroke="#2a201a"
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
       </g>
 
-      {/* glass dome highlight */}
-      <ellipse cx="80" cy="95" rx="14" ry="36" fill="#fff8ea" opacity="0.35" />
+      {/* Right blade — snips around the pivot */}
+      <g className="scissor-blade-right">
+        <path
+          d="M 92 172 L 112 188 L 168 28 L 152 22 Z"
+          fill="#2a201a"
+          stroke="#2a201a"
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
+      </g>
 
-      {/* top cap */}
-      <rect x="54" y="52" width="92" height="14" rx="3" fill="#2a201a" />
-
-      {/* top globe */}
-      <circle cx="100" cy="32" r="22" fill="#fff8ea" stroke="#2a201a" strokeWidth="4" />
-      <circle cx="93" cy="26" r="6" fill="#2a201a" opacity="0.15" />
-
-      {/* tiny finial */}
-      <rect x="96" y="2" width="8" height="12" rx="2" fill="#2a201a" />
+      {/* Pivot rivet — above blades so the join is clean */}
+      <circle cx="100" cy="180" r="13" fill="#2a201a" />
     </svg>
   );
 }
