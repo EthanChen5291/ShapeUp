@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 
-const VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
+const VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5';
 const API_KEY  = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
 
 export function useElevenLabsAgent(
