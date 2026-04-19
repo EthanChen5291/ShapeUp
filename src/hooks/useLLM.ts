@@ -81,5 +81,11 @@ function clampParams(raw: Partial<HairParams>): HairParams {
     backLength: clamp(raw?.backLength, 0, 2, 1.0),
     messiness:  clamp(raw?.messiness,  0, 1, 0.2),
     taper:      clamp(raw?.taper,      0, 1, 0.5),
+    pc1: clamp(raw?.pc1, -3, 3, 0),
+    pc2: clamp(raw?.pc2, -3, 3, 0),
+    pc3: clamp(raw?.pc3, -3, 3, 0),
+    pc4: clamp(raw?.pc4, -3, 3, 0),
+    pc5: clamp(raw?.pc5, -3, 3, 0),
+    pc6: clamp(raw?.pc6, -3, 3, 0),
   };
 }

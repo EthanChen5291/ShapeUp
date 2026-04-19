@@ -9,9 +9,11 @@
 
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
+import { useCallback, useRef, useState } from 'react';
+
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
+import { useLLM } from '@/hooks/useLLM';
 
 interface EditPanelProps {
   profile: UserHeadProfile;
@@ -280,30 +282,31 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         </button>
       </div>
 
-      {/* Manual sliders */}
+      {/* PCA sliders */}
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-gray-500 uppercase tracking-widest">Manual Overrides</p>
+        <p className="text-xs text-gray-500 uppercase tracking-widest">Hair Parameters</p>
 
         {(
           [
-            { key: 'topLength',  label: 'Top Length',   min: 0, max: 2, step: 0.05 },
-            { key: 'sideLength', label: 'Side Length',  min: 0, max: 2, step: 0.05 },
-            { key: 'backLength', label: 'Back Length',  min: 0, max: 2, step: 0.05 },
-            { key: 'messiness',  label: 'Messiness',    min: 0, max: 1, step: 0.05 },
-            { key: 'taper',      label: 'Taper',        min: 0, max: 1, step: 0.05 },
+            { key: 'pc1', label: 'Hair length' },
+            { key: 'pc2', label: 'Width' },
+            { key: 'pc3', label: 'Ponytail-ness' },
+            { key: 'pc4', label: 'Density' },
+            { key: 'pc5', label: 'Wavyness' },
+            { key: 'pc6', label: 'Parting' },
           ] as const
-        ).map(({ key, label, min, max, step }) => (
+        ).map(({ key, label }) => (
           <div key={key} className="flex flex-col gap-1">
             <div className="flex justify-between text-sm">
               <span>{label}</span>
-              <span className="text-gray-400">{currentParams[key].toFixed(2)}</span>
+              <span className="text-gray-400">{(currentParams[key] ?? 0).toFixed(2)}</span>
             </div>
             <input
               type="range"
-              min={min}
-              max={max}
-              step={step}
-              value={currentParams[key]}
+              min={-3}
+              max={3}
+              step={0.1}
+              value={currentParams[key] ?? 0}
               onChange={(e) => handleSlider(key, parseFloat(e.target.value))}
               className="w-full accent-blue-500"
             />

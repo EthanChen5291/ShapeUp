@@ -9,6 +9,12 @@ export interface HairParams {
   backLength: number;   // 0.0 – 2.0  (scale of Back mesh group)
   messiness: number;    // 0.0 – 1.0  (vertex-jitter noise amplitude)
   taper: number;        // 0.0 – 1.0  (gradient falloff from crown)
+  pc1: number;          // PCA component 1
+  pc2: number;          // PCA component 2
+  pc3: number;          // PCA component 3
+  pc4: number;          // PCA component 4
+  pc5: number;          // PCA component 5
+  pc6: number;          // PCA component 6
 }
 
 export interface ARFaceMesh {

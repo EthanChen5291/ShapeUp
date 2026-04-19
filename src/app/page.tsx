@@ -116,6 +116,7 @@ export default function Home() {
                 }
               : undefined
           }
+          smirkTransform={smirk.result?.transform}
         />
       </div>
 

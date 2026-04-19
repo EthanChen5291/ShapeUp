@@ -147,6 +147,7 @@ const HAIR_LAYERS = [
   { type: 'ply', id: 'guest',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: '/hair/brunohair.ply',   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'redhead',      label: 'Redhead',     url: '/hair/redhead.ply',     color: '#b03010', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
   { type: 'npy', id: 'bruno_depth',  label: 'Bruno Depth', url: '/hair/brunohair_depth.npy', color: '#44aaff', lineWidth: 0, renderOrder: 0 },
 ] as const;
 
@@ -200,7 +201,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
             url={l.url}
             color={l.color}
             scale={hairScale}
-            position={hairPos}
+            position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
             lineWidth={l.lineWidth}
             renderOrder={l.renderOrder}
           />

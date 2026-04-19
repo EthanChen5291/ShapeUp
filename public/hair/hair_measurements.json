@@ -1,0 +1,40 @@
+{
+  "revision": 2,
+  "timestamp": "2026-04-19T04:11:18.633Z",
+  "source": "mesh_bbox",
+  "units": "scene_units",
+  "baseline": {
+    "crownHeight": 0.3,
+    "sideWidth": 0.2,
+    "backLength": 0.25,
+    "flatness": 0.5,
+    "hairline": 0.28,
+    "hairThickness": 0.16
+  },
+  "estimated": {
+    "crownHeight": 0.3,
+    "sideWidth": 0.2,
+    "backLength": 0.25,
+    "flatness": 0.45,
+    "hairline": 0.2912,
+    "hairThickness": 0.1728
+  },
+  "currentParams": {
+    "topLength": 1,
+    "sideLength": 1,
+    "backLength": 1,
+    "messiness": 0,
+    "taper": 0.5
+  },
+  "bbox": {
+    "minX": 0,
+    "maxX": 0,
+    "minY": 0,
+    "maxY": 0,
+    "minZ": 0,
+    "maxZ": 0,
+    "width": 0,
+    "height": 0,
+    "depth": 0
+  }
+}
