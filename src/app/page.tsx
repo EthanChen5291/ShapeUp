@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 const HairScene  = dynamic(() => import('@/components/HairScene'),  { ssr: false });
 const ScanCamera = dynamic(() => import('@/components/ScanCamera'), { ssr: false });
+const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
 
 type AppState = 'scan' | 'hairEditLoop' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
@@ -26,6 +27,7 @@ export default function Home() {
   const [baldifiedDataUrl, setBaldifiedDataUrl] = useState<string | null>(null);
   const [faceliftPlyReady, setFaceliftPlyReady] = useState(false);
   const [hairstepPlyUrl, setHairstepPlyUrl]     = useState<string | null>(null);
+  const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
 
   const smirk = useSmirk(profile?.faceScanData?.imageDataUrl);
 
@@ -279,6 +281,25 @@ export default function Home() {
             boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)',
           }}
         >
+          {/* Recommendations bar — absolute overlay on the left of the 3D stage */}
+          <div
+            className="absolute left-3 z-10 flex flex-col overflow-y-auto"
+            style={{
+              top: '50%',
+              transform: 'translateY(-50%)',
+              maxHeight: '85%',
+              paddingRight: 2,
+            }}
+          >
+            <HairRecommendationsBar
+              onHover={setPreviewPlyUrl}
+              onSelect={(url) => {
+                setHairstepPlyUrl(url);
+                setPreviewPlyUrl(null);
+              }}
+            />
+          </div>
+
           <HairScene
             params={params}
             colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
@@ -286,7 +307,7 @@ export default function Home() {
             onPrimaryHairBBoxReady={handleHairBBoxReady}
             autoFaceliftDataUrl={baldifiedDataUrl ?? undefined}
             faceliftPlyReady={faceliftPlyReady}
-            hairstepPlyUrl={hairstepPlyUrl ?? undefined}
+            hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             flameData={
               smirk.result
                 ? {
