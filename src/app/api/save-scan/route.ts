@@ -9,10 +9,13 @@ export async function POST(req: NextRequest) {
   console.log('[save-scan] POST received');
 
   let imageDataUrl: string;
+  let currentProfile: unknown = null;
   try {
     const body = await req.json();
     imageDataUrl = body.imageDataUrl;
+    currentProfile = body.currentProfile ?? null;
     console.log('[save-scan] body parsed, imageDataUrl length:', imageDataUrl?.length ?? 'missing');
+    console.log('[save-scan] currentProfile present:', currentProfile !== null);
   } catch (err) {
     console.error('[save-scan] failed to parse request body:', err);
     return NextResponse.json({ ok: false, error: 'invalid JSON body', detail: String(err) }, { status: 400 });
@@ -44,7 +47,10 @@ export async function POST(req: NextRequest) {
   // Generate a session ID first so we can use it in the storage path
   let pendingSessionId: string | null = null;
   try {
-    const sessionRef = await addDoc(collection(db, 'session'), { createdAt: serverTimestamp() });
+    const sessionRef = await addDoc(collection(db, 'session'), {
+      createdAt: serverTimestamp(),
+      currentProfile,
+    });
     pendingSessionId = sessionRef.id;
   } catch (err) {
     console.error('[save-scan] Firestore pre-create failed (non-fatal):', err);
@@ -66,6 +72,7 @@ export async function POST(req: NextRequest) {
       const { doc, updateDoc, arrayUnion } = await import('firebase/firestore');
       await updateDoc(doc(db, 'session', pendingSessionId), {
         images: arrayUnion(downloadUrl),
+        currentProfile,
       });
       sessionId = pendingSessionId;
       console.log('[save-scan] Firestore doc updated with images array, id:', sessionId);

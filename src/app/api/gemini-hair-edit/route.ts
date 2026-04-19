@@ -13,15 +13,18 @@ export async function POST(req: NextRequest) {
   console.log('[gemini-hair-edit] GEMINI_API_KEY prefix:', process.env.GEMINI_API_KEY?.slice(0, 8) ?? 'MISSING');
 
   let imageUrl: string, prompt: string, sessionId: string;
+  let currentProfile: unknown = null;
   try {
     const body = await req.json();
     imageUrl = body.imageUrl;
     prompt = body.prompt;
     sessionId = body.sessionId;
+    currentProfile = body.currentProfile ?? null;
     console.log('[gemini-hair-edit] body parsed OK');
     console.log('[gemini-hair-edit]   sessionId:', sessionId);
     console.log('[gemini-hair-edit]   prompt:', prompt);
     console.log('[gemini-hair-edit]   imageUrl (first 120):', imageUrl?.slice(0, 120) ?? 'MISSING');
+    console.log('[gemini-hair-edit]   currentProfile present:', currentProfile !== null);
   } catch (err) {
     console.error('[gemini-hair-edit] FAILED to parse request body:', err);
     return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
@@ -61,7 +64,9 @@ export async function POST(req: NextRequest) {
       generationConfig: { responseModalities: ['image', 'text'] },
     });
 
-    const fullPrompt = `You are a professional hair stylist visualizer. Edit only the hair in this photo based on the following request: "${prompt}". Keep the face, skin, background, and all non-hair elements completely unchanged. Return the full edited portrait image.`;
+    const fullPrompt = `You are a professional hair stylist visualizer. Edit only the hair in this photo based on the following request: "${prompt}". Keep the face, skin, background, and all non-hair elements completely unchanged. Return the full edited portrait image.
+
+CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
     console.log('[gemini-hair-edit] full prompt:', fullPrompt);
     console.log('[gemini-hair-edit] sending request to Gemini...');
 

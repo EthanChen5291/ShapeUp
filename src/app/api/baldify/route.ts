@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const currentProfile = body.currentProfile ?? null;
   let mimeType: string;
   let base64: string;
 
@@ -51,7 +52,11 @@ export async function POST(req: NextRequest) {
           {
             parts: [
               { inlineData: { mimeType, data: base64 } },
-              { text: PROMPT },
+              {
+                text: currentProfile == null
+                  ? PROMPT
+                  : `${PROMPT}\n\nCURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`,
+              },
             ],
           },
         ],
