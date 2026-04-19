@@ -2,8 +2,548 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   SHAPE UP — Modern Neighborhood Barbershop
+   Warm + cozy, but fresh. Soft shadows, gentle wonk, clean shapes.
+   ============================================================ */
+
+:root {
+  /* Warm, modern palette */
+  --biscuit:     #f6ecd8;
+  --biscuit-lt:  #fcf5e4;
+  --cream:       #fff8ea;
+  --butter:      #ffe7b0;
+  --peach:       #ffd4b8;
+
+  --terracotta:  #d86b52;
+  --tomato:      #d94e3a;
+  --cherry:      #a9311f;
+  --wine:        #5e1810;
+
+  --denim:       #3a6b93;
+  --denim-lt:    #6b99bf;
+  --midnight:    #1b3650;
+
+  --caramel:     #c78a4c;
+  --mustard:     #e8b454;
+  --honey:       #f5cc6b;
+
+  --moss:        #6b8c4f;
+  --sage:        #a6b88a;
+
+  --ink:         #2a201a;
+  --char:        #4a3a2e;
+  --smoke:       #8a7a6a;
+  --chalk:       #fffaf0;
+
+  --shadow-sm:   0 2px 6px rgba(42, 32, 26, 0.08);
+  --shadow-md:   0 10px 24px -8px rgba(42, 32, 26, 0.18);
+  --shadow-lg:   0 30px 60px -24px rgba(42, 32, 26, 0.3);
+}
+
 html, body, #__next {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+body {
+  background: var(--biscuit);
+  color: var(--ink);
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Typography ──────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 50, 'WONK' 1, 'opsz' 144;
+}
+.font-serif {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 30, 'opsz' 14;
+}
+.font-sans { font-family: var(--font-dmsans), system-ui, sans-serif; }
+.font-mono { font-family: var(--font-jetbrains), ui-monospace, monospace; }
+
+/* ── Backgrounds ─────────────────────────────────────────── */
+.bg-shop {
+  background-color: var(--biscuit);
+  background-image:
+    radial-gradient(ellipse 900px 600px at 15% 10%, rgba(255, 212, 184, 0.55), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 90% 90%, rgba(107, 153, 191, 0.18), transparent 60%),
+    radial-gradient(ellipse 600px 400px at 50% 50%, rgba(255, 231, 176, 0.35), transparent 70%);
+}
+.bg-shop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.16  0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.5'/></svg>");
+  z-index: 0;
+}
+
+.bg-dusk {
+  background: linear-gradient(180deg, #241a14 0%, #17110d 100%);
+  color: var(--cream);
+}
+
+/* Bold tomato canvas — Old Iron Press style */
+.bg-tomato-shop {
+  background: var(--tomato);
+  color: var(--cream);
+  position: relative;
+}
+.bg-tomato-shop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.05  0 0 0 0 0.03  0 0 0 0.35 0'/></filter><rect width='100%' height='100%' filter='url(%23g)' opacity='0.45'/></svg>");
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+.bg-tomato-shop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 248, 234, 0.12), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(94, 24, 16, 0.35), transparent 60%);
+  z-index: 0;
+}
+
+/* Chonk display — for gigantic headlines */
+.type-chonk {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1, 'opsz' 144;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 0.82;
+}
+.type-chonk em {
+  font-style: italic;
+  font-weight: 900;
+}
+
+/* Stacked tiny wordmark — "SHAPE / UP" */
+.wordmark-stacked {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 0.92;
+  font-family: var(--font-dmsans), sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* Ink pill (dark CTA like the reference nav) */
+.btn-ink {
+  background: var(--ink);
+  color: var(--cream);
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-family: var(--font-dmsans), sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 140ms ease, background 140ms ease;
+  cursor: pointer;
+  border: none;
+}
+.btn-ink:hover:not(:disabled) {
+  background: #000;
+  transform: translateY(-1px);
+}
+.btn-ink .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--tomato);
+  color: var(--cream);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 5px;
+}
+
+/* Cream text link for nav on tomato */
+.link-cream {
+  font-family: var(--font-dmsans), sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cream);
+  opacity: 0.95;
+  transition: opacity 140ms ease;
+}
+.link-cream:hover { opacity: 0.7; }
+
+/* ── Soft wonk ───────────────────────────────────────────── */
+.wonky-l { transform: rotate(-0.8deg); }
+.wonky-r { transform: rotate(0.8deg); }
+.wonky-sm-l { transform: rotate(-0.4deg); }
+.wonky-sm-r { transform: rotate(0.4deg); }
+
+/* ── Polaroid — modernized ───────────────────────────────── */
+.polaroid {
+  background: var(--chalk);
+  padding: 14px 14px 52px;
+  border-radius: 4px;
+  box-shadow: var(--shadow-md), var(--shadow-lg);
+  position: relative;
+}
+
+/* Subtle tape — transparent, not candy-colored */
+.tape {
+  position: absolute;
+  width: 78px;
+  height: 20px;
+  background: rgba(255, 212, 145, 0.55);
+  backdrop-filter: blur(1px);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  pointer-events: none;
+}
+.tape-tl { top: -8px; left: -14px; transform: rotate(-18deg); }
+.tape-tr { top: -8px; right: -14px; transform: rotate(16deg); }
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card {
+  background: var(--cream);
+  border-radius: 22px;
+  padding: 28px 26px;
+  box-shadow:
+    0 1px 0 rgba(42,32,26,0.04),
+    0 2px 6px rgba(42,32,26,0.06),
+    0 20px 50px -20px rgba(42,32,26,0.2);
+  border: 1px solid rgba(42,32,26,0.08);
+}
+
+.card-warm {
+  background: linear-gradient(180deg, var(--cream), var(--biscuit-lt));
+  border-radius: 22px;
+  padding: 28px 26px;
+  box-shadow:
+    0 1px 0 rgba(42,32,26,0.04),
+    0 2px 6px rgba(42,32,26,0.06),
+    0 20px 50px -20px rgba(42,32,26,0.2);
+  border: 1px solid rgba(42,32,26,0.08);
+}
+
+/* Ticket / coupon — modernized */
+.ticket-modern {
+  background: var(--cream);
+  border-radius: 20px;
+  padding: 28px 28px;
+  position: relative;
+  box-shadow:
+    0 1px 0 rgba(42,32,26,0.04),
+    0 30px 70px -24px rgba(42,32,26,0.28);
+  border: 1px solid rgba(42,32,26,0.08);
+}
+.ticket-modern::before,
+.ticket-modern::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 13px;
+  background: var(--biscuit);
+}
+.ticket-modern::before {
+  top: -1px;
+  border-radius: 0 0 26px 26px;
+  border-bottom: 1px solid rgba(42,32,26,0.08);
+}
+.ticket-modern::after {
+  bottom: -1px;
+  border-radius: 26px 26px 0 0;
+  border-top: 1px solid rgba(42,32,26,0.08);
+}
+/* Ticket notch color variant when sitting on tomato page */
+.ticket-on-tomato::before,
+.ticket-on-tomato::after {
+  background: var(--tomato);
+}
+
+/* ── Hand-drawn squiggle (soft, sparse usage) ───────────── */
+.squiggle {
+  width: 100%;
+  height: 10px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 10' preserveAspectRatio='none'><path d='M0 5 Q 15 0 30 5 T 60 5 T 90 5 T 120 5' stroke='%234a3a2e' stroke-width='1.2' fill='none' stroke-linecap='round' opacity='0.4'/></svg>");
+  background-repeat: repeat-x;
+  background-size: 80px 10px;
+}
+.squiggle-tomato {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 10' preserveAspectRatio='none'><path d='M0 5 Q 15 0 30 5 T 60 5 T 90 5 T 120 5' stroke='%23d94e3a' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+  background-size: 80px 10px;
+}
+
+/* Soft scribble underline for accent words */
+.scribble-under {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 8' preserveAspectRatio='none'><path d='M4 5 Q 25 1 55 4 T 110 5 T 156 3' stroke='%23d94e3a' stroke-width='2.2' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-size: 100% 8px;
+  background-position: 0 100%;
+  padding-bottom: 6px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 9999px;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transition: transform 160ms cubic-bezier(.2,.7,.2,1), box-shadow 160ms ease, background 140ms ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-tomato {
+  background: var(--tomato);
+  color: var(--cream);
+  box-shadow: 0 4px 14px -4px rgba(169, 49, 31, 0.5), inset 0 -2px 0 rgba(0,0,0,0.1);
+}
+.btn-tomato:hover:not(:disabled) {
+  background: var(--cherry);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -6px rgba(169, 49, 31, 0.5), inset 0 -2px 0 rgba(0,0,0,0.12);
+}
+.btn-tomato:active:not(:disabled) { transform: translateY(0); }
+
+.btn-denim {
+  background: var(--denim);
+  color: var(--cream);
+  box-shadow: 0 4px 14px -4px rgba(27, 54, 80, 0.5), inset 0 -2px 0 rgba(0,0,0,0.12);
+}
+.btn-denim:hover:not(:disabled) {
+  background: var(--midnight);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -6px rgba(27, 54, 80, 0.5), inset 0 -2px 0 rgba(0,0,0,0.14);
+}
+.btn-denim:active:not(:disabled) { transform: translateY(0); }
+
+.btn-cream {
+  background: var(--cream);
+  color: var(--ink);
+  border: 1px solid rgba(42,32,26,0.12);
+  box-shadow: 0 2px 8px -2px rgba(42,32,26,0.12);
+}
+.btn-cream:hover:not(:disabled) {
+  background: var(--butter);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px -6px rgba(42,32,26,0.2);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--char);
+  border: 1px solid rgba(42,32,26,0.18);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-family: var(--font-dmsans), sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--cream);
+  border-color: var(--tomato);
+  color: var(--tomato);
+}
+
+/* ── Inputs ─────────────────────────────────────────────── */
+.input-soft {
+  background: var(--chalk);
+  border: 1px solid rgba(42,32,26,0.15);
+  border-radius: 14px;
+  color: var(--ink);
+  box-shadow: inset 0 1px 3px rgba(42,32,26,0.06);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  font-family: var(--font-fraunces), Georgia, serif;
+}
+.input-soft:focus {
+  outline: none;
+  border-color: var(--tomato);
+  box-shadow: inset 0 1px 3px rgba(42,32,26,0.06), 0 0 0 4px rgba(217, 78, 58, 0.15);
+}
+
+/* ── Range slider — warm & modern ───────────────────────── */
+input[type="range"].slider-warm {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: linear-gradient(90deg, var(--tomato), var(--butter));
+  border-radius: 9999px;
+  outline: none;
+}
+input[type="range"].slider-warm::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  box-shadow: 0 2px 6px rgba(42,32,26,0.25);
+  cursor: grab;
+  transition: transform 120ms ease;
+}
+input[type="range"].slider-warm::-webkit-slider-thumb:hover { transform: scale(1.1); }
+input[type="range"].slider-warm::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  box-shadow: 0 2px 6px rgba(42,32,26,0.25);
+  cursor: grab;
+}
+
+/* ── Chips / pills ───────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--butter);
+  color: var(--char);
+  font-family: var(--font-dmsans), sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(42,32,26,0.1);
+}
+
+.pill-tomato {
+  background: rgba(217, 78, 58, 0.1);
+  color: var(--cherry);
+  border-color: rgba(217, 78, 58, 0.25);
+}
+
+.pill-denim {
+  background: rgba(58, 107, 147, 0.1);
+  color: var(--denim);
+  border-color: rgba(58, 107, 147, 0.25);
+}
+
+/* ── Speech bubble ───────────────────────────────────────── */
+.bubble {
+  position: relative;
+  background: var(--chalk);
+  border-radius: 20px;
+  padding: 14px 20px;
+  box-shadow: 0 8px 24px -8px rgba(42,32,26,0.2);
+  border: 1px solid rgba(42,32,26,0.08);
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 30px;
+  width: 18px;
+  height: 18px;
+  background: var(--chalk);
+  border-right: 1px solid rgba(42,32,26,0.08);
+  border-bottom: 1px solid rgba(42,32,26,0.08);
+  transform: rotate(45deg);
+}
+
+/* ── Status dot / live ─────────────────────────────────── */
+.dot-open {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #3fa75b;
+  box-shadow: 0 0 0 3px rgba(63, 167, 91, 0.25);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(63, 167, 91, 0.25); }
+  50%      { box-shadow: 0 0 0 7px rgba(63, 167, 91, 0.05); }
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50%      { transform: rotate(1.2deg); }
+}
+@keyframes bounce-in {
+  0%   { transform: scale(0.92); opacity: 0; }
+  60%  { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.anim-fade-up { animation: fadeUp 700ms cubic-bezier(.2,.7,.2,1) both; }
+.anim-fade-in { animation: fadeIn 600ms ease both; }
+.anim-sway    { animation: sway 3.8s ease-in-out infinite; transform-origin: 70% 100%; }
+.anim-bounce  { animation: bounce-in 500ms cubic-bezier(.34,1.56,.64,1) both; }
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Scissor loader */
+.scissor-loader {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--butter);
+  border-top-color: var(--tomato);
+  border-radius: 9999px;
+  animation: spin 900ms linear infinite;
+}
+
+/* Scrollbar */
+.cozy-scroll::-webkit-scrollbar { width: 8px; }
+.cozy-scroll::-webkit-scrollbar-track { background: transparent; }
+.cozy-scroll::-webkit-scrollbar-thumb {
+  background: rgba(42,32,26,0.2);
+  border-radius: 999px;
+}
+.cozy-scroll::-webkit-scrollbar-thumb:hover { background: rgba(42,32,26,0.35); }
+
+/* Barber pole (retained small accent) */
+@keyframes poleSpin {
+  from { background-position: 0 0; }
+  to   { background-position: 0 80px; }
+}
+.barber-pole {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--chalk) 0 10px,
+    var(--tomato) 10px 20px,
+    var(--chalk) 20px 30px,
+    var(--denim) 30px 40px
+  );
+  animation: poleSpin 3.2s linear infinite;
+  border-radius: 9999px;
+  border: 1px solid var(--ink);
 }
