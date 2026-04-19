@@ -50,8 +50,15 @@ only the raw JSON object.
 
 ## Context you will receive
 The user message will include a JSON block:
-  CURRENT_PROFILE: { currentStyle: { preset, hairType, colorRGB, params } }
-Use the current params as the starting point — only change what the user asked to change.
+  CURRENT_PROFILE: {
+    headProportions,
+    hairMeasurements,
+    measurementSnapshot,
+    currentStyle: { preset, hairType, colorRGB, params }
+  }
+Use the current params as the starting point.
+If measurementSnapshot is present, treat measurementSnapshot.estimated as the latest transformed geometry estimate and measurementSnapshot.bbox as raw dimensional grounding.
+Only change what the user asked to change.
 `.trim();
 
 // ── Few-shot examples (attach to user messages for better results) ──────────

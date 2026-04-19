@@ -17,13 +17,14 @@
 
 import * as THREE from 'three';
 
-import { HairParams, UserHeadProfile } from '@/types';
+import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Canvas } from '@react-three/fiber';
 import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { parseNPY } from '@/lib/parseNPY';
 
 // ── Polycam head ─────────────────────────────────────────────
@@ -134,7 +135,7 @@ function HairDepthPoints({ url, color, scale, position }: {
 // Fallback hair transform used before FLAME data + PLY bbox are both available.
 // Derived by manually aligning brunohair.ply to the reference Polycam head.
 const HAIR_PLY_SCALE_DEFAULT   = 13.109;
-const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.349, 0.714];
+const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
@@ -147,9 +148,11 @@ const HAIR_LAYERS = [
   { type: 'ply', id: 'guest',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: '/hair/brunohair.ply',   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'redhead',      label: 'Redhead',     url: '/hair/redhead.ply',     color: '#b03010', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
+  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.5 },
   { type: 'npy', id: 'bruno_depth',  label: 'Bruno Depth', url: '/hair/brunohair_depth.npy', color: '#44aaff', lineWidth: 0, renderOrder: 0 },
 ] as const;
+
+type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
 
 interface FlameData {
@@ -169,9 +172,10 @@ interface SceneProps {
   splatPosY: number;
   splatSrc: string;
   hairstepPlyUrl?: string;
+  onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, onPrimaryHairBBoxReady }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -204,11 +208,25 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
             position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
             lineWidth={l.lineWidth}
             renderOrder={l.renderOrder}
+            onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
           />
         )
       )}
 
+      {HAIR_LAYERS.some(l => l.type === 'ply' && l.id !== 'top_hair' && visibleLayers.has(l.id)) && (
+        <HairStrandMesh
+          key="top_hair_auto"
+          url="/hair/top_hair.ply"
+          color="#3b1f0a"
+          scale={hairScale}
+          position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
+          lineWidth={0.8}
+          renderOrder={0}
+        />
+      )}
+
       {hairstepPlyUrl && (
+        <>
         <HairStrandMesh
           url={hairstepPlyUrl}
           color="#3b1f0a"
@@ -216,7 +234,17 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
           position={hairPos}
           lineWidth={0.8}
           renderOrder={0}
+          onBBoxReady={onPrimaryHairBBoxReady}
         />
+        <HairStrandMesh
+          url="/hair/top_hair.ply"
+          color="#3b1f0a"
+          scale={hairScale}
+          position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
+          lineWidth={0.8}
+          renderOrder={0}
+        />
+        </>
       )}
 
       {showFlame && flameData && (
@@ -244,9 +272,10 @@ interface HairSceneProps {
   autoFaceliftDataUrl?:  string;
   faceliftPlyReady?:     boolean;
   hairstepPlyUrl?:       string;
+  onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -275,7 +304,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     fetch('/api/facelift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: autoFaceliftDataUrl }),
+      body: JSON.stringify({
+        imageDataUrl: autoFaceliftDataUrl,
+        currentProfile: _profile ? buildCurrentProfilePayload(_profile) : null,
+      }),
     })
       .then(r => r.json())
       .then(data => {
@@ -325,7 +357,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     const faceliftP = fetch('/api/facelift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageDataUrl: dataUrl }),
+      body: JSON.stringify({
+        imageDataUrl: dataUrl,
+        currentProfile: _profile ? buildCurrentProfilePayload(_profile) : null,
+      }),
     })
       .then(r => r.json())
       .then(data => {
@@ -409,6 +444,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
           hairstepPlyUrl={hairstepPlyUrl}
+          onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />
       </Canvas>
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>

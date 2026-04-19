@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
   }
 
-  const { imageDataUrl } = await req.json();
+  const { imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown };
   if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image')) {
     console.error('[facelift] POST: invalid imageDataUrl');
     return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
@@ -126,6 +126,9 @@ export async function POST(req: NextRequest) {
   const blob = new Blob([buffer], { type: 'image/jpeg' });
   const form = new FormData();
   form.append('image', blob, 'face.jpg');
+  if (currentProfile != null) {
+    form.append('current_profile_json', JSON.stringify(currentProfile));
+  }
 
   const upstream = await fetch(`${FACELIFT_URL}/process_image`, {
     method:  'POST',

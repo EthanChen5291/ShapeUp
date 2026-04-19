@@ -55,6 +55,8 @@ function buildFallbackProfile(
       sideWidth:   params.sideLength * 0.2,
       backLength:  params.backLength * 0.25,
       flatness:    1 - params.messiness,
+      hairline:    params.topLength * 0.28,
+      hairThickness: (params.topLength * 0.08) + (params.sideLength * 0.05) + (params.backLength * 0.04),
     },
     currentStyle: { preset, hairType, colorRGB: '#3b1f0a', params },
   };
@@ -116,6 +118,8 @@ function buildProfileFromARMesh(
       sideWidth:   params.sideLength * 0.2,
       backLength:  params.backLength * 0.25,
       flatness:    1 - params.messiness,
+      hairline:    params.topLength * 0.28,
+      hairThickness: (params.topLength * 0.08) + (params.sideLength * 0.05) + (params.backLength * 0.04),
     },
     currentStyle: { preset, hairType, colorRGB: '#3b1f0a', params },
   };

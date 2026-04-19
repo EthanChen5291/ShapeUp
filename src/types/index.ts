@@ -17,6 +17,38 @@ export interface HairParams {
   pc6: number;          // PCA component 6
 }
 
+export interface HairMeasurements {
+  crownHeight: number;   // how tall the hair sits above crown
+  sideWidth: number;
+  backLength: number;
+  flatness: number;      // 0 = very flat, 1 = very voluminous
+  hairline: number;      // estimated front hairline drop from crown
+  hairThickness: number; // estimated overall strand mass / volume thickness
+}
+
+export interface HairMeasurementBBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minZ: number;
+  maxZ: number;
+  width: number;
+  height: number;
+  depth: number;
+}
+
+export interface HairMeasurementSnapshot {
+  revision: number;
+  timestamp: string;
+  source: 'scan' | 'derived_params' | 'mesh_bbox';
+  units: 'scene_units';
+  baseline: HairMeasurements;
+  estimated: HairMeasurements;
+  currentParams: HairParams;
+  bbox?: HairMeasurementBBox;
+}
+
 export interface ARFaceMesh {
   // TrueDepth capture from iOS ARFaceGeometry (1220 vertices, real depth)
   vertices:  number[][];   // (1220, 3) — ARKit camera space, metres
@@ -60,12 +92,8 @@ export interface UserHeadProfile {
     earLeft: [number, number, number];   // [x, y, z]
     earRight: [number, number, number];
   };
-  hairMeasurements: {
-    crownHeight: number;   // how tall the hair sits above crown
-    sideWidth: number;
-    backLength: number;
-    flatness: number;      // 0 = very flat, 1 = very voluminous
-  };
+  hairMeasurements: HairMeasurements;
+  measurementSnapshot?: HairMeasurementSnapshot;
 
   // ── Optional face mesh data (when full scan is performed) ──
   faceScanData?: FaceScanData;

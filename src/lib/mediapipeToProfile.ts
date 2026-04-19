@@ -117,7 +117,10 @@ function extractHairMeasurements(
     hairType === 'curly' ? 0.4 :
     hairType === 'wavy'  ? 0.3 : 0.25;
 
-  return { crownHeight, sideWidth, backLength, flatness };
+  const hairline = Math.max(0, crownHeight * 0.8);
+  const hairThickness = Math.max(0, crownHeight * 0.25 + sideWidth * 0.5 + backLength * 0.25);
+
+  return { crownHeight, sideWidth, backLength, flatness, hairline, hairThickness };
 }
 
 // ── Preset inference ───────────────────────────────────────
@@ -224,6 +227,8 @@ export function averageProfiles(profiles: UserHeadProfile[]): UserHeadProfile {
       sideWidth:   avg(p => p.hairMeasurements.sideWidth),
       backLength:  avg(p => p.hairMeasurements.backLength),
       flatness:    avg(p => p.hairMeasurements.flatness),
+      hairline:    avg(p => p.hairMeasurements.hairline),
+      hairThickness: avg(p => p.hairMeasurements.hairThickness),
     },
     currentStyle: profiles[profiles.length - 1].currentStyle,
   };

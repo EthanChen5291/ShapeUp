@@ -2,7 +2,7 @@ import re, sys, numpy as np
 from pathlib import Path
 
 repo = Path(__file__).resolve().parent.parent
-src  = Path(sys.argv[1]) if len(sys.argv) > 1 else repo / "public/hair/brunohair.ply"
+src  = Path(sys.argv[1]) if len(sys.argv) > 1 else repo / "public/hair/preset_a.ply"
 dst  = repo / "public/hair/top_hair_dense.ply"
 
 pct       = float(sys.argv[2]) if len(sys.argv) > 2 else 0.85

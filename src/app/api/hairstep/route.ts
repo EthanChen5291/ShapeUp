@@ -17,10 +17,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { imageDataUrl, imageUrl, sessionId } = body as {
+  const { imageDataUrl, imageUrl, sessionId, currentProfile } = body as {
     imageDataUrl?: string;
     imageUrl?: string;
     sessionId: string;
+    currentProfile?: unknown;
   };
 
   if (!sessionId) {
@@ -49,6 +50,9 @@ export async function POST(req: NextRequest) {
   const blob = new Blob([new Uint8Array(buffer)], { type: 'image/png' });
   const form = new FormData();
   form.append('png', blob, 'face.png');
+  if (currentProfile != null) {
+    form.append('current_profile_json', JSON.stringify(currentProfile));
+  }
 
   console.log(`[hairstep] POST: sending to ${HAIRSTEP_URL}`);
   const upstream = await fetch(`${HAIRSTEP_URL}`, {
@@ -73,7 +77,10 @@ export async function POST(req: NextRequest) {
   console.log(`[hairstep] POST: uploaded PLY, url: ${plyUrl.slice(0, 80)}…`);
 
   try {
-    await updateDoc(doc(db, 'session', sessionId), { hair_plys: arrayUnion(plyUrl) });
+    await updateDoc(doc(db, 'session', sessionId), {
+      hair_plys: arrayUnion(plyUrl),
+      currentProfile: currentProfile ?? null,
+    });
     console.log(`[hairstep] POST: appended PLY url to session.hair_plys`);
   } catch (err) {
     console.error('[hairstep] POST: Firestore update failed (non-fatal):', err);

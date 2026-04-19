@@ -7,8 +7,9 @@
 // ============================================================
 
 import { UserHeadProfile } from '@/types';
+import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 
-export const mockUserHeadProfile: UserHeadProfile = {
+export const mockUserHeadProfile: UserHeadProfile = ensureMeasurementSnapshot({
   headProportions: {
     width: 1.6,     // ~16 cm → 1.6 scene units
     height: 2.2,
@@ -23,6 +24,8 @@ export const mockUserHeadProfile: UserHeadProfile = {
     sideWidth:   0.2,
     backLength:  0.3,
     flatness:    0.5,
+    hairline:    0.32,
+    hairThickness: 0.18,
   },
   currentStyle: {
     preset: 'taper_fade',
@@ -37,7 +40,7 @@ export const mockUserHeadProfile: UserHeadProfile = {
       pc1: 0, pc2: 0, pc3: 0, pc4: 0, pc5: 0, pc6: 0,
     },
   },
-};
+});
 
 const pc0 = { pc1: 0, pc2: 0, pc3: 0, pc4: 0, pc5: 0, pc6: 0 };
 

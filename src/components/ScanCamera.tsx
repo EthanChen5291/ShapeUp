@@ -1,5 +1,6 @@
 'use client';
 
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useEffect, useRef, useState } from 'react';
 
 import { UserHeadProfile } from '@/types';
@@ -18,10 +19,55 @@ function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captur
   const rx = W * 0.32;
   const ry = H * 0.40;
 
+  // featherlight edge tint
+  ctx.save();
+  ctx.fillStyle = 'rgba(35, 27, 20, 0.04)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'destination-out';
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = captured ? '#22c55e' : '#ffffff';
-  ctx.lineWidth = 3;
+  ctx.fill();
+  ctx.restore();
+
+  // Wonky hand-drawn oval outline (two passes slightly offset)
+  ctx.save();
+  ctx.strokeStyle = captured ? '#ffe39a' : '#d63c2f';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // second wobble pass
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(cx + 1, cy - 1, rx - 1, ry + 1, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // "hand drawn" corner brackets
+  ctx.strokeStyle = '#fff5dc';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  const bracket = 22;
+  const pad = 14;
+  [[pad, pad], [W - pad, pad], [pad, H - pad], [W - pad, H - pad]].forEach(([x, y], idx) => {
+    const dx = idx % 2 === 0 ? 1 : -1;
+    const dy = idx < 2 ? 1 : -1;
+    ctx.beginPath();
+    ctx.moveTo(x, y + dy * bracket);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + dx * bracket, y);
+    ctx.stroke();
+  });
+
+  // tiny scissor-tick marks at cardinal points
+  ctx.strokeStyle = '#ffe39a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, cy - ry - 10); ctx.lineTo(cx + 6, cy - ry - 10);
+  ctx.moveTo(cx - 6, cy + ry + 10); ctx.lineTo(cx + 6, cy + ry + 10);
   ctx.stroke();
 }
 
@@ -47,13 +93,24 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 },
+        video: { facingMode: 'user', width: 1280, height: 960 },
         audio: false,
       });
       const video = videoRef.current!;
       video.srcObject = stream;
       video.setAttribute('playsinline', '');
       await video.play();
+
+      // Supersample canvas for crisp oval + vignette on hi-DPR screens
+      const canvas = previewCanvas.current;
+      if (canvas) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width  = 640 * dpr;
+        canvas.height = 640 * dpr;
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.scale(dpr, dpr);
+      }
+
       activeRef.current = true;
       setPhase('ready');
       animFrameId.current = requestAnimationFrame(drawFrame);
@@ -68,8 +125,8 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
     const video  = videoRef.current;
     const canvas = previewCanvas.current;
     if (video && canvas && video.readyState >= 2) {
-      const W = canvas.width;
-      const H = canvas.height;
+      const W = 640;
+      const H = 640;
       const ctx = canvas.getContext('2d')!;
 
       const vW       = video.videoWidth  || 640;
@@ -97,8 +154,8 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
     activeRef.current = false;
     if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
 
-    const W = canvas.width;
-    const H = canvas.height;
+    const W = 640;
+    const H = 640;
     const ctx = canvas.getContext('2d')!;
 
     const vW       = video.videoWidth  || 640;
@@ -133,6 +190,8 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
         sideWidth:   0.2,
         backLength:  0.25,
         flatness:    0.5,
+        hairline:    0.28,
+        hairThickness: 0.16,
       },
       faceScanData: {
         landmarks:   [],
@@ -148,70 +207,98 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
       },
     };
 
-    // Upload to Firebase and get session info before completing
     let sessionId: string | null = null;
     let uploadedImageUrl: string | null = null;
     try {
       const res = await fetch('/api/save-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl }),
+        body: JSON.stringify({
+          imageDataUrl,
+          currentProfile: buildCurrentProfilePayload(profile),
+        }),
       });
       const data = await res.json();
       sessionId = data.sessionId ?? null;
       uploadedImageUrl = data.downloadUrl ?? null;
     } catch {
-      // Non-fatal — proceed without session
+      // Non-fatal
     }
 
     onScanComplete(profile, sessionId, uploadedImageUrl);
   }
 
   const instruction =
-    phase === 'loading'  ? 'Preparing camera…' :
-    phase === 'ready'    ? 'Place your face in the oval, then take a photo' :
-    phase === 'captured' ? 'Photo saved!' :
+    phase === 'loading'  ? 'Preparing the chair…' :
+    phase === 'ready'    ? 'Settle in. Place your face inside the oval.' :
+    phase === 'captured' ? 'Photograph taken, sir.' :
     errorMsg;
 
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
+    <div className="relative flex flex-col items-center w-full">
       <video ref={videoRef} className="hidden" muted playsInline />
 
-      <div className="relative w-full rounded-2xl overflow-hidden bg-gray-800" style={{ aspectRatio: '1/1' }}>
+      <div className="relative w-full bg-[#1c1510]" style={{ aspectRatio: '1/1' }}>
         <canvas
           ref={previewCanvas}
           width={640}
           height={640}
           className="w-full h-full object-cover"
         />
+
         {phase === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
-            Loading camera…
+          <div className="absolute inset-0 flex items-center justify-center bg-[#1c1510]">
+            <div className="flex flex-col items-center gap-3">
+              <div className="scissor-loader" />
+              <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">
+                Adjusting the mirror
+              </span>
+            </div>
           </div>
         )}
+
         {phase === 'captured' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <span className="text-green-400 text-xl font-semibold">Done</span>
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(28, 21, 16, 0.78)' }}>
+            <div className="anim-fade-up text-center">
+              <div className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">Captured</div>
+              <div className="font-display italic text-3xl text-[var(--cream)] mt-1" style={{ fontWeight: 500 }}>Splendid.</div>
+            </div>
+          </div>
+        )}
+
+        {phase === 'error' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#1c1510] p-6 text-center">
+            <div>
+              <div className="font-sans text-[11px] uppercase tracking-wider text-[var(--tomato)]">Error</div>
+              <div className="font-display italic text-xl text-[var(--cream)] mt-1" style={{ fontWeight: 500 }}>{errorMsg}</div>
+            </div>
           </div>
         )}
       </div>
 
-      <p className="text-sm text-white text-center min-h-[1.5rem]">{instruction}</p>
+      <div className="w-full bg-[var(--cream)] border-t border-[var(--char)]/10 px-5 py-5 flex flex-col items-center gap-3">
+        <p className="font-serif italic text-center text-[var(--char)] text-[15px] min-h-[1.5rem]">
+          {instruction}
+        </p>
 
-      {phase === 'ready' && (
-        <button
-          onClick={capturePhoto}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-sm font-medium"
-        >
-          Take Photo
-        </button>
-      )}
+        {phase === 'ready' && (
+          <button
+            onClick={capturePhoto}
+            className="btn btn-tomato"
+          >
+            ✂ Take the seat
+          </button>
+        )}
 
-      {(phase === 'loading' || phase === 'error' || phase === 'ready') && (
-        <button onClick={onDismiss} className="text-xs text-gray-500 underline mt-1">
-          Skip camera scan
-        </button>
-      )}
+        {(phase === 'loading' || phase === 'error' || phase === 'ready') && (
+          <button
+            onClick={onDismiss}
+            className="font-sans text-[11px] text-[var(--smoke)] hover:text-[var(--tomato)] underline underline-offset-4 decoration-dotted"
+          >
+            Skip the chair
+          </button>
+        )}
+      </div>
     </div>
   );
 }
