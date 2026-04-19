@@ -256,7 +256,7 @@ export default function Home() {
         </h2>
       </div>
 
-      <div className="flex-1 relative flex items-center justify-center p-6 pt-24">
+      <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
         {/* Polaroid thumbnail */}
         {imageUrl && (
           <div

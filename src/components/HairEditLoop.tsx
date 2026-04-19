@@ -164,15 +164,11 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
     }
   };
 
-  const submitLabel =
-    phase === 'gemini' ? 'Styling…' :
-    phase === 'hairstep' ? 'Building 3D…' :
-    '✂ Cut it';
-
   const chatter = BARBER_CHATTER[Math.floor(Date.now() / 1600) % BARBER_CHATTER.length];
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
+
       <section className="relative z-10 mx-auto max-w-6xl px-6 pt-16 pb-20">
         {/* Header */}
         <header className="text-center anim-fade-up">
@@ -244,6 +240,14 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
                 <span className="font-mono text-[11px] text-[var(--smoke)]">no. 03·42</span>
               </div>
 
+              {isBusy ? (
+                <div className="flex items-center justify-center py-16">
+                  <p className="dot-pulse font-display text-[var(--ink)] select-none" style={{ fontSize: '3.5rem', fontStyle: 'italic', fontWeight: 500, letterSpacing: '0.2em' }}>
+                    <span>.</span><span>.</span><span>.</span>
+                  </p>
+                </div>
+              ) : (<>
+
               <h2 className="font-display text-[var(--ink)] text-2xl mb-4" style={{ fontWeight: 500 }}>
                 Tell the barber
               </h2>
@@ -251,7 +255,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
               <textarea
                 className="input-soft w-full px-4 py-3 text-[16px] resize-none h-28 placeholder:text-[var(--smoke)]"
                 style={{ fontStyle: 'italic' }}
-                placeholder='"A sharp taper fade with waves on top, please."'
+                placeholder='"Anything you would like us to know about you?"'
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -284,20 +288,13 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
                 </div>
               )}
 
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleSubmit}
-                  disabled={isBusy || !prompt.trim()}
-                  className="btn btn-tomato"
-                >
-                  {submitLabel}
-                </button>
+              <div className="mt-6 flex justify-center">
                 <button
                   onClick={handleRenderIn3D}
                   disabled={isBusy}
-                  className="btn btn-denim"
+                  className="btn btn-tomato w-full"
                 >
-                  {isBaldifying ? (faceliftStatus ?? 'Processing') : '3D it'}
+                  {isBaldifying ? (faceliftStatus ?? 'Processing…') : '✂ Cut it'}
                 </button>
               </div>
 
@@ -314,6 +311,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
                   </li>
                 </ul>
               </div>
+              </>)}
             </div>
 
             <p className="mt-5 text-center font-serif italic text-[var(--cream)] text-sm" style={{ opacity: 0.8 }}>

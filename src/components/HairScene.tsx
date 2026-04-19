@@ -135,7 +135,7 @@ function HairDepthPoints({ url, color, scale, position }: {
 // Fallback hair transform used before FLAME data + PLY bbox are both available.
 // Derived by manually aligning brunohair.ply to the reference Polycam head.
 const HAIR_PLY_SCALE_DEFAULT   = 13.109;
-const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.349, 0.714];
+const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
