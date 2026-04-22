@@ -28,6 +28,7 @@ export default function Home() {
   const [faceliftPlyReady, setFaceliftPlyReady] = useState(false);
   const [hairstepPlyUrl, setHairstepPlyUrl]     = useState<string | null>(null);
   const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   const smirk = useSmirk(profile?.faceScanData?.imageDataUrl);
 
@@ -281,17 +282,12 @@ export default function Home() {
             boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)',
           }}
         >
-          {/* Recommendations bar — absolute overlay on the left of the 3D stage */}
+          {/* Recommendations bar — top-right overlay on the 3D stage */}
           <div
-            className="absolute left-3 z-10 flex flex-col overflow-y-auto"
-            style={{
-              top: '50%',
-              transform: 'translateY(-50%)',
-              maxHeight: '85%',
-              paddingRight: 2,
-            }}
+            className="absolute top-3 right-3 z-10"
           >
             <HairRecommendationsBar
+              visible={showRecommendations}
               onHover={setPreviewPlyUrl}
               onSelect={(url) => {
                 setHairstepPlyUrl(url);
@@ -332,13 +328,22 @@ export default function Home() {
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">
             the toolbox
           </span>
-          <button
-            onClick={() => setAppState('scan')}
-            className="btn-ink"
-            style={{ padding: '6px 12px', fontSize: 10 }}
-          >
-            ✂ Start over
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowRecommendations(true)}
+              className="btn-ink"
+              style={{ padding: '6px 12px', fontSize: 10 }}
+            >
+              ✦ Recommend
+            </button>
+            <button
+              onClick={() => setAppState('scan')}
+              className="btn-ink"
+              style={{ padding: '6px 12px', fontSize: 10 }}
+            >
+              ✂ Start over
+            </button>
+          </div>
         </div>
 
         <div
@@ -356,6 +361,7 @@ export default function Home() {
             latestImageUrl={imageUrl}
             onImageUpdated={(url) => setImageUrl(url)}
             onPlyReady={(plyUrl) => setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`)}
+            onUncertain={() => setShowRecommendations(true)}
           />
         </div>
       </aside>
