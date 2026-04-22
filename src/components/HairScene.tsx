@@ -140,14 +140,15 @@ const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
 // type 'ply' → HairStrandMesh, type 'npy' → HairDepthPoints
-const HAIR_LAYERS = [
+type HairLayer = { type: 'ply' | 'npy'; id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
+const HAIR_LAYERS: HairLayer[] = [
   { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: '/hair/hair_modified.ply', color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: '/hair/strands_1.ply',   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: '/hair/preset_a.ply',    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'medium long',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: '/hair/brunohair.ply',   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
   { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
-] as const;
+];
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 

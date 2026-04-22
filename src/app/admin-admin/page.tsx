@@ -8,7 +8,7 @@ interface SessionRow {
   images: string[];
   hair_plys: string[];
   hasHairPly: boolean;
-  currentProfile: unknown;
+  currentProfile: Record<string, unknown> | null;
 }
 
 type HairPlyFilter = 'all' | 'with' | 'without';
