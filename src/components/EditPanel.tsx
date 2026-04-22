@@ -18,9 +18,25 @@ interface EditPanelProps {
   latestImageUrl: string | null;
   onImageUpdated: (newUrl: string) => void;
   onPlyReady: (plyUrl: string) => void;
+  onUncertain?: () => void;
 }
 
-export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady }: EditPanelProps) {
+const UNCERTAIN_PATTERNS = [
+  /\bi('?m| am) not sure\b/i,
+  /\bi don'?t know\b/i,
+  /\bno idea\b/i,
+  /\bnot sure\b/i,
+  /\bunsure\b/i,
+  /\bmaybe\b.*\?/i,
+  /\bwhatever\b/i,
+  /\bsurprise me\b/i,
+  /\banything\b/i,
+  /\byou ('?re|are) the (barber|expert)\b/i,
+  /\bup to you\b/i,
+  /\bno preference\b/i,
+];
+
+export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -58,6 +74,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
     if (!submittedPrompt.trim()) return;
+    if (onUncertain && UNCERTAIN_PATTERNS.some(p => p.test(submittedPrompt))) {
+      onUncertain();
+    }
     if (!sessionId || !latestImageUrl) {
       setPipelineError('No session or image available. Please scan first.');
       return;
