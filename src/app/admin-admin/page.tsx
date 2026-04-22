@@ -192,7 +192,7 @@ export default function AdminPage() {
                   )}
 
                   {/* currentProfile JSON */}
-                  {s.currentProfile && (
+                  {!!s.currentProfile && (
                     <div>
                       <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">currentProfile</p>
                       <pre className="text-xs bg-neutral-950 rounded-lg p-3 overflow-auto max-h-64 text-neutral-300 border border-neutral-800">
