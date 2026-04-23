@@ -179,15 +179,14 @@ export async function GET(req: NextRequest) {
     }
     const plyBuffer = Buffer.from(await dlRes.arrayBuffer());
     console.log(`[facelift] GET: downloaded PLY (${plyBuffer.length} bytes), converting to splat`);
-    const outputName = req.nextUrl.searchParams.get('outputName') ?? 'output';
     const publicDir = path.join(process.cwd(), 'public');
     const splatBuffer = plyToSplat(plyBuffer);
     await Promise.all([
-      writeFile(path.join(publicDir, `${outputName}.ply`), plyBuffer),
-      writeFile(path.join(publicDir, `${outputName}.splat`), splatBuffer),
+      writeFile(path.join(publicDir, 'output.ply'), plyBuffer),
+      writeFile(path.join(publicDir, 'output.splat'), splatBuffer),
     ]);
-    console.log(`[facelift] GET: wrote ${outputName}.ply (${plyBuffer.length}B) + ${outputName}.splat (${splatBuffer.length}B)`);
-    return NextResponse.json({ status: 'success', plyPath: `/${outputName}.ply`, splatPath: `/${outputName}.splat` });
+    console.log(`[facelift] GET: wrote output.ply (${plyBuffer.length}B) + output.splat (${splatBuffer.length}B)`);
+    return NextResponse.json({ status: 'success', plyPath: '/output.ply', splatPath: '/output.splat' });
   }
 
   if (status.status === 'error') {

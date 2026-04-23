@@ -4,31 +4,7 @@ import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { UserHeadProfile } from '@/types';
 import { useEffect, useRef, useState } from 'react';
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
-import { DemoFaceliftStatus } from '@/hooks/useDemoFacelift';
 import Image from 'next/image';
-import dynamic from 'next/dynamic';
-
-const HairSceneDemo = dynamic(() => import('@/components/HairScene'), { ssr: false });
-
-const DEMO_PRESETS = [
-  { label: 'Original', plys: [] as string[] },
-  { label: 'Ethan 1',  plys: ['/hair/ethan1.ply'] },
-  { label: 'Bruno',    plys: ['/hair/brunohair.ply'] },
-  { label: 'Guest',    plys: ['/hair/guest.ply'] },
-  { label: 'Modified', plys: ['/hair/hair_modified.ply'] },
-  { label: 'Preset A', plys: ['/hair/preset_a.ply'] },
-  { label: 'Strands',  plys: ['/hair/strands_ethan.ply'] },
-  { label: 'Full',     plys: ['/hair/strands_1.ply', '/hair/depth_1.ply'] },
-];
-
-const DEMO_STATUS_LABEL: Record<DemoFaceliftStatus, string> = {
-  'idle':                'Setting up...',
-  'baldifying':          'Preparing scan...',
-  'bald-processing':     'Building 3D model (~2 min)',
-  'original-processing': 'Presets 1–7 ready · building original...',
-  'done':                'All presets ready',
-  'error':               'Error — check console',
-};
 
 interface HairEditLoopProps {
   sessionId: string;
@@ -36,10 +12,6 @@ interface HairEditLoopProps {
   profile: UserHeadProfile;
   onRenderIn3D: (baldifiedDataUrl: string) => void;
   onHairstepPlyReady: (plyUrl: string) => void;
-  demoMode?: boolean;
-  baldSplatSrc?: string | null;
-  originalSplatSrc?: string | null;
-  demoStatus?: DemoFaceliftStatus;
 }
 
 type Phase = 'idle' | 'gemini' | 'hairstep';
@@ -61,13 +33,12 @@ const BARBER_CHATTER = [
   'Pouring you a coffee…',
 ];
 
-export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady, demoMode = false, baldSplatSrc, originalSplatSrc, demoStatus = 'idle' }: HairEditLoopProps) {
+export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady }: HairEditLoopProps) {
   const [currentImageUrl, setCurrentImageUrl] = useState(initialImageUrl);
   const [prompt, setPrompt] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [isBaldifying, setIsBaldifying] = useState(false);
   const [faceliftStatus, setFaceliftStatus] = useState<string | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState(1);
 
   const processingRef = useRef(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
@@ -80,11 +51,10 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   });
 
   useEffect(() => {
-    if (demoMode) return;
     agent.start();
     return () => agent.stop();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode]);
+  }, []);
 
   const handleSubmit = async (promptOverride?: string) => {
     if (processingRef.current) return;
@@ -210,129 +180,6 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   };
 
   const chatter = BARBER_CHATTER[Math.floor(Date.now() / 1600) % BARBER_CHATTER.length];
-
-  // ── Demo mode ────────────────────────────────────────────────────────────
-  if (demoMode) {
-    const demoSplatSrc = selectedPreset === 0 ? originalSplatSrc : baldSplatSrc;
-    const demoHairPlys = DEMO_PRESETS[selectedPreset]?.plys ?? [];
-    const baldReady = baldSplatSrc !== null;
-    const origReady = originalSplatSrc !== null;
-
-    return (
-      <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
-        {/* Corner wordmark */}
-        <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
-          <span>Shape</span>
-          <span>Up</span>
-        </div>
-
-        {/* 3D scene — full height left */}
-        <div className="flex-1 min-w-0 relative">
-          <HairSceneDemo
-            params={profile.currentStyle.params}
-            colorRGB={profile.currentStyle.colorRGB}
-            profile={profile}
-            splatSrcOverride={demoSplatSrc ?? undefined}
-            hairstepPlyUrls={demoHairPlys}
-            disableDefaultHairLayers
-          />
-        </div>
-
-        {/* Demo sidebar */}
-        <aside
-          className="w-72 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden"
-        >
-          {/* Status */}
-          <div
-            className="rounded-xl px-3 py-2 text-center"
-            style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,248,234,0.15)' }}
-          >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/60 mb-0.5">status</div>
-            <div className="font-sans text-[12px] text-[var(--butter)]">
-              {DEMO_STATUS_LABEL[demoStatus]}
-            </div>
-          </div>
-
-          {/* Number pad */}
-          <div
-            className="flex-1 rounded-2xl p-4 flex flex-col gap-3"
-            style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)' }}
-          >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--ink)]/50 mb-1">
-              hairstyle presets
-            </div>
-
-            <div className="grid grid-cols-4 gap-2">
-              {DEMO_PRESETS.map((preset, i) => {
-                const isDisabled = i === 0 ? !origReady : !baldReady;
-                const isSelected = selectedPreset === i;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => !isDisabled && setSelectedPreset(i)}
-                    disabled={isDisabled}
-                    title={preset.label}
-                    className="rounded-lg font-mono text-[13px] font-semibold transition-all"
-                    style={{
-                      padding: '10px 0',
-                      background: isSelected
-                        ? 'var(--tomato)'
-                        : 'rgba(42,32,26,0.08)',
-                      color: isSelected
-                        ? 'var(--cream)'
-                        : isDisabled
-                        ? 'rgba(42,32,26,0.25)'
-                        : 'var(--ink)',
-                      border: isSelected
-                        ? '2px solid var(--tomato)'
-                        : '2px solid transparent',
-                      cursor: isDisabled ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {i}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-2 space-y-1">
-              {DEMO_PRESETS.map((preset, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 font-mono text-[10px]"
-                  style={{ color: selectedPreset === i ? 'var(--tomato)' : 'var(--ink)/40', opacity: selectedPreset === i ? 1 : 0.45 }}
-                >
-                  <span className="font-semibold">{i}</span>
-                  <span className="uppercase tracking-wider">{preset.label}</span>
-                  {i === 0 && !origReady && (
-                    <span style={{ color: 'var(--butter)', opacity: 0.7 }}>· loading</span>
-                  )}
-                  {i > 0 && !baldReady && (
-                    <span style={{ color: 'var(--butter)', opacity: 0.7 }}>· loading</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)]/50">
-              {sessionId.slice(0, 8).toUpperCase()}
-            </span>
-            <button
-              onClick={() => window.location.reload()}
-              className="btn-ink"
-              style={{ padding: '6px 12px', fontSize: 10 }}
-            >
-              ✂ Start over
-            </button>
-          </div>
-        </aside>
-      </main>
-    );
-  }
-  // ── End demo mode ────────────────────────────────────────────────────────
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">

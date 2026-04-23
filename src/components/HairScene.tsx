@@ -172,12 +172,11 @@ interface SceneProps {
   splatPosY: number;
   splatSrc: string;
   hairstepPlyUrl?: string;
-  hairstepPlyUrls?: string[];
   hairColor?: string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -239,18 +238,6 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         </>
       )}
 
-      {hairstepPlyUrls?.map((url, i) => (
-        <HairStrandMesh
-          key={`demo-${i}`}
-          url={url}
-          color={hairColor ?? '#3b1f0a'}
-          scale={hairScale}
-          position={hairPos}
-          lineWidth={0.8}
-          renderOrder={0}
-        />
-      ))}
-
       {showFlame && flameData && (
         <FlameMesh vertices={flameData.vertices} faces={flameData.faces} />
       )}
@@ -269,25 +256,22 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
 // ── Public component ────────────────────────────────────────
 
 interface HairSceneProps {
-  params:                    HairParams;
-  colorRGB?:                 string;
-  profile?:                  UserHeadProfile;
-  flameData?:                FlameData;
-  autoFaceliftDataUrl?:      string;
-  faceliftPlyReady?:         boolean;
-  hairstepPlyUrl?:           string;
-  hairstepPlyUrls?:          string[];
-  splatSrcOverride?:         string | null;
-  disableDefaultHairLayers?: boolean;
+  params:                HairParams;
+  colorRGB?:             string;
+  profile?:              UserHeadProfile;
+  flameData?:            FlameData;
+  autoFaceliftDataUrl?:  string;
+  faceliftPlyReady?:     boolean;
+  hairstepPlyUrl?:       string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, onPrimaryHairBBoxReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
-    disableDefaultHairLayers ? new Set() : new Set(['hair_modified', 'top_hair'])
+    new Set(['hair_modified', 'top_hair'])
   );
   // Local FLAME data fetched from a test image
   const [localFlameData] = useState<FlameData | null>(null);
@@ -354,8 +338,8 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   // Prop flameData (from real webcam scan) takes priority over test data
   const effectiveFlameData = flameData ?? localFlameData ?? undefined;
 
-  // splatSrcOverride (demo mode) > facelift result > placeholder
-  const effectiveSplatSrc = splatSrcOverride ?? ethanSplatSrc ?? '/models/gaussians.splat';
+  // ethanSplatSrc (FaceLift result) replaces the static gaussians.splat when ready
+  const effectiveSplatSrc = ethanSplatSrc ?? '/models/gaussians.splat';
 
   const hairScale = HAIR_PLY_SCALE_DEFAULT;
   const hairPos: [number, number, number] = HAIR_PLY_POS_DEFAULT;
@@ -405,7 +389,6 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
-          hairstepPlyUrls={showHair ? hairstepPlyUrls : undefined}
           hairColor={hairColor}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />

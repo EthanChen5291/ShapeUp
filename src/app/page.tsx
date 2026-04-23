@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import EditPanel from '@/components/EditPanel';
 import HairEditLoop from '@/components/HairEditLoop';
-import { useDemoFacelift } from '@/hooks/useDemoFacelift';
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useSmirk } from '@/hooks/useSmirk';
@@ -31,7 +31,23 @@ export default function Home() {
   const [showRecommendations, setShowRecommendations] = useState(false);
 
   const smirk = useSmirk(profile?.faceScanData?.imageDataUrl);
-  const { baldSplatSrc, originalSplatSrc, status: demoStatus } = useDemoFacelift(imageUrl);
+
+  useEffect(() => {
+    const imageDataUrl = profile?.faceScanData?.imageDataUrl;
+    if (!sessionId || !imageDataUrl) return;
+    fetch('/api/hairstep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageDataUrl,
+        sessionId,
+        currentProfile: buildCurrentProfilePayload(profile),
+      }),
+    })
+      .then(r => r.json())
+      .then(data => { if (data.plyUrl) setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(data.plyUrl)}`); })
+      .catch(() => {});
+  }, [sessionId, profile]);
 
   const handleParamsChange = useCallback((next: HairParams) => {
     setParams(next);
@@ -223,10 +239,6 @@ export default function Home() {
         onHairstepPlyReady={(plyUrl) => {
           setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`);
         }}
-        demoMode
-        baldSplatSrc={baldSplatSrc}
-        originalSplatSrc={originalSplatSrc}
-        demoStatus={demoStatus}
       />
     );
   }
