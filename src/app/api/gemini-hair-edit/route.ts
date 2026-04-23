@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getDb, FieldValue, uploadAndGetUrl } from '@/lib/firebase-admin';
+import { db, doc, updateDoc, arrayUnion, uploadAndGetUrl } from '@/lib/firebase-admin';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -133,7 +133,7 @@ CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
   // --- Append to Firestore session ---
   try {
     console.log('[gemini-hair-edit] appending to Firestore session.images, sessionId:', sessionId);
-    await getDb().collection('session').doc(sessionId).update({ images: FieldValue.arrayUnion(newImageUrl) });
+    await updateDoc(doc(db, 'session', sessionId), { images: arrayUnion(newImageUrl) });
     console.log('[gemini-hair-edit] Firestore updated OK');
   } catch (err) {
     console.error('[gemini-hair-edit] Firestore update FAILED (non-fatal):', err);
