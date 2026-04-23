@@ -277,10 +277,11 @@ interface HairSceneProps {
   hairstepPlyUrls?:          string[];
   splatSrcOverride?:         string | null;
   disableDefaultHairLayers?: boolean;
+  hideControls?:             boolean;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, onPrimaryHairBBoxReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, hideControls, onPrimaryHairBBoxReady }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -408,7 +409,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />
       </Canvas>
-      <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
+      {!hideControls && <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
         <input type="color" value={hairColor} onChange={e => setHairColor(e.target.value)} title="Hair color" style={{ width: 28, height: 28, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 4 }} />
         <button onClick={() => setShowHair(v => !v)} style={{ ...btnStyle, opacity: showHair ? 1 : 0.4, outline: '2px solid #aaa' }}>
           {showHair ? 'hide hair' : 'show hair'}
@@ -428,7 +429,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
             {l.label}
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

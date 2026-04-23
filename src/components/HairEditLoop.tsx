@@ -11,7 +11,7 @@ import dynamic from 'next/dynamic';
 const HairSceneDemo = dynamic(() => import('@/components/HairScene'), { ssr: false });
 
 const DEMO_PRESETS = [
-  { label: 'Original', plys: [] as string[] },
+  { label: 'Original',  plys: [] as string[] },
   { label: 'Ethan 1',  plys: ['/hair/ethan1.ply'] },
   { label: 'Bruno',    plys: ['/hair/brunohair.ply'] },
   { label: 'Guest',    plys: ['/hair/guest.ply'] },
@@ -22,10 +22,10 @@ const DEMO_PRESETS = [
 ];
 
 const DEMO_STATUS_LABEL: Record<DemoFaceliftStatus, string> = {
-  'idle':                'Setting up...',
-  'baldifying':          'Preparing scan...',
+  'idle':                'Setting up…',
+  'baldifying':          'Preparing scan…',
   'bald-processing':     'Building 3D model (~2 min)',
-  'original-processing': 'Presets 1–7 ready · building original...',
+  'original-processing': 'Presets 1–7 ready · building original…',
   'done':                'All presets ready',
   'error':               'Error — check console',
 };
@@ -85,6 +85,20 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
     return () => agent.stop();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode]);
+
+  // Keyboard listener for demo mode: keys 0-7 switch presets
+  useEffect(() => {
+    if (!demoMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      const n = parseInt(e.key);
+      if (isNaN(n) || n < 0 || n > 7) return;
+      if (n === 0 && !originalSplatSrc) return;
+      if (n > 0 && !baldSplatSrc) return;
+      setSelectedPreset(n);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [demoMode, baldSplatSrc, originalSplatSrc]);
 
   const handleSubmit = async (promptOverride?: string) => {
     if (processingRef.current) return;
@@ -211,128 +225,10 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
 
   const chatter = BARBER_CHATTER[Math.floor(Date.now() / 1600) % BARBER_CHATTER.length];
 
-  // ── Demo mode ────────────────────────────────────────────────────────────
-  if (demoMode) {
-    const demoSplatSrc = selectedPreset === 0 ? originalSplatSrc : baldSplatSrc;
-    const demoHairPlys = DEMO_PRESETS[selectedPreset]?.plys ?? [];
-    const baldReady = baldSplatSrc !== null;
-    const origReady = originalSplatSrc !== null;
-
-    return (
-      <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
-        {/* Corner wordmark */}
-        <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
-          <span>Shape</span>
-          <span>Up</span>
-        </div>
-
-        {/* 3D scene — full height left */}
-        <div className="flex-1 min-w-0 relative">
-          <HairSceneDemo
-            params={profile.currentStyle.params}
-            colorRGB={profile.currentStyle.colorRGB}
-            profile={profile}
-            splatSrcOverride={demoSplatSrc ?? undefined}
-            hairstepPlyUrls={demoHairPlys}
-            disableDefaultHairLayers
-          />
-        </div>
-
-        {/* Demo sidebar */}
-        <aside
-          className="w-72 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden"
-        >
-          {/* Status */}
-          <div
-            className="rounded-xl px-3 py-2 text-center"
-            style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,248,234,0.15)' }}
-          >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/60 mb-0.5">status</div>
-            <div className="font-sans text-[12px] text-[var(--butter)]">
-              {DEMO_STATUS_LABEL[demoStatus]}
-            </div>
-          </div>
-
-          {/* Number pad */}
-          <div
-            className="flex-1 rounded-2xl p-4 flex flex-col gap-3"
-            style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)' }}
-          >
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--ink)]/50 mb-1">
-              hairstyle presets
-            </div>
-
-            <div className="grid grid-cols-4 gap-2">
-              {DEMO_PRESETS.map((preset, i) => {
-                const isDisabled = i === 0 ? !origReady : !baldReady;
-                const isSelected = selectedPreset === i;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => !isDisabled && setSelectedPreset(i)}
-                    disabled={isDisabled}
-                    title={preset.label}
-                    className="rounded-lg font-mono text-[13px] font-semibold transition-all"
-                    style={{
-                      padding: '10px 0',
-                      background: isSelected
-                        ? 'var(--tomato)'
-                        : 'rgba(42,32,26,0.08)',
-                      color: isSelected
-                        ? 'var(--cream)'
-                        : isDisabled
-                        ? 'rgba(42,32,26,0.25)'
-                        : 'var(--ink)',
-                      border: isSelected
-                        ? '2px solid var(--tomato)'
-                        : '2px solid transparent',
-                      cursor: isDisabled ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {i}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-2 space-y-1">
-              {DEMO_PRESETS.map((preset, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 font-mono text-[10px]"
-                  style={{ color: selectedPreset === i ? 'var(--tomato)' : 'var(--ink)/40', opacity: selectedPreset === i ? 1 : 0.45 }}
-                >
-                  <span className="font-semibold">{i}</span>
-                  <span className="uppercase tracking-wider">{preset.label}</span>
-                  {i === 0 && !origReady && (
-                    <span style={{ color: 'var(--butter)', opacity: 0.7 }}>· loading</span>
-                  )}
-                  {i > 0 && !baldReady && (
-                    <span style={{ color: 'var(--butter)', opacity: 0.7 }}>· loading</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)]/50">
-              {sessionId.slice(0, 8).toUpperCase()}
-            </span>
-            <button
-              onClick={() => window.location.reload()}
-              className="btn-ink"
-              style={{ padding: '6px 12px', fontSize: 10 }}
-            >
-              ✂ Start over
-            </button>
-          </div>
-        </aside>
-      </main>
-    );
-  }
-  // ── End demo mode ────────────────────────────────────────────────────────
+  // Demo-mode computed values
+  const demoSplatSrc = demoMode ? (selectedPreset === 0 ? originalSplatSrc : baldSplatSrc) : null;
+  const demoHairPlys = demoMode ? (DEMO_PRESETS[selectedPreset]?.plys ?? []) : [];
+  const currentPreset = DEMO_PRESETS[selectedPreset];
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
@@ -359,36 +255,50 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
 
         {/* Layout */}
         <div className="mt-14 grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-12 items-start">
-          {/* Polaroid */}
+          {/* Left — polaroid in standard mode, 3D scene in demo mode */}
           <div className="anim-fade-up delay-100">
             <div className="polaroid wonky-sm-l mx-auto max-w-[440px]">
               <div className="tape tape-tl" />
               <div className="tape tape-tr" />
 
               <div className="relative aspect-[3/4] overflow-hidden rounded-sm" style={{ background: '#1c1510' }}>
-                <Image
-                  src={currentImageUrl}
-                  alt="Hair preview"
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-                {phase !== 'idle' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 anim-fade-in" style={{ background: 'rgba(28, 21, 16, 0.82)' }}>
-                    <div className="scissor-loader" />
-                    <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">
-                      {phase === 'gemini' ? 'Scissors out' : 'Sculpting 3D'}
-                    </span>
-                    <span className="font-display text-[var(--cream)] text-2xl text-center px-6" style={{ fontStyle: 'italic', fontWeight: 500 }}>
-                      {chatter}
-                    </span>
-                  </div>
+                {demoMode ? (
+                  <HairSceneDemo
+                    params={profile.currentStyle.params}
+                    colorRGB={profile.currentStyle.colorRGB}
+                    profile={profile}
+                    splatSrcOverride={demoSplatSrc ?? undefined}
+                    hairstepPlyUrls={demoHairPlys}
+                    disableDefaultHairLayers
+                    hideControls
+                  />
+                ) : (
+                  <>
+                    <Image
+                      src={currentImageUrl}
+                      alt="Hair preview"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                    {phase !== 'idle' && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 anim-fade-in" style={{ background: 'rgba(28, 21, 16, 0.82)' }}>
+                        <div className="scissor-loader" />
+                        <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">
+                          {phase === 'gemini' ? 'Scissors out' : 'Sculpting 3D'}
+                        </span>
+                        <span className="font-display text-[var(--cream)] text-2xl text-center px-6" style={{ fontStyle: 'italic', fontWeight: 500 }}>
+                          {chatter}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
               <div className="absolute bottom-3 left-0 right-0 text-center">
                 <span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>
-                  your next cut ✂
+                  {demoMode ? `${currentPreset?.label ?? 'style'} ✂` : 'your next cut ✂'}
                 </span>
               </div>
             </div>
@@ -408,7 +318,44 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
                 <span className="font-mono text-[11px] text-[var(--smoke)]">no. 03·42</span>
               </div>
 
-              {isBusy ? (
+              {demoMode ? (
+                <>
+                  <h2 className="font-display text-[var(--ink)] text-2xl mb-4" style={{ fontWeight: 500 }}>
+                    Pick a style
+                  </h2>
+
+                  <div className="font-mono text-[11px] text-[var(--smoke)] uppercase tracking-wider mb-5">
+                    {DEMO_STATUS_LABEL[demoStatus]}
+                  </div>
+
+                  <div className="flex items-center justify-between py-3 border-t border-b border-dashed border-[var(--char)]/20">
+                    <span className="font-mono text-[13px] font-semibold text-[var(--ink)]">
+                      Preset {selectedPreset}
+                    </span>
+                    <span className="font-display text-[var(--ink)] text-xl" style={{ fontStyle: 'italic', fontWeight: 500 }}>
+                      {currentPreset?.label}
+                    </span>
+                  </div>
+
+                  <p className="mt-5 font-mono text-[11px] text-[var(--smoke)] uppercase tracking-wider">
+                    Press 0–7 to switch styles
+                  </p>
+
+                  <div className="mt-6 pt-5 border-t border-dashed border-[var(--char)]/20">
+                    <ul className="space-y-1 font-mono text-[11px] text-[var(--char)]">
+                      <li className="flex justify-between py-0.5">
+                        <span>AI styling</span><span>on the house</span>
+                      </li>
+                      <li className="flex justify-between py-0.5">
+                        <span>3D sculpt</span><span>free</span>
+                      </li>
+                      <li className="flex justify-between py-1 pt-2 border-t border-dashed border-[var(--char)]/20 font-semibold text-[var(--ink)]">
+                        <span>TOTAL</span><span>$0.00</span>
+                      </li>
+                    </ul>
+                  </div>
+                </>
+              ) : isBusy ? (
                 <div className="flex items-center justify-center py-16">
                   <p className="dot-pulse font-display text-[var(--ink)] select-none" style={{ fontSize: '3.5rem', fontStyle: 'italic', fontWeight: 500, letterSpacing: '0.2em' }}>
                     <span>.</span><span>.</span><span>.</span>
