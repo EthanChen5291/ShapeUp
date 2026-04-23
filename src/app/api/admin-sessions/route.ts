@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase-admin';
+import { getDb } from '@/lib/firebase-admin';
 
 export async function GET() {
   try {
-    const snapshot = await db.collection('session').orderBy('createdAt', 'desc').get();
+    const snapshot = await getDb().collection('session').orderBy('createdAt', 'desc').get();
 
     const sessions = snapshot.docs.map((doc) => {
       const data = doc.data();
