@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase-admin';
 
 export async function GET() {
   try {
-    const q = query(collection(db, 'session'), orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    const snapshot = await db.collection('session').orderBy('createdAt', 'desc').get();
 
     const sessions = snapshot.docs.map((doc) => {
       const data = doc.data();

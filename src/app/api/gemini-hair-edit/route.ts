@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { db, storage } from '@/lib/firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, FieldValue, uploadAndGetUrl } from '@/lib/firebase-admin';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -125,9 +123,7 @@ CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
     console.log('[gemini-hair-edit] uploading to Firebase Storage:', storagePath);
     const buffer = Buffer.from(newImageBase64, 'base64');
     console.log('[gemini-hair-edit] upload buffer size:', buffer.length, 'bytes');
-    const storageRef = ref(storage, storagePath);
-    const snapshot = await uploadBytes(storageRef, buffer, { contentType: 'image/png' });
-    newImageUrl = await getDownloadURL(snapshot.ref);
+    newImageUrl = await uploadAndGetUrl(storagePath, buffer, 'image/png');
     console.log('[gemini-hair-edit] Firebase upload done — newImageUrl:', newImageUrl.slice(0, 120));
   } catch (err) {
     console.error('[gemini-hair-edit] Firebase Storage upload FAILED:', err);
@@ -137,7 +133,7 @@ CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
   // --- Append to Firestore session ---
   try {
     console.log('[gemini-hair-edit] appending to Firestore session.images, sessionId:', sessionId);
-    await updateDoc(doc(db, 'session', sessionId), { images: arrayUnion(newImageUrl) });
+    await db.collection('session').doc(sessionId).update({ images: FieldValue.arrayUnion(newImageUrl) });
     console.log('[gemini-hair-edit] Firestore updated OK');
   } catch (err) {
     console.error('[gemini-hair-edit] Firestore update FAILED (non-fatal):', err);

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, FieldValue, uploadAndGetUrl } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
   console.log('[save-scan] POST received');
@@ -44,11 +42,10 @@ export async function POST(req: NextRequest) {
   let downloadUrl: string | null = null;
   let sessionId: string | null = null;
 
-  // Generate a session ID first so we can use it in the storage path
   let pendingSessionId: string | null = null;
   try {
-    const sessionRef = await addDoc(collection(db, 'session'), {
-      createdAt: serverTimestamp(),
+    const sessionRef = await db.collection('session').add({
+      createdAt: FieldValue.serverTimestamp(),
       currentProfile,
     });
     pendingSessionId = sessionRef.id;
@@ -58,10 +55,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const storageRef = ref(storage, `scans/${pendingSessionId}/scan_${Date.now()}.png`);
+    const storagePath = `scans/${pendingSessionId}/scan_${Date.now()}.png`;
     console.log('[save-scan] uploading to Firebase Storage...');
-    const snapshot = await uploadBytes(storageRef, buffer, { contentType: 'image/png' });
-    downloadUrl = await getDownloadURL(snapshot.ref);
+    downloadUrl = await uploadAndGetUrl(storagePath, buffer, 'image/png');
     console.log('[save-scan] uploaded, downloadUrl:', downloadUrl);
   } catch (err) {
     console.error('[save-scan] Firebase Storage upload failed (non-fatal):', err);
@@ -69,9 +65,8 @@ export async function POST(req: NextRequest) {
 
   if (downloadUrl && pendingSessionId && !pendingSessionId.startsWith('local_')) {
     try {
-      const { doc, updateDoc, arrayUnion } = await import('firebase/firestore');
-      await updateDoc(doc(db, 'session', pendingSessionId), {
-        images: arrayUnion(downloadUrl),
+      await db.collection('session').doc(pendingSessionId).update({
+        images: FieldValue.arrayUnion(downloadUrl),
         currentProfile,
       });
       sessionId = pendingSessionId;

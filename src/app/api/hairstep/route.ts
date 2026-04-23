@@ -4,9 +4,7 @@
 // Returns the Firebase Storage URL of the uploaded PLY.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db, storage } from '@/lib/firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, FieldValue, uploadAndGetUrl } from '@/lib/firebase-admin';
 
 const HAIRSTEP_URL = process.env.HAIRSTEP_URL ?? '';
 
@@ -71,14 +69,16 @@ export async function POST(req: NextRequest) {
   console.log(`[hairstep] POST: received PLY (${plyBuffer.length} bytes)`);
 
   console.log(`[hairstep] POST: uploading PLY to Firebase Storage (scans/${sessionId}/hairstep.ply)`);
-  const storageRef = ref(storage, `scans/${sessionId}/hairstep.ply`);
-  const snapshot   = await uploadBytes(storageRef, plyBuffer, { contentType: 'application/octet-stream' });
-  const plyUrl     = await getDownloadURL(snapshot.ref);
+  const plyUrl = await uploadAndGetUrl(
+    `scans/${sessionId}/hairstep.ply`,
+    plyBuffer,
+    'application/octet-stream',
+  );
   console.log(`[hairstep] POST: uploaded PLY, url: ${plyUrl.slice(0, 80)}…`);
 
   try {
-    await updateDoc(doc(db, 'session', sessionId), {
-      hair_plys: arrayUnion(plyUrl),
+    await db.collection('session').doc(sessionId).update({
+      hair_plys: FieldValue.arrayUnion(plyUrl),
       currentProfile: currentProfile ?? null,
     });
     console.log(`[hairstep] POST: appended PLY url to session.hair_plys`);
