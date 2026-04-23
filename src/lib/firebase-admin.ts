@@ -1,36 +1,40 @@
-import admin from 'firebase-admin';
+import { initializeApp, getApps } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp,
+  arrayUnion,
+} from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-function getApp() {
-  if (!admin.apps.length) {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not set');
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(raw)),
-      storageBucket: 'hackprinceton-shapeup.firebasestorage.app',
-    });
-  }
-  return admin.app();
-}
+const firebaseConfig = {
+  apiKey: "AIzaSyBpPBNWykdZZ6ukjelAA3xjMUMNMowwZb4",
+  authDomain: "hackprinceton-shapeup.firebaseapp.com",
+  projectId: "hackprinceton-shapeup",
+  storageBucket: "hackprinceton-shapeup.firebasestorage.app",
+  messagingSenderId: "379851512921",
+  appId: "1:379851512921:web:9cbda9756068b53c4e6548",
+  measurementId: "G-6GYG8QNW3H",
+};
 
-export function getDb() { getApp(); return admin.firestore(); }
-export function getBucket() { getApp(); return admin.storage().bucket(); }
-export const FieldValue = admin.firestore.FieldValue;
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
-// Uploads a buffer and returns a permanent Firebase Storage download URL
-// in the same format as the client SDK's getDownloadURL().
+export { db, collection, doc, addDoc, updateDoc, getDocs, query, orderBy, serverTimestamp, arrayUnion };
+
 export async function uploadAndGetUrl(
   storagePath: string,
   buffer: Buffer,
   contentType: string,
 ): Promise<string> {
-  const token = crypto.randomUUID();
-  const file = getBucket().file(storagePath);
-  await file.save(buffer, {
-    metadata: {
-      contentType,
-      metadata: { firebaseStorageDownloadTokens: token },
-    },
-  });
-  const encodedPath = encodeURIComponent(storagePath);
-  return `https://firebasestorage.googleapis.com/v0/b/${getBucket().name}/o/${encodedPath}?alt=media&token=${token}`;
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, buffer, { contentType });
+  return getDownloadURL(storageRef);
 }

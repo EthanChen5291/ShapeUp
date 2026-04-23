@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { getDb, FieldValue, uploadAndGetUrl } from '@/lib/firebase-admin';
+import { db, collection, doc, addDoc, updateDoc, serverTimestamp, arrayUnion, uploadAndGetUrl } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
   console.log('[save-scan] POST received');
@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
 
   let pendingSessionId: string | null = null;
   try {
-    const sessionRef = await getDb().collection('session').add({
-      createdAt: FieldValue.serverTimestamp(),
+    const sessionRef = await addDoc(collection(db, 'session'), {
+      createdAt: serverTimestamp(),
       currentProfile,
     });
     pendingSessionId = sessionRef.id;
@@ -65,8 +65,8 @@ export async function POST(req: NextRequest) {
 
   if (downloadUrl && pendingSessionId && !pendingSessionId.startsWith('local_')) {
     try {
-      await getDb().collection('session').doc(pendingSessionId).update({
-        images: FieldValue.arrayUnion(downloadUrl),
+      await updateDoc(doc(db, 'session', pendingSessionId), {
+        images: arrayUnion(downloadUrl),
         currentProfile,
       });
       sessionId = pendingSessionId;
