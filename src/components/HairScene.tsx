@@ -141,13 +141,15 @@ const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
 // type 'ply' → HairStrandMesh, type 'npy' → HairDepthPoints
 type HairLayer = { type: 'ply' | 'npy'; id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
+const S3_HAIR = 'https://shape-up-s3.s3.us-east-1.amazonaws.com/hair';
+
 const HAIR_LAYERS: HairLayer[] = [
-  { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: '/hair/hair_modified.ply', color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: '/hair/strands_1.ply',   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: '/hair/preset_a.ply',    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'medium long',        label: 'Guest',       url: '/hair/guest.ply',       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: '/hair/brunohair.ply',   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: '/hair/top_hair.ply',    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
+  { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: `${S3_HAIR}/hair_modified.ply`, color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: `${S3_HAIR}/strands_1.ply`,   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: `${S3_HAIR}/preset_a.ply`,    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'medium long',        label: 'Guest',       url: `${S3_HAIR}/guest.ply`,       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: `${S3_HAIR}/brunohair.ply`,   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
+  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: `${S3_HAIR}/top_hair.ply`,    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
 ];
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
@@ -225,7 +227,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         />
         {visibleLayers.has('top_hair') && (
           <HairStrandMesh
-            url="/hair/top_hair.ply"
+            url={`${S3_HAIR}/top_hair.ply`}
             color={hairColor ?? "#3b1f0a"}
             scale={hairScale}
             position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
