@@ -30,7 +30,7 @@ export default function Home() {
   const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
 
-  const smirk = useSmirk(profile?.faceScanData?.imageDataUrl);
+  const smirk = useSmirk(undefined); // smirk server offline
   const { baldSplatSrc, originalSplatSrc, status: demoStatus } = useDemoFacelift(imageUrl);
 
   const handleParamsChange = useCallback((next: HairParams) => {

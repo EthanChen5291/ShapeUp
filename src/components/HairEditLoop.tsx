@@ -226,16 +226,39 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
           <span>Up</span>
         </div>
 
-        {/* 3D scene — full height left */}
+        {/* Left panel: selfie while loading, 3D scene once bald splat is ready */}
         <div className="flex-1 min-w-0 relative">
-          <HairSceneDemo
-            params={profile.currentStyle.params}
-            colorRGB={profile.currentStyle.colorRGB}
-            profile={profile}
-            splatSrcOverride={demoSplatSrc ?? undefined}
-            hairstepPlyUrls={demoHairPlys}
-            disableDefaultHairLayers
-          />
+          {baldReady ? (
+            <HairSceneDemo
+              params={profile.currentStyle.params}
+              colorRGB={profile.currentStyle.colorRGB}
+              profile={profile}
+              splatSrcOverride={demoSplatSrc ?? undefined}
+              hairstepPlyUrls={demoHairPlys}
+              disableDefaultHairLayers
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
+              <div className="polaroid wonky-sm-l" style={{ maxWidth: 340 }}>
+                <div className="tape tape-tl" />
+                <div className="tape tape-tr" />
+                <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
+                  <Image src={initialImageUrl} alt="Your scan" fill className="object-cover" unoptimized />
+                </div>
+                <div className="absolute bottom-3 left-0 right-0 text-center">
+                  <span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>
+                    you ✂
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="scissor-loader" />
+                <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--cream)]" style={{ opacity: 0.8 }}>
+                  {DEMO_STATUS_LABEL[demoStatus]}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Demo sidebar */}
