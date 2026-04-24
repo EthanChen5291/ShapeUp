@@ -1,10 +1,10 @@
 // POST { imageDataUrl?: string, imageUrl?: string, sessionId: string }
 //   → { ok: true, plyUrl: string }
 // Accepts either a base64 data URL or a plain HTTPS image URL (fetched server-side).
-// Returns the Firebase Storage URL of the uploaded PLY.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, FieldValue, uploadAndGetUrl } from '@/lib/firebase-admin';
+import { writeFile } from 'fs/promises';
+import path from 'path';
 
 const HAIRSTEP_URL = process.env.HAIRSTEP_URL ?? '';
 
@@ -68,23 +68,11 @@ export async function POST(req: NextRequest) {
   const plyBuffer = Buffer.from(await upstream.arrayBuffer());
   console.log(`[hairstep] POST: received PLY (${plyBuffer.length} bytes)`);
 
-  console.log(`[hairstep] POST: uploading PLY to Firebase Storage (scans/${sessionId}/hairstep.ply)`);
-  const plyUrl = await uploadAndGetUrl(
-    `scans/${sessionId}/hairstep.ply`,
-    plyBuffer,
-    'application/octet-stream',
-  );
-  console.log(`[hairstep] POST: uploaded PLY, url: ${plyUrl.slice(0, 80)}…`);
-
-  try {
-    await getDb().collection('session').doc(sessionId).update({
-      hair_plys: FieldValue.arrayUnion(plyUrl),
-      currentProfile: currentProfile ?? null,
-    });
-    console.log(`[hairstep] POST: appended PLY url to session.hair_plys`);
-  } catch (err) {
-    console.error('[hairstep] POST: Firestore update failed (non-fatal):', err);
-  }
+  const publicDir = path.join(process.cwd(), 'public');
+  const filename = 'hairstep-output.ply';
+  await writeFile(path.join(publicDir, filename), plyBuffer);
+  const plyUrl = `/${filename}`;
+  console.log(`[hairstep] POST: wrote PLY to public/${filename} (${plyBuffer.length} bytes)`);
 
   return NextResponse.json({ ok: true, plyUrl });
 }

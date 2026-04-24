@@ -42,6 +42,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const processingRef = useRef(false);
+  const originalImageUrlRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
 
@@ -86,13 +87,17 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     setPipelineError(null);
     setPhase('gemini');
 
+    // Always edit from the original selfie to prevent facial drift across iterations.
+    if (!originalImageUrlRef.current) originalImageUrlRef.current = latestImageUrl;
+    const imageForGemini = originalImageUrlRef.current;
+
     try {
-      console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: latestImageUrl, sessionId, prompt: submittedPrompt });
+      console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: imageForGemini, sessionId, prompt: submittedPrompt });
       const geminiRes = await fetch('/api/gemini-hair-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl: latestImageUrl,
+          imageUrl: imageForGemini,
           prompt: submittedPrompt,
           sessionId,
           currentProfile: buildCurrentProfilePayload({
