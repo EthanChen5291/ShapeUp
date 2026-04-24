@@ -19,6 +19,26 @@ const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommenda
 type AppState = 'scan' | 'hairEditLoop' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
+function BuyButton() {
+  const [loading, setLoading] = useState(false);
+  const handleClick = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const res  = await fetch('/api/stripe/checkout', { method: 'POST' });
+      const data = await res.json() as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <button onClick={handleClick} disabled={loading} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
+      {loading ? 'Opening…' : '✦ Buy Haircut Generations'}
+    </button>
+  );
+}
+
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('scan');
   const [profile, setProfile]   = useState<UserHeadProfile | null>(null);
@@ -84,6 +104,10 @@ export default function Home() {
   if (appState === 'scan') {
     return (
       <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
+        {/* Top-right: buy generations */}
+        <div className="absolute top-5 right-6 z-20">
+          <BuyButton />
+        </div>
         {/* Hero */}
         <section className="relative z-10 mx-auto max-w-7xl px-8 pt-16 pb-8">
           <div className="relative text-center anim-fade-up">
