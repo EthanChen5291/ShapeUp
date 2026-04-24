@@ -146,7 +146,9 @@ export async function parsePLYWithBBox(url: string): Promise<PLYResult> {
   }
 
   const header = new TextDecoder().decode(buf.slice(0, dataStart));
-  const vertexCount = parseInt(header.match(/element vertex (\d+)/)![1]);
+  const vcountMatch = header.match(/element vertex (\d+)/);
+  if (!vcountMatch) throw new Error(`[parsePLY] Not a valid PLY file: ${url.slice(0, 80)}`);
+  const vertexCount = parseInt(vcountMatch[1]);
   const edgeCount   = parseInt(header.match(/element edge (\d+)/)?.[1] ?? '0');
 
   const view = new DataView(buf, dataStart);

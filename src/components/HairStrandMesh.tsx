@@ -188,6 +188,8 @@ export default function HairStrandMesh({
       hairDataRef.current = data;
       setHairData(data);
       onBBoxReady?.(bbox);
+    }).catch(err => {
+      if (!cancelled) console.warn('[HairStrandMesh] failed to load PLY:', url, err);
     });
     return () => {
       cancelled = true;

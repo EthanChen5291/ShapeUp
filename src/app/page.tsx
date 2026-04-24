@@ -2,11 +2,9 @@
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import EditPanel from '@/components/EditPanel';
-import HairEditLoop from '@/components/HairEditLoop';
-import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useSmirk } from '@/hooks/useSmirk';
@@ -15,7 +13,69 @@ const HairScene  = dynamic(() => import('@/components/HairScene'),  { ssr: false
 const ScanCamera = dynamic(() => import('@/components/ScanCamera'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
 
-type AppState = 'scan' | 'hairEditLoop' | '3d';
+// Runs facelift on the original selfie URL and returns the resulting splat path.
+// Mirrors the useDemoFacelift pattern but without the baldify step.
+function useFacelift(imageUrl: string | null) {
+  const [splatSrc, setSplatSrc] = useState<string | null>(null);
+  const [status, setStatus]     = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (!imageUrl || startedRef.current) return;
+    startedRef.current = true;
+
+    async function run(url: string) {
+      try {
+        setStatus('processing');
+
+        // If already a data URL (local scan fallback), use directly; otherwise fetch+convert
+        let dataUrl: string;
+        if (url.startsWith('data:')) {
+          dataUrl = url;
+        } else {
+          const res  = await fetch(url);
+          const blob = await res.blob();
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+
+        const submitRes = await fetch('/api/facelift', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ imageDataUrl: dataUrl }),
+        });
+        const { jobId } = await submitRes.json() as { jobId?: string };
+        if (!jobId) throw new Error('No jobId from facelift');
+
+        while (true) {
+          await new Promise(r => setTimeout(r, 5000));
+          const poll = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}`);
+          const data = await poll.json() as { status: string; error?: string };
+          if (data.status === 'success') {
+            setSplatSrc(`/output.splat?t=${Date.now()}`);
+            setStatus('done');
+            return;
+          }
+          if (data.status === 'error') throw new Error(data.error ?? 'Facelift failed');
+        }
+      } catch (err) {
+        console.error('[useFacelift]', err);
+        setStatus('error');
+      }
+    }
+
+    run(imageUrl);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl]);
+
+  return { splatSrc, status };
+}
+
+type AppState = 'scan' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
 export default function Home() {
@@ -24,14 +84,31 @@ export default function Home() {
   const [params,  setParams]    = useState<HairParams>(mockUserHeadProfile.currentStyle.params);
   const [sessionId, setSessionId]   = useState<string | null>(null);
   const [imageUrl,  setImageUrl]    = useState<string | null>(null);
-  const [baldifiedDataUrl, setBaldifiedDataUrl] = useState<string | null>(null);
-  const [faceliftPlyReady, setFaceliftPlyReady] = useState(false);
-  const [hairstepPlyUrl, setHairstepPlyUrl]     = useState<string | null>(null);
-  const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
+  const [originalSelfieUrl, setOriginalSelfieUrl] = useState<string | null>(null);
+  const [hairstepPlyUrl, setHairstepPlyUrl] = useState<string | null>(null);
+  const [previewPlyUrl, setPreviewPlyUrl]   = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  useEffect(() => {
+    setIsPaid(localStorage.getItem('shapeup_paid') === 'true');
+  }, []);
+
+  const { splatSrc: faceliftSplatSrc, status: faceliftStatus } = useFacelift(originalSelfieUrl);
+
+  const handleCheckout = async () => {
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch('/api/create-checkout-session', { method: 'POST' });
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      setCheckoutLoading(false);
+    }
+  };
 
   const smirk = useSmirk(undefined); // smirk server offline
-  const { baldSplatSrc, originalSplatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
 
   const handleParamsChange = useCallback((next: HairParams) => {
     setParams(next);
@@ -55,10 +132,9 @@ export default function Home() {
     if (url) {
       setSessionId(sid);
       setImageUrl(url);
-      setAppState('hairEditLoop');
-    } else {
-      setAppState('3d');
+      setOriginalSelfieUrl(url);
     }
+    setAppState('3d');
   };
 
   const handleHairBBoxReady = useCallback((bbox: RawHairBBox) => {
@@ -78,6 +154,18 @@ export default function Home() {
   if (appState === 'scan') {
     return (
       <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
+        {/* Pay button — top right */}
+        <div className="absolute top-5 right-6 z-30">
+          <button
+            onClick={handleCheckout}
+            disabled={checkoutLoading}
+            className="btn-ink"
+            style={{ padding: '9px 20px', fontSize: 12, letterSpacing: '0.06em', opacity: checkoutLoading ? 0.6 : 1 }}
+          >
+            {checkoutLoading ? 'redirecting…' : '$4.99 · 50 generations ✂'}
+          </button>
+        </div>
+
         {/* Hero */}
         <section className="relative z-10 mx-auto max-w-7xl px-8 pt-16 pb-8">
           <div className="relative text-center anim-fade-up">
@@ -171,7 +259,7 @@ export default function Home() {
                     ['Mirror scan',        'free'],
                     ['AI styling',         'free'],
                     ['3D preview',         'free'],
-                    ['Barber\u2019s notes', 'free'],
+                    ['Barber’s notes', 'free'],
                     ['Second opinions',    'unlimited'],
                   ].map(([a, b]) => (
                     <li key={a} className="flex items-baseline gap-2 leading-tight">
@@ -208,30 +296,6 @@ export default function Home() {
     );
   }
 
-  // ─────────────── HAIR EDIT LOOP ───────────────
-  if (appState === 'hairEditLoop' && sessionId && imageUrl) {
-    return (
-      <HairEditLoop
-        sessionId={sessionId}
-        initialImageUrl={imageUrl}
-        profile={profile ?? mockUserHeadProfile}
-        onRenderIn3D={(dataUrl) => {
-          setBaldifiedDataUrl(dataUrl);
-          setFaceliftPlyReady(true);
-          setAppState('3d');
-        }}
-        onHairstepPlyReady={(plyUrl) => {
-          setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`);
-        }}
-        demoMode
-        baldSplatSrc={baldSplatSrc}
-        originalSplatSrc={originalSplatSrc}
-        demoStatus={demoStatus}
-        demoError={demoError}
-      />
-    );
-  }
-
   // ─────────────────────── 3D STUDIO ───────────────────────
   return (
     <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
@@ -249,7 +313,7 @@ export default function Home() {
       </div>
 
       <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
-        {/* Polaroid thumbnail */}
+        {/* Polaroid thumbnail — shows latest Gemini-edited image */}
         {imageUrl && (
           <div
             className="absolute top-24 left-6 z-10 polaroid wonky-l"
@@ -272,9 +336,7 @@ export default function Home() {
           }}
         >
           {/* Recommendations bar — top-right overlay on the 3D stage */}
-          <div
-            className="absolute top-3 right-3 z-10"
-          >
+          <div className="absolute top-3 right-3 z-10">
             <HairRecommendationsBar
               visible={showRecommendations}
               onHover={setPreviewPlyUrl}
@@ -290,8 +352,7 @@ export default function Home() {
             colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
-            autoFaceliftDataUrl={baldifiedDataUrl ?? undefined}
-            faceliftPlyReady={faceliftPlyReady}
+            splatSrcOverride={originalSelfieUrl ? faceliftSplatSrc : undefined}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             flameData={
               smirk.result
@@ -302,6 +363,73 @@ export default function Home() {
                 : undefined
             }
           />
+
+          {/* Facelift status overlay */}
+          {faceliftStatus === 'processing' && (
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 15, background: 'rgba(0,0,0,0.65)', color: '#fff8ea', padding: '5px 14px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.12em', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+              generating your 3D scan…
+            </div>
+          )}
+          {faceliftStatus === 'error' && (
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 15, background: 'rgba(140,0,0,0.75)', color: '#fff', padding: '5px 14px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.12em', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+              3D generation failed — check server logs
+            </div>
+          )}
+
+          {/* Face blur — shown until paid */}
+          {!isPaid && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '4%',
+                left: '22%',
+                right: '22%',
+                bottom: '28%',
+                borderRadius: '50%',
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                background: 'rgba(0,0,0,0.05)',
+                zIndex: 5,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+
+          {/* Unlock CTA */}
+          {!isPaid && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 36,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 20,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/60">
+                unlock full render
+              </p>
+              <button
+                onClick={handleCheckout}
+                disabled={checkoutLoading}
+                className="btn-ink"
+                style={{
+                  padding: '11px 28px',
+                  fontSize: 13,
+                  letterSpacing: '0.06em',
+                  opacity: checkoutLoading ? 0.6 : 1,
+                  transition: 'opacity 0.2s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {checkoutLoading ? 'redirecting…' : '$4.99 · 50 haircut generations ✂'}
+              </button>
+            </div>
+          )}
 
           {/* Mono caption strip on the stage */}
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">
@@ -347,7 +475,7 @@ export default function Home() {
             profile={profile ?? mockUserHeadProfile}
             onParamsChange={handleParamsChange}
             sessionId={sessionId}
-            latestImageUrl={imageUrl}
+            latestImageUrl={originalSelfieUrl}
             onImageUpdated={(url) => setImageUrl(url)}
             onPlyReady={(plyUrl) => setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`)}
             onUncertain={() => setShowRecommendations(true)}

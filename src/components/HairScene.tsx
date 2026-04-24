@@ -134,8 +134,8 @@ function HairDepthPoints({ url, color, scale, position }: {
 
 // Fallback hair transform used before FLAME data + PLY bbox are both available.
 // Derived by manually aligning brunohair.ply to the reference Polycam head.
-const HAIR_PLY_SCALE_DEFAULT   = 13.109;
-const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
+const HAIR_PLY_SCALE_DEFAULT   = 12.454;
+const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -22.029, 0.7];
 
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
@@ -170,7 +170,7 @@ interface SceneProps {
   hairPos: [number, number, number];
   splatScale: number;
   splatPosY: number;
-  splatSrc: string;
+  splatSrc: string | null;
   hairstepPlyUrl?: string;
   hairstepPlyUrls?: string[];
   hairColor?: string;
@@ -186,8 +186,8 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
 
       {showPolycam && <PolycamHead />}
 
-      {showSplat && (
-        <Suspense fallback={null}>
+      {showSplat && splatSrc && (
+        <Suspense key={splatSrc} fallback={null}>
           <Splat src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
         </Suspense>
       )}
@@ -354,8 +354,9 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   // Prop flameData (from real webcam scan) takes priority over test data
   const effectiveFlameData = flameData ?? localFlameData ?? undefined;
 
-  // splatSrcOverride (demo mode) > facelift result > placeholder
-  const effectiveSplatSrc = splatSrcOverride ?? ethanSplatSrc ?? '/models/gaussians.splat';
+  // splatSrcOverride: undefined = no override (use default), null = override pending (hide splat), string = show this
+  const effectiveSplatSrc: string | null =
+    splatSrcOverride !== undefined ? splatSrcOverride : (ethanSplatSrc ?? '/models/gaussians.splat');
 
   const hairScale = HAIR_PLY_SCALE_DEFAULT;
   const hairPos: [number, number, number] = HAIR_PLY_POS_DEFAULT;
