@@ -25,15 +25,14 @@ export default function Home() {
   const [params,  setParams]    = useState<HairParams>(mockUserHeadProfile.currentStyle.params);
   const [sessionId, setSessionId]   = useState<string | null>(null);
   const [imageUrl,  setImageUrl]    = useState<string | null>(null);
-  const [baldifiedDataUrl, setBaldifiedDataUrl] = useState<string | null>(null);
-  const [faceliftPlyReady, setFaceliftPlyReady] = useState(false);
-  const [hairstepPlyUrl, setHairstepPlyUrl]     = useState<string | null>(null);
+  const [hairstepPlyUrl, setHairstepPlyUrl] = useState<string | null>(null);
+  const [editSplatSrc,   setEditSplatSrc]   = useState<string | null>(null);
   const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
 
   const smirk = useSmirk(undefined); // smirk server offline
-  const { baldSplatSrc, originalSplatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
+  const { splatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
 
   const handleParamsChange = useCallback((next: HairParams) => {
     setParams(next);
@@ -217,7 +216,7 @@ export default function Home() {
 
   // ─────────────── HAIR EDIT LOOP ───────────────
   if (appState === 'hairEditLoop' && imageUrl) {
-    const baldReady = baldSplatSrc != null;
+    const faceliftReady = splatSrc != null;
     return (
       <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
         {/* Corner wordmark */}
@@ -228,12 +227,12 @@ export default function Home() {
 
         {/* Left: loading selfie or 3D scene */}
         <div className="flex-1 min-w-0 relative">
-          {baldReady ? (
+          {faceliftReady ? (
             <HairScene
               params={params}
               colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
               profile={profile ?? mockUserHeadProfile}
-              splatSrcOverride={baldSplatSrc}
+              splatSrcOverride={splatSrc}
               disableDefaultHairLayers
             />
           ) : (
@@ -367,10 +366,9 @@ export default function Home() {
             colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
-            autoFaceliftDataUrl={baldifiedDataUrl ?? undefined}
-            faceliftPlyReady={faceliftPlyReady}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
-            splatSrcOverride={baldSplatSrc ?? undefined}
+            splatSrcOverride={editSplatSrc ?? splatSrc ?? undefined}
+            disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc)}
             flameData={
               smirk.result
                 ? {
@@ -427,7 +425,13 @@ export default function Home() {
             sessionId={sessionId}
             latestImageUrl={imageUrl}
             onImageUpdated={(url) => setImageUrl(url)}
-            onPlyReady={(plyUrl) => setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(plyUrl)}`)}
+            onPlyReady={(url) => {
+              if (url.startsWith('/')) {
+                setEditSplatSrc(url);
+              } else {
+                setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`);
+              }
+            }}
             onUncertain={() => setShowRecommendations(true)}
           />
         </div>
@@ -438,12 +442,10 @@ export default function Home() {
 
 /* ─────────────── Demo status labels ─────────────── */
 const DEMO_STATUS_LABEL: Record<string, string> = {
-  idle:                'Setting up...',
-  baldifying:          'Preparing scan...',
-  'bald-processing':   'Building 3D model (~2 min)',
-  'original-processing': 'Presets ready · building original...',
-  done:                'All ready',
-  error:               'Error — check console',
+  idle:       'Setting up...',
+  processing: 'Building 3D model (~2 min)',
+  done:       'All ready',
+  error:      'Error — check console',
 };
 
 /* ─────────────── Demo toolbox sidebar (only prompt is live) ─────────────── */

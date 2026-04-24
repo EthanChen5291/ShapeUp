@@ -87,6 +87,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     setPhase('gemini');
 
     try {
+      console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: latestImageUrl, sessionId, prompt: submittedPrompt });
       const geminiRes = await fetch('/api/gemini-hair-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +101,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           }),
         }),
       });
+      console.log('[EditPanel] gemini-hair-edit HTTP status:', geminiRes.status);
       const geminiRaw = await geminiRes.text();
+      console.log('[EditPanel] gemini-hair-edit raw response:', geminiRaw.slice(0, 300));
       let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
       try { geminiData = JSON.parse(geminiRaw); }
       catch {
@@ -108,7 +111,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         return;
       }
       if (!geminiData.ok || !geminiData.newImageUrl) {
-        const msg = geminiData.error ?? 'Unknown Gemini error';
+        const msg = (geminiData.error ?? 'Unknown Gemini error') + (geminiData.detail ? ' — ' + geminiData.detail : '');
+        console.error('[EditPanel] gemini-hair-edit failed:', geminiData);
         setPipelineError('Gemini failed: ' + msg);
         return;
       }
@@ -117,30 +121,50 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       setPrompt('');
 
       setPhase('hairstep');
-      const hairstepRes = await fetch('/api/hairstep', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl: newImageUrl,
-          sessionId,
-          currentProfile: buildCurrentProfilePayload({
-            ...profile,
-            currentStyle: { ...profile.currentStyle, params: currentParams },
-          }),
-        }),
+
+      // Convert Gemini-edited image URL → data URL for facelift
+      const editImgRes = await fetch(newImageUrl);
+      const editBlob   = await editImgRes.blob();
+      const editDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(editBlob);
       });
-      const hairstepRaw = await hairstepRes.text();
-      let hairstepData: { ok: boolean; plyUrl?: string; error?: string };
-      try { hairstepData = JSON.parse(hairstepRaw); }
+
+      // Submit to facelift
+      const faceliftSubmitRes = await fetch('/api/facelift', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ imageDataUrl: editDataUrl }),
+      });
+      const faceliftSubmitRaw = await faceliftSubmitRes.text();
+      let faceliftSubmit: { jobId?: string; error?: string };
+      try { faceliftSubmit = JSON.parse(faceliftSubmitRaw); }
       catch {
-        setPipelineError('HairStep returned non-JSON (HTTP ' + hairstepRes.status + ').');
+        setPipelineError('Facelift submit returned non-JSON (HTTP ' + faceliftSubmitRes.status + ').');
         return;
       }
-      if (!hairstepData.ok || !hairstepData.plyUrl) {
-        setPipelineError('HairStep failed: ' + (hairstepData.error ?? 'unknown error'));
+      if (!faceliftSubmit.jobId) {
+        setPipelineError('Facelift failed to start: ' + (faceliftSubmit.error ?? 'unknown'));
         return;
       }
-      onPlyReady(hairstepData.plyUrl);
+
+      // Poll until done
+      const jobId = faceliftSubmit.jobId;
+      let splatPath: string | null = null;
+      while (true) {
+        await new Promise(r => setTimeout(r, 5000));
+        const pollRes  = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=edit-output`);
+        const pollData = await pollRes.json() as { status: string; splatPath?: string; error?: string };
+        if (pollData.status === 'success') { splatPath = pollData.splatPath!; break; }
+        if (pollData.status === 'error') {
+          setPipelineError('Facelift render failed: ' + (pollData.error ?? 'unknown'));
+          return;
+        }
+      }
+
+      onPlyReady(`${splatPath}?t=${Date.now()}`);
     } finally {
       setPhase('idle');
       processingRef.current = false;
@@ -218,7 +242,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             className="btn btn-tomato flex-1"
             style={{ padding: '10px 16px', fontSize: 13 }}
           >
-            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Sculpting…' : '✂ Apply'}
+            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Rendering…' : '✂ Apply'}
           </button>
           <button
             type="button"
