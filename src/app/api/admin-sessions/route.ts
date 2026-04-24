@@ -1,22 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/firebase-admin';
+import { ConvexHttpClient } from 'convex/browser';
+import { api } from '@convex/_generated/api';
+
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function GET() {
   try {
-    const snapshot = await getDb().collection('session').orderBy('createdAt', 'desc').get();
-
-    const sessions = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-        images: data.images ?? [],
-        hair_plys: data.hair_plys ?? [],
-        hasHairPly: Array.isArray(data.hair_plys) && data.hair_plys.length > 0,
-        currentProfile: data.currentProfile ?? null,
-      };
-    });
-
+    const sessions = await convex.query(api.sessions.listRecent, {});
     return NextResponse.json({ sessions });
   } catch (err) {
     console.error('admin-sessions error', err);

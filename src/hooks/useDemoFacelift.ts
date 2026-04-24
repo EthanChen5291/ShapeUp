@@ -8,6 +8,10 @@ async function pollFacelift(jobId: string, outputName: string): Promise<string> 
   while (true) {
     await new Promise(r => setTimeout(r, 5000));
     const res  = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=${encodeURIComponent(outputName)}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Facelift poll failed (${res.status}): ${body || 'empty response'}`);
+    }
     const data = await res.json() as { status: string; splatPath?: string; error?: string };
     if (data.status === 'success') return data.splatPath!;
     if (data.status === 'error') throw new Error(data.error ?? 'Facelift failed');
@@ -45,6 +49,15 @@ export function useDemoFacelift(originalImageUrl: string | null) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ imageDataUrl }),
       });
+      if (submitRes.status === 402 || submitRes.status === 401) {
+        const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
+        const { url } = await checkout.json() as { url?: string };
+        if (url) { window.location.href = url; return; }
+      }
+      if (!submitRes.ok) {
+        const body = await submitRes.text().catch(() => '');
+        throw new Error(`Facelift submit failed (${submitRes.status}): ${body || 'empty response'}`);
+      }
       const { jobId } = await submitRes.json() as { jobId?: string };
       if (!jobId) throw new Error('No jobId from facelift');
 

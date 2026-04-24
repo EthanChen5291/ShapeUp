@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Fraunces, DM_Sans, JetBrains_Mono } from 'next/font/google';
+import { ConvexClerkProvider } from '@/components/ConvexClerkProvider';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -41,7 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             .font-sans    { font-family: var(--font-dmsans), system-ui, sans-serif !important; }
             .font-mono    { font-family: var(--font-jetbrains), ui-monospace, monospace !important; }
           `}</style>
-          {children}
+          <ConvexClerkProvider>
+            {children}
+          </ConvexClerkProvider>
         </body>
       </html>
     </ClerkProvider>

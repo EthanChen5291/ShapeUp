@@ -2,7 +2,10 @@
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useClerk, useUser } from '@clerk/nextjs';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '@convex/_generated/api';
 
 import EditPanel from '@/components/EditPanel';
 import Image from 'next/image';
@@ -19,27 +22,77 @@ const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommenda
 type AppState = 'scan' | 'hairEditLoop' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
-function BuyButton() {
+function TopBar() {
+  const { isSignedIn } = useUser();
+  const { openSignIn, signOut } = useClerk();
+  const userQuery = useQuery(api.users.getMe);
   const [loading, setLoading] = useState(false);
-  const handleClick = async () => {
+
+  // Convex auth token (from Clerk) can briefly disappear, causing getMe to
+  // resolve null → user → null → user. Once we've confirmed a real user row
+  // exists, never regress back to null/undefined — it's always a transient
+  // auth hiccup, not a real sign-out.
+  const stableUserRef = useRef(userQuery);
+  if (userQuery != null) stableUserRef.current = userQuery;   // only advance on real data
+  const user = stableUserRef.current;
+
+  useEffect(() => {
+    if (userQuery === undefined) {
+      console.debug('[TopBar] getMe: loading (undefined) — holding stable:', stableUserRef.current);
+    } else if (userQuery === null) {
+      console.debug('[TopBar] getMe: resolved null (auth token gap) — holding stable:', stableUserRef.current);
+    } else {
+      console.debug('[TopBar] getMe: resolved user →', userQuery);
+    }
+  }, [userQuery]);
+
+  const handleBuy = async () => {
+    if (!isSignedIn) { openSignIn(); return; }
     if (loading) return;
     setLoading(true);
     try {
       const res  = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json() as { url?: string };
+      const data = await res.json() as { url?: string; error?: string };
       if (data.url) window.location.href = data.url;
     } finally {
       setLoading(false);
     }
   };
+
   return (
-    <button onClick={handleClick} disabled={loading} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
-      {loading ? 'Opening…' : '✦ Buy Haircut Generations'}
-    </button>
+    <div className="flex items-center gap-3">
+      {isSignedIn && user != null && (
+        <span className="font-mono text-[10px] text-[var(--cream)] opacity-70">
+          {user.credits} {user.credits === 1 ? 'cut' : 'cuts'} left
+        </span>
+      )}
+      <button onClick={handleBuy} disabled={loading} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
+        {loading ? 'Opening…' : isSignedIn ? '✦ Buy 25 Haircuts — $5' : '✦ Sign in to Buy'}
+      </button>
+      {isSignedIn && (
+        <button
+          onClick={() => signOut()}
+          className="font-sans text-[10px] uppercase tracking-wider text-[var(--cream)] opacity-50 hover:opacity-100 transition-opacity"
+        >
+          Sign out
+        </button>
+      )}
+    </div>
   );
 }
 
 export default function Home() {
+  const { isSignedIn } = useUser();
+  const getOrCreate = useMutation(api.users.getOrCreate);
+
+  // Register the user in Convex the first time they sign in
+  useEffect(() => {
+    if (isSignedIn) {
+      getOrCreate().catch((err) => console.error('[Home] getOrCreate FAILED:', err));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
+
   const [appState, setAppState] = useState<AppState>('scan');
   const [profile, setProfile]   = useState<UserHeadProfile | null>(null);
   const [params,  setParams]    = useState<HairParams>(mockUserHeadProfile.currentStyle.params);
@@ -106,7 +159,7 @@ export default function Home() {
       <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
         {/* Top-right: buy generations */}
         <div className="absolute top-5 right-6 z-20">
-          <BuyButton />
+          <TopBar />
         </div>
         {/* Hero */}
         <section className="relative z-10 mx-auto max-w-7xl px-8 pt-16 pb-8">
