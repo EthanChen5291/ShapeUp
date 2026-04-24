@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
     const [header, b64] = body.imageDataUrl.split(',');
     mimeType = header.match(/data:([^;]+)/)?.[1] ?? 'image/jpeg';
     base64 = b64;
+  } else if (typeof body.imageUrl === 'string' && body.imageUrl.startsWith('data:image')) {
+    const [header, b64] = body.imageUrl.split(',');
+    mimeType = header.match(/data:([^;]+)/)?.[1] ?? 'image/jpeg';
+    base64 = b64;
   } else if (typeof body.imageUrl === 'string') {
     const imgRes = await fetch(body.imageUrl);
     if (!imgRes.ok) {

@@ -10,6 +10,13 @@ export type DemoFaceliftStatus =
   | 'done'
   | 'error';
 
+export interface DemoFaceliftState {
+  baldSplatSrc:     string | null;
+  originalSplatSrc: string | null;
+  status:           DemoFaceliftStatus;
+  error:            string | null;
+}
+
 async function pollFacelift(jobId: string, outputName: string): Promise<string> {
   while (true) {
     await new Promise(r => setTimeout(r, 5000));
@@ -24,6 +31,7 @@ export function useDemoFacelift(originalImageUrl: string | null) {
   const [baldSplatSrc,     setBaldSplatSrc]     = useState<string | null>(null);
   const [originalSplatSrc, setOriginalSplatSrc] = useState<string | null>(null);
   const [status,           setStatus]           = useState<DemoFaceliftStatus>('idle');
+  const [error,            setError]            = useState<string | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -82,10 +90,12 @@ export function useDemoFacelift(originalImageUrl: string | null) {
       setOriginalSplatSrc(`/original-output.splat?t=${Date.now()}`);
       setStatus('done');
     } catch (err) {
-      console.error('[useDemoFacelift]', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[useDemoFacelift]', msg);
+      setError(msg);
       setStatus('error');
     }
   }
 
-  return { baldSplatSrc, originalSplatSrc, status };
+  return { baldSplatSrc, originalSplatSrc, status, error };
 }

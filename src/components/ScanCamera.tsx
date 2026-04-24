@@ -225,7 +225,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
       // Non-fatal
     }
 
-    onScanComplete(profile, sessionId, uploadedImageUrl);
+    onScanComplete(profile, sessionId, uploadedImageUrl ?? imageDataUrl);
   }
 
   const instruction =

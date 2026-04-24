@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
 
   if (status.status === 'success') {
     console.log(`[facelift] GET: job succeeded, downloading from ${FACELIFT_URL}/download/${jobId}`);
-    const dlRes = await fetch(`${FACELIFT_URL}/download/${jobId}`, { headers: NGROK_HEADERS });
+    const dlRes = await fetch(`${FACELIFT_URL}/download/${jobId}/ply`, { headers: NGROK_HEADERS });
     if (!dlRes.ok) {
       const text = await dlRes.text().catch(() => '');
       console.error(`[facelift] GET: download failed ${dlRes.status}: ${text}`);
@@ -191,8 +191,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (status.status === 'error') {
-    console.error(`[facelift] GET: job failed — ${status.error ?? 'unknown error'}`);
-    return NextResponse.json({ status: 'error', error: status.error ?? 'Unknown error' });
+    const errMsg = status.error || status.message || status.detail || JSON.stringify(status);
+    console.error(`[facelift] GET: job failed —`, errMsg);
+    return NextResponse.json({ status: 'error', error: errMsg || 'Unknown error' });
   }
 
   console.log(`[facelift] GET: job still running, status=${status.status ?? 'processing'}`);

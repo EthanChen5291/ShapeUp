@@ -31,7 +31,7 @@ export default function Home() {
   const [showRecommendations, setShowRecommendations] = useState(false);
 
   const smirk = useSmirk(undefined); // smirk server offline
-  const { baldSplatSrc, originalSplatSrc, status: demoStatus } = useDemoFacelift(imageUrl);
+  const { baldSplatSrc, originalSplatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
 
   const handleParamsChange = useCallback((next: HairParams) => {
     setParams(next);
@@ -52,7 +52,7 @@ export default function Home() {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setProfile(profileWithMeasurements);
     setParams(profileWithMeasurements.currentStyle.params);
-    if (sid && url) {
+    if (url) {
       setSessionId(sid);
       setImageUrl(url);
       setAppState('hairEditLoop');
@@ -227,6 +227,7 @@ export default function Home() {
         baldSplatSrc={baldSplatSrc}
         originalSplatSrc={originalSplatSrc}
         demoStatus={demoStatus}
+        demoError={demoError}
       />
     );
   }

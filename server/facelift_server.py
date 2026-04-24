@@ -111,7 +111,8 @@ def run_facelift(job_id: str, image_path: str) -> None:
             "video_path": video_path if os.path.exists(video_path) else None,
         }
     except Exception as e:
-        JOBS[job_id] = {"status": "error", "error": str(e)}
+        import traceback
+        JOBS[job_id] = {"status": "error", "error": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"}
 
 
 @app.route("/process_image", methods=["POST"])

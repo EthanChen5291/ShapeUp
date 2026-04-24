@@ -40,6 +40,7 @@ interface HairEditLoopProps {
   baldSplatSrc?: string | null;
   originalSplatSrc?: string | null;
   demoStatus?: DemoFaceliftStatus;
+  demoError?: string | null;
 }
 
 type Phase = 'idle' | 'gemini' | 'hairstep';
@@ -61,7 +62,7 @@ const BARBER_CHATTER = [
   'Pouring you a coffee…',
 ];
 
-export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady, demoMode = false, baldSplatSrc, originalSplatSrc, demoStatus = 'idle' }: HairEditLoopProps) {
+export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady, demoMode = false, baldSplatSrc, originalSplatSrc, demoStatus = 'idle', demoError }: HairEditLoopProps) {
   const [currentImageUrl, setCurrentImageUrl] = useState(initialImageUrl);
   const [prompt, setPrompt] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -211,12 +212,26 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
 
   const chatter = BARBER_CHATTER[Math.floor(Date.now() / 1600) % BARBER_CHATTER.length];
 
+  const baldReady = baldSplatSrc != null;
+  const origReady = originalSplatSrc != null;
+
+  useEffect(() => {
+    if (!demoMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const n = parseInt(e.key, 10);
+      if (!isNaN(n) && n >= 0 && n < DEMO_PRESETS.length) {
+        setSelectedPreset(n);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [demoMode]);
+
   // ── Demo mode ────────────────────────────────────────────────────────────
   if (demoMode) {
     const demoSplatSrc = selectedPreset === 0 ? originalSplatSrc : baldSplatSrc;
     const demoHairPlys = DEMO_PRESETS[selectedPreset]?.plys ?? [];
-    const baldReady = baldSplatSrc !== null;
-    const origReady = originalSplatSrc !== null;
 
     return (
       <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
@@ -252,10 +267,15 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
                 </div>
               </div>
               <div className="flex flex-col items-center gap-3">
-                <div className="scissor-loader" />
+                {demoStatus !== 'error' && <div className="scissor-loader" />}
                 <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--cream)]" style={{ opacity: 0.8 }}>
                   {DEMO_STATUS_LABEL[demoStatus]}
                 </span>
+                {demoStatus === 'error' && demoError && (
+                  <p className="font-mono text-[10px] text-[var(--butter)] max-w-xs text-center break-words" style={{ opacity: 0.85 }}>
+                    {demoError.split('\n')[0]}
+                  </p>
+                )}
               </div>
             </div>
           )}
