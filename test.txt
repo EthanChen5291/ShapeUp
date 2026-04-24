@@ -1,1 +1,157 @@
-hey there !
+# Networking: Static IP for the Global External Load Balancer
+resource "google_compute_global_address" "api_ip" {
+  name = "api-static-ip"
+}
+
+# API Service: Cloud Run (The Trigger)
+resource "google_cloud_run_v2_service" "api_service" {
+  name     = "api-service"
+  location = "us-central1"
+  ingress  = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    containers {
+      image = "us-docker.pkg.dev/cloudrun/container/hello" # Replace with your trigger app image
+      env {
+        name  = "TOPIC_ID"
+        value = google_pubsub_topic.batch_jobs.id
+      }
+    }
+    service_account = google_service_account.api_sa.email
+  }
+}
+
+# Serverless NEG for Cloud Run
+resource "google_compute_region_network_endpoint_group" "api_neg" {
+  name                  = "api-neg"
+  network_endpoint_type = "SERVERLESS"
+  region                = "us-central1"
+  cloud_run {
+    service = google_cloud_run_v2_service.api_service.name
+  }
+}
+
+# Load Balancer Components
+resource "google_compute_backend_service" "api_backend" {
+  name                  = "api-backend"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "HTTP"
+
+  backend {
+    group = google_compute_region_network_endpoint_group.api_neg.id
+  }
+}
+
+resource "google_compute_url_map" "api_map" {
+  name            = "api-url-map"
+  default_service = google_compute_backend_service.api_backend.id
+}
+
+resource "google_compute_target_http_proxy" "api_proxy" {
+  name    = "api-target-proxy"
+  url_map = google_compute_url_map.api_map.id
+}
+
+resource "google_compute_global_forwarding_rule" "api_forwarding_rule" {
+  name                  = "api-forwarding-rule"
+  target                = google_compute_target_http_proxy.api_proxy.id
+  port_range            = "80"
+  ip_address            = google_compute_global_address.api_ip.address
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+}
+
+# Queuing: Pub/Sub Topic and Subscription
+resource "google_pubsub_topic" "batch_jobs" {
+  name = "batch-jobs-topic"
+}
+
+resource "google_pubsub_subscription" "worker_sub" {
+  name  = "worker-subscription"
+  topic = google_pubsub_topic.batch_jobs.name
+  
+  # Ensure message is retried if instance is preempted
+  ack_deadline_seconds = 300 
+}
+
+# Worker: Compute Engine Spot L4 GPU Template
+resource "google_compute_instance_template" "worker_template" {
+  name_prefix  = "worker-l4-spot-"
+  machine_type = "g2-standard-4" # Includes 1 NVIDIA L4 GPU
+  region       = "us-central1"
+
+  disk {
+    source_image = "debian-cloud/debian-11"
+    auto_delete  = true
+    boot         = true
+  }
+
+  network_interface {
+    network = "default"
+    access_config {
+      # Provides ephemeral external IP for internet access/updates
+    }
+  }
+
+  scheduling {
+    preemptible        = true
+    provisioning_model = "SPOT"
+    automatic_restart  = false
+  }
+
+  guest_accelerator {
+    type  = "nvidia-l4"
+    count = 1
+  }
+
+  service_account {
+    email  = google_service_account.worker_sa.email
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  metadata = {
+    install-nvidia-driver = "true"
+  }
+}
+
+# MIG with target size 1 to enforce serial processing
+resource "google_compute_region_instance_group_manager" "worker_mig" {
+  name               = "worker-mig"
+  base_instance_name = "worker"
+  region             = "us-central1"
+  target_size        = 1
+
+  version {
+    instance_template = google_compute_instance_template.worker_template.id
+  }
+}
+
+# IAM: Service Accounts and Permissions
+resource "google_service_account" "api_sa" {
+  account_id   = "api-service-sa"
+  display_name = "API Service Account"
+}
+
+resource "google_service_account" "worker_sa" {
+  account_id   = "worker-service-sa"
+  display_name = "Worker Service Account"
+}
+
+resource "google_pubsub_topic_iam_member" "api_publisher" {
+  topic  = google_pubsub_topic.batch_jobs.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.api_sa.email}"
+}
+
+resource "google_pubsub_subscription_iam_member" "worker_subscriber" {
+  subscription = google_pubsub_subscription.worker_sub.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:${google_service_account.worker_sa.email}"
+}
+
+# Public Invoker for Cloud Run (allowing LB to access it)
+resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
+  location = google_cloud_run_v2_service.api_service.location
+  name     = google_cloud_run_v2_service.api_service.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}

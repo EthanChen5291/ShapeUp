@@ -24,3 +24,7 @@ haircut-classifier/src/data/
 
 # Debug
 npm-debug.log*
+
+.terraform/
+.terraform.lock.hcl
+.terraform
