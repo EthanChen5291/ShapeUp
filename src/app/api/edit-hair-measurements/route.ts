@@ -6,16 +6,22 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-const PLY_PATH  = path.join(process.cwd(), 'public/hair/hair_modified.ply');
-const JSON_PATH = path.join(process.cwd(), 'public/hair/hair_measurements.json');
-const SCRIPT    = path.join(process.cwd(), 'server/edit_hair_ply.py');
+function getPaths(plyOverride?: string) {
+  const cwd = /*turbopackIgnore: true*/ process.cwd();
+  return {
+    plyPath:  plyOverride ? path.join(cwd, plyOverride) : path.join(cwd, 'public/hair/hair_modified.ply'),
+    jsonPath: path.join(cwd, 'public/hair/hair_measurements.json'),
+    script:   path.join(cwd, 'server/edit_hair_ply.py'),
+  };
+}
 
 /** GET /api/edit-hair-measurements — return current measurements JSON */
 export async function GET() {
-  if (!fs.existsSync(JSON_PATH)) {
+  const { jsonPath } = getPaths();
+  if (!fs.existsSync(jsonPath)) {
     return NextResponse.json({ error: 'hair_measurements.json not found' }, { status: 404 });
   }
-  const raw = fs.readFileSync(JSON_PATH, 'utf-8');
+  const raw = fs.readFileSync(jsonPath, 'utf-8');
   return NextResponse.json(JSON.parse(raw));
 }
 
@@ -39,9 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'deltas is required and must be non-empty' }, { status: 400 });
   }
 
-  const resolvedPly = plyPath
-    ? path.join(process.cwd(), plyPath)
-    : PLY_PATH;
+  const { plyPath: resolvedPly, jsonPath, script } = getPaths(plyPath);
 
   if (!fs.existsSync(resolvedPly)) {
     return NextResponse.json(
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   const deltasArg = JSON.stringify(deltas).replace(/"/g, '\\"');
-  const cmd = `python "${SCRIPT}" --ply "${resolvedPly}" --out "${resolvedPly}" --json "${JSON_PATH}" --deltas "${deltasArg}"`;
+  const cmd = `python "${script}" --ply "${resolvedPly}" --out "${resolvedPly}" --json "${jsonPath}" --deltas "${deltasArg}"`;
 
   try {
     const { stdout, stderr } = await execAsync(cmd, { timeout: 30_000 });

@@ -3,11 +3,11 @@
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { useAuth } from "@clerk/nextjs";
 
-// Lazily initialized so module evaluation during SSR doesn't throw when
-// NEXT_PUBLIC_CONVEX_URL is not inlined at build time.
 let convex: ConvexReactClient | undefined;
-function getConvex() {
-  if (!convex) convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getConvex(): ConvexReactClient | null {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) return null;
+  if (!convex) convex = new ConvexReactClient(url);
   return convex;
 }
 
@@ -23,8 +23,10 @@ function useConvexClerkAuth() {
 }
 
 export function ConvexClerkProvider({ children }: { children: React.ReactNode }) {
+  const client = getConvex();
+  if (!client) return <>{children}</>;
   return (
-    <ConvexProviderWithAuth client={getConvex()} useAuth={useConvexClerkAuth}>
+    <ConvexProviderWithAuth client={client} useAuth={useConvexClerkAuth}>
       {children}
     </ConvexProviderWithAuth>
   );
