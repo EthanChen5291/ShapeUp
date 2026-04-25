@@ -6,3 +6,4 @@ coor
 boor
 coo
 cor
+we
