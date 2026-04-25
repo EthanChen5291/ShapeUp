@@ -24,3 +24,5 @@ haircut-classifier/src/data/
 
 # Debug
 npm-debug.log*
+.vercel
+.env*.local

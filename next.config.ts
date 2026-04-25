@@ -1,13 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   serverExternalPackages: ['firebase-admin'],
-  outputFileTracingIncludes: {
-    '*': [
-      './node_modules/next/dist/compiled/**',
-      './node_modules/next/dist/server/**',
-    ],
-  },
   outputFileTracingExcludes: {
     '*': [
       './node_modules/three/**',
