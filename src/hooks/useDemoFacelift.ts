@@ -12,8 +12,8 @@ async function pollFacelift(jobId: string, outputName: string): Promise<string> 
       const body = await res.text().catch(() => '');
       throw new Error(`Facelift poll failed (${res.status}): ${body || 'empty response'}`);
     }
-    const data = await res.json() as { status: string; splatPath?: string; error?: string };
-    if (data.status === 'success') return data.splatPath!;
+    const data = await res.json() as { status: string; splatUrl?: string; error?: string };
+    if (data.status === 'success') return data.splatUrl!;
     if (data.status === 'error') throw new Error(data.error ?? 'Facelift failed');
   }
 }
@@ -61,8 +61,8 @@ export function useDemoFacelift(originalImageUrl: string | null) {
       const { jobId } = await submitRes.json() as { jobId?: string };
       if (!jobId) throw new Error('No jobId from facelift');
 
-      const splatPath = await pollFacelift(jobId, 'original-output');
-      setSplatSrc(`${splatPath}?t=${Date.now()}`);
+      const splatUrl = await pollFacelift(jobId, 'original-output');
+      setSplatSrc(splatUrl);
       setStatus('done');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

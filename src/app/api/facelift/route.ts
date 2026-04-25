@@ -187,6 +187,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
   }
 
+  let authSession: Awaited<ReturnType<typeof auth>> | null = null;
+  try { authSession = await auth(); } catch { /* unauthenticated poll is fine */ }
+  const userId = authSession?.userId ?? null;
+
   console.log(`[facelift] GET: checking status for jobId=${jobId}`);
   let statusRes: Response;
   try {
@@ -231,6 +235,18 @@ export async function GET(req: NextRequest) {
       uploadToS3(splatKey, splatBuffer, 'application/octet-stream'),
     ]);
     console.log(`[facelift] GET: uploaded to S3 — ply=${plyBuffer.length}B splat=${splatBuffer.length}B`);
+
+    if (userId && authSession) {
+      try {
+        const convexToken = await authSession.getToken({ template: 'convex' });
+        const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+        convex.setAuth(convexToken!);
+        await convex.mutation(api.facelifts.recordResult, { userId, jobId, plyS3Key: plyKey, splatS3Key: splatKey });
+        console.log(`[facelift] GET: recorded result in Convex for user=${userId}`);
+      } catch (err) {
+        console.error('[facelift] GET: failed to record in Convex (non-fatal):', err);
+      }
+    }
 
     const [plyUrl, splatUrl] = await Promise.all([
       getSignedDownloadUrl(plyKey),

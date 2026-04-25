@@ -9,7 +9,8 @@ const s3 = new S3Client({
   },
 });
 
-const BUCKET = process.env.AWS_S3_BUCKET_NAME!;
+const BUCKET = process.env.AWS_S3_BUCKET_NAME;
+if (!BUCKET) throw new Error('AWS_S3_BUCKET_NAME env var is not set');
 
 export async function uploadToS3(key: string, body: Buffer, contentType: string): Promise<void> {
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType }));
