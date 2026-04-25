@@ -322,12 +322,12 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     const timer = setInterval(async () => {
       try {
         const res  = await fetch(`/api/facelift?jobId=${ethanJobId}`);
-        const data = await res.json() as { status: string };
+        const data = await res.json() as { status: string; splatPath?: string };
         if (data.status === 'success') {
           clearInterval(timer);
           const t = Date.now();
-          setEthanSplatSrc(`/output.splat?t=${t}`);
-              setEthanJobStatus('done');
+          setEthanSplatSrc(`${data.splatPath ?? `/api/facelift/${ethanJobId}/splat`}?t=${t}`);
+          setEthanJobStatus('done');
         } else if (data.status === 'error') {
           clearInterval(timer);
           setEthanJobStatus('error');
