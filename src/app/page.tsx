@@ -50,6 +50,7 @@ export default function Home() {
   const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
+  const [previewExpanded, setPreviewExpanded] = useState(false);
 
   const smirk = useSmirk(undefined); // smirk server offline
   const { splatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
@@ -261,7 +262,16 @@ export default function Home() {
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
-              <div className="polaroid wonky-sm-l" style={{ maxWidth: 340 }}>
+              <div
+                className={`polaroid ${previewExpanded ? '' : 'wonky-sm-l'}`}
+                style={{
+                  width: '100%',
+                  maxWidth: previewExpanded ? 'min(60vh, 54vw)' : '340px',
+                  transition: 'max-width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                  cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+                }}
+                onClick={() => setPreviewExpanded(v => !v)}
+              >
                 <div className="tape tape-tl" />
                 <div className="tape tape-tr" />
                 <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
@@ -352,10 +362,18 @@ export default function Home() {
         {/* Polaroid thumbnail */}
         {imageUrl && (
           <div
-            className="absolute top-24 left-6 z-10 polaroid wonky-l"
-            style={{ width: 100, padding: '6px 6px 22px' }}
+            className={`absolute top-24 left-6 z-10 polaroid ${previewExpanded ? '' : 'wonky-l'}`}
+            style={{
+              width: previewExpanded ? 'min(55vh, 46vw)' : 100,
+              padding: '6px 6px 22px',
+              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+              cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+            }}
+            onClick={() => setPreviewExpanded(v => !v)}
           >
-            <img src={imageUrl} alt="scan" className="block w-full h-[82px] object-cover rounded-sm" />
+            <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2 }}>
+              <img src={imageUrl} alt="scan" className="block w-full h-full object-cover" />
+            </div>
             <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>
               you
             </div>
@@ -448,7 +466,7 @@ export default function Home() {
             onParamsChange={handleParamsChange}
             sessionId={sessionId}
             latestImageUrl={imageUrl}
-            onImageUpdated={(url) => setImageUrl(url)}
+            onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
             onPlyReady={(url) => {
               if (url.startsWith('/')) {
                 setEditSplatSrc(url);
