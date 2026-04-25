@@ -1,10 +1,50 @@
 'use client';
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
-import { UserHeadProfile } from '@/types';
+import { HairParams, UserHeadProfile } from '@/types';
 import { useEffect, useRef, useState } from 'react';
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
+import { DemoFaceliftStatus } from '@/hooks/useDemoFacelift';
+import HairScene from '@/components/HairScene';
 import Image from 'next/image';
+
+const DEMO_STATUS_LABEL: Record<string, string> = {
+  idle:       'Setting up...',
+  processing: 'Building 3D model (~2 min)',
+  done:       'All ready',
+  error:      'Error — check console',
+};
+
+interface DemoPreset {
+  label: string;
+  plys: string[];
+}
+
+const DEMO_PRESETS: DemoPreset[] = [
+  { label: 'Original', plys: [] },
+];
+
+interface HairSceneDemoProps {
+  params: HairParams;
+  colorRGB?: string;
+  profile: UserHeadProfile;
+  splatSrcOverride?: string;
+  hairstepPlyUrls: string[];
+  disableDefaultHairLayers?: boolean;
+}
+
+function HairSceneDemo({ params, colorRGB, profile, splatSrcOverride, hairstepPlyUrls, disableDefaultHairLayers }: HairSceneDemoProps) {
+  return (
+    <HairScene
+      params={params}
+      colorRGB={colorRGB}
+      profile={profile}
+      splatSrcOverride={splatSrcOverride}
+      hairstepPlyUrl={hairstepPlyUrls[0]}
+      disableDefaultHairLayers={disableDefaultHairLayers}
+    />
+  );
+}
 
 interface HairEditLoopProps {
   sessionId: string;
@@ -44,6 +84,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   const [phase, setPhase] = useState<Phase>('idle');
   const [isBaldifying, setIsBaldifying] = useState(false);
   const [faceliftStatus, setFaceliftStatus] = useState<string | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState(0);
 
   const processingRef = useRef(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);

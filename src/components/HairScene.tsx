@@ -264,14 +264,16 @@ interface HairSceneProps {
   faceliftPlyReady?:     boolean;
   hairstepPlyUrl?:       string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
+  splatSrcOverride?:     string;
+  disableDefaultHairLayers?: boolean;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
-    new Set(['hair_modified', 'top_hair'])
+    new Set(disableDefaultHairLayers ? [] : ['hair_modified', 'top_hair'])
   );
   // Local FLAME data fetched from a test image
   const [localFlameData] = useState<FlameData | null>(null);
@@ -339,7 +341,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const effectiveFlameData = flameData ?? localFlameData ?? undefined;
 
   // ethanSplatSrc (FaceLift result) replaces the static gaussians.splat when ready
-  const effectiveSplatSrc = ethanSplatSrc ?? '/models/gaussians.splat';
+  const effectiveSplatSrc = splatSrcOverride ?? ethanSplatSrc ?? '/models/gaussians.splat';
 
   const hairScale = HAIR_PLY_SCALE_DEFAULT;
   const hairPos: [number, number, number] = HAIR_PLY_POS_DEFAULT;
