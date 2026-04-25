@@ -10,7 +10,9 @@ const nextConfig: NextConfig = {
       './node_modules/@elevenlabs/**',
       './node_modules/delaunator/**',
       './server/**',
-      './public/hair/**',
+      './public/**',
+      './assets/**',
+      './**/*.ply',
     ],
   },
 };
