@@ -306,15 +306,6 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
             ✂ Take the seat
           </button>
         )}
-
-        {(phase === 'loading' || phase === 'error' || phase === 'ready') && (
-          <button
-            onClick={onDismiss}
-            className="font-sans text-[11px] text-[var(--smoke)] hover:text-[var(--tomato)] underline underline-offset-4 decoration-dotted"
-          >
-            Skip the chair
-          </button>
-        )}
       </div>
     </div>
   );
