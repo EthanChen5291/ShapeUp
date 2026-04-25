@@ -1,5 +1,8 @@
 'use client';
 
+import { useClerk, useUser } from '@clerk/nextjs';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useEffect, useRef, useState } from 'react';
 
@@ -77,6 +80,10 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
   const animFrameId   = useRef<number | null>(null);
   const activeRef     = useRef(false);
 
+  const { isSignedIn } = useUser();
+  const { openSignIn } = useClerk();
+  const convexUser = useQuery(api.users.getMe);
+
   const [phase, setPhase]     = useState<Phase>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -147,6 +154,16 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
   }
 
   async function capturePhoto() {
+    if (!isSignedIn) {
+      openSignIn();
+      return;
+    }
+    if (convexUser != null && convexUser.credits <= 0) {
+      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+      const data = await res.json() as { url?: string };
+      if (data.url) window.location.href = data.url;
+      return;
+    }
     const video  = videoRef.current;
     const canvas = previewCanvas.current;
     if (!video || !canvas) return;
@@ -225,7 +242,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
       // Non-fatal
     }
 
-    onScanComplete(profile, sessionId, uploadedImageUrl);
+    onScanComplete(profile, sessionId, uploadedImageUrl ?? imageDataUrl);
   }
 
   const instruction =

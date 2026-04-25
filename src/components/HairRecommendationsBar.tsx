@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import HairStrandMesh from './HairStrandMesh';
 
 const RECOMMENDATIONS = [
@@ -36,11 +36,13 @@ interface HairRecommendationsBarProps {
 
 export default function HairRecommendationsBar({ onHover, onSelect, visible }: HairRecommendationsBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [everShown, setEverShown] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     if (visible) {
+      setEverShown(true);
       el.style.opacity = '1';
       el.style.transform = 'translateY(0)';
       el.style.pointerEvents = 'auto';
@@ -68,7 +70,7 @@ export default function HairRecommendationsBar({ onHover, onSelect, visible }: H
         styles
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-        {RECOMMENDATIONS.map((rec) => (
+        {everShown && RECOMMENDATIONS.map((rec) => (
           <div
             key={rec.url}
             onMouseEnter={() => onHover(rec.url)}

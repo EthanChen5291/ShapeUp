@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { db, doc, updateDoc, arrayUnion, uploadAndGetUrl } from '@/lib/firebase-admin';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -116,30 +115,9 @@ CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
     return NextResponse.json({ ok: false, error: 'Gemini generation failed', detail: String(err) }, { status: 500 });
   }
 
-  // --- Upload to Firebase Storage ---
-  let newImageUrl: string;
-  try {
-    const storagePath = `scans/${sessionId}/scan_${Date.now()}.png`;
-    console.log('[gemini-hair-edit] uploading to Firebase Storage:', storagePath);
-    const buffer = Buffer.from(newImageBase64, 'base64');
-    console.log('[gemini-hair-edit] upload buffer size:', buffer.length, 'bytes');
-    newImageUrl = await uploadAndGetUrl(storagePath, buffer, 'image/png');
-    console.log('[gemini-hair-edit] Firebase upload done — newImageUrl:', newImageUrl.slice(0, 120));
-  } catch (err) {
-    console.error('[gemini-hair-edit] Firebase Storage upload FAILED:', err);
-    return NextResponse.json({ ok: false, error: 'Firebase Storage upload failed', detail: String(err) }, { status: 500 });
-  }
-
-  // --- Append to Firestore session ---
-  try {
-    console.log('[gemini-hair-edit] appending to Firestore session.images, sessionId:', sessionId);
-    await updateDoc(doc(db, 'session', sessionId), { images: arrayUnion(newImageUrl) });
-    console.log('[gemini-hair-edit] Firestore updated OK');
-  } catch (err) {
-    console.error('[gemini-hair-edit] Firestore update FAILED (non-fatal):', err);
-  }
+  const newImageUrl = `data:image/png;base64,${newImageBase64}`;
 
   const totalMs = Date.now() - t0;
-  console.log(`[gemini-hair-edit] ===== POST END — total ${totalMs}ms — returning newImageUrl =====\n`);
+  console.log(`[gemini-hair-edit] ===== POST END — total ${totalMs}ms =====\n`);
   return NextResponse.json({ ok: true, newImageUrl });
 }

@@ -12,6 +12,11 @@ interface HairEditLoopProps {
   profile: UserHeadProfile;
   onRenderIn3D: (baldifiedDataUrl: string) => void;
   onHairstepPlyReady: (plyUrl: string) => void;
+  demoMode?: boolean;
+  baldSplatSrc?: string | null;
+  originalSplatSrc?: string | null;
+  demoStatus?: DemoFaceliftStatus;
+  demoError?: string | null;
 }
 
 type Phase = 'idle' | 'gemini' | 'hairstep';
@@ -33,7 +38,7 @@ const BARBER_CHATTER = [
   'Pouring you a coffee…',
 ];
 
-export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady }: HairEditLoopProps) {
+export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady, demoMode = false, baldSplatSrc, originalSplatSrc, demoStatus = 'idle', demoError }: HairEditLoopProps) {
   const [currentImageUrl, setCurrentImageUrl] = useState(initialImageUrl);
   const [prompt, setPrompt] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -180,6 +185,171 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   };
 
   const chatter = BARBER_CHATTER[Math.floor(Date.now() / 1600) % BARBER_CHATTER.length];
+
+  const baldReady = baldSplatSrc != null;
+  const origReady = originalSplatSrc != null;
+
+  useEffect(() => {
+    if (!demoMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const n = parseInt(e.key, 10);
+      if (!isNaN(n) && n >= 0 && n < DEMO_PRESETS.length) {
+        setSelectedPreset(n);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [demoMode]);
+
+  // ── Demo mode ────────────────────────────────────────────────────────────
+  if (demoMode) {
+    const demoSplatSrc = selectedPreset === 0 ? originalSplatSrc : baldSplatSrc;
+    const demoHairPlys = DEMO_PRESETS[selectedPreset]?.plys ?? [];
+
+    return (
+      <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
+        {/* Corner wordmark */}
+        <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
+          <span>Shape</span>
+          <span>Up</span>
+        </div>
+
+        {/* Left panel: selfie while loading, 3D scene once bald splat is ready */}
+        <div className="flex-1 min-w-0 relative">
+          {baldReady ? (
+            <HairSceneDemo
+              params={profile.currentStyle.params}
+              colorRGB={profile.currentStyle.colorRGB}
+              profile={profile}
+              splatSrcOverride={demoSplatSrc ?? undefined}
+              hairstepPlyUrls={demoHairPlys}
+              disableDefaultHairLayers
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
+              <div className="polaroid wonky-sm-l" style={{ maxWidth: 340 }}>
+                <div className="tape tape-tl" />
+                <div className="tape tape-tr" />
+                <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
+                  <Image src={initialImageUrl} alt="Your scan" fill className="object-cover" unoptimized />
+                </div>
+                <div className="absolute bottom-3 left-0 right-0 text-center">
+                  <span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>
+                    you ✂
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                {demoStatus !== 'error' && <div className="scissor-loader" />}
+                <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--cream)]" style={{ opacity: 0.8 }}>
+                  {DEMO_STATUS_LABEL[demoStatus]}
+                </span>
+                {demoStatus === 'error' && demoError && (
+                  <p className="font-mono text-[10px] text-[var(--butter)] max-w-xs text-center break-words" style={{ opacity: 0.85 }}>
+                    {demoError.split('\n')[0]}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Demo sidebar */}
+        <aside
+          className="w-72 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden"
+        >
+          {/* Status */}
+          <div
+            className="rounded-xl px-3 py-2 text-center"
+            style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,248,234,0.15)' }}
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/60 mb-0.5">status</div>
+            <div className="font-sans text-[12px] text-[var(--butter)]">
+              {DEMO_STATUS_LABEL[demoStatus]}
+            </div>
+          </div>
+
+          {/* Number pad */}
+          <div
+            className="flex-1 rounded-2xl p-4 flex flex-col gap-3"
+            style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)' }}
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--ink)]/50 mb-1">
+              hairstyle presets
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {DEMO_PRESETS.map((preset, i) => {
+                const isDisabled = i === 0 ? !origReady : !baldReady;
+                const isSelected = selectedPreset === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !isDisabled && setSelectedPreset(i)}
+                    disabled={isDisabled}
+                    title={preset.label}
+                    className="rounded-lg font-mono text-[13px] font-semibold transition-all"
+                    style={{
+                      padding: '10px 0',
+                      background: isSelected
+                        ? 'var(--tomato)'
+                        : 'rgba(42,32,26,0.08)',
+                      color: isSelected
+                        ? 'var(--cream)'
+                        : isDisabled
+                        ? 'rgba(42,32,26,0.25)'
+                        : 'var(--ink)',
+                      border: isSelected
+                        ? '2px solid var(--tomato)'
+                        : '2px solid transparent',
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {i}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 space-y-1">
+              {DEMO_PRESETS.map((preset, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 font-mono text-[10px]"
+                  style={{ color: selectedPreset === i ? 'var(--tomato)' : 'var(--ink)/40', opacity: selectedPreset === i ? 1 : 0.45 }}
+                >
+                  <span className="font-semibold">{i}</span>
+                  <span className="uppercase tracking-wider">{preset.label}</span>
+                  {i === 0 && !origReady && (
+                    <span style={{ color: 'var(--butter)', opacity: 0.7 }}>· loading</span>
+                  )}
+                  {i > 0 && !baldReady && (
+                    <span style={{ color: 'var(--butter)', opacity: 0.7 }}>· loading</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)]/50">
+              {sessionId.slice(0, 8).toUpperCase()}
+            </span>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-ink"
+              style={{ padding: '6px 12px', fontSize: 10 }}
+            >
+              ✂ Start over
+            </button>
+          </div>
+        </aside>
+      </main>
+    );
+  }
+  // ── End demo mode ────────────────────────────────────────────────────────
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">

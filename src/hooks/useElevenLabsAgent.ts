@@ -10,19 +10,9 @@ export function useElevenLabsAgent(
 ) {
   const activeRef = useRef(false);
 
-  async function speak(text: string) {
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
-      method: 'POST',
-      headers: { 'xi-api-key': API_KEY!, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', output_format: 'mp3_44100_128' }),
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    await new Promise<void>((resolve) => {
-      const audio = new Audio(url);
-      audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-      audio.play();
-    });
+  async function speak(_text: string) {
+    // ElevenLabs TTS is currently disabled — no-op
+    if (!API_KEY) return;
   }
 
   function listen(): Promise<string> {
@@ -54,7 +44,7 @@ export function useElevenLabsAgent(
   }
 
   return {
-    start() { activeRef.current = true; loop(); },
+    start() { if (!API_KEY) return; activeRef.current = true; loop(); },
     stop()  { activeRef.current = false; },
   };
 }

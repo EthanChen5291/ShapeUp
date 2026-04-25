@@ -4,6 +4,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import path from 'path';
+import { auth } from '@clerk/nextjs/server';
+import { ConvexHttpClient } from 'convex/browser';
+import { api } from '@convex/_generated/api';
 
 const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
 const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'shapeup', 'Accept': 'application/json' };
@@ -113,15 +116,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
   }
 
+  // Credit gate: require Clerk auth and deduct 1 credit per facelift job
+  let authSession: Awaited<ReturnType<typeof auth>> | null = null;
+  try {
+    authSession = await auth();
+  } catch {
+    return NextResponse.json({ error: 'Auth unavailable' }, { status: 401 });
+  }
+  const { userId, getToken } = authSession;
+  if (!userId) {
+    return NextResponse.json({ error: 'Sign in to generate haircuts' }, { status: 401 });
+  }
+  const convexToken = await getToken({ template: 'convex' });
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  convex.setAuth(convexToken!);
+  try {
+    await convex.mutation(api.users.deductCredit, {});
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const status = msg.includes('No credits') ? 402 : 400;
+    return NextResponse.json({ error: msg }, { status });
+  }
+
   const { imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown };
   if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image')) {
-    console.error('[facelift] POST: invalid imageDataUrl');
     return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
   }
 
   const base64 = imageDataUrl.split(',')[1];
   const buffer = Buffer.from(base64, 'base64');
-  console.log(`[facelift] POST: submitting image (${buffer.length} bytes) to ${FACELIFT_URL}/process_image`);
 
   const blob = new Blob([buffer], { type: 'image/jpeg' });
   const form = new FormData();
@@ -130,11 +153,18 @@ export async function POST(req: NextRequest) {
     form.append('current_profile_json', JSON.stringify(currentProfile));
   }
 
-  const upstream = await fetch(`${FACELIFT_URL}/process_image`, {
-    method:  'POST',
-    headers: { 'ngrok-skip-browser-warning': 'true' },
-    body:    form,
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${FACELIFT_URL}/process_image`, {
+      method:  'POST',
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+      body:    form,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[facelift] POST: network error reaching FaceLift server: ${msg}`);
+    return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
+  }
 
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '');
@@ -159,7 +189,14 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(`[facelift] GET: checking status for jobId=${jobId}`);
-  const statusRes = await fetch(`${FACELIFT_URL}/status/${jobId}`, { headers: NGROK_HEADERS });
+  let statusRes: Response;
+  try {
+    statusRes = await fetch(`${FACELIFT_URL}/status/${jobId}`, { headers: NGROK_HEADERS });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[facelift] GET: network error reaching FaceLift server: ${msg}`);
+    return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
+  }
   if (!statusRes.ok) {
     const text = await statusRes.text().catch(() => '');
     console.error(`[facelift] GET: status endpoint returned ${statusRes.status}: ${text}`);
@@ -171,7 +208,14 @@ export async function GET(req: NextRequest) {
 
   if (status.status === 'success') {
     console.log(`[facelift] GET: job succeeded, downloading from ${FACELIFT_URL}/download/${jobId}`);
-    const dlRes = await fetch(`${FACELIFT_URL}/download/${jobId}`, { headers: NGROK_HEADERS });
+    let dlRes: Response;
+    try {
+      dlRes = await fetch(`${FACELIFT_URL}/download/${jobId}/ply`, { headers: NGROK_HEADERS });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[facelift] GET: network error downloading PLY: ${msg}`);
+      return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
+    }
     if (!dlRes.ok) {
       const text = await dlRes.text().catch(() => '');
       console.error(`[facelift] GET: download failed ${dlRes.status}: ${text}`);
@@ -190,8 +234,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (status.status === 'error') {
-    console.error(`[facelift] GET: job failed — ${status.error ?? 'unknown error'}`);
-    return NextResponse.json({ status: 'error', error: status.error ?? 'Unknown error' });
+    const errMsg = status.error || status.message || status.detail || JSON.stringify(status);
+    console.error(`[facelift] GET: job failed —`, errMsg);
+    return NextResponse.json({ status: 'error', error: errMsg || 'Unknown error' });
   }
 
   console.log(`[facelift] GET: job still running, status=${status.status ?? 'processing'}`);
