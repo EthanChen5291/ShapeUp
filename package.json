@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
+    "@aws-sdk/client-s3": "^3.1037.0",
+    "@aws-sdk/s3-request-presigner": "^3.1037.0",
     "@clerk/nextjs": "^7.2.5",
     "@clerk/react": "^6.4.3",
     "@elevenlabs/elevenlabs-js": "^2.43.0",
@@ -23,7 +25,7 @@
     "convex": "^1.36.1",
     "delaunator": "^5.1.0",
     "leva": "^0.10.1",
-    "next": "15.3.9",
+    "next": "^15.5.15",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "stripe": "^22.1.0",

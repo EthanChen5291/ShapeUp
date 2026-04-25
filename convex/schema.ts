@@ -17,4 +17,13 @@ export default defineSchema({
     currentProfile: v.optional(v.any()),
     imageUrl: v.optional(v.string()),
   }).index("by_session_id", ["sessionId"]),
+
+  facelifts: defineTable({
+    userId: v.string(),
+    jobId: v.string(),
+    plyS3Key: v.string(),
+    splatS3Key: v.string(),
+  })
+    .index("by_job_id", ["jobId"])
+    .index("by_user_id", ["userId"]),
 });

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as facelifts from "../facelifts.js";
 import type * as http from "../http.js";
 import type * as sessions from "../sessions.js";
 import type * as stripe from "../stripe.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  facelifts: typeof facelifts;
   http: typeof http;
   sessions: typeof sessions;
   stripe: typeof stripe;
