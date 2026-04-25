@@ -16,6 +16,7 @@ export default defineSchema({
     createdAt: v.number(),
     currentProfile: v.optional(v.any()),
     imageUrl: v.optional(v.string()),
+    scanS3Key: v.optional(v.string()),
   }).index("by_session_id", ["sessionId"]),
 
   facelifts: defineTable({

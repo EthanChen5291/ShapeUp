@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
+import { uploadToS3, getSignedDownloadUrl } from '@/lib/s3';
 
 export async function POST(req: NextRequest) {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -29,29 +28,33 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(base64, 'base64');
   console.log('[save-scan] buffer size:', buffer.length, 'bytes');
 
-  // Save local copy for Python server
+  const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // Upload scan image to S3
+  const scanS3Key = `pictures/${sessionId}/scan.png`;
+  let downloadUrl: string | null = null;
   try {
-    await mkdir(join(process.cwd(), 'server', 'imgs'), { recursive: true });
-    await writeFile(join(process.cwd(), 'server', 'imgs', 'scan.png'), buffer);
-    console.log('[save-scan] local file saved');
+    await uploadToS3(scanS3Key, buffer, 'image/png');
+    downloadUrl = await getSignedDownloadUrl(scanS3Key);
+    console.log('[save-scan] uploaded to S3:', scanS3Key);
   } catch (err) {
-    console.error('[save-scan] failed to save local file (non-fatal):', err);
+    console.error('[save-scan] S3 upload failed (non-fatal):', err);
   }
 
-  // Store session metadata in Convex
-  const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Store session metadata in Convex — store the S3 key, not the signed URL (URLs expire)
   try {
     await convex.mutation(api.sessions.create, {
       sessionId,
       currentProfile: currentProfile ?? undefined,
-      imageUrl: imageDataUrl.slice(0, 200), // store just the prefix for reference
+      imageUrl: scanS3Key ?? undefined,
+      scanS3Key,
     });
     console.log('[save-scan] session stored in Convex, id:', sessionId);
   } catch (err) {
     console.error('[save-scan] Convex session insert failed (non-fatal):', err);
   }
 
-  // Return the data URL directly so the client can display the scan photo
   console.log('[save-scan] done — sessionId:', sessionId);
-  return NextResponse.json({ ok: true, sessionId, downloadUrl: imageDataUrl });
+  // Fall back to the original data URL if S3 upload failed so the session still works
+  return NextResponse.json({ ok: true, sessionId, downloadUrl: downloadUrl ?? imageDataUrl });
 }

@@ -6,6 +6,7 @@ export const create = mutation({
     sessionId: v.string(),
     currentProfile: v.optional(v.any()),
     imageUrl: v.optional(v.string()),
+    scanS3Key: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("sessions", {
