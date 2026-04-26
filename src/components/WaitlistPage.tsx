@@ -151,19 +151,14 @@ export function WaitlistPage() {
         <div className="text-center anim-fade-up">
           <h1
             className="type-chonk text-[var(--cream)] select-none"
-            style={{ fontSize: 'clamp(3rem, 12vw, 9rem)', lineHeight: 0.85 }}
+            style={{ fontSize: 'clamp(2.2rem, 8vw, 6.5rem)', lineHeight: 0.88 }}
           >
-            No <em>More</em>
+            The <em style={{ color: 'var(--butter)' }}>AI</em> barber
             <br />
-            Bad{' '}
-            <em style={{ color: 'var(--butter)' }}>Hair</em>cuts
+            is getting its
+            <br />
+            chair <em>ready.</em>
           </h1>
-          <p
-            className="mt-4 font-serif text-[var(--cream)] text-lg"
-            style={{ opacity: 0.85, fontStyle: 'italic' }}
-          >
-            The AI barber is getting its chair ready.
-          </p>
           <div
             className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full"
             style={{
