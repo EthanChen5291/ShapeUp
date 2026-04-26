@@ -103,7 +103,9 @@ export function WaitlistPage() {
   const [time, setTime] = useState(getCountdown());
   const [email, setEmail] = useState('');
   const [notify, setNotify] = useState(true);
+  const [hp, setHp] = useState(''); // honeypot — must stay empty
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'dupe' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const joinWaitlist = useMutation(api.waitlist.joinWaitlist);
 
@@ -116,10 +118,13 @@ export function WaitlistPage() {
     e.preventDefault();
     if (!email.trim()) return;
     setStatus('loading');
+    setErrorMsg('');
     try {
-      const result = await joinWaitlist({ email: email.trim(), notifyOnRelease: notify });
+      const result = await joinWaitlist({ email: email.trim(), notifyOnRelease: notify, hp });
       setStatus(result === 'already_joined' ? 'dupe' : 'done');
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      setErrorMsg(msg || 'Something went wrong — try again.');
       setStatus('error');
     }
   };
@@ -222,6 +227,16 @@ export function WaitlistPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {/* Honeypot — hidden from real users, bots fill it in */}
+                <input
+                  type="text"
+                  value={hp}
+                  onChange={e => setHp(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+                />
                 <div>
                   <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)] mb-1">
                     Reserve your chair
@@ -284,8 +299,8 @@ export function WaitlistPage() {
                 </label>
 
                 {status === 'error' && (
-                  <p className="font-mono text-xs" style={{ color: 'var(--tomato)' }}>
-                    Something went wrong — try again.
+                  <p className="font-mono text-xs" style={{ color: 'var(--cherry)' }}>
+                    {errorMsg}
                   </p>
                 )}
 
