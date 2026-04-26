@@ -27,4 +27,10 @@ export default defineSchema({
   })
     .index("by_job_id", ["jobId"])
     .index("by_user_id", ["userId"]),
+
+  waitlist: defineTable({
+    email: v.string(),
+    notifyOnRelease: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_email", ["email"]),
 });

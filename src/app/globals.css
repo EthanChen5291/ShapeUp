@@ -583,3 +583,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
   border-radius: 9999px;
   border: 1px solid var(--ink);
 }
+
+/* ── Flip Digit — countdown slot animation ─────────────── */
+@keyframes flip-digit-out-anim {
+  from { transform: translateY(0);    opacity: 1; }
+  to   { transform: translateY(110%); opacity: 0; }
+}
+@keyframes flip-digit-in-anim {
+  from { transform: translateY(-110%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.flip-digit-out { animation: flip-digit-out-anim 0.28s cubic-bezier(0.4, 0, 1, 1) forwards; }
+.flip-digit-in  { animation: flip-digit-in-anim  0.28s cubic-bezier(0, 0, 0.6, 1) forwards; }

@@ -8,6 +8,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 
 import EditPanel from '@/components/EditPanel';
+import { WaitlistPage } from '@/components/WaitlistPage';
 import Image from 'next/image';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
@@ -85,6 +86,10 @@ export default function Home() {
   const { isSignedIn } = useUser();
   const getOrCreate = useMutation(api.users.getOrCreate);
 
+  // Waitlist gate — only activates on nomorebadhaircuts.com when env var is "1"
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Register the user in Convex the first time they sign in
   useEffect(() => {
     if (isSignedIn) {
@@ -152,6 +157,16 @@ export default function Home() {
     if (!editLoopPrompt.trim()) return;
     setAppState('3d');
   };
+
+  // ── Waitlist gate — only shows on nomorebadhaircuts.com when NEXT_PUBLIC_WAITLIST_MODE=1 ──
+  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === '1';
+  const isTargetDomain = mounted && (
+    window.location.hostname === 'nomorebadhaircuts.com' ||
+    window.location.hostname === 'www.nomorebadhaircuts.com' ||
+    process.env.NODE_ENV === 'development'
+  );
+  if (isWaitlistMode && !mounted) return null;
+  if (isWaitlistMode && isTargetDomain) return <WaitlistPage />;
 
   // ─────────────────────── SCAN ───────────────────────
   if (appState === 'scan') {
