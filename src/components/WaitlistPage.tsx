@@ -132,14 +132,7 @@ export function WaitlistPage() {
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden flex flex-col">
       {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-8 pt-6 pb-2">
-        <div
-          className="font-sans text-[var(--cream)]"
-          style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.1 }}
-        >
-          <div>No More</div>
-          <div>Bad Haircuts</div>
-        </div>
+      <div className="relative z-10 flex items-center justify-end px-8 pt-6 pb-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)] opacity-50">
           est. 2026
         </span>
@@ -147,37 +140,8 @@ export function WaitlistPage() {
 
       {/* Center */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-10 gap-8">
-        {/* Headline */}
-        <div className="text-center anim-fade-up">
-          <h1
-            className="type-chonk text-[var(--cream)] select-none"
-            style={{ fontSize: 'clamp(2.2rem, 8vw, 6.5rem)', lineHeight: 0.88 }}
-          >
-            The <em style={{ color: 'var(--butter)' }}>AI</em> barber
-            <br />
-            is getting its
-            <br />
-            chair <em>ready.</em>
-          </h1>
-          <div
-            className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full"
-            style={{
-              background: 'rgba(0,0,0,0.2)',
-              border: '1px solid rgba(255,248,234,0.2)',
-            }}
-          >
-            <span
-              className="dot-open"
-              style={{ background: 'var(--butter)', boxShadow: '0 0 0 3px rgba(255,231,176,0.25)' }}
-            />
-            <span className="font-sans text-[11px] uppercase tracking-[0.18em] text-[var(--cream)]">
-              Opens May 16th
-            </span>
-          </div>
-        </div>
-
         {/* Countdown */}
-        <div className="anim-fade-up delay-100 flex items-start gap-3 md:gap-5">
+        <div className="anim-fade-up flex items-start gap-3 md:gap-5">
           <CountdownUnit value={time.days} label="days" />
           <span
             className="type-chonk text-[var(--butter)]"
@@ -200,6 +164,25 @@ export function WaitlistPage() {
             :
           </span>
           <CountdownUnit value={time.seconds} label="sec" />
+        </div>
+
+        {/* Opens badge */}
+        <div className="anim-fade-up delay-100">
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full"
+            style={{
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid rgba(255,248,234,0.2)',
+            }}
+          >
+            <span
+              className="dot-open"
+              style={{ background: 'var(--butter)', boxShadow: '0 0 0 3px rgba(255,231,176,0.25)' }}
+            />
+            <span className="font-sans text-[11px] uppercase tracking-[0.18em] text-[var(--cream)]">
+              Opens May 16th
+            </span>
+          </div>
         </div>
 
         {/* Form ticket */}
@@ -320,7 +303,7 @@ export function WaitlistPage() {
             className="font-display italic text-[var(--cream)] text-lg"
             style={{ fontWeight: 500 }}
           >
-            Come as you are. Leave sharper.
+            the barber won&rsquo;t charge you twice for thinking twice
           </span>
           <div className="flex items-center gap-5 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--cream)]/70">
             <span>nomorebadhaircuts.com</span>

@@ -158,13 +158,13 @@ export default function Home() {
     setAppState('3d');
   };
 
-  // ── Waitlist gate — only shows on nomorebadhaircuts.com when NEXT_PUBLIC_WAITLIST_MODE=1 ──
+  // ── Waitlist gate — shows on apex + www; dev subdomain and localhost bypass it ──
   const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === '1';
   const isTargetDomain = mounted && (
     window.location.hostname === 'nomorebadhaircuts.com' ||
     window.location.hostname === 'www.nomorebadhaircuts.com' ||
     process.env.NODE_ENV === 'development'
-  );
+  ) && window.location.hostname !== 'dev.nomorebadhaircuts.com';
   if (isWaitlistMode && !mounted) return null;
   if (isWaitlistMode && isTargetDomain) return <WaitlistPage />;
 
