@@ -2,13 +2,9 @@
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useClerk, useUser } from '@clerk/nextjs';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '@convex/_generated/api';
+import { useCallback, useState } from 'react';
 
 import EditPanel from '@/components/EditPanel';
-import { WaitlistPage } from '@/components/WaitlistPage';
 import Image from 'next/image';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
@@ -23,81 +19,27 @@ const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommenda
 type AppState = 'scan' | 'hairEditLoop' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
-function TopBar() {
-  const { isSignedIn } = useUser();
-  const { openSignIn, signOut } = useClerk();
-  const userQuery = useQuery(api.users.getMe);
+function BuyButton() {
   const [loading, setLoading] = useState(false);
-
-  // Convex auth token (from Clerk) can briefly disappear, causing getMe to
-  // resolve null → user → null → user. Once we've confirmed a real user row
-  // exists, never regress back to null/undefined — it's always a transient
-  // auth hiccup, not a real sign-out.
-  const stableUserRef = useRef(userQuery);
-  if (userQuery != null) stableUserRef.current = userQuery;   // only advance on real data
-  const user = stableUserRef.current;
-
-  useEffect(() => {
-    if (userQuery === undefined) {
-      console.debug('[TopBar] getMe: loading (undefined) — holding stable:', stableUserRef.current);
-    } else if (userQuery === null) {
-      console.debug('[TopBar] getMe: resolved null (auth token gap) — holding stable:', stableUserRef.current);
-    } else {
-      console.debug('[TopBar] getMe: resolved user →', userQuery);
-    }
-  }, [userQuery]);
-
-  const handleBuy = async () => {
-    if (!isSignedIn) { openSignIn(); return; }
+  const handleClick = async () => {
     if (loading) return;
     setLoading(true);
     try {
       const res  = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json() as { url?: string; error?: string };
+      const data = await res.json() as { url?: string };
       if (data.url) window.location.href = data.url;
     } finally {
       setLoading(false);
     }
   };
-
   return (
-    <div className="flex items-center gap-3">
-      {isSignedIn && user != null && (
-        <span className="font-mono text-[10px] text-[var(--cream)] opacity-70">
-          {user.credits} {user.credits === 1 ? 'cut' : 'cuts'} left
-        </span>
-      )}
-      <button onClick={handleBuy} disabled={loading} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
-        {loading ? 'Opening…' : isSignedIn ? '✦ Buy 25 Haircuts — $5' : '✦ Sign in to Buy'}
-      </button>
-      {isSignedIn && (
-        <button
-          onClick={() => signOut()}
-          className="font-sans text-[10px] uppercase tracking-wider text-[var(--cream)] opacity-50 hover:opacity-100 transition-opacity"
-        >
-          Sign out
-        </button>
-      )}
-    </div>
+    <button onClick={handleClick} disabled={loading} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
+      {loading ? 'Opening…' : '✦ Buy Haircut Generations'}
+    </button>
   );
 }
 
 export default function Home() {
-  const { isSignedIn } = useUser();
-  const getOrCreate = useMutation(api.users.getOrCreate);
-
-  // Waitlist gate — only activates on nomorebadhaircuts.com when env var is "1"
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Register the user in Convex the first time they sign in
-  useEffect(() => {
-    if (isSignedIn) {
-      getOrCreate().catch((err) => console.error('[Home] getOrCreate FAILED:', err));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn]);
-
   const [appState, setAppState] = useState<AppState>('scan');
   const [profile, setProfile]   = useState<UserHeadProfile | null>(null);
   const [params,  setParams]    = useState<HairParams>(mockUserHeadProfile.currentStyle.params);
@@ -108,6 +50,9 @@ export default function Home() {
   const [previewPlyUrl, setPreviewPlyUrl]        = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [sceneBackground, setSceneBackground] = useState('#001f5b');
+  const [menuHidden, setMenuHidden] = useState(false);
 
   const smirk = useSmirk(undefined); // smirk server offline
   const { splatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
@@ -158,23 +103,13 @@ export default function Home() {
     setAppState('3d');
   };
 
-  // ── Waitlist gate — shows on apex + www; dev subdomain and localhost bypass it ──
-  const isWaitlistMode = process.env.NEXT_PUBLIC_WAITLIST_MODE === '1';
-  const isTargetDomain = mounted && (
-    window.location.hostname === 'nomorebadhaircuts.com' ||
-    window.location.hostname === 'www.nomorebadhaircuts.com' ||
-    process.env.NODE_ENV === 'development'
-  ) && window.location.hostname !== 'dev.nomorebadhaircuts.com';
-  if (isWaitlistMode && !mounted) return null;
-  if (isWaitlistMode && isTargetDomain) return <WaitlistPage />;
-
   // ─────────────────────── SCAN ───────────────────────
   if (appState === 'scan') {
     return (
       <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
         {/* Top-right: buy generations */}
         <div className="absolute top-5 right-6 z-20">
-          <TopBar />
+          <BuyButton />
         </div>
         {/* Hero */}
         <section className="relative z-10 mx-auto max-w-7xl px-8 pt-16 pb-8">
@@ -245,10 +180,6 @@ export default function Home() {
                   <ScanCamera
                     hairType="straight"
                     onScanComplete={handleScanComplete}
-                    onDismiss={() => {
-                      setProfile(mockUserHeadProfile);
-                      setAppState('3d');
-                    }}
                   />
                 </div>
 
@@ -286,6 +217,18 @@ export default function Home() {
             </aside>
           </div>
         </section>
+
+        {/* Skip button — bottom left */}
+        <button
+          onClick={() => {
+            setProfile(mockUserHeadProfile);
+            setEditSplatSrc('/defaultSKIPTHECHAIR.splat');
+            setAppState('3d');
+          }}
+          className="fixed top-6 left-6 z-50 font-sans text-[11px] text-[var(--smoke)] hover:text-[var(--tomato)] underline underline-offset-4 decoration-dotted"
+        >
+          Skip the chair
+        </button>
 
         {/* Bottom strip */}
         <footer className="relative z-10 border-t border-[var(--cream)]/15 mt-4">
@@ -329,7 +272,16 @@ export default function Home() {
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
-              <div className="polaroid wonky-sm-l" style={{ maxWidth: 340 }}>
+              <div
+                className={`polaroid ${previewExpanded ? '' : 'wonky-sm-l'}`}
+                style={{
+                  width: '100%',
+                  maxWidth: previewExpanded ? 'min(60vh, 54vw)' : '340px',
+                  transition: 'max-width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                  cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+                }}
+                onClick={() => setPreviewExpanded(v => !v)}
+              >
                 <div className="tape tape-tl" />
                 <div className="tape tape-tr" />
                 <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
@@ -404,26 +356,38 @@ export default function Home() {
   return (
     <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
       {/* Corner wordmark */}
-      <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
-        <span>Shape</span>
-        <span>Up</span>
-      </div>
+      {!menuHidden && (
+        <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
+          <span>Shape</span>
+          <span>Up</span>
+        </div>
+      )}
 
       {/* Chonk overlay title */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center">
-        <h2 className="type-chonk text-[var(--cream)]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', opacity: 0.96 }}>
-          THE <em style={{ color: 'var(--butter)' }}>studio</em>
-        </h2>
-      </div>
+      {!menuHidden && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center">
+          <h2 className="type-chonk text-[var(--cream)]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', opacity: 0.96 }}>
+            THE <em style={{ color: 'var(--butter)' }}>studio</em>
+          </h2>
+        </div>
+      )}
 
-      <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
+      <div className={`flex-1 min-w-0 relative flex items-center justify-center p-6 ${menuHidden ? '' : 'pt-24'}`}>
         {/* Polaroid thumbnail */}
         {imageUrl && (
           <div
-            className="absolute top-24 left-6 z-10 polaroid wonky-l"
-            style={{ width: 100, padding: '6px 6px 22px' }}
+            className={`absolute top-24 left-6 z-10 polaroid ${previewExpanded ? '' : 'wonky-l'}`}
+            style={{
+              width: previewExpanded ? 'min(55vh, 46vw)' : 100,
+              padding: '6px 6px 22px',
+              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+              cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+            }}
+            onClick={() => setPreviewExpanded(v => !v)}
           >
-            <img src={imageUrl} alt="scan" className="block w-full h-[82px] object-cover rounded-sm" />
+            <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2 }}>
+              <img src={imageUrl} alt="scan" className="block w-full h-full object-cover" />
+            </div>
             <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>
               you
             </div>
@@ -461,6 +425,8 @@ export default function Home() {
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             splatSrcOverride={editSplatSrc ?? splatSrc ?? undefined}
             disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc)}
+            background={sceneBackground}
+            uiHidden={menuHidden}
             flameData={
               smirk.result
                 ? {
@@ -471,16 +437,43 @@ export default function Home() {
             }
           />
 
-          {/* Mono caption strip on the stage */}
-          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">
-            <span>live · 3d sculpt</span>
-            <span>no. 03·42</span>
+          {/* Scene controls overlay */}
+          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
+            <div className="flex items-center gap-2">
+              {['#001f5b', '#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
+                <button
+                  key={c}
+                  onClick={() => setSceneBackground(c)}
+                  style={{
+                    width: 13, height: 13, borderRadius: '50%', cursor: 'pointer',
+                    background: c,
+                    border: sceneBackground === c ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)',
+                    flexShrink: 0,
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={sceneBackground}
+                onChange={e => setSceneBackground(e.target.value)}
+                title="Custom background color"
+                style={{ width: 16, height: 16, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 3, background: 'none', flexShrink: 0 }}
+              />
+              <button
+                onClick={() => setMenuHidden(v => !v)}
+                className="font-mono text-[9px] uppercase tracking-[0.18em] hover:text-[var(--cream)]"
+                style={{ color: 'rgba(255,248,234,0.55)', background: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '3px 8px' }}
+              >
+                {menuHidden ? 'show ui' : 'hide ui'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Sidebar — cream card floating on red */}
-      <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden">
+      {!menuHidden && <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden">
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">
             the toolbox
@@ -516,7 +509,7 @@ export default function Home() {
             onParamsChange={handleParamsChange}
             sessionId={sessionId}
             latestImageUrl={imageUrl}
-            onImageUpdated={(url) => setImageUrl(url)}
+            onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
             onPlyReady={(url) => {
               if (url.startsWith('/')) {
                 setEditSplatSrc(url);
@@ -527,7 +520,7 @@ export default function Home() {
             onUncertain={() => setShowRecommendations(true)}
           />
         </div>
-      </aside>
+      </aside>}
     </main>
   );
 }

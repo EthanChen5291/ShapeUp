@@ -1,8 +1,5 @@
 'use client';
 
-import { useClerk, useUser } from '@clerk/nextjs';
-import { useQuery } from 'convex/react';
-import { api } from '@convex/_generated/api';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useEffect, useRef, useState } from 'react';
 
@@ -11,7 +8,7 @@ import { UserHeadProfile } from '@/types';
 interface ScanCameraProps {
   hairType: 'straight' | 'wavy' | 'curly';
   onScanComplete: (profile: UserHeadProfile, sessionId: string | null, imageUrl: string | null) => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
 }
 
 type Phase = 'loading' | 'ready' | 'captured' | 'error';
@@ -80,9 +77,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
   const animFrameId   = useRef<number | null>(null);
   const activeRef     = useRef(false);
 
-  const { isSignedIn } = useUser();
-  const { openSignIn } = useClerk();
-  const convexUser = useQuery(api.users.getMe);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
 
   const [phase, setPhase]     = useState<Phase>('loading');
   const [errorMsg, setErrorMsg] = useState('');
@@ -153,48 +148,11 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
     animFrameId.current = requestAnimationFrame(drawFrame);
   }
 
-  async function capturePhoto() {
-    if (!isSignedIn) {
-      openSignIn();
-      return;
-    }
-    if (convexUser != null && convexUser.credits <= 0) {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
-      return;
-    }
-    const video  = videoRef.current;
-    const canvas = previewCanvas.current;
-    if (!video || !canvas) return;
-
-    activeRef.current = false;
-    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+  async function finishWithDataUrl(imageDataUrl: string) {
+    setPhase('captured');
 
     const W = 640;
     const H = 640;
-    const ctx = canvas.getContext('2d')!;
-
-    const vW       = video.videoWidth  || 640;
-    const vH       = video.videoHeight || 480;
-    const cropSize = Math.min(vW, vH);
-    const cropX    = (vW - cropSize) / 2;
-    const cropY    = (vH - cropSize) / 2;
-
-    ctx.save();
-    ctx.translate(W, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
-    ctx.restore();
-
-    const imageDataUrl = canvas.toDataURL('image/png');
-
-    drawOverlay(ctx, W, H, true);
-
-    const stream = video.srcObject as MediaStream | null;
-    stream?.getTracks().forEach(t => t.stop());
-
-    setPhase('captured');
 
     const profile: UserHeadProfile = {
       headProportions: { width: 1.6, height: 2.0, crownY: 1.0 },
@@ -245,6 +203,69 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
     onScanComplete(profile, sessionId, uploadedImageUrl ?? imageDataUrl);
   }
 
+  async function capturePhoto() {
+    const video  = videoRef.current;
+    const canvas = previewCanvas.current;
+    if (!video || !canvas) return;
+
+    activeRef.current = false;
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+
+    const W = 640;
+    const H = 640;
+    const ctx = canvas.getContext('2d')!;
+
+    const vW       = video.videoWidth  || 640;
+    const vH       = video.videoHeight || 480;
+    const cropSize = Math.min(vW, vH);
+    const cropX    = (vW - cropSize) / 2;
+    const cropY    = (vH - cropSize) / 2;
+
+    ctx.save();
+    ctx.translate(W, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
+    ctx.restore();
+
+    const imageDataUrl = canvas.toDataURL('image/png');
+
+    drawOverlay(ctx, W, H, true);
+
+    const stream = video.srcObject as MediaStream | null;
+    stream?.getTracks().forEach(t => t.stop());
+
+    await finishWithDataUrl(imageDataUrl);
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    activeRef.current = false;
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach(t => t.stop());
+
+    try {
+      const bitmap = await createImageBitmap(file);
+      const W = 640, H = 640;
+      const offscreen = document.createElement('canvas');
+      offscreen.width = W;
+      offscreen.height = H;
+      const ctx = offscreen.getContext('2d')!;
+      const size = Math.min(bitmap.width, bitmap.height);
+      const sx = (bitmap.width - size) / 2;
+      const sy = (bitmap.height - size) / 2;
+      ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, W, H);
+      bitmap.close();
+      await finishWithDataUrl(offscreen.toDataURL('image/png'));
+    } catch (err) {
+      setPhase('error');
+      setErrorMsg('Could not load image. Please try a JPEG or PNG file.');
+      console.error('[ScanCamera] upload failed:', err);
+    }
+  }
+
   const instruction =
     phase === 'loading'  ? 'Preparing the chair…' :
     phase === 'ready'    ? 'Settle in. Place your face inside the oval.' :
@@ -293,6 +314,14 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
         )}
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleUpload}
+      />
+
       <div className="w-full bg-[var(--cream)] border-t border-[var(--char)]/10 px-5 py-5 flex flex-col items-center gap-3">
         <p className="font-serif italic text-center text-[var(--char)] text-[15px] min-h-[1.5rem]">
           {instruction}
@@ -304,6 +333,16 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
             className="btn btn-tomato"
           >
             ✂ Take the seat
+          </button>
+        )}
+
+        {(phase === 'loading' || phase === 'ready') && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-ink"
+            style={{ padding: '9px 18px', fontSize: 12 }}
+          >
+            ↑ Upload a photo
           </button>
         )}
       </div>

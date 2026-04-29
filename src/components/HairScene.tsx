@@ -19,9 +19,9 @@ import * as THREE from 'three';
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
@@ -137,6 +137,8 @@ function HairDepthPoints({ url, color, scale, position }: {
 const HAIR_PLY_SCALE_DEFAULT   = 13.109;
 const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 
+const ORBIT_SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.5, 4.0];
+
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
 // type 'ply' → HairStrandMesh, type 'npy' → HairDepthPoints
@@ -153,6 +155,85 @@ const HAIR_LAYERS: HairLayer[] = [
 ];
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
+
+// ── Keyboard camera controller ──────────────────────────────
+const CAM_ROTATE_SPEED = 0.4;
+const CAM_PAN_SPEED    = 1.2;
+const CAM_SMOOTH       = 8;
+const CAM_PHI_MIN      = 0.01;
+const CAM_PHI_MAX      = Math.PI / 2 + (10 * Math.PI / 180);
+
+function isTyping(): boolean {
+  const tag = (document.activeElement as HTMLElement | null)?.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA';
+}
+
+function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any> }) {
+  const { camera } = useThree();
+  const keys    = useRef(new Set<string>());
+  const velRot  = useRef({ theta: 0, phi: 0 });
+  const velMove = useRef(new THREE.Vector3());
+
+  useEffect(() => {
+    const onDown = (e: KeyboardEvent) => {
+      if (isTyping()) return;
+      keys.current.add(e.code);
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code))
+        e.preventDefault();
+    };
+    const onUp = (e: KeyboardEvent) => keys.current.delete(e.code);
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, []);
+
+  useFrame((_, delta) => {
+    const controls = orbitRef.current;
+    if (!controls) return;
+
+    const dt   = Math.min(delta, 0.1);
+    const t    = Math.min(1, CAM_SMOOTH * dt);
+    const k    = keys.current;
+    const busy = isTyping();
+
+    const tTheta = busy ? 0 : (k.has('KeyD') ? CAM_ROTATE_SPEED : 0) - (k.has('KeyA') ? CAM_ROTATE_SPEED : 0);
+    const tPhi   = busy ? 0 : (k.has('KeyS') ? CAM_ROTATE_SPEED : 0) - (k.has('KeyW') ? CAM_ROTATE_SPEED : 0);
+    velRot.current.theta += (tTheta - velRot.current.theta) * t;
+    velRot.current.phi   += (tPhi   - velRot.current.phi)   * t;
+
+    const fwdRaw = new THREE.Vector3().subVectors(controls.target, camera.position).setY(0);
+    const fwd    = fwdRaw.lengthSq() > 1e-6 ? fwdRaw.normalize() : new THREE.Vector3(0, 0, -1);
+    const right  = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    const tMove  = new THREE.Vector3();
+    if (!busy) {
+      if (k.has('ArrowUp'))                              tMove.addScaledVector(fwd,    CAM_PAN_SPEED);
+      if (k.has('ArrowDown'))                            tMove.addScaledVector(fwd,   -CAM_PAN_SPEED);
+      if (k.has('ArrowRight'))                           tMove.addScaledVector(right,   CAM_PAN_SPEED);
+      if (k.has('ArrowLeft'))                            tMove.addScaledVector(right,  -CAM_PAN_SPEED);
+      if (k.has('Space'))                                tMove.y += CAM_PAN_SPEED;
+      if (k.has('ShiftLeft') || k.has('ShiftRight'))     tMove.y -= CAM_PAN_SPEED;
+    }
+    velMove.current.lerp(tMove, t);
+
+    const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
+    const sph    = new THREE.Spherical().setFromVector3(offset);
+    sph.theta += velRot.current.theta * dt;
+    sph.phi    = Math.max(CAM_PHI_MIN, Math.min(CAM_PHI_MAX, sph.phi + velRot.current.phi * dt));
+    sph.makeSafe();
+    camera.position.setFromSpherical(sph).add(controls.target);
+
+    const move = velMove.current.clone().multiplyScalar(dt);
+    camera.position.add(move);
+    controls.target.add(move);
+
+    controls.update();
+  });
+
+  return null;
+}
 
 
 interface FlameData {
@@ -172,11 +253,14 @@ interface SceneProps {
   splatPosY: number;
   splatSrc: string;
   hairstepPlyUrl?: string;
+  hairstepPlyUrls?: string[];
   hairColor?: string;
+  orbitRotateSpeed?: number;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady }: SceneProps) {
+  const orbitRef = useRef<any>(null);
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -238,17 +322,32 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         </>
       )}
 
+      {hairstepPlyUrls?.map((url, i) => (
+        <HairStrandMesh
+          key={`demo-${i}`}
+          url={url}
+          color={hairColor ?? '#3b1f0a'}
+          scale={hairScale}
+          position={hairPos}
+          lineWidth={0.8}
+          renderOrder={0}
+        />
+      ))}
+
       {showFlame && flameData && (
         <FlameMesh vertices={flameData.vertices} faces={flameData.faces} />
       )}
 
       <OrbitControls
+        ref={orbitRef}
         enablePan={false}
         minPolarAngle={0}
         maxPolarAngle={Math.PI / 2 + (10 * Math.PI / 180)}
         minDistance={2.5}
         maxDistance={7.8}
+        rotateSpeed={orbitRotateSpeed}
       />
+      <KeyboardCameraController orbitRef={orbitRef} />
     </>
   );
 }
@@ -256,19 +355,22 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
 // ── Public component ────────────────────────────────────────
 
 interface HairSceneProps {
-  params:                HairParams;
-  colorRGB?:             string;
-  profile?:              UserHeadProfile;
-  flameData?:            FlameData;
-  autoFaceliftDataUrl?:  string;
-  faceliftPlyReady?:     boolean;
-  hairstepPlyUrl?:       string;
-  onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
-  splatSrcOverride?:     string;
+  params:                    HairParams;
+  colorRGB?:                 string;
+  profile?:                  UserHeadProfile;
+  flameData?:                FlameData;
+  autoFaceliftDataUrl?:      string;
+  faceliftPlyReady?:         boolean;
+  hairstepPlyUrl?:           string;
+  hairstepPlyUrls?:          string[];
+  splatSrcOverride?:         string | null;
   disableDefaultHairLayers?: boolean;
+  background?:               string;
+  uiHidden?:                 boolean;
+  onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -348,6 +450,18 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [showHair, setShowHair] = useState(true);
   const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
   const [hairColor, setHairColor] = useState('#3b1f0a');
+  const [cursorHidden, setCursorHidden] = useState(false);
+  const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(2);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping()) return;
+      if (e.code === 'KeyH') setCursorHidden(v => !v);
+      if (e.code === 'KeyB') setOrbitSpeedIdx(i => (i + 1) % ORBIT_SPEEDS.length);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const toggleLayer = (id: string) =>
     setVisibleLayers(prev => {
@@ -364,19 +478,13 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     return next;
   }, [visibleLayers, hoveredLayer, showHair]);
 
-  const btnStyle: React.CSSProperties = {
-    padding: '4px 10px', fontSize: 12,
-    background: '#000', color: '#fff', border: 'none',
-    borderRadius: 4, cursor: 'pointer',
-  };
-
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', cursor: cursorHidden ? 'none' : undefined }}>
       <Canvas
         shadows
         gl={{ toneMapping: THREE.NoToneMapping }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
-        style={{ width: '100%', height: '100%', background: '#001f5b' }}
+        style={{ width: '100%', height: '100%', background }}
       >
         <Scene
           showPolycam={showPolycam}
@@ -390,31 +498,12 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
+          hairstepPlyUrls={showHair ? hairstepPlyUrls : undefined}
           hairColor={hairColor}
+          orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
         />
       </Canvas>
-      <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
-        <input type="color" value={hairColor} onChange={e => setHairColor(e.target.value)} title="Hair color" style={{ width: 28, height: 28, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 4 }} />
-        <button onClick={() => setShowHair(v => !v)} style={{ ...btnStyle, opacity: showHair ? 1 : 0.4, outline: '2px solid #aaa' }}>
-          {showHair ? 'hide hair' : 'show hair'}
-        </button>
-        {HAIR_LAYERS.map(l => (
-          <button
-            key={l.id}
-            onClick={() => toggleLayer(l.id)}
-            onMouseEnter={() => setHoveredLayer(l.id)}
-            onMouseLeave={() => setHoveredLayer(null)}
-            style={{
-              ...btnStyle,
-              outline: visibleLayers.has(l.id) ? `2px solid ${l.color}` : 'none',
-              opacity: visibleLayers.has(l.id) || hoveredLayer === l.id ? 1 : 0.4,
-            }}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
