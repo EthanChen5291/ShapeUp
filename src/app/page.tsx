@@ -237,9 +237,12 @@ function ProfileMenu() {
         background: 'var(--cream)',
         border: '1px solid rgba(42,32,26,0.12)',
         backdropFilter: 'blur(8px)',
-        borderRadius: 14,
-        minWidth: 240,
-        transition: 'background 280ms ease, border-color 280ms ease, box-shadow 280ms ease',
+        borderRadius: open ? 18 : 40,
+        width: open ? 290 : 176,
+        overflow: 'hidden',
+        transition: open
+          ? 'width 540ms cubic-bezier(.08,.82,.17,1), border-radius 420ms cubic-bezier(.08,.82,.17,1), background 280ms ease, box-shadow 300ms ease'
+          : 'width 320ms cubic-bezier(.4,0,1,1), border-radius 300ms cubic-bezier(.4,0,1,1), background 280ms ease, box-shadow 300ms ease',
         boxShadow: open ? '0 20px 50px -12px rgba(0,0,0,0.3)' : 'none',
       }}
     >
@@ -262,17 +265,16 @@ function ProfileMenu() {
 
       {/* Expanding content */}
       <div style={{
-        maxHeight: open ? '320px' : '0px',
+        maxHeight: open ? '400px' : '0px',
         overflow: 'hidden',
         opacity: open ? 1 : 0,
-        transform: open ? 'translateY(0px)' : 'translateY(-8px)',
         transition: open
-          ? 'max-height 520ms cubic-bezier(.08,.82,.17,1), opacity 320ms 60ms ease, transform 400ms 60ms cubic-bezier(.2,.85,.2,1)'
-          : 'max-height 300ms cubic-bezier(.4,0,1,1), opacity 200ms ease, transform 200ms ease',
+          ? 'max-height 540ms cubic-bezier(.08,.82,.17,1), opacity 300ms 130ms ease'
+          : 'max-height 320ms cubic-bezier(.4,0,1,1), opacity 180ms ease',
       }}>
         <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '1px solid rgba(42,32,26,0.08)', paddingTop: 12 }}>
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
               <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
               <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
                 {user?.credits ?? 0}
@@ -280,10 +282,11 @@ function ProfileMenu() {
             </div>
             <BouncyButton
               onClick={() => setShowPricing(true)}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--cream)] text-sm font-bold hover:scale-110"
-              style={{ background: 'var(--tomato)', border: 'none' }}
+              className="btn btn-tomato w-full relative overflow-hidden"
+              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none' }}
             >
-              +
+              <span className="shine-sweep" />
+              <span style={{ position: 'relative' }}>Get more!</span>
             </BouncyButton>
           </div>
 
@@ -445,11 +448,18 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   const { openSignIn } = useClerk();
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const dismiss = () => {
     setClosing(true);
     setTimeout(onDismiss, 320);
   };
+
+  // After popup-in animation completes, smoothly expand
+  useEffect(() => {
+    const t = setTimeout(() => setExpanded(true), 480);
+    return () => clearTimeout(t);
+  }, []);
 
   const PLANS = [
     { id: 'starter',  label: '20 haircut generations',       price: '$1.99',  featured: false },
@@ -472,6 +482,9 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
     } finally { setLoading(null); }
   };
 
+  const ease = 'cubic-bezier(0.4, 0, 0.2, 1)';
+  const dur = '620ms';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
       <div className={closing ? 'popup-out' : 'popup-in'}>
@@ -481,8 +494,9 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
             background: 'var(--cream)',
             border: '1px solid rgba(42,32,26,0.1)',
             boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)',
-            minWidth: 360,
-            padding: '44px 40px 40px',
+            width: expanded ? 'min(80vw, 920px)' : 360,
+            padding: expanded ? '44px 48px 48px' : '44px 40px 40px',
+            transition: `width ${dur} ${ease}, padding ${dur} ${ease}`,
           }}
         >
           <button
@@ -495,35 +509,85 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
             <BarberMascot />
           </div>
           <div className="text-center">
-            <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 26 }}>
+            <h2
+              className="font-display italic text-[var(--ink)]"
+              style={{
+                fontWeight: 600,
+                fontSize: expanded ? 30 : 26,
+                transition: `font-size ${dur} ${ease}`,
+              }}
+            >
               Top up your cuts
             </h2>
-            <p className="font-sans text-[var(--smoke)] mt-1" style={{ fontSize: 14 }}>
+            <p
+              className="font-sans text-[var(--smoke)] mt-1"
+              style={{ fontSize: expanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}
+            >
               You&rsquo;re out of tokens. Pick a plan to keep styling.
             </p>
           </div>
-          <div className="flex flex-col gap-3 w-full">
+
+          {/* Cards: stacked column → side-by-side row via width transition + flex-wrap */}
+          <div className="flex flex-wrap w-full" style={{ gap: 12 }}>
             {PLANS.map(plan => (
               <BouncyButton
                 key={plan.id}
                 onClick={() => handleBuy(plan.id)}
                 disabled={loading === plan.id}
-                className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 transition-all ${
-                  plan.featured ? 'btn-tomato' : 'btn-cream'
-                }`}
-                style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}
+                className={`rounded-2xl ${plan.featured ? 'btn-tomato' : 'btn-cream'}`}
+                style={{
+                  border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)',
+                  width: expanded ? 'calc(33.33% - 8px)' : '100%',
+                  padding: expanded ? '20px 24px' : '16px 20px',
+                  display: 'flex',
+                  flexDirection: expanded ? 'column' : 'row',
+                  alignItems: expanded ? 'flex-start' : 'center',
+                  justifyContent: 'space-between',
+                  transition: `width ${dur} ${ease}, padding ${dur} ${ease}`,
+                }}
               >
                 <div className="text-left">
-                  <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
+                  <div
+                    className="font-sans font-semibold"
+                    style={{ fontSize: expanded ? 15 : 14, transition: `font-size ${dur} ${ease}` }}
+                  >
+                    {plan.label}
+                  </div>
                   {plan.featured && (
-                    <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>
+                    <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                      Most popular
+                    </div>
                   )}
                 </div>
-                <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>
+                <div
+                  className="font-display italic"
+                  style={{
+                    fontSize: expanded ? 26 : 22,
+                    fontWeight: 700,
+                    marginTop: expanded ? 16 : 0,
+                    transition: `font-size ${dur} ${ease}, margin-top ${dur} ${ease}`,
+                  }}
+                >
                   {loading === plan.id ? '…' : plan.price}
                 </div>
               </BouncyButton>
             ))}
+          </div>
+
+          {/* Perks animation area — blank placeholder, revealed on expand */}
+          <div
+            style={{
+              width: '100%',
+              overflow: 'hidden',
+              maxHeight: expanded ? 200 : 0,
+              opacity: expanded ? 1 : 0,
+              borderRadius: 16,
+              background: 'rgba(42,32,26,0.04)',
+              border: '1px solid rgba(42,32,26,0.08)',
+              transition: `max-height 700ms ${ease} 100ms, opacity 500ms ${ease} 220ms`,
+            }}
+          >
+            <div style={{ height: 180 }} />
           </div>
         </div>
       </div>
@@ -550,16 +614,18 @@ function ScanPopup({
 
   // Entry animation phases
   const [slideIn, setSlideIn] = useState(false);
+  const [rotateIn, setRotateIn] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showRequirements, setShowRequirements] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setSlideIn(true), 30);
-    // 30ms start + 420ms slide + 500ms pause = 950ms
-    const t2 = setTimeout(() => setExpanded(true), 950);
-    // expansion takes 750ms, requirements appear just after
-    const t3 = setTimeout(() => setShowRequirements(true), 1750);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    // 320ms slide (edge-on, left edge reaches x=0) then 250ms rotation
+    const t2 = setTimeout(() => setRotateIn(true), 350);
+    // 350ms + 250ms rotate + 350ms pause = 950ms
+    const t3 = setTimeout(() => setExpanded(true), 950);
+    const t4 = setTimeout(() => setShowRequirements(true), 1750);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, []);
 
   const dismiss = () => {
@@ -603,11 +669,23 @@ function ScanPopup({
     ? 'transform 420ms cubic-bezier(.2,.85,.2,1)'
     : (collapsing || expanded)
     ? 'width 750ms cubic-bezier(.2,.85,.2,1)'
-    : 'transform 420ms cubic-bezier(.2,.85,.2,1)';
+    : rotateIn
+    ? 'transform 250ms cubic-bezier(.2,.85,.2,1)'
+    : slideIn
+    ? 'transform 320ms cubic-bezier(.2,.85,.2,1)'
+    : 'none';
 
-  const panelTransform = (slideOut || !slideIn)
-    ? 'translateX(-120%)'
-    : 'translateX(0)';
+  // Phase 1 (!slideIn): panel off-screen, edge-on
+  // Phase 2 (slideIn, !rotateIn): edge-on, slides until left edge hits x=0
+  // Phase 3 (rotateIn): rotates to face user while sliding the final 5vw into place
+  // translateX order before rotateY so that X translation is in world space
+  const panelTransform = slideOut
+    ? 'perspective(1000px) translateX(-120%) rotateY(0deg)'
+    : rotateIn
+    ? 'perspective(1000px) translateX(0) rotateY(0deg)'
+    : slideIn
+    ? 'perspective(1000px) translateX(-16.667%) rotateY(-90deg)'
+    : 'perspective(1000px) translateX(-120%) rotateY(-90deg)';
 
   return (
     <div
@@ -715,8 +793,7 @@ function ScanPopup({
                 style={{
                   fontSize: 'clamp(1.8rem, 3.5vw, 3rem)',
                   lineHeight: 1,
-                  transform: expanded ? 'translateX(0)' : 'translateX(-36%)',
-                  transition: 'transform 750ms cubic-bezier(.2,.85,.2,1)',
+                  transform: 'translateX(0)',
                 }}
               >
                 Take a selfie!
@@ -891,22 +968,26 @@ function MainMenu({
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const [menuVisible, setMenuVisible] = useState(false);
+  const [logoVisible, setLogoVisible] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setMenuVisible(true), 80);
-    return () => clearTimeout(t);
+    const t1 = setTimeout(() => setMenuVisible(true), 60);
+    const t2 = setTimeout(() => setLogoVisible(true), 190);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-6 py-4">
-        <InlineWordmark cream />
+        <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
+          <InlineWordmark cream />
+        </div>
         <ProfileMenu />
       </div>
 
       {/* Content */}
-      <div className={`relative z-10 mx-auto max-w-4xl px-6 pt-20 pb-10 ${menuVisible ? 'menu-rise' : 'opacity-0'}`}>
+      <div className={`relative z-10 mx-auto max-w-4xl px-6 pt-20 pb-10 ${menuVisible ? 'slide-in-left' : 'opacity-0'}`}>
         {/* Subtitle */}
         <p className="font-serif italic text-[var(--cream)] text-sm mb-6" style={{ opacity: 0.75 }}>
           A neighborhood AI barber
