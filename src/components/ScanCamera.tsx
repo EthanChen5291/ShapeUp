@@ -12,6 +12,7 @@ interface ScanCameraProps {
   hairType: 'straight' | 'wavy' | 'curly';
   onScanComplete: (profile: UserHeadProfile, sessionId: string | null, imageUrl: string | null) => void;
   onDismiss: () => void;
+  onNoTokens?: () => void;
 }
 
 type Phase = 'loading' | 'ready' | 'captured' | 'error';
@@ -74,7 +75,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captur
   ctx.stroke();
 }
 
-export default function ScanCamera({ hairType, onScanComplete, onDismiss }: ScanCameraProps) {
+export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTokens }: ScanCameraProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
   const animFrameId   = useRef<number | null>(null);
@@ -159,9 +160,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
       return;
     }
     if (convexUser != null && convexUser.credits <= 0) {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
+      onNoTokens?.();
       return;
     }
     const video  = videoRef.current;
@@ -255,7 +254,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
     <div className="relative flex flex-col items-center w-full">
       <video ref={videoRef} className="hidden" muted playsInline />
 
-      <div className="relative w-full bg-[#1c1510]" style={{ aspectRatio: '1/1' }}>
+      <div className="relative w-full bg-[#1c1510]" style={{ aspectRatio: '1/1', borderRadius: '28px 28px 0 0', overflow: 'hidden' }}>
         <canvas
           ref={previewCanvas}
           width={640}
@@ -293,19 +292,33 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss }: Scan
         )}
       </div>
 
-      <div className="w-full bg-[var(--cream)] border-t border-[var(--char)]/10 px-5 py-5 flex flex-col items-center gap-3">
-        <p className="font-serif italic text-center text-[var(--char)] text-[15px] min-h-[1.5rem]">
-          {instruction}
-        </p>
+      <div style={{ position: 'relative', width: '100%' }}>
+        <div className="tape tape-tl" />
+        <div className="tape tape-tr" />
+        <div style={{
+          background: 'var(--chalk)',
+          borderRadius: '0 0 24px 24px',
+          padding: '22px 24px 40px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 14,
+          boxShadow: '0 10px 28px -8px rgba(42,32,26,0.22)',
+        }}>
+          <p className="font-serif italic text-center text-[var(--char)] text-[17px] min-h-[1.5rem]">
+            {instruction}
+          </p>
 
-        {phase === 'ready' && (
-          <button
-            onClick={capturePhoto}
-            className="btn btn-tomato"
-          >
-            ✂ Take the seat
-          </button>
-        )}
+          {phase === 'ready' && (
+            <button
+              onClick={capturePhoto}
+              className="btn btn-tomato"
+              style={{ padding: '12px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 1, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em' }}
+            >
+              Take Picture
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
