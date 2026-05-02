@@ -254,6 +254,11 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
     <div className="relative flex flex-col items-center w-full">
       <video ref={videoRef} className="hidden" muted playsInline />
 
+      <div style={{ position: 'relative', width: '100%' }}>
+        <div className="tape tape-tl" />
+        <div className="tape tape-tr" />
+        <div className="tape tape-bl" />
+        <div className="tape tape-br" />
       <div className="relative w-full bg-[#1c1510]" style={{ aspectRatio: '1/1', borderRadius: '28px 28px 0 0', overflow: 'hidden' }}>
         <canvas
           ref={previewCanvas}
@@ -291,10 +296,9 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
           </div>
         )}
       </div>
+      </div>
 
       <div style={{ position: 'relative', width: '100%' }}>
-        <div className="tape tape-tl" />
-        <div className="tape tape-tr" />
         <div style={{
           background: 'var(--chalk)',
           borderRadius: '0 0 24px 24px',

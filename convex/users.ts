@@ -34,6 +34,7 @@ export const getOrCreate = mutation({
       await ctx.db.patch(pending._id, {
         tokenIdentifier: identity.tokenIdentifier,
         email: identity.email ?? pending.email,
+        username: identity.nickname ?? pending.username,
       });
       return pending._id;
     }
@@ -42,6 +43,7 @@ export const getOrCreate = mutation({
       tokenIdentifier: identity.tokenIdentifier,
       clerkId: identity.subject,
       email: identity.email,
+      username: identity.nickname ?? undefined,
       credits: 0,
     });
   },

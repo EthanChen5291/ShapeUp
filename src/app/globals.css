@@ -215,6 +215,8 @@ body {
 }
 .tape-tl { top: -8px; left: -14px; transform: rotate(-18deg); }
 .tape-tr { top: -8px; right: -14px; transform: rotate(16deg); }
+.tape-bl { bottom: -8px; left: -14px; transform: rotate(18deg); }
+.tape-br { bottom: -8px; right: -14px; transform: rotate(-16deg); }
 
 /* ── Cards ───────────────────────────────────────────────── */
 .card {

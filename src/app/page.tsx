@@ -99,75 +99,64 @@ function BouncyButton({
 }
 
 /* ─────────────── Loading Screen ─────────────── */
-const LD_W = 440, LD_H = 400, LD_R = 32, LD_M = 24;
+const LD_W = 600, LD_H = 440, LD_R = 32, LD_M = 24;
 const LD_SVG_W = LD_W + LD_M * 2, LD_SVG_H = LD_H + LD_M * 2;
-const LD_LEAD = 0.012; // initial arc offset so dots appear slightly apart at t=0
+const LD_PERIM = 2 * (LD_W + LD_H) + (2 * Math.PI - 8) * LD_R;
+const LOAD_DURATION = 3000;
 
-function getLoadingDotPos(t: number): { x: number; y: number } {
-  t = ((t % 1) + 1) % 1;
-  const hW  = LD_W / 2 - LD_R;          // half straight top/bottom
-  const sV  = LD_H - 2 * LD_R;          // straight vertical
-  const arc = (Math.PI / 2) * LD_R;     // quarter-circle arc length
-  const half = hW + arc + sV + arc + hW; // half-perimeter (top-center → bottom-center)
-
-  let d = t * half * 2;
-
-  if (d <= half) {
-    // Clockwise: top-center → right → bottom-center
-    const segs = [
-      { n: hW,  p: (s: number) => ({ x: LD_W / 2 + s, y: 0 }) },
-      { n: arc, p: (s: number) => { const a = -Math.PI / 2 + (s / arc) * Math.PI / 2; return { x: LD_W - LD_R + LD_R * Math.cos(a), y: LD_R + LD_R * Math.sin(a) }; } },
-      { n: sV,  p: (s: number) => ({ x: LD_W, y: LD_R + s }) },
-      { n: arc, p: (s: number) => { const a = (s / arc) * Math.PI / 2; return { x: LD_W - LD_R + LD_R * Math.cos(a), y: LD_H - LD_R + LD_R * Math.sin(a) }; } },
-      { n: hW,  p: (s: number) => ({ x: LD_W - LD_R - s, y: LD_H }) },
-    ];
-    for (const seg of segs) { if (d <= seg.n) return seg.p(d); d -= seg.n; }
-  } else {
-    // Counter-clockwise return: bottom-center → left → top-center
-    d -= half;
-    const segs = [
-      { n: hW,  p: (s: number) => ({ x: LD_W / 2 - s, y: LD_H }) },
-      { n: arc, p: (s: number) => { const a = Math.PI / 2 + (s / arc) * Math.PI / 2; return { x: LD_R + LD_R * Math.cos(a), y: LD_H - LD_R + LD_R * Math.sin(a) }; } },
-      { n: sV,  p: (s: number) => ({ x: 0, y: LD_H - LD_R - s }) },
-      { n: arc, p: (s: number) => { const a = Math.PI + (s / arc) * Math.PI / 2; return { x: LD_R + LD_R * Math.cos(a), y: LD_R + LD_R * Math.sin(a) }; } },
-      { n: hW,  p: (s: number) => ({ x: LD_R + s, y: 0 }) },
-    ];
-    for (const seg of segs) { if (d <= seg.n) return seg.p(d); d -= seg.n; }
-  }
-  return { x: LD_W / 2, y: 0 };
+function getRoundedRectPath(x: number, y: number, w: number, h: number, r: number): string {
+  const cx = x + w / 2;
+  return [
+    `M ${cx} ${y}`,
+    `H ${x + w - r}`,
+    `A ${r} ${r} 0 0 1 ${x + w} ${y + r}`,
+    `V ${y + h - r}`,
+    `A ${r} ${r} 0 0 1 ${x + w - r} ${y + h}`,
+    `H ${x + r}`,
+    `A ${r} ${r} 0 0 1 ${x} ${y + h - r}`,
+    `V ${y + r}`,
+    `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
+    `Z`,
+  ].join(' ');
 }
 
 function LoadingScreen({ onDone }: { onDone: () => void }) {
   const [done, setDone] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [displayedProgress, setDisplayedProgress] = useState(0);
+  const displayedRef = useRef(0);
+  const isDoneRef = useRef(false);
   const startRef = useRef<number | null>(null);
-  const rafRef   = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const tick = (ts: number) => {
       if (!startRef.current) startRef.current = ts;
-      const p = Math.min((ts - startRef.current) / 3000, 1);
-      setProgress(p);
-      if (p < 1) rafRef.current = requestAnimationFrame(tick);
+      const elapsed = ts - startRef.current;
+      const rawT = Math.min(elapsed / LOAD_DURATION, 1);
+      // Ease-out expo: fast at start, decelerates near end, caps at 88% until fully done
+      const eased = rawT === 1 ? 0.88 : (1 - Math.pow(2, -10 * rawT)) * 0.88;
+      const target = isDoneRef.current ? 1 : eased;
+      const lerpRate = isDoneRef.current ? 0.1 : 0.05;
+      displayedRef.current += (target - displayedRef.current) * lerpRate;
+      setDisplayedProgress(displayedRef.current);
+      if (displayedRef.current < 0.999) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
   useEffect(() => {
-    const doneTimer = setTimeout(() => {
+    const t = setTimeout(() => {
+      isDoneRef.current = true;
       setDone(true);
       setTimeout(onDone, 650);
-    }, 3000);
-    return () => clearTimeout(doneTimer);
+    }, LOAD_DURATION);
+    return () => clearTimeout(t);
   }, [onDone]);
 
-  // Dot 1 goes clockwise (right side), Dot 2 goes counter-clockwise (left side)
-  // Both start near top-center (LD_LEAD apart) and converge at bottom-center
-  const dot1T = LD_LEAD + progress * (0.5 - LD_LEAD);
-  const dot2T = (1 - LD_LEAD) - progress * (0.5 - LD_LEAD);
-  const d1 = getLoadingDotPos(dot1T);
-  const d2 = getLoadingDotPos(dot2T);
+  const path = getRoundedRectPath(LD_M, LD_M, LD_W, LD_H, LD_R);
 
   return (
     <main className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'var(--biscuit)' }}>
@@ -183,9 +172,16 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
           style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: LD_SVG_W, height: LD_SVG_H, pointerEvents: 'none' }}
           viewBox={`0 0 ${LD_SVG_W} ${LD_SVG_H}`}
         >
-          <rect x={LD_M} y={LD_M} width={LD_W} height={LD_H} rx={LD_R} ry={LD_R} fill="none" stroke="rgba(214,60,47,0.1)" strokeWidth="1.5" />
-          <circle cx={LD_M + d1.x} cy={LD_M + d1.y} r={4.5} fill="var(--tomato)" />
-          <circle cx={LD_M + d2.x} cy={LD_M + d2.y} r={4.5} fill="var(--tomato)" />
+          <path d={path} fill="none" stroke="rgba(214,60,47,0.1)" strokeWidth="3" />
+          <path
+            d={path}
+            fill="none"
+            stroke="var(--tomato)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={LD_PERIM}
+            strokeDashoffset={LD_PERIM * (1 - displayedProgress)}
+          />
         </svg>
 
         <div style={{ width: 56, transform: 'rotate(186deg)' }}>
@@ -297,7 +293,14 @@ function ProfileMenu() {
             </div>
           </div>
 
-          <div className="border-t border-dashed border-[var(--char)]/15 pt-2">
+          <div className="border-t border-dashed border-[var(--char)]/15 pt-2 flex flex-col gap-0.5">
+            <BouncyButton
+              onClick={() => {}}
+              className="w-full text-left font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors py-1"
+              style={{ background: 'none', border: 'none' }}
+            >
+              ⚙ Settings
+            </BouncyButton>
             <BouncyButton
               onClick={() => { setOpen(false); signOut(); }}
               className="w-full text-left font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors py-1"
@@ -319,16 +322,33 @@ function ScanNowPopup({
   onLetsDo,
   onDismiss,
 }: { onLetsDo: () => void; onDismiss: () => void }) {
+  const [show, setShow] = useState(false);
   const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 16);
+    return () => clearTimeout(t);
+  }, []);
 
   const dismiss = () => {
     setClosing(true);
-    setTimeout(onDismiss, 320);
+    setTimeout(onDismiss, 420);
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
-      <div className={closing ? 'popup-out' : 'popup-in'}>
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center"
+      style={{
+        background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)',
+        transition: 'background 400ms ease',
+      }}
+    >
+      <div
+        style={{
+          transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)',
+          transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)',
+        }}
+      >
         <div
           className="relative rounded-3xl flex flex-col items-center gap-5"
           style={{
@@ -442,23 +462,85 @@ const SELFIE_REQS = [
   { icon: '□', label: 'Solid color background' },
 ];
 
+/* ─────────────── Expanded Plan Card (used by PricingPopup) ─────────────── */
+function ExpandedPlanCard({
+  plan,
+  loading,
+  onBuy,
+  staggerDelay,
+}: {
+  plan: { readonly id: string; readonly label: string; readonly price: string; readonly featured: boolean };
+  loading: string | null;
+  onBuy: (id: string) => void;
+  staggerDelay: number;
+}) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 16);
+    return () => clearTimeout(t);
+  }, []);
+
+  const springEase = 'cubic-bezier(0.34, 1.15, 0.64, 1)';
+
+  return (
+    <div
+      style={{
+        flex: '1 1 0',
+        minWidth: 0,
+        transform: ready ? 'scale(1)' : 'scale(0)',
+        opacity: ready ? 1 : 0,
+        transformOrigin: 'center',
+        pointerEvents: ready ? 'auto' : 'none',
+        transition: `transform 540ms ${springEase} ${staggerDelay}ms, opacity 300ms ease ${staggerDelay + 180}ms`,
+      }}
+    >
+      <BouncyButton
+        onClick={() => onBuy(plan.id)}
+        disabled={loading === plan.id}
+        className={`rounded-2xl w-full ${plan.featured ? 'btn-tomato' : 'btn-cream'}`}
+        style={{
+          border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)',
+          padding: '20px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div className="text-left">
+          <div className="font-sans font-semibold" style={{ fontSize: 15 }}>{plan.label}</div>
+          {plan.featured && (
+            <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Most popular
+            </div>
+          )}
+        </div>
+        <div className="font-display italic" style={{ fontSize: 26, fontWeight: 700, marginTop: 16 }}>
+          {loading === plan.id ? '…' : plan.price}
+        </div>
+      </BouncyButton>
+    </div>
+  );
+}
+
 /* ─────────────── Pricing Popup ─────────────── */
 function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   const { isSignedIn } = useUser();
   const { openSignIn } = useClerk();
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  // 0 = compact, 1 = compact fading + container expanding, 2 = expanded cards growing in
+  const [expandPhase, setExpandPhase] = useState<0 | 1 | 2>(0);
 
   const dismiss = () => {
     setClosing(true);
     setTimeout(onDismiss, 320);
   };
 
-  // After popup-in animation completes, smoothly expand
   useEffect(() => {
-    const t = setTimeout(() => setExpanded(true), 480);
-    return () => clearTimeout(t);
+    const t1 = setTimeout(() => setExpandPhase(1), 480);
+    const t2 = setTimeout(() => setExpandPhase(2), 700);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   const PLANS = [
@@ -484,6 +566,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
 
   const ease = 'cubic-bezier(0.4, 0, 0.2, 1)';
   const dur = '620ms';
+  const containerExpanded = expandPhase >= 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
@@ -494,8 +577,8 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
             background: 'var(--cream)',
             border: '1px solid rgba(42,32,26,0.1)',
             boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)',
-            width: expanded ? 'min(80vw, 920px)' : 360,
-            padding: expanded ? '44px 48px 48px' : '44px 40px 40px',
+            width: containerExpanded ? 'min(80vw, 920px)' : 360,
+            padding: containerExpanded ? '44px 48px 48px' : '44px 40px 40px',
             transition: `width ${dur} ${ease}, padding ${dur} ${ease}`,
           }}
         >
@@ -511,80 +594,76 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
           <div className="text-center">
             <h2
               className="font-display italic text-[var(--ink)]"
-              style={{
-                fontWeight: 600,
-                fontSize: expanded ? 30 : 26,
-                transition: `font-size ${dur} ${ease}`,
-              }}
+              style={{ fontWeight: 600, fontSize: containerExpanded ? 30 : 26, transition: `font-size ${dur} ${ease}` }}
             >
               Top up your cuts
             </h2>
             <p
               className="font-sans text-[var(--smoke)] mt-1"
-              style={{ fontSize: expanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}
+              style={{ fontSize: containerExpanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}
             >
               You&rsquo;re out of tokens. Pick a plan to keep styling.
             </p>
           </div>
 
-          {/* Cards: stacked column → side-by-side row via width transition + flex-wrap */}
-          <div className="flex flex-wrap w-full" style={{ gap: 12 }}>
-            {PLANS.map(plan => (
-              <BouncyButton
-                key={plan.id}
-                onClick={() => handleBuy(plan.id)}
-                disabled={loading === plan.id}
-                className={`rounded-2xl ${plan.featured ? 'btn-tomato' : 'btn-cream'}`}
-                style={{
-                  border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)',
-                  width: expanded ? 'calc(33.33% - 8px)' : '100%',
-                  padding: expanded ? '20px 24px' : '16px 20px',
-                  display: 'flex',
-                  flexDirection: expanded ? 'column' : 'row',
-                  alignItems: expanded ? 'flex-start' : 'center',
-                  justifyContent: 'space-between',
-                  transition: `width ${dur} ${ease}, padding ${dur} ${ease}`,
-                }}
-              >
-                <div className="text-left">
-                  <div
-                    className="font-sans font-semibold"
-                    style={{ fontSize: expanded ? 15 : 14, transition: `font-size ${dur} ${ease}` }}
-                  >
-                    {plan.label}
-                  </div>
-                  {plan.featured && (
-                    <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Most popular
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="font-display italic"
-                  style={{
-                    fontSize: expanded ? 26 : 22,
-                    fontWeight: 700,
-                    marginTop: expanded ? 16 : 0,
-                    transition: `font-size ${dur} ${ease}, margin-top ${dur} ${ease}`,
-                  }}
+          {/* Compact stacked cards — fade out on expansion */}
+          {expandPhase < 2 && (
+            <div
+              className="flex flex-col gap-3 w-full"
+              style={{
+                opacity: expandPhase === 0 ? 1 : 0,
+                transition: 'opacity 200ms ease',
+                pointerEvents: expandPhase === 0 ? 'auto' : 'none',
+              }}
+            >
+              {PLANS.map(plan => (
+                <BouncyButton
+                  key={plan.id}
+                  onClick={() => handleBuy(plan.id)}
+                  disabled={loading === plan.id}
+                  className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`}
+                  style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}
                 >
-                  {loading === plan.id ? '…' : plan.price}
-                </div>
-              </BouncyButton>
-            ))}
-          </div>
+                  <div className="text-left">
+                    <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
+                    {plan.featured && (
+                      <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>
+                    )}
+                  </div>
+                  <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>
+                    {loading === plan.id ? '…' : plan.price}
+                  </div>
+                </BouncyButton>
+              ))}
+            </div>
+          )}
+
+          {/* Expanded side-by-side cards — each grows from scale(0) to scale(1) with stagger */}
+          {expandPhase === 2 && (
+            <div className="flex flex-row w-full" style={{ gap: 12 }}>
+              {PLANS.map((plan, i) => (
+                <ExpandedPlanCard
+                  key={plan.id}
+                  plan={plan}
+                  loading={loading}
+                  onBuy={handleBuy}
+                  staggerDelay={i * 90}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Perks animation area — blank placeholder, revealed on expand */}
           <div
             style={{
               width: '100%',
               overflow: 'hidden',
-              maxHeight: expanded ? 200 : 0,
-              opacity: expanded ? 1 : 0,
+              maxHeight: containerExpanded ? 200 : 0,
+              opacity: containerExpanded ? 1 : 0,
               borderRadius: 16,
               background: 'rgba(42,32,26,0.04)',
               border: '1px solid rgba(42,32,26,0.08)',
-              transition: `max-height 700ms ${ease} 100ms, opacity 500ms ${ease} 220ms`,
+              transition: `max-height 700ms ${ease} 150ms, opacity 500ms ${ease} 300ms`,
             }}
           >
             <div style={{ height: 180 }} />
@@ -608,23 +687,21 @@ function ScanPopup({
   const [captured, setCaptured] = useState<{ profile: UserHeadProfile; sid: string | null; url: string | null } | null>(null);
   const [showVerifyBtns, setShowVerifyBtns] = useState(false);
   const [collapsing, setCollapsing] = useState(false);
-  const [slideOut, setSlideOut] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const isDismissing = useRef(false);
 
-  // Entry animation phases
+  // Entry animation — two sequential phases: slide in edge-on, then rotate to face
   const [slideIn, setSlideIn] = useState(false);
   const [rotateIn, setRotateIn] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showRequirements, setShowRequirements] = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setSlideIn(true), 30);
-    // 320ms slide (edge-on, left edge reaches x=0) then 250ms rotation
-    const t2 = setTimeout(() => setRotateIn(true), 350);
-    // 350ms + 250ms rotate + 350ms pause = 950ms
-    const t3 = setTimeout(() => setExpanded(true), 950);
-    const t4 = setTimeout(() => setShowRequirements(true), 1750);
+    const t1 = setTimeout(() => setSlideIn(true), 30);       // slide edge-on into view: 480ms
+    const t2 = setTimeout(() => setRotateIn(true), 530);     // rotate to face user: 550ms
+    const t3 = setTimeout(() => setExpanded(true), 1150);    // expand width
+    const t4 = setTimeout(() => setShowRequirements(true), 1950);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, []);
 
@@ -632,8 +709,8 @@ function ScanPopup({
     if (isDismissing.current) return;
     isDismissing.current = true;
     setCollapsing(true);
-    setTimeout(() => setSlideOut(true), 750);
-    setTimeout(onDismiss, 1200);
+    setTimeout(() => setExiting(true), 750);
+    setTimeout(onDismiss, 1400);
   };
 
   const handleCapture = (p: UserHeadProfile, sid: string | null, url: string | null) => {
@@ -659,39 +736,36 @@ function ScanPopup({
     setTimeout(() => {
       if (captured && !isDismissing.current) {
         isDismissing.current = true;
-        setSlideOut(true);
-        setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url), 440);
+        setExiting(true);
+        setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url), 600);
       }
     }, totalMs);
   };
 
-  const panelTransition = slideOut
-    ? 'transform 420ms cubic-bezier(.2,.85,.2,1)'
+  const panelTransition = exiting
+    ? 'transform 550ms cubic-bezier(.2,.85,.2,1)'
     : (collapsing || expanded)
     ? 'width 750ms cubic-bezier(.2,.85,.2,1)'
     : rotateIn
-    ? 'transform 250ms cubic-bezier(.2,.85,.2,1)'
+    ? 'transform 550ms cubic-bezier(.2,.85,.2,1)'
     : slideIn
-    ? 'transform 320ms cubic-bezier(.2,.85,.2,1)'
+    ? 'transform 480ms cubic-bezier(.2,.85,.2,1)'
     : 'none';
 
-  // Phase 1 (!slideIn): panel off-screen, edge-on
-  // Phase 2 (slideIn, !rotateIn): edge-on, slides until left edge hits x=0
-  // Phase 3 (rotateIn): rotates to face user while sliding the final 5vw into place
-  // translateX order before rotateY so that X translation is in world space
-  const panelTransform = slideOut
-    ? 'perspective(1000px) translateX(-120%) rotateY(0deg)'
+  // CCW rotation (rotateY 90deg→0). Two-phase entry: slide edge-on in, then rotate to face.
+  const panelTransform = exiting
+    ? 'perspective(1000px) translateX(-120%) rotateY(90deg)'
     : rotateIn
     ? 'perspective(1000px) translateX(0) rotateY(0deg)'
     : slideIn
-    ? 'perspective(1000px) translateX(-16.667%) rotateY(-90deg)'
-    : 'perspective(1000px) translateX(-120%) rotateY(-90deg)';
+    ? 'perspective(1000px) translateX(-16.667%) rotateY(90deg)'
+    : 'perspective(1000px) translateX(-120%) rotateY(90deg)';
 
   return (
     <div
       className="fixed inset-0 z-40"
       style={{
-        background: slideOut ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)',
+        background: exiting ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)',
         transition: 'background 400ms ease',
       }}
       onClick={dismiss}
@@ -703,7 +777,7 @@ function ScanPopup({
           left: '5vw',
           top: '5vh',
           height: '90vh',
-          width: (collapsing || slideOut) ? '30vw' : expanded ? '90vw' : '30vw',
+          width: (collapsing || exiting) ? '30vw' : expanded ? '90vw' : '30vw',
           transform: panelTransform,
           opacity: 1,
           transition: panelTransition,
@@ -720,7 +794,7 @@ function ScanPopup({
 
           {/* LEFT PANEL — requirements or loading bars */}
           <div style={{
-            width: (expanded && !collapsing && !slideOut) ? '40vw' : '0vw',
+            width: (expanded && !collapsing && !exiting) ? '40vw' : '0vw',
             overflow: 'hidden',
             flexShrink: 0,
             transition: 'width 750ms cubic-bezier(.2,.85,.2,1)',
@@ -729,7 +803,7 @@ function ScanPopup({
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            padding: (expanded && !collapsing && !slideOut) ? '40px 52px' : '0',
+            padding: (expanded && !collapsing && !exiting) ? '40px 52px' : '0',
           }}>
             {phase !== 'processing' && showRequirements && (
               <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 320 }}>
@@ -954,6 +1028,503 @@ function AddProjectButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+/* ─────────────── Social types ─────────────── */
+interface FriendData {
+  userId: Id<'users'>;
+  username: string;
+  cutCount: number;
+  unreadCount: number;
+}
+interface FriendRequestData {
+  friendshipId: Id<'friends'>;
+  userId: Id<'users'>;
+  username: string;
+}
+
+/* ─────────────── Avatar helpers ─────────────── */
+function avatarBgColor(username: string): string {
+  const palette = ['#c0402e', '#b5541e', '#7a5430', '#3d6b50', '#2e5e7a', '#6a3d7a'];
+  const h = username.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  return palette[h % palette.length];
+}
+
+function AvatarCircle({ username, size = 40 }: { username: string; size?: number }) {
+  return (
+    <div
+      style={{
+        width: size, height: size, borderRadius: '50%',
+        background: avatarBgColor(username),
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, color: 'rgba(255,248,234,0.92)',
+        fontFamily: 'var(--font-dmsans)', fontWeight: 700,
+        fontSize: Math.round(size * 0.38), userSelect: 'none',
+      }}
+    >
+      {username.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
+/* ─────────────── Friend Row ─────────────── */
+function FriendRow({
+  friend,
+  onOpenProfile,
+  onOpenConversation,
+}: {
+  friend: FriendData;
+  onOpenProfile: () => void;
+  onOpenConversation: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ transition: 'background 150ms ease' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,248,234,0.06)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <button
+        onClick={e => { e.stopPropagation(); onOpenProfile(); }}
+        className="flex-shrink-0 hover:scale-110 active:scale-95 transition-transform"
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+      >
+        <AvatarCircle username={friend.username} size={40} />
+      </button>
+      <button
+        onClick={onOpenConversation}
+        className="flex-1 min-w-0 text-left"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-sans text-[var(--cream)] text-sm font-semibold truncate">
+            {friend.username}
+          </span>
+          {friend.unreadCount > 0 && (
+            <span className="font-mono text-[var(--tomato)] text-[9px] font-bold uppercase tracking-wider flex-shrink-0">
+              new msg
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="font-mono text-[10px]" style={{ color: 'rgba(255,248,234,0.35)' }}>
+            ✂ {friend.cutCount} cuts
+          </span>
+          {friend.unreadCount > 0 && (
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--tomato)' }} />
+          )}
+        </div>
+      </button>
+    </div>
+  );
+}
+
+/* ─────────────── Search Panel ─────────────── */
+function SearchPanel({ onClose }: { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const results = useQuery(api.friends.searchUsers, query.length >= 2 ? { query } : 'skip') as
+    | { userId: Id<'users'>; username: string }[]
+    | undefined;
+  const sendRequest = useMutation(api.friends.sendRequest);
+  const [requested, setRequested] = useState<Set<string>>(new Set());
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
+        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
+        <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
+      </div>
+      <div className="px-4 py-3 flex-shrink-0">
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by username..."
+          autoFocus
+          className="w-full rounded-full px-4 py-2 font-sans text-sm outline-none"
+          style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
+        />
+      </div>
+      <div className="flex-1 overflow-y-auto cozy-scroll px-4">
+        {results?.map(u => (
+          <div key={u.userId} className="flex items-center gap-3 py-2.5">
+            <AvatarCircle username={u.username} size={38} />
+            <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{u.username}</span>
+            <button
+              onClick={async () => {
+                await sendRequest({ addresseeId: u.userId });
+                setRequested(s => new Set([...s, u.userId]));
+              }}
+              disabled={requested.has(u.userId)}
+              className="font-sans text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full flex-shrink-0"
+              style={{
+                background: requested.has(u.userId) ? 'rgba(255,248,234,0.1)' : 'var(--tomato)',
+                color: 'var(--cream)', border: 'none',
+                cursor: requested.has(u.userId) ? 'default' : 'pointer',
+              }}
+            >
+              {requested.has(u.userId) ? 'Sent ✓' : 'Add'}
+            </button>
+          </div>
+        ))}
+        {query.length >= 2 && results?.length === 0 && (
+          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(255,248,234,0.35)' }}>No users found</p>
+        )}
+        {query.length < 2 && (
+          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(255,248,234,0.25)' }}>Type a username to search</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Message Thread ─────────────── */
+function MessageThread({
+  friendId,
+  friendUsername,
+  meId,
+  onClose,
+}: {
+  friendId: Id<'users'>;
+  friendUsername: string;
+  meId: Id<'users'>;
+  onClose: () => void;
+}) {
+  const messages = useQuery(api.messages.listConversation, { friendId });
+  const sendMsg = useMutation(api.messages.send);
+  const markRead = useMutation(api.messages.markRead);
+  const [text, setText] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    markRead({ senderId: friendId }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friendId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    const t = text.trim();
+    if (!t) return;
+    setText('');
+    await sendMsg({ receiverId: friendId, text: t });
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
+        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
+        <AvatarCircle username={friendUsername} size={30} />
+        <span className="flex-1 font-sans text-[var(--cream)] font-semibold text-sm">{friendUsername}</span>
+      </div>
+      <div className="flex-1 overflow-y-auto cozy-scroll px-4 py-3 flex flex-col gap-2 min-h-0">
+        {messages?.length === 0 && (
+          <p className="font-sans text-xs text-center py-6" style={{ color: 'rgba(255,248,234,0.3)' }}>Start the conversation ✂</p>
+        )}
+        {messages?.map((msg: { _id: string; senderId: Id<'users'>; text: string }) => {
+          const isMine = msg.senderId === meId;
+          return (
+            <div key={msg._id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className="max-w-[82%] px-3 py-2 font-sans text-sm leading-snug"
+                style={{
+                  background: isMine ? 'var(--tomato)' : 'rgba(255,248,234,0.1)',
+                  color: 'var(--cream)',
+                  borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                }}
+              >
+                {msg.text}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+      <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,248,234,0.08)' }}>
+        <div className="flex items-center gap-2">
+          <input
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
+            placeholder="Message..."
+            className="flex-1 rounded-full px-4 py-2 font-sans text-sm outline-none"
+            style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
+          />
+          <button
+            onClick={() => void handleSend()}
+            className="rounded-full flex items-center justify-center flex-shrink-0 hover:scale-105 active:scale-95 transition-transform"
+            style={{ width: 34, height: 34, background: 'var(--tomato)', border: 'none', cursor: 'pointer', color: 'var(--cream)', fontSize: 16 }}
+          >
+            ↑
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Friends Panel ─────────────── */
+function FriendsPanel({ openSearch, onSearchClose }: { openSearch: boolean; onSearchClose: () => void }) {
+  const friends = useQuery(api.friends.list) as FriendData[] | undefined;
+  const requests = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
+  const acceptRequest = useMutation(api.friends.acceptRequest);
+  const meUser = useQuery(api.users.getMe);
+
+  const [view, setView] = useState<'list' | 'search' | 'conversation'>('list');
+  const [activeThread, setActiveThread] = useState<FriendData | null>(null);
+  const [profileFriend, setProfileFriend] = useState<FriendData | null>(null);
+
+  useEffect(() => {
+    if (openSearch) setView('search');
+  }, [openSearch]);
+
+  const handleCloseSearch = () => {
+    setView('list');
+    onSearchClose();
+  };
+
+  if (view === 'search') return <SearchPanel onClose={handleCloseSearch} />;
+
+  if (view === 'conversation' && activeThread && meUser?._id) {
+    return (
+      <MessageThread
+        friendId={activeThread.userId}
+        friendUsername={activeThread.username}
+        meId={meUser._id}
+        onClose={() => { setActiveThread(null); setView('list'); }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+        <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 19, fontWeight: 600 }}>Friends</h2>
+        <button
+          onClick={() => setView('search')}
+          className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform"
+          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.08)', border: 'none', cursor: 'pointer', color: 'rgba(255,248,234,0.6)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.5"/>
+            <line x1="8.7" y1="8.7" x2="11.5" y2="11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      {requests && requests.length > 0 && (
+        <div className="px-4 mb-2 flex-shrink-0">
+          <p className="font-mono text-[9px] uppercase tracking-wider mb-1.5" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
+          {requests.map(req => (
+            <div key={req.friendshipId} className="flex items-center gap-3 py-2">
+              <AvatarCircle username={req.username} size={34} />
+              <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
+              <button
+                onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
+                className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
+                style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+              >
+                Accept
+              </button>
+            </div>
+          ))}
+          <div style={{ height: 1, background: 'rgba(255,248,234,0.08)', margin: '6px 0 10px' }} />
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto cozy-scroll px-1 min-h-0">
+        {friends != null && friends.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full gap-3 px-4 py-12" style={{ opacity: 0.38 }}>
+            <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+            <p className="font-sans text-[var(--cream)] text-xs text-center leading-snug">No friends yet.<br/>Add some to see their cuts!</p>
+          </div>
+        )}
+        {friends?.map(f => (
+          <FriendRow
+            key={f.userId}
+            friend={f}
+            onOpenProfile={() => setProfileFriend(f)}
+            onOpenConversation={() => { setActiveThread(f); setView('conversation'); }}
+          />
+        ))}
+      </div>
+
+      {profileFriend && (
+        <FriendProfileModal
+          friend={profileFriend}
+          onClose={() => setProfileFriend(null)}
+          onOpenConversation={() => {
+            const f = profileFriend;
+            setProfileFriend(null);
+            setActiveThread(f);
+            setView('conversation');
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/* ─────────────── Friend Profile Modal (two-stage animation) ─────────────── */
+type ProfileModalStage = 'init' | 'circle' | 'rect' | 'unpacking' | 'full' | 'closing';
+
+function FriendProfileModal({
+  friend,
+  onClose,
+  onOpenConversation,
+}: {
+  friend: FriendData;
+  onClose: () => void;
+  onOpenConversation?: () => void;
+}) {
+  const [stage, setStage] = useState<ProfileModalStage>('init');
+  const projects = useQuery(api.friends.getFriendProjects, { userId: friend.userId }) as ProjectDoc[] | undefined;
+  const isDismissing = useRef(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStage('circle'), 30);
+    const t2 = setTimeout(() => setStage('rect'), 330);
+    const t3 = setTimeout(() => setStage('unpacking'), 1380);
+    const t4 = setTimeout(() => setStage('full'), 2040);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+  }, []);
+
+  const close = () => {
+    if (isDismissing.current) return;
+    isDismissing.current = true;
+    setStage('closing');
+    setTimeout(onClose, 350);
+  };
+
+  const isCircle = stage === 'init' || stage === 'circle';
+  const isRect = stage === 'rect';
+  const isUnpacking = stage === 'unpacking' || stage === 'full';
+  const isFull = stage === 'full';
+  const isClosing = stage === 'closing';
+
+  const cardLeft = isUnpacking ? '5vw' : isRect ? 'calc(50% - 140px)' : 'calc(50% - 32px)';
+  const cardTop  = isUnpacking ? '5vh'  : isRect ? 'calc(50% - 190px)' : 'calc(50% - 32px)';
+  const cardW    = isUnpacking ? '36vw' : isRect ? '280px' : '64px';
+  const cardH    = isUnpacking ? '90vh' : isRect ? '380px' : '64px';
+  const cardR    = isUnpacking ? 26 : isRect ? 22 : 9999;
+  const cardBg   = isCircle ? avatarBgColor(friend.username) : '#201a13';
+
+  return (
+    <div
+      className="fixed inset-0 z-50"
+      style={{
+        background: isClosing ? 'rgba(0,0,0,0)' : isUnpacking ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.45)',
+        transition: 'background 400ms ease',
+      }}
+      onClick={close}
+    >
+      {/* Profile card */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'fixed',
+          left: cardLeft,
+          top: cardTop,
+          width: cardW,
+          height: cardH,
+          borderRadius: cardR,
+          background: cardBg,
+          boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)',
+          overflow: 'hidden',
+          opacity: stage === 'init' || isClosing ? 0 : 1,
+          transition: [
+            'left 650ms cubic-bezier(.2,.85,.2,1)',
+            'top 650ms cubic-bezier(.2,.85,.2,1)',
+            'width 450ms cubic-bezier(.2,.85,.2,1)',
+            'height 450ms cubic-bezier(.2,.85,.2,1)',
+            'border-radius 450ms cubic-bezier(.2,.85,.2,1)',
+            'background 300ms ease',
+            'opacity 300ms ease',
+          ].join(', '),
+        }}
+      >
+        {/* Initials — visible only in circle stage */}
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ opacity: isCircle ? 1 : 0, transition: 'opacity 180ms ease', pointerEvents: 'none' }}
+        >
+          <span style={{ fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 22, color: 'rgba(255,248,234,0.92)' }}>
+            {friend.username.slice(0, 2).toUpperCase()}
+          </span>
+        </div>
+
+        {/* Profile content — fades in after rect expansion */}
+        <div
+          className="absolute inset-0 flex flex-col items-center gap-5 p-7"
+          style={{
+            opacity: isCircle ? 0 : 1,
+            transition: 'opacity 280ms ease 200ms',
+            justifyContent: isUnpacking ? 'flex-start' : 'center',
+            paddingTop: isUnpacking ? 48 : 28,
+          }}
+        >
+          {!isCircle && (isRect || isUnpacking) && (
+            <button
+              onClick={close}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full transition-all"
+              style={{ background: 'rgba(255,248,234,0.1)', color: 'rgba(255,248,234,0.6)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+            >✕</button>
+          )}
+          <AvatarCircle username={friend.username} size={isUnpacking ? 76 : 60} />
+          <div className="text-center">
+            <h3 className="font-display italic text-[var(--cream)]" style={{ fontSize: isUnpacking ? 24 : 20, fontWeight: 600 }}>{friend.username}</h3>
+            <p className="font-mono mt-1" style={{ fontSize: 12, color: 'rgba(255,248,234,0.45)' }}>✂ {friend.cutCount} cuts</p>
+          </div>
+          <button
+            className="btn btn-tomato"
+            style={{ padding: '9px 22px', fontSize: 13 }}
+            onClick={() => { onOpenConversation?.(); }}
+          >
+            💬 Message
+          </button>
+        </div>
+      </div>
+
+      {/* Projects panel — slides in from right */}
+      {isUnpacking && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: 'calc(5vw + 36vw + 16px)',
+            top: '5vh',
+            right: '5vw',
+            height: '90vh',
+            borderRadius: 26,
+            background: '#201a13',
+            boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)',
+            overflow: 'hidden',
+            opacity: isFull ? 1 : 0,
+            transform: isFull ? 'translateX(0)' : 'translateX(36px)',
+            transition: 'opacity 420ms ease 200ms, transform 520ms cubic-bezier(.2,.85,.2,1) 150ms',
+          }}
+        >
+          <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid rgba(255,248,234,0.07)' }}>
+            <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 20, fontWeight: 600 }}>
+              {friend.username}&rsquo;s cuts
+            </h2>
+          </div>
+          <div className="overflow-y-auto cozy-scroll p-5" style={{ height: 'calc(100% - 60px)' }}>
+            {projects?.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ opacity: 0.35 }}>
+                <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+                <p className="font-sans text-[var(--cream)] text-xs">No cuts yet</p>
+              </div>
+            )}
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {projects?.map(p => (
+                <ProjectCard key={p._id} project={p} onClick={() => {}} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────── Main Menu ─────────────── */
 function MainMenu({
   onAdd,
@@ -969,6 +1540,7 @@ function MainMenu({
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
+  const [friendSearchOpen, setFriendSearchOpen] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setMenuVisible(true), 60);
@@ -983,39 +1555,55 @@ function MainMenu({
         <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
           <InlineWordmark cream />
         </div>
-        <ProfileMenu />
+        <div className="flex flex-col items-end gap-2">
+          <ProfileMenu />
+          <BouncyButton
+            onClick={() => setFriendSearchOpen(true)}
+            className="btn btn-tomato"
+            style={{ padding: '6px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}
+          >
+            + Add Friend
+          </BouncyButton>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className={`relative z-10 mx-auto max-w-4xl px-6 pt-20 pb-10 ${menuVisible ? 'slide-in-left' : 'opacity-0'}`}>
-        {/* Subtitle */}
-        <p className="font-serif italic text-[var(--cream)] text-sm mb-6" style={{ opacity: 0.75 }}>
-          A neighborhood AI barber
-        </p>
+      {/* Content — two-column layout */}
+      <div className={`relative z-10 flex h-screen pt-16 ${menuVisible ? 'slide-in-left' : 'opacity-0'}`}>
 
-        {/* Grid */}
-        <div
-          className="grid gap-4"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}
-        >
-          <AddProjectButton onClick={onAdd} />
-          {projects?.map(p => (
-            <ProjectCard key={p._id} project={p} onClick={() => onOpenProject(p)} />
-          ))}
+        {/* LEFT — Projects (flex-[3] ≈ 58% of space) */}
+        <div className="min-w-0 overflow-y-auto cozy-scroll px-10 py-6" style={{ flex: 3 }}>
+          <p className="font-serif italic text-[var(--cream)] text-sm mb-6" style={{ opacity: 0.75 }}>
+            A neighborhood AI barber
+          </p>
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 52, rowGap: 28 }}
+          >
+            <AddProjectButton onClick={onAdd} />
+            {projects?.map(p => (
+              <ProjectCard key={p._id} project={p} onClick={() => onOpenProject(p)} />
+            ))}
+          </div>
+          {showScanNow && (
+            <div className="mt-8 flex justify-center">
+              <BouncyButton onClick={onScanNow} className="btn btn-cream" style={{ padding: '10px 22px', fontSize: 13 }}>
+                ✂ Scan now
+              </BouncyButton>
+            </div>
+          )}
         </div>
 
-        {/* Scan now nudge — below grid, only if no scan yet */}
-        {showScanNow && (
-          <div className="mt-8 flex justify-center">
-            <BouncyButton
-              onClick={onScanNow}
-              className="btn btn-cream"
-              style={{ padding: '10px 22px', fontSize: 13 }}
-            >
-              ✂ Scan now
-            </BouncyButton>
-          </div>
-        )}
+        {/* DIVIDER */}
+        <div style={{ width: 1, background: 'rgba(255,248,234,0.1)', flexShrink: 0, margin: '16px 0' }} />
+
+        {/* RIGHT — Friends panel (flex-[2] ≈ 42% of space) */}
+        <div className="min-w-0 flex flex-col" style={{ flex: 2 }}>
+          <FriendsPanel
+            openSearch={friendSearchOpen}
+            onSearchClose={() => setFriendSearchOpen(false)}
+          />
+        </div>
+
       </div>
     </main>
   );
