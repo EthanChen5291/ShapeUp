@@ -573,6 +573,18 @@ input[type="range"].slider-warm::-moz-range-thumb {
   from { background-position: 0 0; }
   to   { background-position: 0 80px; }
 }
+@keyframes progressStripe {
+  from { background-position: 0 0; }
+  to   { background-position: 56px 56px; }
+}
+.progress-bar-fill {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--tomato) 0 20px,
+    rgba(255, 250, 240, 0.18) 20px 40px
+  );
+  animation: progressStripe 1.6s linear infinite;
+}
 .barber-pole {
   background: repeating-linear-gradient(
     -45deg,
@@ -696,10 +708,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 @keyframes organic-bar-fill {
   0%   { width: 10px; opacity: 0.5; }
   8%   { opacity: 1; }
-  75%  { width: 100%; }
-  88%  { width: 100%; opacity: 1; }
-  94%  { opacity: 0.15; }
-  100% { width: 10px; opacity: 0; }
+  85%  { width: 100%; opacity: 1; }
+  100% { width: 100%; opacity: 1; }
 }
 .organic-bar-anim {
   position: absolute;
@@ -708,7 +718,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
   min-width: 10px;
   border-radius: 9999px;
   background: var(--tomato);
-  animation: organic-bar-fill 2.4s ease-in-out infinite;
+  animation: organic-bar-fill 2.4s ease-in-out 1 forwards;
 }
 
 /* ── Letter fade-in — selfie requirements ─────────────── */

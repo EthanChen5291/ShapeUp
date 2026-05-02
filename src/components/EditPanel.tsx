@@ -5,7 +5,7 @@
 'use client';
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
@@ -216,6 +216,40 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
   const isBusy = phase !== 'idle';
 
+  const [geminiProgress, setGeminiProgress] = useState(0);
+  const [hairstepProgress, setHairstepProgress] = useState(0);
+  const geminiIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hairstepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevPhaseRef = useRef<'idle' | 'gemini' | 'hairstep'>('idle');
+
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = phase;
+
+    if (phase === 'gemini') {
+      if (geminiIntervalRef.current) clearInterval(geminiIntervalRef.current);
+      setGeminiProgress(0);
+      setHairstepProgress(0);
+      geminiIntervalRef.current = setInterval(() => {
+        setGeminiProgress(p => p < 90 ? p + 0.55 : p);
+      }, 150);
+    } else if (phase === 'hairstep') {
+      if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
+      setGeminiProgress(100);
+      if (hairstepIntervalRef.current) clearInterval(hairstepIntervalRef.current);
+      setHairstepProgress(0);
+      hairstepIntervalRef.current = setInterval(() => {
+        setHairstepProgress(p => p < 90 ? p + 0.15 : p);
+      }, 150);
+    } else if (phase === 'idle' && prev !== 'idle') {
+      if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
+      if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
+      setHairstepProgress(100);
+      const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1000);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
+
   return (
     <div className="flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }}>
       {/* Header */}
@@ -261,6 +295,28 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             {agentActive ? '◼ Stop' : '🎙 Voice'}
           </button>
         </div>
+        {(geminiProgress > 0) && (
+          <div className="flex flex-col gap-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="font-serif italic text-xs text-[var(--smoke)]">Drawing Blueprint…</span>
+              <span className="font-mono text-[10px] text-[var(--smoke)]">{Math.round(geminiProgress)}%</span>
+            </div>
+            <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.14)' }}>
+              <div className="progress-bar-fill h-full rounded-full transition-[width] duration-200" style={{ width: `${geminiProgress}%` }} />
+            </div>
+          </div>
+        )}
+        {(hairstepProgress > 0) && (
+          <div className="flex flex-col gap-1.5 pt-0.5">
+            <div className="flex items-center justify-between">
+              <span className="font-serif italic text-xs text-[var(--smoke)]">Generating 3D Model…</span>
+              <span className="font-mono text-[10px] text-[var(--smoke)]">{Math.round(hairstepProgress)}%</span>
+            </div>
+            <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.14)' }}>
+              <div className="progress-bar-fill h-full rounded-full transition-[width] duration-200" style={{ width: `${hairstepProgress}%` }} />
+            </div>
+          </div>
+        )}
         {pipelineError && (
           <div className="px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
             {pipelineError}
@@ -285,38 +341,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           Redo →
         </button>
       </div> */}
-
-      {/* PCA sliders */}
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-gray-500 uppercase tracking-widest">Hair Parameters</p>
-
-        {(
-          [
-            { key: 'pc1', label: 'Hair length' },
-            { key: 'pc2', label: 'Width' },
-            { key: 'pc3', label: 'Ponytail-ness' },
-            { key: 'pc4', label: 'Density' },
-            { key: 'pc5', label: 'Wavyness' },
-            { key: 'pc6', label: 'Parting' },
-          ] as const
-        ).map(({ key, label }) => (
-          <div key={key} className="flex flex-col gap-1">
-            <div className="flex justify-between text-sm">
-              <span>{label}</span>
-              <span className="text-gray-400">{(currentParams[key] ?? 0).toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={-3}
-              max={3}
-              step={0.1}
-              value={currentParams[key] ?? 0}
-              onChange={(e) => handleSlider(key, parseFloat(e.target.value))}
-              className="slider-warm w-full"
-            />
-          </div>
-        ))}
-      </div>
 
       <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
         <div className="flex items-baseline justify-between">
