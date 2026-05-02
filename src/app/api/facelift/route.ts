@@ -116,25 +116,27 @@ export async function POST(req: NextRequest) {
   }
 
   // Credit gate: require Clerk auth and deduct 1 credit per facelift job
-  let authSession: Awaited<ReturnType<typeof auth>> | null = null;
-  try {
-    authSession = await auth();
-  } catch {
-    return NextResponse.json({ error: 'Auth unavailable' }, { status: 401 });
-  }
-  const { userId, getToken } = authSession;
-  if (!userId) {
-    return NextResponse.json({ error: 'Sign in to generate haircuts' }, { status: 401 });
-  }
-  const convexToken = await getToken({ template: 'convex' });
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-  convex.setAuth(convexToken!);
-  try {
-    await convex.mutation(api.users.deductCredit, {});
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const status = msg.includes('No credits') ? 402 : 400;
-    return NextResponse.json({ error: msg }, { status });
+  if (process.env.DISABLE_PAYWALL !== '1') {
+    let authSession: Awaited<ReturnType<typeof auth>> | null = null;
+    try {
+      authSession = await auth();
+    } catch {
+      return NextResponse.json({ error: 'Auth unavailable' }, { status: 401 });
+    }
+    const { userId, getToken } = authSession;
+    if (!userId) {
+      return NextResponse.json({ error: 'Sign in to generate haircuts' }, { status: 401 });
+    }
+    const convexToken = await getToken({ template: 'convex' });
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    convex.setAuth(convexToken!);
+    try {
+      await convex.mutation(api.users.deductCredit, {});
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const status = msg.includes('No credits') ? 402 : 400;
+      return NextResponse.json({ error: msg }, { status });
+    }
   }
 
   const { imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown };

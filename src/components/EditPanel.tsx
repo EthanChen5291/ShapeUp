@@ -157,19 +157,19 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
       // Poll until done
       const jobId = faceliftSubmit.jobId;
-      let splatPath: string | null = null;
+      let splatUrl: string | null = null;
       while (true) {
         await new Promise(r => setTimeout(r, 5000));
         const pollRes  = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=edit-output`);
-        const pollData = await pollRes.json() as { status: string; splatPath?: string; error?: string };
-        if (pollData.status === 'success') { splatPath = pollData.splatPath!; break; }
+        const pollData = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
+        if (pollData.status === 'success') { splatUrl = pollData.splatUrl!; break; }
         if (pollData.status === 'error') {
           setPipelineError('Facelift render failed: ' + (pollData.error ?? 'unknown'));
           return;
         }
       }
 
-      onPlyReady(`${splatPath}?t=${Date.now()}`);
+      onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(splatUrl!)}`);
     } finally {
       setPhase('idle');
       processingRef.current = false;

@@ -382,13 +382,12 @@ function ScanNowPopup({
               padding: '20px 48px',
               fontSize: 26,
               fontFamily: 'var(--font-fraunces), Georgia, serif',
-              fontStyle: 'italic',
-              fontVariationSettings: "'SOFT' 100, 'WONK' 1, 'opsz' 144",
+              fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
               fontWeight: 900,
               letterSpacing: '-0.02em',
             }}
           >
-            TaKE PICTUЯE
+            Take Picture
           </BouncyButton>
         </div>
       </div>
@@ -689,7 +688,12 @@ function ScanPopup({
   const [collapsing, setCollapsing] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [paywallDisabled, setPaywallDisabled] = useState(false);
   const isDismissing = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(d => setPaywallDisabled(d.paywallDisabled ?? false));
+  }, []);
 
   // Entry animation — two sequential phases: slide in edge-on, then rotate to face
   const [slideIn, setSlideIn] = useState(false);
@@ -893,6 +897,7 @@ function ScanPopup({
                     onScanComplete={handleCapture}
                     onDismiss={dismiss}
                     onNoTokens={() => setShowPricing(true)}
+                    paywallDisabled={paywallDisabled}
                   />
                 </div>
               )}

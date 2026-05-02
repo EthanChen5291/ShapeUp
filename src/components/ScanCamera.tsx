@@ -13,6 +13,7 @@ interface ScanCameraProps {
   onScanComplete: (profile: UserHeadProfile, sessionId: string | null, imageUrl: string | null) => void;
   onDismiss: () => void;
   onNoTokens?: () => void;
+  paywallDisabled?: boolean;
 }
 
 type Phase = 'loading' | 'ready' | 'captured' | 'error';
@@ -75,7 +76,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captur
   ctx.stroke();
 }
 
-export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTokens }: ScanCameraProps) {
+export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTokens, paywallDisabled = false }: ScanCameraProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
   const animFrameId   = useRef<number | null>(null);
@@ -159,7 +160,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
       openSignIn();
       return;
     }
-    if (convexUser != null && convexUser.credits <= 0) {
+    if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
       onNoTokens?.();
       return;
     }
@@ -317,7 +318,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
             <button
               onClick={capturePhoto}
               className="btn btn-tomato"
-              style={{ padding: '12px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 1, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em' }}
+              style={{ padding: '12px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'none' }}
             >
               Take Picture
             </button>
