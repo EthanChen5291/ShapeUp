@@ -67,6 +67,33 @@ export const deductCredit = mutation({
   },
 });
 
+export const setUsername = mutation({
+  args: { username: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const trimmed = args.username.trim();
+    if (trimmed.length < 2 || trimmed.length > 20) throw new Error("Username must be 2–20 characters");
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) throw new Error("Username can only contain letters, numbers, and underscores");
+
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", trimmed))
+      .unique();
+    if (existing) throw new Error("Username is already taken");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    await ctx.db.patch(user._id, { username: trimmed });
+    return trimmed;
+  },
+});
+
 export const addCredits = internalMutation({
   args: { clerkId: v.string(), amount: v.number() },
   handler: async (ctx, args) => {

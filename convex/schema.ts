@@ -10,7 +10,8 @@ export default defineSchema({
     credits: v.number(),
   })
     .index("by_token", ["tokenIdentifier"])
-    .index("by_clerk_id", ["clerkId"]),
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_username", ["username"]),
 
   sessions: defineTable({
     sessionId: v.string(),

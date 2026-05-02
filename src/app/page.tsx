@@ -3,6 +3,7 @@
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -201,13 +202,16 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
 }
 
 /* ─────────────── Profile Menu ─────────────── */
-function ProfileMenu() {
+function ProfileMenu({ onRescan }: { onRescan: () => void }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { openSignIn, signOut } = useClerk();
   const userQuery = useQuery(api.users.getMe);
   const [open, setOpen] = useState(false);
   const [bouncing, setBouncing] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsOriginRect, setSettingsOriginRect] = useState<DOMRect | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const stableUserRef = useRef(userQuery);
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
@@ -220,14 +224,27 @@ function ProfileMenu() {
     );
   }
 
-  const username = clerkUser?.username ?? clerkUser?.firstName ?? clerkUser?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ?? 'You';
+  const username = user?.username ?? clerkUser?.firstName ?? clerkUser?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ?? 'You';
 
   const handleToggle = () => {
     setOpen(o => !o);
   };
 
+  const handleOpenSettings = () => {
+    if (containerRef.current) {
+      setSettingsOriginRect(containerRef.current.getBoundingClientRect());
+    }
+    setShowSettings(true);
+  };
+
+  const handleSettingsDismiss = () => {
+    setShowSettings(false);
+    setTimeout(() => setOpen(false), 500);
+  };
+
   return (
     <div
+      ref={containerRef}
       className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''}`}
       style={{
         background: 'var(--cream)',
@@ -295,11 +312,12 @@ function ProfileMenu() {
 
           <div className="border-t border-dashed border-[var(--char)]/15 pt-2 flex flex-col gap-0.5">
             <BouncyButton
-              onClick={() => {}}
+              onClick={handleOpenSettings}
               className="w-full text-left font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors py-1"
               style={{ background: 'none', border: 'none' }}
             >
-              ⚙ Settings
+              <span style={{ fontSize: 17, verticalAlign: 'middle', lineHeight: 1 }}>⚙</span>
+              {' '}Settings
             </BouncyButton>
             <BouncyButton
               onClick={() => { setOpen(false); signOut(); }}
@@ -313,6 +331,13 @@ function ProfileMenu() {
       </div>
 
       {showPricing && <PricingPopup onDismiss={() => setShowPricing(false)} />}
+      {showSettings && settingsOriginRect && (
+        <SettingsPopup
+          onDismiss={handleSettingsDismiss}
+          onRescan={() => { setOpen(false); onRescan(); }}
+          originRect={settingsOriginRect}
+        />
+      )}
     </div>
   );
 }
@@ -429,7 +454,7 @@ function OrganicBar({ label, startDelay = 0, duration = 2400 }: { label: string;
   );
 }
 
-type ScanPhase = 'camera' | 'verify' | 'processing';
+type ScanPhase = 'username' | 'camera' | 'verify' | 'processing';
 
 /* ─────────────── Letter-by-letter fade ─────────────── */
 function LetterFade({ text, startDelay = 0, charDelay = 26 }: {
@@ -519,6 +544,183 @@ function ExpandedPlanCard({
         </div>
       </BouncyButton>
     </div>
+  );
+}
+
+/* ─────────────── Settings Popup ─────────────── */
+function SettingsPopup({ onDismiss, onRescan, originRect }: {
+  onDismiss: () => void;
+  onRescan: () => void;
+  originRect: DOMRect;
+}) {
+  const userQuery = useQuery(api.users.getMe);
+  const setUsernameMutation = useMutation(api.users.setUsername);
+  const [phase, setPhase] = useState<'entering' | 'open' | 'closing'>('entering');
+  const [usernameValue, setUsernameValue] = useState(userQuery?.username ?? '');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameSaved, setUsernameSaved] = useState(false);
+
+  const PANEL_W = 580;
+  const PANEL_H = 540;
+
+  useEffect(() => {
+    // Two rAFs so the 'entering' (origin) state paints before transitioning
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('open')));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const dismiss = () => {
+    setPhase('closing');
+    setTimeout(onDismiss, 440);
+  };
+
+  const handleSaveUsername = async () => {
+    if (usernameValue.trim().length < 2) return;
+    setUsernameError('');
+    setUsernameLoading(true);
+    try {
+      await setUsernameMutation({ username: usernameValue.trim() });
+      setUsernameSaved(true);
+      setTimeout(() => setUsernameSaved(false), 2000);
+    } catch (err) {
+      setUsernameError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setUsernameLoading(false);
+    }
+  };
+
+  const handleRescan = () => {
+    setPhase('closing');
+    setTimeout(() => { onDismiss(); onRescan(); }, 440);
+  };
+
+  const isOpen = phase === 'open';
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const centerLeft = (vw - PANEL_W) / 2;
+  const centerTop  = (vh - PANEL_H) / 2;
+
+  const lerpEase = 'cubic-bezier(0.32, 0.72, 0, 1)';
+  const lerpDur  = isOpen ? '480ms' : '400ms';
+  const panelTransition = phase === 'entering'
+    ? 'none'
+    : `top ${lerpDur} ${lerpEase}, left ${lerpDur} ${lerpEase}, width ${lerpDur} ${lerpEase}, height ${lerpDur} ${lerpEase}, border-radius ${lerpDur} ${lerpEase}, box-shadow 300ms ease`;
+
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0"
+        style={{
+          zIndex: 59,
+          background: 'rgba(0,0,0,0.55)',
+          opacity: isOpen ? 1 : 0,
+          transition: 'opacity 320ms ease',
+          pointerEvents: isOpen ? 'auto' : 'none',
+        }}
+        onClick={dismiss}
+      />
+
+      {/* Panel — morphs from origin rect to center */}
+      <div
+        style={{
+          position: 'fixed',
+          zIndex: 60,
+          top:    isOpen ? centerTop  : originRect.top,
+          left:   isOpen ? centerLeft : originRect.left,
+          width:  isOpen ? PANEL_W    : originRect.width,
+          height: isOpen ? PANEL_H    : originRect.height,
+          borderRadius: isOpen ? 24 : 18,
+          overflow: 'hidden',
+          background: 'var(--cream)',
+          border: '1px solid rgba(42,32,26,0.1)',
+          boxShadow: isOpen
+            ? '0 32px 90px -16px rgba(0,0,0,0.5)'
+            : '0 20px 50px -12px rgba(0,0,0,0.3)',
+          transition: panelTransition,
+        }}
+      >
+        {/* Content — fades in once panel reaches center, fades out immediately on close */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            padding: '48px 52px 44px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 28,
+            overflow: 'auto',
+            opacity: isOpen ? 1 : 0,
+            transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease',
+          }}
+        >
+          {/* Close button */}
+          <button
+            onClick={dismiss}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm"
+          >
+            ✕
+          </button>
+
+          <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 30 }}>
+            Settings
+          </h2>
+
+          {/* Username section */}
+          <div className="flex flex-col gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--smoke)]">Username</span>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={usernameValue}
+                onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }}
+                placeholder="your username"
+                className="flex-1 font-sans text-[15px] text-[var(--ink)] rounded-xl px-4 py-3"
+                style={{
+                  background: 'var(--biscuit)',
+                  border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent',
+                  outline: 'none',
+                }}
+              />
+              <BouncyButton
+                onClick={handleSaveUsername}
+                disabled={usernameLoading || usernameValue.trim().length < 2}
+                className="btn-ink font-sans text-[13px]"
+                style={{ padding: '10px 20px', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1 }}
+              >
+                {usernameSaved ? '✓ Saved' : usernameLoading ? '…' : 'Save'}
+              </BouncyButton>
+            </div>
+            {usernameError && (
+              <span className="font-sans text-[13px] text-[var(--tomato)]">{usernameError}</span>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-dashed border-[var(--char)]/15" />
+
+          {/* Rescan section */}
+          <div className="flex flex-col gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--smoke)]">3D Scan</span>
+            <div className="flex items-center justify-between gap-4">
+              <p className="font-sans text-[14px] text-[var(--smoke)] leading-snug" style={{ flex: 1 }}>
+                Take a new photo to rebuild your 3D head model from scratch.
+              </p>
+              <BouncyButton
+                onClick={handleRescan}
+                className="btn btn-cream"
+                style={{ padding: '12px 24px', fontSize: 14, fontWeight: 700, flexShrink: 0 }}
+              >
+                ✂ Rescan
+              </BouncyButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body
   );
 }
 
@@ -677,11 +879,18 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
 function ScanPopup({
   onScanComplete,
   onDismiss,
+  needsUsername = false,
 }: {
   onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null) => void;
   onDismiss: () => void;
+  needsUsername?: boolean;
 }) {
-  const [phase, setPhase] = useState<ScanPhase>('camera');
+  const setUsernameMutation = useMutation(api.users.setUsername);
+  const [usernameValue, setUsernameValue] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+
+  const [phase, setPhase] = useState<ScanPhase>(needsUsername ? 'username' : 'camera');
   const [cameraKey, setCameraKey] = useState(0);
   const [captured, setCaptured] = useState<{ profile: UserHeadProfile; sid: string | null; url: string | null } | null>(null);
   const [showVerifyBtns, setShowVerifyBtns] = useState(false);
@@ -700,14 +909,37 @@ function ScanPopup({
   const [rotateIn, setRotateIn] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showRequirements, setShowRequirements] = useState(false);
+  // Fades the right-panel content between username ↔ camera
+  const [contentVisible, setContentVisible] = useState(true);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setSlideIn(true), 30);       // slide edge-on into view: 480ms
-    const t2 = setTimeout(() => setRotateIn(true), 530);     // rotate to face user: 550ms
-    const t3 = setTimeout(() => setExpanded(true), 1150);    // expand width
-    const t4 = setTimeout(() => setShowRequirements(true), 1950);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    const t1 = setTimeout(() => setSlideIn(true), 30);    // slide edge-on into view: 480ms
+    const t2 = setTimeout(() => setRotateIn(true), 530);  // rotate to face user: 550ms
+    if (!needsUsername) {
+      const t3 = setTimeout(() => setExpanded(true), 1150);
+      const t4 = setTimeout(() => setShowRequirements(true), 1950);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    }
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleUsernameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUsernameError('');
+    setUsernameLoading(true);
+    try {
+      await setUsernameMutation({ username: usernameValue.trim() });
+      // Fade out current content, expand panel, then swap to camera
+      setContentVisible(false);
+      setTimeout(() => setExpanded(true), 120);
+      setTimeout(() => { setPhase('camera'); setContentVisible(true); }, 500);
+      setTimeout(() => setShowRequirements(true), 900);
+    } catch (err: unknown) {
+      setUsernameError(err instanceof Error ? err.message : 'Something went wrong');
+      setUsernameLoading(false);
+    }
+  };
 
   const dismiss = () => {
     if (isDismissing.current) return;
@@ -874,7 +1106,7 @@ function ScanPopup({
                   transform: 'translateX(0)',
                 }}
               >
-                Take a selfie!
+                {phase === 'username' ? "Let's meet you" : 'Take a selfie!'}
               </h2>
               <button
                 onClick={dismiss}
@@ -885,8 +1117,132 @@ function ScanPopup({
               </button>
             </div>
 
-            {/* Camera body */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px', position: 'relative', minHeight: 0 }}>
+            {/* Body — fades between username form and camera */}
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '24px 28px',
+                position: 'relative',
+                minHeight: 0,
+                opacity: contentVisible ? 1 : 0,
+                transition: 'opacity 280ms ease',
+              }}
+            >
+
+              {/* ── Username setup step ── */}
+              {phase === 'username' && (
+                <form
+                  onSubmit={handleUsernameSubmit}
+                  style={{
+                    width: '100%',
+                    maxWidth: 340,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 20,
+                  }}
+                >
+                  <h2
+                    className="type-chonk"
+                    style={{
+                      fontSize: 'clamp(2rem, 4vw, 3rem)',
+                      color: 'var(--cream)',
+                      lineHeight: 1,
+                      margin: 0,
+                    }}
+                  >
+                    Set up!
+                  </h2>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <p style={{
+                      fontFamily: 'var(--font-dmsans)',
+                      fontSize: 13,
+                      color: 'rgba(255,248,234,0.5)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      fontWeight: 600,
+                      margin: 0,
+                    }}>
+                      Choose a username
+                    </p>
+                    <p style={{
+                      fontFamily: 'var(--font-dmsans)',
+                      fontSize: 14,
+                      color: 'rgba(255,248,234,0.6)',
+                      margin: 0,
+                      lineHeight: 1.5,
+                    }}>
+                      Letters, numbers, and underscores. This is how friends find you.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={usernameValue}
+                      onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); }}
+                      placeholder="e.g. freshcuts_mike"
+                      maxLength={20}
+                      style={{
+                        fontFamily: 'var(--font-dmsans)',
+                        fontSize: 16,
+                        fontWeight: 500,
+                        padding: '14px 18px',
+                        borderRadius: 14,
+                        border: usernameError
+                          ? '1px solid rgba(220,80,60,0.7)'
+                          : '1px solid rgba(255,248,234,0.14)',
+                        background: 'rgba(255,248,234,0.06)',
+                        color: 'var(--cream)',
+                        outline: 'none',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        transition: 'border-color 200ms ease',
+                      }}
+                    />
+                    {usernameError && (
+                      <p style={{
+                        fontFamily: 'var(--font-dmsans)',
+                        fontSize: 12,
+                        color: 'rgba(220,80,60,0.9)',
+                        margin: 0,
+                      }}>
+                        {usernameError}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={usernameLoading || usernameValue.trim().length < 2}
+                    style={{
+                      fontFamily: 'var(--font-dmsans)',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      padding: '13px 0',
+                      borderRadius: 14,
+                      border: 'none',
+                      background: usernameLoading || usernameValue.trim().length < 2
+                        ? 'rgba(255,248,234,0.12)'
+                        : 'var(--cream)',
+                      color: usernameLoading || usernameValue.trim().length < 2
+                        ? 'rgba(255,248,234,0.3)'
+                        : 'var(--ink)',
+                      cursor: usernameLoading || usernameValue.trim().length < 2 ? 'default' : 'pointer',
+                      width: '100%',
+                      transition: 'background 200ms ease, color 200ms ease',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    {usernameLoading ? 'Saving…' : 'Continue →'}
+                  </button>
+                </form>
+              )}
+
               {phase === 'camera' && (
                 <div
                   key={cameraKey}
@@ -1536,11 +1892,13 @@ function MainMenu({
   onOpenProject,
   showScanNow,
   onScanNow,
+  onRescan,
 }: {
   onAdd: () => void;
   onOpenProject: (project: ProjectDoc) => void;
   showScanNow: boolean;
   onScanNow: () => void;
+  onRescan: () => void;
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const [menuVisible, setMenuVisible] = useState(false);
@@ -1561,7 +1919,7 @@ function MainMenu({
           <InlineWordmark cream />
         </div>
         <div className="flex flex-col items-end gap-2">
-          <ProfileMenu />
+          <ProfileMenu onRescan={onRescan} />
           <BouncyButton
             onClick={() => setFriendSearchOpen(true)}
             className="btn btn-tomato"
@@ -1829,6 +2187,7 @@ export default function Home() {
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
+  const meUser = useQuery(api.users.getMe);
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -1839,6 +2198,8 @@ export default function Home() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);
+
+  const needsUsername = isSignedIn && meUser !== undefined && meUser !== null && !meUser.username;
 
   // App state
   const [appState, setAppState] = useState<AppState>('loading');
@@ -1854,6 +2215,7 @@ export default function Home() {
   const [previewPlyUrl, setPreviewPlyUrl]   = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
+  const [previewExpanded, setPreviewExpanded] = useState(false);
 
   // UI state
   const [showScanPopup, setShowScanPopup]       = useState(false);
@@ -1861,13 +2223,20 @@ export default function Home() {
   const [showScanResult, setShowScanResult]     = useState(false);
   const [hasScanEver, setHasScanEver]           = useState(false);
 
-  // Show "Scan now!" popup each time user enters home
+  // Auto-open scan popup (in username phase) on first login before username is set
   useEffect(() => {
-    if (appState === 'home' && !hasScanEver && isSignedIn) {
+    if (appState === 'home' && needsUsername) {
+      setShowScanPopup(true);
+    }
+  }, [appState, needsUsername]);
+
+  // Show "Scan now!" popup each time user enters home — skip if username setup is pending
+  useEffect(() => {
+    if (appState === 'home' && !hasScanEver && isSignedIn && !needsUsername) {
       const t = setTimeout(() => setShowScanNowPopup(true), 600);
       return () => clearTimeout(t);
     }
-  }, [appState, hasScanEver, isSignedIn]);
+  }, [appState, hasScanEver, isSignedIn, needsUsername]);
 
   // Auto-save project every 30s when in 3D studio
   useEffect(() => {
@@ -1975,6 +2344,7 @@ export default function Home() {
           onOpenProject={handleOpenProject}
           showScanNow={!hasScanEver}
           onScanNow={() => setShowScanPopup(true)}
+          onRescan={() => setShowScanPopup(true)}
         />
 
         {/* Scan now popup — on first entry */}
@@ -1990,6 +2360,7 @@ export default function Home() {
           <ScanPopup
             onScanComplete={handleScanComplete}
             onDismiss={() => setShowScanPopup(false)}
+            needsUsername={needsUsername}
           />
         )}
 
@@ -2024,8 +2395,18 @@ export default function Home() {
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
-              <div className="polaroid wonky-sm-l" style={{ maxWidth: 340 }}>
-                <div className="tape tape-tl" /><div className="tape tape-tr" />
+              <div
+                className={`polaroid ${previewExpanded ? '' : 'wonky-sm-l'}`}
+                style={{
+                  width: '100%',
+                  maxWidth: previewExpanded ? 'min(60vh, 54vw)' : '340px',
+                  transition: 'max-width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                  cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+                }}
+                onClick={() => setPreviewExpanded(v => !v)}
+              >
+                <div className="tape tape-tl" />
+                <div className="tape tape-tr" />
                 <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
                   <Image src={imageUrl} alt="Your scan" fill className="object-cover" unoptimized />
                 </div>
@@ -2074,9 +2455,22 @@ export default function Home() {
 
       <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
         {imageUrl && (
-          <div className="absolute top-24 left-6 z-10 polaroid wonky-l" style={{ width: 100, padding: '6px 6px 22px' }}>
-            <img src={imageUrl} alt="scan" className="block w-full h-[82px] object-cover rounded-sm" />
-            <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
+          <div
+            className={`absolute top-24 left-6 z-10 polaroid ${previewExpanded ? '' : 'wonky-l'}`}
+            style={{
+              width: previewExpanded ? 'min(55vh, 46vw)' : 100,
+              padding: '6px 6px 22px',
+              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+              cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+            }}
+            onClick={() => setPreviewExpanded(v => !v)}
+          >
+            <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2 }}>
+              <img src={imageUrl} alt="scan" className="block w-full h-full object-cover" />
+            </div>
+            <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>
+              you
+            </div>
           </div>
         )}
 
@@ -2120,7 +2514,7 @@ export default function Home() {
             onParamsChange={handleParamsChange}
             sessionId={sessionId}
             latestImageUrl={imageUrl}
-            onImageUpdated={(url) => setImageUrl(url)}
+            onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
             onPlyReady={(url) => {
               if (url.startsWith('/')) { setEditSplatSrc(url); }
               else { setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`); }

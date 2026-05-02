@@ -79,6 +79,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captur
 export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTokens, paywallDisabled = false }: ScanCameraProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
   const animFrameId   = useRef<number | null>(null);
   const activeRef     = useRef(false);
 
@@ -155,46 +156,11 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
     animFrameId.current = requestAnimationFrame(drawFrame);
   }
 
-  async function capturePhoto() {
-    if (!isSignedIn) {
-      openSignIn();
-      return;
-    }
-    if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
-      onNoTokens?.();
-      return;
-    }
-    const video  = videoRef.current;
-    const canvas = previewCanvas.current;
-    if (!video || !canvas) return;
-
-    activeRef.current = false;
-    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+  async function finishWithDataUrl(imageDataUrl: string) {
+    setPhase('captured');
 
     const W = 640;
     const H = 640;
-    const ctx = canvas.getContext('2d')!;
-
-    const vW       = video.videoWidth  || 640;
-    const vH       = video.videoHeight || 480;
-    const cropSize = Math.min(vW, vH);
-    const cropX    = (vW - cropSize) / 2;
-    const cropY    = (vH - cropSize) / 2;
-
-    ctx.save();
-    ctx.translate(W, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
-    ctx.restore();
-
-    const imageDataUrl = canvas.toDataURL('image/png');
-
-    drawOverlay(ctx, W, H, true);
-
-    const stream = video.srcObject as MediaStream | null;
-    stream?.getTracks().forEach(t => t.stop());
-
-    setPhase('captured');
 
     const profile: UserHeadProfile = {
       headProportions: { width: 1.6, height: 2.0, crownY: 1.0 },
@@ -243,6 +209,77 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
     }
 
     onScanComplete(profile, sessionId, uploadedImageUrl ?? imageDataUrl);
+  }
+
+  async function capturePhoto() {
+    if (!isSignedIn) {
+      openSignIn();
+      return;
+    }
+    if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
+      onNoTokens?.();
+      return;
+    }
+    const video  = videoRef.current;
+    const canvas = previewCanvas.current;
+    if (!video || !canvas) return;
+
+    activeRef.current = false;
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+
+    const W = 640;
+    const H = 640;
+    const ctx = canvas.getContext('2d')!;
+
+    const vW       = video.videoWidth  || 640;
+    const vH       = video.videoHeight || 480;
+    const cropSize = Math.min(vW, vH);
+    const cropX    = (vW - cropSize) / 2;
+    const cropY    = (vH - cropSize) / 2;
+
+    ctx.save();
+    ctx.translate(W, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
+    ctx.restore();
+
+    const imageDataUrl = canvas.toDataURL('image/png');
+
+    drawOverlay(ctx, W, H, true);
+
+    const stream = video.srcObject as MediaStream | null;
+    stream?.getTracks().forEach(t => t.stop());
+
+    await finishWithDataUrl(imageDataUrl);
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    activeRef.current = false;
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach(t => t.stop());
+
+    try {
+      const bitmap = await createImageBitmap(file);
+      const W = 640, H = 640;
+      const offscreen = document.createElement('canvas');
+      offscreen.width = W;
+      offscreen.height = H;
+      const ctx = offscreen.getContext('2d')!;
+      const size = Math.min(bitmap.width, bitmap.height);
+      const sx = (bitmap.width - size) / 2;
+      const sy = (bitmap.height - size) / 2;
+      ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, W, H);
+      bitmap.close();
+      await finishWithDataUrl(offscreen.toDataURL('image/png'));
+    } catch (err) {
+      setPhase('error');
+      setErrorMsg('Could not load image. Please try a JPEG or PNG file.');
+      console.error('[ScanCamera] upload failed:', err);
+    }
   }
 
   const instruction =
@@ -299,6 +336,14 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
       </div>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleUpload}
+      />
+
       <div style={{ position: 'relative', width: '100%' }}>
         <div style={{
           background: 'var(--chalk)',
@@ -321,6 +366,16 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
               style={{ padding: '12px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'none' }}
             >
               Take Picture
+            </button>
+          )}
+
+          {(phase === 'loading' || phase === 'ready') && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-ink"
+              style={{ padding: '9px 18px', fontSize: 12 }}
+            >
+              ↑ Upload a photo
             </button>
           )}
         </div>
