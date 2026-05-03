@@ -45,6 +45,7 @@ export default defineSchema({
     lastHairParams: v.optional(v.any()),
     lastProfile: v.optional(v.any()),
     lastImageUrl: v.optional(v.string()),
+    lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
   })
     .index("by_token", ["tokenIdentifier"])

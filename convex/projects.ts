@@ -36,6 +36,7 @@ export const save = mutation({
     lastHairParams: v.optional(v.any()),
     lastProfile: v.optional(v.any()),
     lastImageUrl: v.optional(v.string()),
+    lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
