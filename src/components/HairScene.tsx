@@ -266,9 +266,10 @@ interface HairSceneProps {
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   splatSrcOverride?:     string;
   disableDefaultHairLayers?: boolean;
+  bg?:                   string;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers, bg = '#001f5b' }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -376,7 +377,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
         shadows
         gl={{ toneMapping: THREE.NoToneMapping }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
-        style={{ width: '100%', height: '100%', background: '#001f5b' }}
+        style={{ width: '100%', height: '100%', background: bg }}
       >
         <Scene
           showPolycam={showPolycam}
