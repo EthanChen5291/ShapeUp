@@ -19,9 +19,11 @@ import * as THREE from 'three';
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 
 import { Canvas } from '@react-three/fiber';
+
 import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
@@ -174,9 +176,37 @@ interface SceneProps {
   hairstepPlyUrl?: string;
   hairColor?: string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
+  onThumbnailReady?: (dataUrl: string) => void;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
+// Captures a 45° screenshot once the scene has rendered, then calls back.
+function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
+  const { gl, scene, camera } = useThree();
+  const doneRef = useRef(false);
+  const readyRef = useRef(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => { readyRef.current = true; }, 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useFrame(() => {
+    if (!readyRef.current || doneRef.current) return;
+    doneRef.current = true;
+    const origPos = camera.position.clone();
+    camera.position.set(5.5, 0, 5.5);
+    camera.lookAt(0, 0, 0);
+    gl.render(scene, camera);
+    const dataUrl = gl.domElement.toDataURL('image/png');
+    camera.position.copy(origPos);
+    camera.lookAt(0, 0, 0);
+    onCapture(dataUrl);
+  });
+
+  return null;
+}
+
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -185,7 +215,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
 
       {showPolycam && <PolycamHead />}
 
-      {showSplat && (
+      {showSplat && splatSrc && (
         <Suspense fallback={null}>
           <Splat src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
         </Suspense>
@@ -249,6 +279,8 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         minDistance={2.5}
         maxDistance={7.8}
       />
+
+      {onThumbnailReady && <ThumbnailCapture onCapture={onThumbnailReady} />}
     </>
   );
 }
@@ -266,11 +298,12 @@ interface HairSceneProps {
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   splatSrcOverride?:     string;
   disableDefaultHairLayers?: boolean;
+  onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers, onThumbnailReady }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
-  const [showSplat, setShowSplat]     = useState(true);
+  const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
   const [showFlame, setShowFlame]     = useState(false);
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     new Set(disableDefaultHairLayers ? [] : ['hair_modified', 'top_hair'])
@@ -339,8 +372,13 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   // Prop flameData (from real webcam scan) takes priority over test data
   const effectiveFlameData = flameData ?? localFlameData ?? undefined;
 
-  // ethanSplatSrc (FaceLift result) replaces the static gaussians.splat when ready
-  const effectiveSplatSrc = splatSrcOverride ?? ethanSplatSrc ?? '/models/gaussians.splat';
+  // Turn splat on automatically as soon as a real URL becomes available
+  useEffect(() => {
+    if (splatSrcOverride || ethanSplatSrc) setShowSplat(true);
+  }, [splatSrcOverride, ethanSplatSrc]);
+
+  // ethanSplatSrc (FaceLift result) replaces any static fallback when ready
+  const effectiveSplatSrc = splatSrcOverride ?? ethanSplatSrc ?? '';
 
   const hairScale = HAIR_PLY_SCALE_DEFAULT;
   const hairPos: [number, number, number] = HAIR_PLY_POS_DEFAULT;
@@ -374,7 +412,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Canvas
         shadows
-        gl={{ toneMapping: THREE.NoToneMapping }}
+        gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
         style={{ width: '100%', height: '100%', background: '#001f5b' }}
       >
@@ -392,6 +430,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
           hairColor={hairColor}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
+          onThumbnailReady={onThumbnailReady}
         />
       </Canvas>
       <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>

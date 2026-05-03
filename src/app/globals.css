@@ -736,6 +736,18 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .profile-pill-bounce { animation: profile-pill-bounce 300ms cubic-bezier(.2,.7,.2,1); }
 
+/* ── Dynamic Island absorb (selfie flying in) ─────────────── */
+@keyframes profile-di-absorb {
+  0%   { transform: scaleX(1)    scaleY(1);    }
+  28%  { transform: scaleX(1.09) scaleY(1.07); }
+  60%  { transform: scaleX(1.04) scaleY(1.02); }
+  100% { transform: scaleX(1)    scaleY(1);    }
+}
+.profile-di-absorbing {
+  animation: profile-di-absorb 540ms cubic-bezier(.2,.85,.2,1) forwards;
+  transform-origin: right center;
+}
+
 /* ── Main menu slide in from left ────────────────────────── */
 @keyframes slide-in-left {
   0%   { transform: translateX(-72px); opacity: 0; }

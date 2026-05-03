@@ -54,9 +54,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const summaryRef = useRef<HTMLTextAreaElement>(null);
 
   const currentParams = history[historyIndex];
-  const llmPayload = buildCurrentProfilePayload(profile);
-  const liveMeasurementsJson = JSON.stringify(llmPayload.measurementSnapshot, null, 2);
-  const llmPayloadJson = JSON.stringify(llmPayload, null, 2);
 
   const pushParams = useCallback(
     (next: HairParams) => {
@@ -342,32 +339,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         </button>
       </div> */}
 
-      <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <div className="flex items-baseline justify-between">
-          <span className="pill pill-denim">live measurements</span>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">auto</span>
-        </div>
-        <textarea
-          readOnly
-          value={liveMeasurementsJson}
-          className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-40 focus:outline-none"
-          style={{ fontStyle: 'normal' }}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <div className="flex items-baseline justify-between">
-          <span className="pill pill-denim">llm payload</span>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">current_profile</span>
-        </div>
-        <textarea
-          readOnly
-          value={llmPayloadJson}
-          className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-56 focus:outline-none"
-          style={{ fontStyle: 'normal' }}
-        />
-      </div>
-
       {/* Barber Summary */}
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
         <span className="pill pill-tomato">take it to your barber</span>
@@ -407,11 +378,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         )}
       </div>
 
-      {/* Current preset badge */}
-      <div className="mt-auto pt-4 border-t border-dashed border-[var(--char)]/20 font-mono text-[10px] text-[var(--smoke)] flex items-center justify-between">
-        <span>preset · <span className="text-[var(--ink)]">{profile.currentStyle.preset}</span></span>
-        <span>type · <span className="text-[var(--ink)]">{profile.currentStyle.hairType}</span></span>
-      </div>
     </div>
   );
 }

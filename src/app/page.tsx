@@ -201,7 +201,7 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
 }
 
 /* ─────────────── Profile Menu ─────────────── */
-function ProfileMenu() {
+function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?: () => void; onOpenRequests?: () => void; pulsing?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { openSignIn, signOut } = useClerk();
   const userQuery = useQuery(api.users.getMe);
@@ -228,7 +228,7 @@ function ProfileMenu() {
 
   return (
     <div
-      className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''}`}
+      className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${pulsing ? 'profile-di-absorbing' : ''}`}
       style={{
         background: 'var(--cream)',
         border: '1px solid rgba(42,32,26,0.12)',
@@ -286,10 +286,27 @@ function ProfileMenu() {
             </BouncyButton>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
               <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Friends</span>
               <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>0</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <BouncyButton
+                onClick={() => { setOpen(false); onAddFriends?.(); }}
+                className="font-sans text-[11px] font-bold uppercase tracking-wider rounded-full flex-1"
+                style={{ padding: '7px 12px', background: 'rgba(42,32,26,0.08)', color: 'var(--ink)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', letterSpacing: '0.05em' }}
+              >
+                Add Friends
+              </BouncyButton>
+              <button
+                onClick={() => { setOpen(false); onOpenRequests?.(); }}
+                className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
+                style={{ width: 32, height: 32, background: 'rgba(42,32,26,0.08)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', padding: 0 }}
+                title="Friend requests"
+              >
+                <img src="/addfriend.png" width={16} height={16} alt="" style={{ objectFit: 'contain' }} />
+              </button>
             </div>
           </div>
 
@@ -702,10 +719,10 @@ function ScanPopup({
   const [showRequirements, setShowRequirements] = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setSlideIn(true), 30);       // slide edge-on into view: 480ms
-    const t2 = setTimeout(() => setRotateIn(true), 530);     // rotate to face user: 550ms
-    const t3 = setTimeout(() => setExpanded(true), 1150);    // expand width
-    const t4 = setTimeout(() => setShowRequirements(true), 1950);
+    const t1 = setTimeout(() => setSlideIn(true), 15);       // slide edge-on into view: 280ms
+    const t2 = setTimeout(() => setRotateIn(true), 250);     // rotate to face user: 380ms
+    const t3 = setTimeout(() => setExpanded(true), 620);     // expand width: 500ms
+    const t4 = setTimeout(() => setShowRequirements(true), 1200);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, []);
 
@@ -713,8 +730,8 @@ function ScanPopup({
     if (isDismissing.current) return;
     isDismissing.current = true;
     setCollapsing(true);
-    setTimeout(() => setExiting(true), 750);
-    setTimeout(onDismiss, 1400);
+    setTimeout(() => setExiting(true), 350);
+    setTimeout(onDismiss, 850);
   };
 
   const handleCapture = (p: UserHeadProfile, sid: string | null, url: string | null) => {
@@ -747,13 +764,13 @@ function ScanPopup({
   };
 
   const panelTransition = exiting
-    ? 'transform 550ms cubic-bezier(.2,.85,.2,1)'
+    ? 'transform 500ms cubic-bezier(.2,.85,.2,1)'
     : (collapsing || expanded)
-    ? 'width 750ms cubic-bezier(.2,.85,.2,1)'
+    ? 'width 500ms cubic-bezier(.2,.85,.2,1)'
     : rotateIn
-    ? 'transform 550ms cubic-bezier(.2,.85,.2,1)'
+    ? 'transform 380ms cubic-bezier(.2,.85,.2,1)'
     : slideIn
-    ? 'transform 480ms cubic-bezier(.2,.85,.2,1)'
+    ? 'transform 280ms cubic-bezier(.2,.85,.2,1)'
     : 'none';
 
   // CCW rotation (rotateY 90deg→0). Two-phase entry: slide edge-on in, then rotate to face.
@@ -1178,6 +1195,86 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ─────────────── Requests + Search Panel ─────────────── */
+function RequestsAndSearchPanel({ onClose }: { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const results = useQuery(api.friends.searchUsers, query.length >= 2 ? { query } : 'skip') as
+    | { userId: Id<'users'>; username: string }[]
+    | undefined;
+  const sendRequest = useMutation(api.friends.sendRequest);
+  const requests = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
+  const acceptRequest = useMutation(api.friends.acceptRequest);
+  const [requested, setRequested] = useState<Set<string>>(new Set());
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
+        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
+        <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
+      </div>
+
+      {requests && requests.length > 0 && (
+        <div className="px-4 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
+          <p className="font-mono text-[9px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
+          {requests.map(req => (
+            <div key={req.friendshipId} className="flex items-center gap-3 py-2">
+              <AvatarCircle username={req.username} size={34} />
+              <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
+              <button
+                onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
+                className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
+                style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+              >
+                Accept
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="px-4 py-3 flex-shrink-0">
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by username..."
+          autoFocus
+          className="w-full rounded-full px-4 py-2 font-sans text-sm outline-none"
+          style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
+        />
+      </div>
+      <div className="flex-1 overflow-y-auto cozy-scroll px-4">
+        {results?.map(u => (
+          <div key={u.userId} className="flex items-center gap-3 py-2.5">
+            <AvatarCircle username={u.username} size={38} />
+            <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{u.username}</span>
+            <button
+              onClick={async () => {
+                await sendRequest({ addresseeId: u.userId });
+                setRequested(s => new Set([...s, u.userId]));
+              }}
+              disabled={requested.has(u.userId)}
+              className="font-sans text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full flex-shrink-0"
+              style={{
+                background: requested.has(u.userId) ? 'rgba(255,248,234,0.1)' : 'var(--tomato)',
+                color: 'var(--cream)', border: 'none',
+                cursor: requested.has(u.userId) ? 'default' : 'pointer',
+              }}
+            >
+              {requested.has(u.userId) ? 'Sent ✓' : 'Add'}
+            </button>
+          </div>
+        ))}
+        {query.length >= 2 && results?.length === 0 && (
+          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(255,248,234,0.35)' }}>No users found</p>
+        )}
+        {query.length < 2 && (
+          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(255,248,234,0.25)' }}>Type a username to search</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────── Message Thread ─────────────── */
 function MessageThread({
   friendId,
@@ -1266,26 +1363,37 @@ function MessageThread({
 }
 
 /* ─────────────── Friends Panel ─────────────── */
-function FriendsPanel({ openSearch, onSearchClose }: { openSearch: boolean; onSearchClose: () => void }) {
+function FriendsPanel({
+  openSearch,
+  openRequests,
+  onSearchClose,
+  onRequestsClose,
+}: {
+  openSearch: boolean;
+  openRequests: boolean;
+  onSearchClose: () => void;
+  onRequestsClose: () => void;
+}) {
   const friends = useQuery(api.friends.list) as FriendData[] | undefined;
   const requests = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
   const acceptRequest = useMutation(api.friends.acceptRequest);
   const meUser = useQuery(api.users.getMe);
 
-  const [view, setView] = useState<'list' | 'search' | 'conversation'>('list');
+  const [view, setView] = useState<'list' | 'search' | 'requests' | 'conversation'>('list');
   const [activeThread, setActiveThread] = useState<FriendData | null>(null);
   const [profileFriend, setProfileFriend] = useState<FriendData | null>(null);
 
-  useEffect(() => {
-    if (openSearch) setView('search');
-  }, [openSearch]);
+  useEffect(() => { if (openSearch) setView('search'); }, [openSearch]);
+  useEffect(() => { if (openRequests) setView('requests'); }, [openRequests]);
 
-  const handleCloseSearch = () => {
+  const handleBack = () => {
     setView('list');
     onSearchClose();
+    onRequestsClose();
   };
 
-  if (view === 'search') return <SearchPanel onClose={handleCloseSearch} />;
+  const showAddFriends = view === 'search' || view === 'requests';
+  const SLIDE = 'transform 380ms cubic-bezier(.2,.85,.2,1)';
 
   if (view === 'conversation' && activeThread && meUser?._id) {
     return (
@@ -1299,56 +1407,83 @@ function FriendsPanel({ openSearch, onSearchClose }: { openSearch: boolean; onSe
   }
 
   return (
-    <>
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-        <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 19, fontWeight: 600 }}>Friends</h2>
-        <button
-          onClick={() => setView('search')}
-          className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform"
-          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.08)', border: 'none', cursor: 'pointer', color: 'rgba(255,248,234,0.6)' }}
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.5"/>
-            <line x1="8.7" y1="8.7" x2="11.5" y2="11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
-      </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
 
-      {requests && requests.length > 0 && (
-        <div className="px-4 mb-2 flex-shrink-0">
-          <p className="font-mono text-[9px] uppercase tracking-wider mb-1.5" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
-          {requests.map(req => (
-            <div key={req.friendshipId} className="flex items-center gap-3 py-2">
-              <AvatarCircle username={req.username} size={34} />
-              <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
-              <button
-                onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
-                className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
-                style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
-              >
-                Accept
-              </button>
-            </div>
-          ))}
-          <div style={{ height: 1, background: 'rgba(255,248,234,0.08)', margin: '6px 0 10px' }} />
+      {/* ── Friends list panel ── */}
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        transform: showAddFriends ? 'translateX(-100%)' : 'translateX(0%)',
+        transition: SLIDE,
+      }}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+          <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 19, fontWeight: 600 }}>Friends</h2>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setView('search')}
+              className="font-sans text-[10px] font-bold uppercase tracking-wider rounded-full hover:scale-105 active:scale-95 transition-transform flex-shrink-0"
+              style={{ padding: '5px 10px', background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'rgba(255,248,234,0.7)', cursor: 'pointer', letterSpacing: '0.05em' }}
+            >
+              Add Friends
+            </button>
+            <button
+              onClick={() => setView('requests')}
+              className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
+              style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', cursor: 'pointer', padding: 0 }}
+              title="Friend requests"
+            >
+              <img src="/addfriend.png" width={14} height={14} alt="" style={{ objectFit: 'contain' }} />
+            </button>
+          </div>
         </div>
-      )}
 
-      <div className="flex-1 overflow-y-auto cozy-scroll px-1 min-h-0">
-        {friends != null && friends.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 px-4 py-12" style={{ opacity: 0.38 }}>
-            <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
-            <p className="font-sans text-[var(--cream)] text-xs text-center leading-snug">No friends yet.<br/>Add some to see their cuts!</p>
+        {requests && requests.length > 0 && (
+          <div className="px-4 mb-2 flex-shrink-0">
+            <p className="font-mono text-[9px] uppercase tracking-wider mb-1.5" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
+            {requests.map(req => (
+              <div key={req.friendshipId} className="flex items-center gap-3 py-2">
+                <AvatarCircle username={req.username} size={34} />
+                <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
+                <button
+                  onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
+                  className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
+                  style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+                >
+                  Accept
+                </button>
+              </div>
+            ))}
+            <div style={{ height: 1, background: 'rgba(255,248,234,0.08)', margin: '6px 0 10px' }} />
           </div>
         )}
-        {friends?.map(f => (
-          <FriendRow
-            key={f.userId}
-            friend={f}
-            onOpenProfile={() => setProfileFriend(f)}
-            onOpenConversation={() => { setActiveThread(f); setView('conversation'); }}
-          />
-        ))}
+
+        <div className="flex-1 overflow-y-auto cozy-scroll px-1 min-h-0">
+          {friends != null && friends.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full gap-3 px-4 py-12" style={{ opacity: 0.38 }}>
+              <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+              <p className="font-sans text-[var(--cream)] text-xs text-center leading-snug">No friends yet.<br/>Add some to see their cuts!</p>
+            </div>
+          )}
+          {friends?.map(f => (
+            <FriendRow
+              key={f.userId}
+              friend={f}
+              onOpenProfile={() => setProfileFriend(f)}
+              onOpenConversation={() => { setActiveThread(f); setView('conversation'); }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* ── Add Friends slide-in panel ── */}
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        transform: showAddFriends ? 'translateX(0%)' : 'translateX(100%)',
+        transition: SLIDE,
+      }}>
+        {view === 'search'
+          ? <SearchPanel onClose={handleBack} />
+          : <RequestsAndSearchPanel onClose={handleBack} />
+        }
       </div>
 
       {profileFriend && (
@@ -1363,7 +1498,7 @@ function FriendsPanel({ openSearch, onSearchClose }: { openSearch: boolean; onSe
           }}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -1530,22 +1665,67 @@ function FriendProfileModal({
   );
 }
 
+/* ─────────────── Selfie flight animation (initial scan → profile button) ─── */
+function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: () => void }) {
+  const [flying, setFlying] = useState(false);
+  const [vw, setVw] = useState(1920);
+  const [vh, setVh] = useState(1080);
+
+  useEffect(() => {
+    setVw(window.innerWidth);
+    setVh(window.innerHeight);
+    const t1 = setTimeout(() => setFlying(true), 40);
+    const t2 = setTimeout(onDone, 880);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const size = flying ? 44 : 200;
+  // destination: top-right where the profile pill sits (~176px wide, 24px from right, 16px from top)
+  const left = flying ? vw - 24 - 44 : vw / 2 - 100;
+  const top  = flying ? 16            : vh / 2 - 100;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, pointerEvents: 'none' }}>
+      <img
+        src={imageUrl}
+        alt=""
+        style={{
+          position: 'absolute',
+          width: size,
+          height: size,
+          top,
+          left,
+          borderRadius: flying ? '50%' : 14,
+          objectFit: 'cover',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+          transition: 'top 750ms cubic-bezier(.4,0,.2,1), left 750ms cubic-bezier(.4,0,.2,1), width 750ms cubic-bezier(.4,0,.2,1), height 750ms cubic-bezier(.4,0,.2,1), border-radius 400ms ease',
+          willChange: 'top, left, width, height',
+        }}
+      />
+    </div>
+  );
+}
+
 /* ─────────────── Main Menu ─────────────── */
 function MainMenu({
   onAdd,
   onOpenProject,
   showScanNow,
   onScanNow,
+  profilePulsing,
 }: {
   onAdd: () => void;
   onOpenProject: (project: ProjectDoc) => void;
   showScanNow: boolean;
   onScanNow: () => void;
+  profilePulsing?: boolean;
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
   const [friendSearchOpen, setFriendSearchOpen] = useState(false);
+  const [friendRequestsOpen, setFriendRequestsOpen] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setMenuVisible(true), 60);
@@ -1561,14 +1741,28 @@ function MainMenu({
           <InlineWordmark cream />
         </div>
         <div className="flex flex-col items-end gap-2">
-          <ProfileMenu />
-          <BouncyButton
-            onClick={() => setFriendSearchOpen(true)}
-            className="btn btn-tomato"
-            style={{ padding: '6px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}
-          >
-            + Add Friend
-          </BouncyButton>
+          <ProfileMenu
+            onAddFriends={() => setFriendSearchOpen(true)}
+            onOpenRequests={() => setFriendRequestsOpen(true)}
+            pulsing={profilePulsing}
+          />
+          <div className="flex items-center gap-2">
+            <BouncyButton
+              onClick={() => setFriendSearchOpen(true)}
+              className="btn btn-tomato"
+              style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}
+            >
+              Add Friends
+            </BouncyButton>
+            <button
+              onClick={() => setFriendRequestsOpen(true)}
+              className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform"
+              style={{ width: 32, height: 32, background: 'rgba(255,248,234,0.18)', border: '1px solid rgba(255,248,234,0.25)', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+              title="Friend requests"
+            >
+              <img src="/addfriend.png" width={16} height={16} alt="" style={{ objectFit: 'contain' }} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1605,7 +1799,9 @@ function MainMenu({
         <div className="min-w-0 flex flex-col" style={{ flex: 2 }}>
           <FriendsPanel
             openSearch={friendSearchOpen}
+            openRequests={friendRequestsOpen}
             onSearchClose={() => setFriendSearchOpen(false)}
+            onRequestsClose={() => setFriendRequestsOpen(false)}
           />
         </div>
 
@@ -1855,11 +2051,20 @@ export default function Home() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
 
+  // Tracks whether + was clicked and no project has been created yet
+  const [pendingNewProject, setPendingNewProject] = useState(false);
+  // Splat URL restored when opening an existing project (S3, valid 7 days)
+  const [persistedSplatUrl, setPersistedSplatUrl] = useState<string | null>(null);
+
   // UI state
   const [showScanPopup, setShowScanPopup]       = useState(false);
   const [showScanNowPopup, setShowScanNowPopup] = useState(false);
   const [showScanResult, setShowScanResult]     = useState(false);
   const [hasScanEver, setHasScanEver]           = useState(false);
+  const [isInitialScan, setIsInitialScan]       = useState(false);
+  const [showSelfieFlying, setShowSelfieFlying] = useState(false);
+  const [flyingImageUrl, setFlyingImageUrl]     = useState<string | null>(null);
+  const [profilePulsing, setProfilePulsing]     = useState(false);
 
   // Show "Scan now!" popup each time user enters home
   useEffect(() => {
@@ -1886,7 +2091,15 @@ export default function Home() {
   }, [appState, activeProjectId, params, profile, imageUrl, saveProject]);
 
   const smirk = useSmirk(undefined);
-  const { splatSrc, status: demoStatus, error: demoError } = useDemoFacelift(imageUrl);
+  const { splatSrc, status: demoStatus } = useDemoFacelift(imageUrl);
+
+  // Persist the splat URL once facelift finishes so we can restore it on re-open
+  useEffect(() => {
+    if (!splatSrc || !activeProjectId) return;
+    setPersistedSplatUrl(splatSrc);
+    saveProject({ projectId: activeProjectId, lastSplatUrl: splatSrc }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splatSrc, activeProjectId]);
 
   const handleParamsChange = useCallback((next: HairParams) => {
     setParams(next);
@@ -1903,16 +2116,33 @@ export default function Home() {
     } : prev);
   }, []);
 
-  const handleScanComplete = (p: UserHeadProfile, sid: string | null, url: string | null) => {
+  const handleScanComplete = async (p: UserHeadProfile, sid: string | null, url: string | null) => {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setProfile(profileWithMeasurements);
     setParams(profileWithMeasurements.currentStyle.params);
     setHasScanEver(true);
     setShowScanPopup(false);
+
+    // Create a project now that we have real scan data
+    if (pendingNewProject) {
+      setPendingNewProject(false);
+      try {
+        const id = await createProject({ name: `Cut #${Date.now().toString(36).slice(-4).toUpperCase()}` });
+        setActiveProjectId(id as Id<'projects'>);
+      } catch { /* silent — project creation failure shouldn't block the scan flow */ }
+    }
+
     if (url) {
       setSessionId(sid);
       setImageUrl(url);
-      setShowScanResult(true); // show result popup first
+      if (isInitialScan) {
+        // First-ever scan: fly selfie to profile button, stay on home
+        setIsInitialScan(false);
+        setFlyingImageUrl(url);
+        setShowSelfieFlying(true);
+      } else {
+        setShowScanResult(true);
+      }
     } else {
       setAppState('3d');
     }
@@ -1938,8 +2168,7 @@ export default function Home() {
 
   const handleAddProject = async () => {
     if (!isSignedIn) { openSignIn(); return; }
-    const id = await createProject({ name: `Cut #${Date.now().toString(36).slice(-4).toUpperCase()}` });
-    setActiveProjectId(id as Id<'projects'>);
+    setPendingNewProject(true);
     setShowScanPopup(true);
   };
 
@@ -1948,6 +2177,9 @@ export default function Home() {
     if (project.lastProfile) setProfile(project.lastProfile as UserHeadProfile);
     if (project.lastHairParams) setParams(project.lastHairParams as HairParams);
     if (project.lastImageUrl) setImageUrl(project.lastImageUrl);
+    // Restore saved splat and clear any leftover local splat from a previous session
+    setPersistedSplatUrl((project as { lastSplatUrl?: string }).lastSplatUrl ?? null);
+    setEditSplatSrc(null);
     setAppState('3d');
   };
 
@@ -1975,12 +2207,13 @@ export default function Home() {
           onOpenProject={handleOpenProject}
           showScanNow={!hasScanEver}
           onScanNow={() => setShowScanPopup(true)}
+          profilePulsing={profilePulsing}
         />
 
         {/* Scan now popup — on first entry */}
         {showScanNowPopup && (
           <ScanNowPopup
-            onLetsDo={() => { setShowScanNowPopup(false); setShowScanPopup(true); }}
+            onLetsDo={() => { setShowScanNowPopup(false); setIsInitialScan(true); setShowScanPopup(true); }}
             onDismiss={() => setShowScanNowPopup(false)}
           />
         )}
@@ -1993,11 +2226,23 @@ export default function Home() {
           />
         )}
 
-        {/* Scan result popup */}
+        {/* Scan result popup (non-initial scans) */}
         {showScanResult && imageUrl && (
           <ScanResultPopup
             imageUrl={imageUrl}
             onContinue={() => { setShowScanResult(false); setAppState('hairEditLoop'); }}
+          />
+        )}
+
+        {/* Initial selfie flight animation → profile button */}
+        {showSelfieFlying && flyingImageUrl && (
+          <SelfieFlightOverlay
+            imageUrl={flyingImageUrl}
+            onDone={() => {
+              setShowSelfieFlying(false);
+              setProfilePulsing(true);
+              setTimeout(() => setProfilePulsing(false), 600);
+            }}
           />
         )}
       </>
