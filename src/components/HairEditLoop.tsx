@@ -15,6 +15,16 @@ const DEMO_STATUS_LABEL: Record<string, string> = {
   error:      'Error — check console',
 };
 
+const RENDER_LABELS = [
+  'Drawing Blueprint',
+  'Sketching 3D Model',
+  'Admiring the curves',
+  'Adjusting the lighting',
+  'Washing your hair',
+  'Finalizing colors',
+  'Rendering in 3D',
+];
+
 interface DemoPreset {
   label: string;
   plys: string[];
@@ -89,6 +99,42 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   const processingRef = useRef(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const isBusy = phase !== 'idle' || isBaldifying;
+
+  const [renderSteps, setRenderSteps] = useState<string[]>([]);
+  const [activeStepIdx, setActiveStepIdx] = useState(0);
+  const [activeStepPct, setActiveStepPct] = useState(0);
+  const renderJobDoneRef = useRef(false);
+  const loadingRef = useRef({ idx: 0, pct: 0 });
+
+  useEffect(() => {
+    if (!isBaldifying || renderSteps.length === 0) return;
+    loadingRef.current = { idx: 0, pct: 0 };
+    const INC = 1; // 1% per 100ms = 10s per step
+    const interval = setInterval(() => {
+      const state = loadingRef.current;
+      const isLast = state.idx === renderSteps.length - 1;
+      const cap = isLast && !renderJobDoneRef.current ? 95 : 100;
+      const newPct = state.pct + INC;
+      if (newPct >= cap) {
+        if (!isLast) {
+          loadingRef.current = { idx: state.idx + 1, pct: 0 };
+          setActiveStepIdx(state.idx + 1);
+          setActiveStepPct(0);
+        } else if (renderJobDoneRef.current) {
+          loadingRef.current = { ...state, pct: 100 };
+          setActiveStepPct(100);
+          clearInterval(interval);
+        } else {
+          loadingRef.current = { ...state, pct: 95 };
+          setActiveStepPct(95);
+        }
+      } else {
+        loadingRef.current = { ...state, pct: newPct };
+        setActiveStepPct(newPct);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isBaldifying, renderSteps]);
 
   const handleSubmitRef = useRef<(p?: string) => void>(() => {});
 
@@ -180,6 +226,11 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
 
   const handleRenderIn3D = async () => {
     if (isBusy) return;
+    const shuffled = [...RENDER_LABELS].sort(() => Math.random() - 0.5);
+    renderJobDoneRef.current = false;
+    setRenderSteps(shuffled);
+    setActiveStepIdx(0);
+    setActiveStepPct(0);
     setIsBaldifying(true);
     setFaceliftStatus('Warming the clippers');
     try {
@@ -212,7 +263,11 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
         await new Promise(r => setTimeout(r, 5000));
         const pollRes = await fetch(`/api/facelift?jobId=${jobId}`);
         const pollData = await pollRes.json();
-        if (pollData.status === 'success') break;
+        if (pollData.status === 'success') {
+          renderJobDoneRef.current = true;
+          await new Promise(r => setTimeout(r, 1200));
+          break;
+        }
         if (pollData.status === 'error') throw new Error(pollData.error ?? 'Facelift job failed');
       }
 
@@ -466,7 +521,32 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
                 <span className="font-mono text-[11px] text-[var(--smoke)]">no. 03·42</span>
               </div>
 
-              {isBusy ? (
+              {isBaldifying ? (
+                <div className="flex flex-col gap-3 py-4">
+                  <h2 className="font-display text-[var(--ink)] text-xl mb-1" style={{ fontWeight: 500, fontStyle: 'italic' }}>
+                    Sculpting your look…
+                  </h2>
+                  {renderSteps.map((step, i) => {
+                    if (i > activeStepIdx) return null;
+                    const isActive = i === activeStepIdx;
+                    const pct = isActive ? Math.round(activeStepPct) : 100;
+                    return (
+                      <div key={step} className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-serif italic text-xs" style={{ color: isActive ? 'var(--ink)' : 'var(--smoke)' }}>{step}</span>
+                          <span className="font-mono text-[10px]" style={{ color: isActive ? 'var(--ink)' : 'var(--smoke)' }}>{pct}%</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.14)' }}>
+                          <div
+                            className={isActive ? 'progress-bar-fill h-full rounded-full transition-[width] duration-100' : 'h-full rounded-full'}
+                            style={{ width: `${pct}%`, background: isActive ? undefined : 'var(--tomato)', opacity: isActive ? 1 : 0.55 }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : phase !== 'idle' ? (
                 <div className="flex items-center justify-center py-16">
                   <p className="dot-pulse font-display text-[var(--ink)] select-none" style={{ fontSize: '3.5rem', fontStyle: 'italic', fontWeight: 500, letterSpacing: '0.2em' }}>
                     <span>.</span><span>.</span><span>.</span>

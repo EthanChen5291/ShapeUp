@@ -3,6 +3,7 @@
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -102,6 +103,9 @@ function BouncyButton({
 const LD_W = 600, LD_H = 440, LD_R = 32, LD_M = 24;
 const LD_SVG_W = LD_W + LD_M * 2, LD_SVG_H = LD_H + LD_M * 2;
 const LD_PERIM = 2 * (LD_W + LD_H) + (2 * Math.PI - 8) * LD_R;
+const LD_HALF_PERIM = LD_PERIM / 2;
+const LD_DOT_OFFSET = 12;
+const LD_SW = 5;
 const LOAD_DURATION = 3000;
 
 function getRoundedRectPath(x: number, y: number, w: number, h: number, r: number): string {
@@ -117,6 +121,22 @@ function getRoundedRectPath(x: number, y: number, w: number, h: number, r: numbe
     `V ${y + r}`,
     `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
     `Z`,
+  ].join(' ');
+}
+
+function getRoundedRectPathCCW(x: number, y: number, w: number, h: number, r: number): string {
+  const cx = x + w / 2;
+  return [
+    `M ${cx} ${y}`,
+    `H ${x + r}`,
+    `A ${r} ${r} 0 0 0 ${x} ${y + r}`,
+    `V ${y + h - r}`,
+    `A ${r} ${r} 0 0 0 ${x + r} ${y + h}`,
+    `H ${x + w - r}`,
+    `A ${r} ${r} 0 0 0 ${x + w} ${y + h - r}`,
+    `V ${y + r}`,
+    `A ${r} ${r} 0 0 0 ${x + w - r} ${y}`,
+    `H ${cx}`,
   ].join(' ');
 }
 
@@ -156,7 +176,9 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
-  const path = getRoundedRectPath(LD_M, LD_M, LD_W, LD_H, LD_R);
+  const pathCW = getRoundedRectPath(LD_M, LD_M, LD_W, LD_H, LD_R);
+  const pathCCW = getRoundedRectPathCCW(LD_M, LD_M, LD_W, LD_H, LD_R);
+  const arcLen = displayedProgress * (LD_HALF_PERIM - LD_DOT_OFFSET);
 
   return (
     <main className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'var(--biscuit)' }}>
@@ -172,15 +194,24 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
           style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: LD_SVG_W, height: LD_SVG_H, pointerEvents: 'none' }}
           viewBox={`0 0 ${LD_SVG_W} ${LD_SVG_H}`}
         >
-          <path d={path} fill="none" stroke="rgba(214,60,47,0.1)" strokeWidth="3" />
+          <path d={pathCW} fill="none" stroke="rgba(214,60,47,0.1)" strokeWidth={LD_SW} />
           <path
-            d={path}
+            d={pathCW}
             fill="none"
             stroke="var(--tomato)"
-            strokeWidth="3"
+            strokeWidth={LD_SW}
             strokeLinecap="round"
-            strokeDasharray={LD_PERIM}
-            strokeDashoffset={LD_PERIM * (1 - displayedProgress)}
+            strokeDasharray={`${arcLen} ${LD_PERIM}`}
+            strokeDashoffset={LD_DOT_OFFSET}
+          />
+          <path
+            d={pathCCW}
+            fill="none"
+            stroke="var(--tomato)"
+            strokeWidth={LD_SW}
+            strokeLinecap="round"
+            strokeDasharray={`${arcLen} ${LD_PERIM}`}
+            strokeDashoffset={LD_DOT_OFFSET}
           />
         </svg>
 
@@ -201,16 +232,34 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
 }
 
 /* ─────────────── Profile Menu ─────────────── */
-function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?: () => void; onOpenRequests?: () => void; pulsing?: boolean }) {
+function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () => void; onAddFriend: () => void; pulse?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { openSignIn, signOut } = useClerk();
   const userQuery = useQuery(api.users.getMe);
+  const friendsQuery = useQuery(api.friends.list) as FriendData[] | undefined;
+  const requestsQuery = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
+  const acceptRequest = useMutation(api.friends.acceptRequest);
   const [open, setOpen] = useState(false);
   const [bouncing, setBouncing] = useState(false);
+  const [swallowing, setSwallowing] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
+  const [settingsOriginRect, setSettingsOriginRect] = useState<DOMRect | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pulse) return;
+    setSwallowing(true);
+    const t = setTimeout(() => setSwallowing(false), 700);
+    return () => clearTimeout(t);
+  }, [pulse]);
   const stableUserRef = useRef(userQuery);
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
+
+  const requestCount = requestsQuery?.length ?? 0;
+  const friendCount = friendsQuery?.length ?? 0;
 
   if (!isSignedIn) {
     return (
@@ -220,15 +269,32 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
     );
   }
 
-  const username = clerkUser?.username ?? clerkUser?.firstName ?? clerkUser?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ?? 'You';
+  const username = user?.username ?? clerkUser?.firstName ?? clerkUser?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ?? 'You';
 
   const handleToggle = () => {
-    setOpen(o => !o);
+    setOpen(o => {
+      if (o) setShowRequests(false);
+      return !o;
+    });
+  };
+
+  const handleOpenSettings = () => {
+    if (containerRef.current) {
+      setSettingsOriginRect(containerRef.current.getBoundingClientRect());
+    }
+    setShowSettings(true);
+  };
+
+  const handleSettingsDismiss = () => {
+    setShowSettings(false);
+    setTimeout(() => setOpen(false), 500);
   };
 
   return (
     <div
-      className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${pulsing ? 'profile-di-absorbing' : ''}`}
+      id="profile-menu-pill"
+      ref={containerRef}
+      className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${swallowing ? 'profile-pill-swallow' : ''}`}
       style={{
         background: 'var(--cream)',
         border: '1px solid rgba(42,32,26,0.12)',
@@ -248,6 +314,20 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
         className="flex items-center gap-2 w-full px-3 py-2"
         style={{ background: 'none', border: 'none', cursor: 'pointer' }}
       >
+        {requestCount > 0 && (
+          <span
+            style={{
+              minWidth: 18, height: 18, borderRadius: 999,
+              background: 'var(--tomato)', color: 'var(--cream)',
+              fontSize: 10, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '0 5px', flexShrink: 0,
+              fontFamily: 'var(--font-dmsans)',
+            }}
+          >
+            {requestCount}
+          </span>
+        )}
         <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
           {username}
         </span>
@@ -261,7 +341,7 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
 
       {/* Expanding content */}
       <div style={{
-        maxHeight: open ? '400px' : '0px',
+        maxHeight: open ? (showRequests ? '680px' : '420px') : '0px',
         overflow: 'hidden',
         opacity: open ? 1 : 0,
         transition: open
@@ -269,6 +349,8 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
           : 'max-height 320ms cubic-bezier(.4,0,1,1), opacity 180ms ease',
       }}>
         <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '1px solid rgba(42,32,26,0.08)', paddingTop: 12 }}>
+
+          {/* Tokens */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
@@ -278,29 +360,70 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
             </div>
             <BouncyButton
               onClick={() => setShowPricing(true)}
-              className="btn btn-tomato w-full relative overflow-hidden"
+              className="btn btn-denim w-full"
               style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none' }}
             >
-              <span className="shine-sweep" />
-              <span style={{ position: 'relative' }}>Get more!</span>
+              Get more!
             </BouncyButton>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          {/* Friends */}
+          <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Friends</span>
-              <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>0</span>
+              <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>{friendCount}</span>
             </div>
             <div className="flex items-center gap-2">
               <BouncyButton
-                onClick={() => { setOpen(false); onAddFriends?.(); }}
+                onClick={() => { setOpen(false); onAddFriend(); }}
+                className="btn"
+                style={{
+                  padding: '9px 12px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none',
+                  background: 'rgba(42,32,26,0.08)', color: 'var(--ink)', border: '1.5px solid rgba(42,32,26,0.12)',
+                  borderRadius: 999,
+                }}
+              >
+                Add friends
+              </BouncyButton>
+              <button
+                onClick={() => setShowRequests(r => !r)}
+                className="flex items-center justify-center hover:scale-105 active:scale-95 transition-transform flex-shrink-0"
+                style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: showRequests ? 'rgba(42,32,26,0.15)' : 'rgba(42,32,26,0.06)',
+                  border: '1.5px solid rgba(42,32,26,0.12)',
+                  cursor: 'pointer', padding: 0,
+                  position: 'relative',
+                  transition: 'background 200ms ease',
+                }}
+              >
+                <img src="/addfriend.png" alt="Friend Requests" style={{ width: 20, height: 20, objectFit: 'contain' }} />
+                {requestCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -3, right: -3,
+                    minWidth: 15, height: 15, borderRadius: 999,
+                    background: 'var(--tomato)', color: 'var(--cream)',
+                    fontSize: 9, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 3px',
+                    fontFamily: 'var(--font-dmsans)',
+                    lineHeight: 1,
+                  }}>
+                    {requestCount}
+                  </span>
+                )}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <BouncyButton
+                onClick={() => { setOpen(false); onAddFriend(); }}
                 className="font-sans text-[11px] font-bold uppercase tracking-wider rounded-full flex-1"
                 style={{ padding: '7px 12px', background: 'rgba(42,32,26,0.08)', color: 'var(--ink)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', letterSpacing: '0.05em' }}
               >
                 Add Friends
               </BouncyButton>
               <button
-                onClick={() => { setOpen(false); onOpenRequests?.(); }}
+                onClick={() => { setShowRequests(r => !r); }}
                 className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
                 style={{ width: 32, height: 32, background: 'rgba(42,32,26,0.08)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', padding: 0 }}
                 title="Friend requests"
@@ -310,18 +433,42 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
             </div>
           </div>
 
-          <div className="border-t border-dashed border-[var(--char)]/15 pt-2 flex flex-col gap-0.5">
+          {/* Friend requests expanded */}
+          {showRequests && (
+            <div style={{ borderTop: '1px solid rgba(42,32,26,0.08)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--smoke)' }}>
+                Requests
+              </span>
+              {requestsQuery?.map(req => (
+                <div key={req.friendshipId} className="flex items-center gap-2.5 py-0.5">
+                  <AvatarCircle username={req.username} size={30} />
+                  <span className="flex-1 font-sans text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                    {req.username}
+                  </span>
+                  <button
+                    onClick={() => void acceptRequest({ friendshipId: req.friendshipId })}
+                    className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0 hover:scale-105 active:scale-95 transition-transform"
+                    style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+                  >
+                    Accept
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-dashed border-[var(--char)]/15 pt-2 flex items-center justify-between">
             <BouncyButton
-              onClick={() => {}}
-              className="w-full text-left font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors py-1"
-              style={{ background: 'none', border: 'none' }}
+              onClick={handleOpenSettings}
+              className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
+              style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
             >
-              ⚙ Settings
+              <span style={{ fontSize: 28, display: 'block', lineHeight: 1 }}>⚙</span>
             </BouncyButton>
             <BouncyButton
               onClick={() => { setOpen(false); signOut(); }}
-              className="w-full text-left font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors py-1"
-              style={{ background: 'none', border: 'none' }}
+              className="font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors"
+              style={{ background: 'none', border: 'none', paddingRight: 2 }}
             >
               Sign out
             </BouncyButton>
@@ -330,6 +477,13 @@ function ProfileMenu({ onAddFriends, onOpenRequests, pulsing }: { onAddFriends?:
       </div>
 
       {showPricing && <PricingPopup onDismiss={() => setShowPricing(false)} />}
+      {showSettings && settingsOriginRect && (
+        <SettingsPopup
+          onDismiss={handleSettingsDismiss}
+          onRescan={() => { setOpen(false); onRescan(); }}
+          originRect={settingsOriginRect}
+        />
+      )}
     </div>
   );
 }
@@ -446,7 +600,7 @@ function OrganicBar({ label, startDelay = 0, duration = 2400 }: { label: string;
   );
 }
 
-type ScanPhase = 'camera' | 'verify' | 'processing';
+type ScanPhase = 'username' | 'camera' | 'verify' | 'processing';
 
 /* ─────────────── Letter-by-letter fade ─────────────── */
 function LetterFade({ text, startDelay = 0, charDelay = 26 }: {
@@ -536,6 +690,183 @@ function ExpandedPlanCard({
         </div>
       </BouncyButton>
     </div>
+  );
+}
+
+/* ─────────────── Settings Popup ─────────────── */
+function SettingsPopup({ onDismiss, onRescan, originRect }: {
+  onDismiss: () => void;
+  onRescan: () => void;
+  originRect: DOMRect;
+}) {
+  const userQuery = useQuery(api.users.getMe);
+  const setUsernameMutation = useMutation(api.users.setUsername);
+  const [phase, setPhase] = useState<'entering' | 'open' | 'closing'>('entering');
+  const [usernameValue, setUsernameValue] = useState(userQuery?.username ?? '');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameSaved, setUsernameSaved] = useState(false);
+
+  const PANEL_W = 580;
+  const PANEL_H = 540;
+
+  useEffect(() => {
+    // Two rAFs so the 'entering' (origin) state paints before transitioning
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('open')));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const dismiss = () => {
+    setPhase('closing');
+    setTimeout(onDismiss, 270);
+  };
+
+  const handleSaveUsername = async () => {
+    if (usernameValue.trim().length < 2) return;
+    setUsernameError('');
+    setUsernameLoading(true);
+    try {
+      await setUsernameMutation({ username: usernameValue.trim() });
+      setUsernameSaved(true);
+      setTimeout(() => setUsernameSaved(false), 2000);
+    } catch (err) {
+      setUsernameError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setUsernameLoading(false);
+    }
+  };
+
+  const handleRescan = () => {
+    setPhase('closing');
+    setTimeout(() => { onDismiss(); onRescan(); }, 270);
+  };
+
+  const isOpen = phase === 'open';
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const centerLeft = (vw - PANEL_W) / 2;
+  const centerTop  = (vh - PANEL_H) / 2;
+
+  const lerpEase = 'cubic-bezier(0.32, 0.72, 0, 1)';
+  const lerpDur  = isOpen ? '480ms' : '240ms';
+  const panelTransition = phase === 'entering'
+    ? 'none'
+    : `top ${lerpDur} ${lerpEase}, left ${lerpDur} ${lerpEase}, width ${lerpDur} ${lerpEase}, height ${lerpDur} ${lerpEase}, border-radius ${lerpDur} ${lerpEase}, box-shadow 300ms ease`;
+
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0"
+        style={{
+          zIndex: 59,
+          background: 'rgba(0,0,0,0.55)',
+          opacity: isOpen ? 1 : 0,
+          transition: 'opacity 320ms ease',
+          pointerEvents: isOpen ? 'auto' : 'none',
+        }}
+        onClick={dismiss}
+      />
+
+      {/* Panel — morphs from origin rect to center */}
+      <div
+        style={{
+          position: 'fixed',
+          zIndex: 60,
+          top:    isOpen ? centerTop  : originRect.top,
+          left:   isOpen ? centerLeft : originRect.left,
+          width:  isOpen ? PANEL_W    : originRect.width,
+          height: isOpen ? PANEL_H    : originRect.height,
+          borderRadius: isOpen ? 24 : 18,
+          overflow: 'hidden',
+          background: 'var(--cream)',
+          border: '1px solid rgba(42,32,26,0.1)',
+          boxShadow: isOpen
+            ? '0 32px 90px -16px rgba(0,0,0,0.5)'
+            : '0 20px 50px -12px rgba(0,0,0,0.3)',
+          transition: panelTransition,
+        }}
+      >
+        {/* Content — fades in once panel reaches center, fades out immediately on close */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            padding: '48px 52px 44px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 28,
+            overflow: 'auto',
+            opacity: isOpen ? 1 : 0,
+            transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease',
+          }}
+        >
+          {/* Close button */}
+          <button
+            onClick={dismiss}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm"
+          >
+            ✕
+          </button>
+
+          <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 30 }}>
+            Settings
+          </h2>
+
+          {/* Username section */}
+          <div className="flex flex-col gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--smoke)]">Username</span>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={usernameValue}
+                onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }}
+                placeholder="your username"
+                className="flex-1 font-sans text-[15px] text-[var(--ink)] rounded-xl px-4 py-3"
+                style={{
+                  background: 'var(--biscuit)',
+                  border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent',
+                  outline: 'none',
+                }}
+              />
+              <BouncyButton
+                onClick={handleSaveUsername}
+                disabled={usernameLoading || usernameValue.trim().length < 2}
+                className="btn-ink font-sans text-[13px]"
+                style={{ padding: '10px 20px', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1 }}
+              >
+                {usernameSaved ? '✓ Saved' : usernameLoading ? '…' : 'Save'}
+              </BouncyButton>
+            </div>
+            {usernameError && (
+              <span className="font-sans text-[13px] text-[var(--tomato)]">{usernameError}</span>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-dashed border-[var(--char)]/15" />
+
+          {/* Rescan section */}
+          <div className="flex flex-col gap-3">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--smoke)]">3D Scan</span>
+            <div className="flex items-center justify-between gap-4">
+              <p className="font-sans text-[14px] text-[var(--smoke)] leading-snug" style={{ flex: 1 }}>
+                Take a new photo to rebuild your 3D head model from scratch.
+              </p>
+              <BouncyButton
+                onClick={handleRescan}
+                className="btn btn-cream"
+                style={{ padding: '12px 24px', fontSize: 14, fontWeight: 700, flexShrink: 0 }}
+              >
+                ✂ Rescan
+              </BouncyButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body
   );
 }
 
@@ -690,15 +1021,89 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+/* ─────────────── Selfie Fly Overlay ─────────────── */
+function SelfieFlyOverlay({
+  url, fromRect, toRect, onDone,
+}: {
+  url: string;
+  fromRect: DOMRect;
+  toRect: DOMRect;
+  onDone: () => void;
+}) {
+  const [arrived, setArrived] = useState(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const t1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setArrived(true));
+    });
+    const t2 = setTimeout(() => onDoneRef.current(), 820);
+    return () => { cancelAnimationFrame(t1); clearTimeout(t2); };
+  }, []);
+
+  const fromCx = fromRect.left + fromRect.width / 2;
+  const fromCy = fromRect.top + fromRect.height / 2;
+  const toCx   = toRect.left + toRect.width / 2;
+  const toCy   = toRect.top + toRect.height / 2;
+
+  const startSize = Math.min(fromRect.width, fromRect.height) * 0.55;
+  const endSize   = Math.max(toRect.width, toRect.height) * 0.72;
+
+  const size   = arrived ? endSize   : startSize;
+  const cx     = arrived ? toCx      : fromCx;
+  const cy     = arrived ? toCy      : fromCy;
+  const radius = arrived ? endSize / 2 : startSize * 0.12;
+  const opacity = arrived ? 0 : 1;
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          width: size,
+          height: size,
+          left: cx - size / 2,
+          top:  cy - size / 2,
+          borderRadius: radius,
+          overflow: 'hidden',
+          opacity,
+          transition: arrived
+            ? 'left 680ms cubic-bezier(.32,.72,0,1), top 680ms cubic-bezier(.32,.72,0,1), width 680ms cubic-bezier(.32,.72,0,1), height 680ms cubic-bezier(.32,.72,0,1), border-radius 680ms cubic-bezier(.32,.72,0,1), opacity 200ms ease 480ms'
+            : 'none',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        }}
+      >
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ─────────────── Scan Popup (camera in popup form) ─────────────── */
 function ScanPopup({
   onScanComplete,
   onDismiss,
+  needsUsername = false,
 }: {
-  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null) => void;
+  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean) => void;
   onDismiss: () => void;
+  needsUsername?: boolean;
 }) {
-  const [phase, setPhase] = useState<ScanPhase>('camera');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const wasFirstScanRef = useRef(needsUsername);
+  const setUsernameMutation = useMutation(api.users.setUsername);
+  const [usernameValue, setUsernameValue] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+
+  const [phase, setPhase] = useState<ScanPhase>(needsUsername ? 'username' : 'camera');
   const [cameraKey, setCameraKey] = useState(0);
   const [captured, setCaptured] = useState<{ profile: UserHeadProfile; sid: string | null; url: string | null } | null>(null);
   const [showVerifyBtns, setShowVerifyBtns] = useState(false);
@@ -717,14 +1122,37 @@ function ScanPopup({
   const [rotateIn, setRotateIn] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showRequirements, setShowRequirements] = useState(false);
+  // Fades the right-panel content between username ↔ camera
+  const [contentVisible, setContentVisible] = useState(true);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setSlideIn(true), 15);       // slide edge-on into view: 280ms
-    const t2 = setTimeout(() => setRotateIn(true), 250);     // rotate to face user: 380ms
-    const t3 = setTimeout(() => setExpanded(true), 620);     // expand width: 500ms
-    const t4 = setTimeout(() => setShowRequirements(true), 1200);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    const t1 = setTimeout(() => setSlideIn(true), 15);
+    const t2 = setTimeout(() => setRotateIn(true), 250);
+    if (!needsUsername) {
+      const t3 = setTimeout(() => setExpanded(true), 620);
+      const t4 = setTimeout(() => setShowRequirements(true), 1200);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    }
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleUsernameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUsernameError('');
+    setUsernameLoading(true);
+    try {
+      await setUsernameMutation({ username: usernameValue.trim() });
+      // Fade out current content, expand panel, then swap to camera
+      setContentVisible(false);
+      setTimeout(() => setExpanded(true), 120);
+      setTimeout(() => { setPhase('camera'); setContentVisible(true); }, 500);
+      setTimeout(() => setShowRequirements(true), 900);
+    } catch (err: unknown) {
+      setUsernameError(err instanceof Error ? err.message : 'Something went wrong');
+      setUsernameLoading(false);
+    }
+  };
 
   const dismiss = () => {
     if (isDismissing.current) return;
@@ -757,15 +1185,18 @@ function ScanPopup({
     setTimeout(() => {
       if (captured && !isDismissing.current) {
         isDismissing.current = true;
+        const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
         setExiting(true);
-        setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url), 600);
+        setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url, fromRect, wasFirstScanRef.current), 600);
       }
     }, totalMs);
   };
 
   const panelTransition = exiting
     ? 'transform 500ms cubic-bezier(.2,.85,.2,1)'
-    : (collapsing || expanded)
+    : collapsing
+    ? 'width 460ms cubic-bezier(.4,0,1,1)'
+    : expanded
     ? 'width 500ms cubic-bezier(.2,.85,.2,1)'
     : rotateIn
     ? 'transform 380ms cubic-bezier(.2,.85,.2,1)'
@@ -792,6 +1223,7 @@ function ScanPopup({
       onClick={dismiss}
     >
       <div
+        ref={panelRef}
         onClick={e => e.stopPropagation()}
         style={{
           position: 'absolute',
@@ -830,7 +1262,7 @@ function ScanPopup({
               <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 320 }}>
                 <p style={{
                   fontFamily: 'var(--font-dmsans)',
-                  fontSize: 12,
+                  fontSize: 18,
                   fontWeight: 600,
                   color: 'rgba(255,248,234,0.5)',
                   textTransform: 'uppercase',
@@ -840,9 +1272,9 @@ function ScanPopup({
                   <LetterFade text="Before you shoot" startDelay={0} charDelay={30} />
                 </p>
                 {SELFIE_REQS.map((req, i) => (
-                  <div key={req.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 24 }}>
-                    <span style={{ fontSize: 16, color: 'var(--tomato)', flexShrink: 0, marginTop: 2 }}>{req.icon}</span>
-                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 16, color: 'var(--cream)', fontWeight: 500, lineHeight: 1.4, margin: 0 }}>
+                  <div key={req.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 28 }}>
+                    <span style={{ fontSize: 36, color: 'var(--tomato)', flexShrink: 0, lineHeight: 1 }}>{req.icon}</span>
+                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 20, color: 'var(--cream)', fontWeight: 500, lineHeight: 1.4, margin: 0 }}>
                       <LetterFade text={req.label} startDelay={300 + i * 280} charDelay={22} />
                     </p>
                   </div>
@@ -891,7 +1323,7 @@ function ScanPopup({
                   transform: 'translateX(0)',
                 }}
               >
-                Take a selfie!
+                {phase === 'username' ? "Let's meet you" : 'Take a selfie!'}
               </h2>
               <button
                 onClick={dismiss}
@@ -902,12 +1334,136 @@ function ScanPopup({
               </button>
             </div>
 
-            {/* Camera body */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px', position: 'relative', minHeight: 0 }}>
+            {/* Body — fades between username form and camera */}
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '24px 28px',
+                position: 'relative',
+                minHeight: 0,
+                opacity: contentVisible ? 1 : 0,
+                transition: 'opacity 280ms ease',
+              }}
+            >
+
+              {/* ── Username setup step ── */}
+              {phase === 'username' && (
+                <form
+                  onSubmit={handleUsernameSubmit}
+                  style={{
+                    width: '100%',
+                    maxWidth: 340,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 20,
+                  }}
+                >
+                  <h2
+                    className="type-chonk"
+                    style={{
+                      fontSize: 'clamp(2rem, 4vw, 3rem)',
+                      color: 'var(--cream)',
+                      lineHeight: 1,
+                      margin: 0,
+                    }}
+                  >
+                    Set up!
+                  </h2>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <p style={{
+                      fontFamily: 'var(--font-dmsans)',
+                      fontSize: 13,
+                      color: 'rgba(255,248,234,0.5)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      fontWeight: 600,
+                      margin: 0,
+                    }}>
+                      Choose a username
+                    </p>
+                    <p style={{
+                      fontFamily: 'var(--font-dmsans)',
+                      fontSize: 14,
+                      color: 'rgba(255,248,234,0.6)',
+                      margin: 0,
+                      lineHeight: 1.5,
+                    }}>
+                      Letters, numbers, and underscores. This is how friends find you.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={usernameValue}
+                      onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); }}
+                      placeholder="e.g. freshcuts_mike"
+                      maxLength={20}
+                      style={{
+                        fontFamily: 'var(--font-dmsans)',
+                        fontSize: 16,
+                        fontWeight: 500,
+                        padding: '14px 18px',
+                        borderRadius: 14,
+                        border: usernameError
+                          ? '1px solid rgba(220,80,60,0.7)'
+                          : '1px solid rgba(255,248,234,0.14)',
+                        background: 'rgba(255,248,234,0.06)',
+                        color: 'var(--cream)',
+                        outline: 'none',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        transition: 'border-color 200ms ease',
+                      }}
+                    />
+                    {usernameError && (
+                      <p style={{
+                        fontFamily: 'var(--font-dmsans)',
+                        fontSize: 12,
+                        color: 'rgba(220,80,60,0.9)',
+                        margin: 0,
+                      }}>
+                        {usernameError}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={usernameLoading || usernameValue.trim().length < 2}
+                    style={{
+                      fontFamily: 'var(--font-dmsans)',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      padding: '13px 0',
+                      borderRadius: 14,
+                      border: 'none',
+                      background: usernameLoading || usernameValue.trim().length < 2
+                        ? 'rgba(255,248,234,0.12)'
+                        : 'var(--cream)',
+                      color: usernameLoading || usernameValue.trim().length < 2
+                        ? 'rgba(255,248,234,0.3)'
+                        : 'var(--ink)',
+                      cursor: usernameLoading || usernameValue.trim().length < 2 ? 'default' : 'pointer',
+                      width: '100%',
+                      transition: 'background 200ms ease, color 200ms ease',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    {usernameLoading ? 'Saving…' : 'Continue →'}
+                  </button>
+                </form>
+              )}
+
               {phase === 'camera' && (
                 <div
                   key={cameraKey}
-                  style={{ width: '100%', maxWidth: 460, position: 'relative' }}
+                  style={{ width: '100%', maxWidth: 'min(460px, calc(90vh - 340px))', position: 'relative' }}
                 >
                   <ScanCamera
                     hairType="straight"
@@ -1028,25 +1584,102 @@ function ProjectCard({
 }
 
 /* ─────────────── Add Project Button ─────────────── */
-function AddProjectButton({ onClick }: { onClick: () => void }) {
+function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?: boolean }) {
+  const [animPhase, setAnimPhase] = useState<'pre' | 'falling' | 'impact' | 'done'>('pre');
+
+  useEffect(() => {
+    if (!isEmpty) { setAnimPhase('pre'); return; }
+    setAnimPhase('pre');
+    const t1 = setTimeout(() => setAnimPhase('falling'), 600);
+    const t2 = setTimeout(() => setAnimPhase('impact'),  1800);
+    const t3 = setTimeout(() => setAnimPhase('done'),    5200);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [isEmpty]);
+
+  const isFalling = animPhase === 'falling';
+  const isImpact  = animPhase === 'impact';
+  const showText  = isEmpty && animPhase !== 'pre';
+
   return (
-    <BouncyButton
-      onClick={onClick}
-      className="relative rounded-2xl flex items-center justify-center transition-opacity hover:opacity-90"
+    <div
       style={{
-        background: 'rgba(42,32,26,0.35)',
-        border: 'none',
-        aspectRatio: '3/4',
-        backdropFilter: 'blur(4px)',
+        position: 'relative',
+        overflow: 'visible',
       }}
     >
-      <span
-        className="text-[var(--cream)] font-sans font-bold"
-        style={{ fontSize: 32, opacity: 0.7, lineHeight: 1 }}
+      <BouncyButton
+        onClick={onClick}
+        className="relative rounded-2xl flex items-center justify-center transition-opacity hover:opacity-90"
+        style={{
+          background: 'rgba(42,32,26,0.35)',
+          border: 'none',
+          aspectRatio: '3/4',
+          backdropFilter: 'blur(4px)',
+          width: '100%',
+        }}
       >
-        +
-      </span>
-    </BouncyButton>
+        {/* outer span: shake/sink/wobble on impact; inner span: quick swell on impact */}
+        <span
+          className="text-[var(--cream)] font-sans font-bold"
+          style={{
+            fontSize: 32,
+            opacity: 0.7,
+            lineHeight: 1,
+            display: 'block',
+            animation: isImpact
+              ? 'empty-impact-shared 3.4s linear both'
+              : 'none',
+          }}
+        >
+          <span
+            style={{
+              display: 'block',
+              animation: isImpact
+                ? 'empty-plus-swell 0.45s cubic-bezier(.2,.85,.2,1) both'
+                : 'none',
+            }}
+          >
+            +
+          </span>
+        </span>
+      </BouncyButton>
+
+      {showText && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            zIndex: 10,
+            animation: isFalling
+              ? 'empty-text-drop 1.2s cubic-bezier(.4,0,.7,1) both'
+              : isImpact
+              ? 'empty-impact-shared 3.4s linear both'
+              : 'none',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 19,
+              color: 'var(--cream)',
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              opacity: 0.9,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Start styling yourself in 3D
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1149,7 +1782,15 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
+        <button
+          onClick={onClose}
+          className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
+          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.1)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--cream)' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
       </div>
       <div className="px-4 py-3 flex-shrink-0">
@@ -1312,7 +1953,15 @@ function MessageThread({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
+        <button
+          onClick={onClose}
+          className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
+          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.1)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--cream)' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         <AvatarCircle username={friendUsername} size={30} />
         <span className="flex-1 font-sans text-[var(--cream)] font-semibold text-sm">{friendUsername}</span>
       </div>
@@ -1713,54 +2362,52 @@ function MainMenu({
   onOpenProject,
   showScanNow,
   onScanNow,
-  profilePulsing,
+  onRescan,
+  profilePillPulse = false,
 }: {
   onAdd: () => void;
   onOpenProject: (project: ProjectDoc) => void;
   showScanNow: boolean;
   onScanNow: () => void;
-  profilePulsing?: boolean;
+  onRescan: () => void;
+  profilePillPulse?: boolean;
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
+  const [rightVisible, setRightVisible] = useState(false);
   const [friendSearchOpen, setFriendSearchOpen] = useState(false);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setMenuVisible(true), 60);
     const t2 = setTimeout(() => setLogoVisible(true), 190);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    const t3 = setTimeout(() => setRightVisible(true), 380);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-6 py-4">
-        <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-6 py-4 pointer-events-none">
+        <div className={`pointer-events-auto ${logoVisible ? 'slide-in-left' : 'opacity-0'}`}>
           <InlineWordmark cream />
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <ProfileMenu
-            onAddFriends={() => setFriendSearchOpen(true)}
-            onOpenRequests={() => setFriendRequestsOpen(true)}
-            pulsing={profilePulsing}
-          />
+        <div className={`pointer-events-auto flex flex-col items-end gap-2 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
+          <ProfileMenu onRescan={onRescan} onAddFriend={() => setFriendSearchOpen(true)} pulse={profilePillPulse} />
           <div className="flex items-center gap-2">
-            <BouncyButton
-              onClick={() => setFriendSearchOpen(true)}
-              className="btn btn-tomato"
-              style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}
-            >
-              Add Friends
-            </BouncyButton>
+            <span className="font-sans text-sm font-semibold" style={{ color: 'var(--cream)', opacity: 0.9 }}>Add Friends</span>
             <button
-              onClick={() => setFriendRequestsOpen(true)}
-              className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform"
-              style={{ width: 32, height: 32, background: 'rgba(255,248,234,0.18)', border: '1px solid rgba(255,248,234,0.25)', cursor: 'pointer', padding: 0, flexShrink: 0 }}
-              title="Friend requests"
+              onClick={() => setFriendSearchOpen(true)}
+              className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+              style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'rgba(255,248,234,0.15)',
+                border: '1.5px solid rgba(255,248,234,0.25)',
+                cursor: 'pointer', padding: 0,
+              }}
             >
-              <img src="/addfriend.png" width={16} height={16} alt="" style={{ objectFit: 'contain' }} />
+              <img src="/addfriend.png" alt="Add Friend" style={{ width: 20, height: 20, objectFit: 'contain' }} />
             </button>
           </div>
         </div>
@@ -1771,19 +2418,19 @@ function MainMenu({
 
         {/* LEFT — Projects (flex-[3] ≈ 58% of space) */}
         <div className="min-w-0 overflow-y-auto cozy-scroll px-10 py-6" style={{ flex: 3 }}>
-          <p className="font-serif italic text-[var(--cream)] text-sm mb-6" style={{ opacity: 0.75 }}>
-            A neighborhood AI barber
+          <p className="font-serif font-bold text-[var(--cream)] text-2xl mb-6 text-center" style={{ opacity: 0.9 }}>
+            My Cuts
           </p>
           <div
             className="grid"
-            style={{ gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 52, rowGap: 28 }}
+            style={{ gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 72, rowGap: 40 }}
           >
-            <AddProjectButton onClick={onAdd} />
+            <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
             {projects?.map(p => (
               <ProjectCard key={p._id} project={p} onClick={() => onOpenProject(p)} />
             ))}
           </div>
-          {showScanNow && (
+          {showScanNow && !(projects && projects.length > 0) && (
             <div className="mt-8 flex justify-center">
               <BouncyButton onClick={onScanNow} className="btn btn-cream" style={{ padding: '10px 22px', fontSize: 13 }}>
                 ✂ Scan now
@@ -1867,60 +2514,42 @@ function ScanResultPopup({
   );
 }
 
-/* ─────────────── Progress bar loader ─────────────── */
-const LOAD_STEPS = [
-  'Mirror scan',
-  'AI styling',
-  '3D preview',
-  'Barber\'s notes',
-  'Second opinions',
-];
-
-function OrganicProgressBar({ label, duration = 2200 }: { label: string; duration?: number }) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    setWidth(0);
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setWidth(100));
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [label]);
-
-  return (
-    <div className="flex flex-col gap-1 w-full max-w-xs">
-      <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--cream)]" style={{ opacity: 0.8 }}>
-        {label}
-      </span>
-      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,248,234,0.2)' }}>
-        <div
-          className="h-full rounded-full"
-          style={{
-            background: 'var(--butter)',
-            width: `${width}%`,
-            transition: `width ${duration}ms cubic-bezier(.4,0,.2,1)`,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
+/* ─────────────── Circular spinner loader ─────────────── */
 function FaceliftLoader({ demoStatus }: { demoStatus: string }) {
-  const [stepIdx, setStepIdx] = useState(0);
-
-  useEffect(() => {
-    if (demoStatus === 'done') return;
-    const t = setInterval(() => {
-      setStepIdx(i => Math.min(i + 1, LOAD_STEPS.length - 1));
-    }, 2400);
-    return () => clearInterval(t);
-  }, [demoStatus]);
+  const frozen = demoStatus === 'error';
+  const r = 20;
+  const circumference = 2 * Math.PI * r;
+  const dashoffset = circumference * 0.75;
 
   return (
-    <div className="flex flex-col items-center gap-4 p-8">
-      <OrganicProgressBar key={LOAD_STEPS[stepIdx]} label={LOAD_STEPS[stepIdx]} duration={2200} />
-      {demoStatus === 'error' && (
+    <div className="flex flex-col items-center gap-3 p-8">
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          animation: frozen ? 'none' : 'spin 1.1s linear infinite',
+          transformOrigin: 'center',
+        }}
+      >
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r={r} stroke="rgba(255,248,234,0.12)" strokeWidth="3" />
+          <circle
+            cx="24" cy="24" r={r}
+            stroke={frozen ? 'rgba(255,248,234,0.25)' : 'var(--butter)'}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashoffset}
+            transform="rotate(-90, 24, 24)"
+          />
+        </svg>
+      </div>
+      {frozen ? (
         <span className="font-mono text-[10px] text-[var(--butter)] opacity-85">Error — check console</span>
+      ) : (
+        <span className="font-serif italic text-xs text-[var(--cream)]" style={{ opacity: 0.5 }}>
+          Building your 3D model…
+        </span>
       )}
     </div>
   );
@@ -2025,6 +2654,7 @@ export default function Home() {
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
+  const meUser = useQuery(api.users.getMe);
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -2035,6 +2665,8 @@ export default function Home() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);
+
+  const needsUsername = isSignedIn && meUser !== undefined && meUser !== null && !meUser.username;
 
   // App state
   const [appState, setAppState] = useState<AppState>('loading');
@@ -2050,6 +2682,9 @@ export default function Home() {
   const [previewPlyUrl, setPreviewPlyUrl]   = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [sceneBackground, setSceneBackground] = useState('#001f5b');
+  const [menuHidden, setMenuHidden] = useState(false);
 
   // Tracks whether + was clicked and no project has been created yet
   const [pendingNewProject, setPendingNewProject] = useState(false);
@@ -2061,18 +2696,23 @@ export default function Home() {
   const [showScanNowPopup, setShowScanNowPopup] = useState(false);
   const [showScanResult, setShowScanResult]     = useState(false);
   const [hasScanEver, setHasScanEver]           = useState(false);
-  const [isInitialScan, setIsInitialScan]       = useState(false);
-  const [showSelfieFlying, setShowSelfieFlying] = useState(false);
-  const [flyingImageUrl, setFlyingImageUrl]     = useState<string | null>(null);
-  const [profilePulsing, setProfilePulsing]     = useState(false);
+  const [selfieFlying, setSelfieFlying] = useState<{ url: string; fromRect: DOMRect; toRect: DOMRect } | null>(null);
+  const [profilePillPulse, setProfilePillPulse] = useState(false);
 
-  // Show "Scan now!" popup each time user enters home
+  // Auto-open scan popup (in username phase) on first login before username is set
   useEffect(() => {
-    if (appState === 'home' && !hasScanEver && isSignedIn) {
+    if (appState === 'home' && needsUsername) {
+      setShowScanPopup(true);
+    }
+  }, [appState, needsUsername]);
+
+  // Show "Scan now!" popup each time user enters home — skip if username setup is pending
+  useEffect(() => {
+    if (appState === 'home' && !hasScanEver && isSignedIn && !needsUsername) {
       const t = setTimeout(() => setShowScanNowPopup(true), 600);
       return () => clearTimeout(t);
     }
-  }, [appState, hasScanEver, isSignedIn]);
+  }, [appState, hasScanEver, isSignedIn, needsUsername]);
 
   // Auto-save project every 30s when in 3D studio
   useEffect(() => {
@@ -2116,33 +2756,29 @@ export default function Home() {
     } : prev);
   }, []);
 
-  const handleScanComplete = async (p: UserHeadProfile, sid: string | null, url: string | null) => {
+  const handleScanComplete = (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean) => {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setProfile(profileWithMeasurements);
     setParams(profileWithMeasurements.currentStyle.params);
     setHasScanEver(true);
     setShowScanPopup(false);
 
-    // Create a project now that we have real scan data
-    if (pendingNewProject) {
-      setPendingNewProject(false);
-      try {
-        const id = await createProject({ name: `Cut #${Date.now().toString(36).slice(-4).toUpperCase()}` });
-        setActiveProjectId(id as Id<'projects'>);
-      } catch { /* silent — project creation failure shouldn't block the scan flow */ }
+    if (isFirstScan && url) {
+      // First-time setup: don't open a session — animate the selfie into the profile button
+      setSessionId(sid);
+      setImageUrl(url);
+      const profileEl = document.getElementById('profile-menu-pill');
+      const toRect = profileEl?.getBoundingClientRect();
+      if (fromRect && toRect) {
+        setSelfieFlying({ url, fromRect, toRect });
+      }
+      return;
     }
 
     if (url) {
       setSessionId(sid);
       setImageUrl(url);
-      if (isInitialScan) {
-        // First-ever scan: fly selfie to profile button, stay on home
-        setIsInitialScan(false);
-        setFlyingImageUrl(url);
-        setShowSelfieFlying(true);
-      } else {
-        setShowScanResult(true);
-      }
+      setShowScanResult(true);
     } else {
       setAppState('3d');
     }
@@ -2207,13 +2843,14 @@ export default function Home() {
           onOpenProject={handleOpenProject}
           showScanNow={!hasScanEver}
           onScanNow={() => setShowScanPopup(true)}
-          profilePulsing={profilePulsing}
+          onRescan={() => setShowScanPopup(true)}
+          profilePillPulse={profilePillPulse}
         />
 
         {/* Scan now popup — on first entry */}
         {showScanNowPopup && (
           <ScanNowPopup
-            onLetsDo={() => { setShowScanNowPopup(false); setIsInitialScan(true); setShowScanPopup(true); }}
+            onLetsDo={() => { setShowScanNowPopup(false); setShowScanPopup(true); }}
             onDismiss={() => setShowScanNowPopup(false)}
           />
         )}
@@ -2223,6 +2860,7 @@ export default function Home() {
           <ScanPopup
             onScanComplete={handleScanComplete}
             onDismiss={() => setShowScanPopup(false)}
+            needsUsername={needsUsername}
           />
         )}
 
@@ -2234,14 +2872,16 @@ export default function Home() {
           />
         )}
 
-        {/* Initial selfie flight animation → profile button */}
-        {showSelfieFlying && flyingImageUrl && (
-          <SelfieFlightOverlay
-            imageUrl={flyingImageUrl}
+        {/* First-scan selfie fly animation */}
+        {selfieFlying && (
+          <SelfieFlyOverlay
+            url={selfieFlying.url}
+            fromRect={selfieFlying.fromRect}
+            toRect={selfieFlying.toRect}
             onDone={() => {
-              setShowSelfieFlying(false);
-              setProfilePulsing(true);
-              setTimeout(() => setProfilePulsing(false), 600);
+              setSelfieFlying(null);
+              setProfilePillPulse(true);
+              setTimeout(() => setProfilePillPulse(false), 800);
             }}
           />
         )}
@@ -2269,8 +2909,18 @@ export default function Home() {
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
-              <div className="polaroid wonky-sm-l" style={{ maxWidth: 340 }}>
-                <div className="tape tape-tl" /><div className="tape tape-tr" />
+              <div
+                className={`polaroid ${previewExpanded ? '' : 'wonky-sm-l'}`}
+                style={{
+                  width: '100%',
+                  maxWidth: previewExpanded ? 'min(60vh, 54vw)' : '340px',
+                  transition: 'max-width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                  cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+                }}
+                onClick={() => setPreviewExpanded(v => !v)}
+              >
+                <div className="tape tape-tl" />
+                <div className="tape tape-tr" />
                 <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
                   <Image src={imageUrl} alt="Your scan" fill className="object-cover" unoptimized />
                 </div>
@@ -2319,9 +2969,22 @@ export default function Home() {
 
       <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
         {imageUrl && (
-          <div className="absolute top-24 left-6 z-10 polaroid wonky-l" style={{ width: 100, padding: '6px 6px 22px' }}>
-            <img src={imageUrl} alt="scan" className="block w-full h-[82px] object-cover rounded-sm" />
-            <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
+          <div
+            className={`absolute top-24 left-6 z-10 polaroid ${previewExpanded ? '' : 'wonky-l'}`}
+            style={{
+              width: previewExpanded ? 'min(55vh, 46vw)' : 100,
+              padding: '6px 6px 22px',
+              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+              cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+            }}
+            onClick={() => setPreviewExpanded(v => !v)}
+          >
+            <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2 }}>
+              <img src={imageUrl} alt="scan" className="block w-full h-full object-cover" />
+            </div>
+            <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>
+              you
+            </div>
           </div>
         )}
 
@@ -2341,17 +3004,55 @@ export default function Home() {
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             splatSrcOverride={editSplatSrc ?? splatSrc ?? undefined}
             disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc)}
-            flameData={smirk.result ? { vertices: smirk.result.vertices_canonical, faces: smirk.result.faces } : undefined}
+            background={sceneBackground}
+            uiHidden={menuHidden}
+            flameData={
+              smirk.result
+                ? {
+                    vertices: smirk.result.vertices_canonical,
+                    faces: smirk.result.faces,
+                  }
+                : undefined
+            }
           />
 
-          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">
-            <span>live · 3d sculpt</span>
-            <span>no. 03·42</span>
+          {/* Scene controls overlay */}
+          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
+            <div className="flex items-center gap-2">
+              {['#001f5b', '#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
+                <button
+                  key={c}
+                  onClick={() => setSceneBackground(c)}
+                  style={{
+                    width: 13, height: 13, borderRadius: '50%', cursor: 'pointer',
+                    background: c,
+                    border: sceneBackground === c ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)',
+                    flexShrink: 0,
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={sceneBackground}
+                onChange={e => setSceneBackground(e.target.value)}
+                title="Custom background color"
+                style={{ width: 16, height: 16, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 3, background: 'none', flexShrink: 0 }}
+              />
+              <button
+                onClick={() => setMenuHidden(v => !v)}
+                className="font-mono text-[9px] uppercase tracking-[0.18em] hover:text-[var(--cream)]"
+                style={{ color: 'rgba(255,248,234,0.55)', background: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '3px 8px' }}
+              >
+                {menuHidden ? 'show ui' : 'hide ui'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden">
+      {/* Sidebar — cream card floating on red */}
+      {!menuHidden && <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden">
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
           <div className="flex items-center gap-2">
@@ -2365,7 +3066,7 @@ export default function Home() {
             onParamsChange={handleParamsChange}
             sessionId={sessionId}
             latestImageUrl={imageUrl}
-            onImageUpdated={(url) => setImageUrl(url)}
+            onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
             onPlyReady={(url) => {
               if (url.startsWith('/')) { setEditSplatSrc(url); }
               else { setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`); }
@@ -2373,7 +3074,7 @@ export default function Home() {
             onUncertain={() => setShowRecommendations(true)}
           />
         </div>
-      </aside>
+      </aside>}
     </main>
   );
 }

@@ -42,6 +42,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const processingRef = useRef(false);
+  const pipelineHadErrorRef = useRef(false);
   const originalImageUrlRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     }
 
     processingRef.current = true;
+    pipelineHadErrorRef.current = false;
     setPipelineError(null);
     setPhase('gemini');
 
@@ -109,12 +111,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
       try { geminiData = JSON.parse(geminiRaw); }
       catch {
+        pipelineHadErrorRef.current = true;
         setPipelineError('Gemini returned non-JSON (HTTP ' + geminiRes.status + ').');
         return;
       }
       if (!geminiData.ok || !geminiData.newImageUrl) {
         const msg = (geminiData.error ?? 'Unknown Gemini error') + (geminiData.detail ? ' — ' + geminiData.detail : '');
         console.error('[EditPanel] gemini-hair-edit failed:', geminiData);
+        pipelineHadErrorRef.current = true;
         setPipelineError('Gemini failed: ' + msg);
         return;
       }
@@ -144,10 +148,12 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       let faceliftSubmit: { jobId?: string; error?: string };
       try { faceliftSubmit = JSON.parse(faceliftSubmitRaw); }
       catch {
+        pipelineHadErrorRef.current = true;
         setPipelineError('Facelift submit returned non-JSON (HTTP ' + faceliftSubmitRes.status + ').');
         return;
       }
       if (!faceliftSubmit.jobId) {
+        pipelineHadErrorRef.current = true;
         setPipelineError('Facelift failed to start: ' + (faceliftSubmit.error ?? 'unknown'));
         return;
       }
@@ -161,6 +167,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         const pollData = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
         if (pollData.status === 'success') { splatUrl = pollData.splatUrl!; break; }
         if (pollData.status === 'error') {
+          pipelineHadErrorRef.current = true;
           setPipelineError('Facelift render failed: ' + (pollData.error ?? 'unknown'));
           return;
         }
@@ -241,9 +248,16 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     } else if (phase === 'idle' && prev !== 'idle') {
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
-      setHairstepProgress(100);
-      const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1000);
-      return () => clearTimeout(t);
+      if (pipelineHadErrorRef.current) {
+        // Error: freeze bars at current position, then reset after a beat
+        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2000);
+        return () => clearTimeout(t);
+      } else {
+        // Success: complete to 100%, then reset
+        setHairstepProgress(100);
+        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1000);
+        return () => clearTimeout(t);
+      }
     }
   }, [phase]);
 

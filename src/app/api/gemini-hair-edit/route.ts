@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+const safetySettings = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT,        threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,       threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+];
 
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
@@ -59,6 +66,7 @@ export async function POST(req: NextRequest) {
       model: MODEL_NAME,
       // @ts-expect-error responseModalities not yet in type defs
       generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+      safetySettings,
     });
 
     const fullPrompt = `You are a professional hair stylist visualizer. Edit only the hair in this photo based on the following request: "${prompt}". Keep the face, skin, background, and all non-hair elements completely unchanged. Return the full edited portrait image.
@@ -81,12 +89,21 @@ CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
     if (candidates.length === 0) {
       console.error('[gemini-hair-edit] NO candidates returned!');
       console.error('[gemini-hair-edit] full response JSON:', JSON.stringify(result.response, null, 2));
+      const promptFeedback = (result.response as { promptFeedback?: { blockReason?: string } }).promptFeedback;
+      if (promptFeedback?.blockReason) {
+        return NextResponse.json({ ok: false, error: 'This image or edit request was blocked by content safety filters. Try a different photo or prompt.' }, { status: 422 });
+      }
       throw new Error('Gemini returned 0 candidates');
     }
 
     const candidate = candidates[0];
     console.log('[gemini-hair-edit] candidate[0] finishReason:', candidate.finishReason);
     console.log('[gemini-hair-edit] candidate[0] safetyRatings:', JSON.stringify(candidate.safetyRatings));
+
+    if (candidate.finishReason === 'SAFETY') {
+      console.error('[gemini-hair-edit] blocked by safety filters — safetyRatings:', JSON.stringify(candidate.safetyRatings));
+      return NextResponse.json({ ok: false, error: 'This image or edit request was blocked by content safety filters. Try a different photo or prompt.' }, { status: 422 });
+    }
 
     const parts = candidate.content?.parts ?? [];
     console.log('[gemini-hair-edit] parts count:', parts.length);

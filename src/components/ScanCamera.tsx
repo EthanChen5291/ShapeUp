@@ -79,6 +79,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captur
 export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTokens, paywallDisabled = false }: ScanCameraProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
   const animFrameId   = useRef<number | null>(null);
   const activeRef     = useRef(false);
 
@@ -155,46 +156,11 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
     animFrameId.current = requestAnimationFrame(drawFrame);
   }
 
-  async function capturePhoto() {
-    if (!isSignedIn) {
-      openSignIn();
-      return;
-    }
-    if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
-      onNoTokens?.();
-      return;
-    }
-    const video  = videoRef.current;
-    const canvas = previewCanvas.current;
-    if (!video || !canvas) return;
-
-    activeRef.current = false;
-    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+  async function finishWithDataUrl(imageDataUrl: string) {
+    setPhase('captured');
 
     const W = 640;
     const H = 640;
-    const ctx = canvas.getContext('2d')!;
-
-    const vW       = video.videoWidth  || 640;
-    const vH       = video.videoHeight || 480;
-    const cropSize = Math.min(vW, vH);
-    const cropX    = (vW - cropSize) / 2;
-    const cropY    = (vH - cropSize) / 2;
-
-    ctx.save();
-    ctx.translate(W, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
-    ctx.restore();
-
-    const imageDataUrl = canvas.toDataURL('image/png');
-
-    drawOverlay(ctx, W, H, true);
-
-    const stream = video.srcObject as MediaStream | null;
-    stream?.getTracks().forEach(t => t.stop());
-
-    setPhase('captured');
 
     const profile: UserHeadProfile = {
       headProportions: { width: 1.6, height: 2.0, crownY: 1.0 },
@@ -245,6 +211,77 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
     onScanComplete(profile, sessionId, uploadedImageUrl ?? imageDataUrl);
   }
 
+  async function capturePhoto() {
+    if (!isSignedIn) {
+      openSignIn();
+      return;
+    }
+    if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
+      onNoTokens?.();
+      return;
+    }
+    const video  = videoRef.current;
+    const canvas = previewCanvas.current;
+    if (!video || !canvas) return;
+
+    activeRef.current = false;
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+
+    const W = 640;
+    const H = 640;
+    const ctx = canvas.getContext('2d')!;
+
+    const vW       = video.videoWidth  || 640;
+    const vH       = video.videoHeight || 480;
+    const cropSize = Math.min(vW, vH);
+    const cropX    = (vW - cropSize) / 2;
+    const cropY    = (vH - cropSize) / 2;
+
+    ctx.save();
+    ctx.translate(W, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
+    ctx.restore();
+
+    const imageDataUrl = canvas.toDataURL('image/png');
+
+    drawOverlay(ctx, W, H, true);
+
+    const stream = video.srcObject as MediaStream | null;
+    stream?.getTracks().forEach(t => t.stop());
+
+    await finishWithDataUrl(imageDataUrl);
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    activeRef.current = false;
+    if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach(t => t.stop());
+
+    try {
+      const bitmap = await createImageBitmap(file);
+      const W = 640, H = 640;
+      const offscreen = document.createElement('canvas');
+      offscreen.width = W;
+      offscreen.height = H;
+      const ctx = offscreen.getContext('2d')!;
+      const size = Math.min(bitmap.width, bitmap.height);
+      const sx = (bitmap.width - size) / 2;
+      const sy = (bitmap.height - size) / 2;
+      ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, W, H);
+      bitmap.close();
+      await finishWithDataUrl(offscreen.toDataURL('image/png'));
+    } catch (err) {
+      setPhase('error');
+      setErrorMsg('Could not load image. Please try a JPEG or PNG file.');
+      console.error('[ScanCamera] upload failed:', err);
+    }
+  }
+
   const instruction =
     phase === 'loading'  ? 'Preparing the chair…' :
     phase === 'ready'    ? 'Settle in. Place your face inside the oval.' :
@@ -255,55 +292,62 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
     <div className="relative flex flex-col items-center w-full">
       <video ref={videoRef} className="hidden" muted playsInline />
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleUpload}
+      />
+
+      {/* Single wrapper spans camera + paper so tape corners anchor correctly */}
       <div style={{ position: 'relative', width: '100%' }}>
-        <div className="tape tape-tl" />
-        <div className="tape tape-tr" />
-        <div className="tape tape-bl" />
-        <div className="tape tape-br" />
-      <div className="relative w-full bg-[#1c1510]" style={{ aspectRatio: '1/1', borderRadius: '28px 28px 0 0', overflow: 'hidden' }}>
-        <canvas
-          ref={previewCanvas}
-          width={640}
-          height={640}
-          className="w-full h-full object-cover"
-        />
 
-        {phase === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1c1510]">
-            <div className="flex flex-col items-center gap-3">
-              <div className="scissor-loader" />
-              <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">
-                Adjusting the mirror
-              </span>
+        {/* Camera — no rounded corners */}
+        <div className="relative w-full bg-[#1c1510]" style={{ aspectRatio: '1/1', overflow: 'hidden' }}>
+          <canvas
+            ref={previewCanvas}
+            width={640}
+            height={640}
+            className="w-full h-full object-cover"
+          />
+
+          {phase === 'loading' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1c1510]">
+              <div className="flex flex-col items-center gap-3">
+                <div className="scissor-loader" />
+                <span className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">
+                  Adjusting the mirror
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {phase === 'captured' && (
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(28, 21, 16, 0.78)' }}>
-            <div className="anim-fade-up text-center">
-              <div className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">Captured</div>
-              <div className="font-display italic text-3xl text-[var(--cream)] mt-1" style={{ fontWeight: 500 }}>Splendid.</div>
+          {phase === 'captured' && (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(28, 21, 16, 0.78)' }}>
+              <div className="anim-fade-up text-center">
+                <div className="font-sans text-[11px] uppercase tracking-wider text-[var(--butter)]">Captured</div>
+                <div className="font-display italic text-3xl text-[var(--cream)] mt-1" style={{ fontWeight: 500 }}>Splendid.</div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {phase === 'error' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1c1510] p-6 text-center">
-            <div>
-              <div className="font-sans text-[11px] uppercase tracking-wider text-[var(--tomato)]">Error</div>
-              <div className="font-display italic text-xl text-[var(--cream)] mt-1" style={{ fontWeight: 500 }}>{errorMsg}</div>
+          {phase === 'error' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1c1510] p-6 text-center">
+              <div>
+                <div className="font-sans text-[11px] uppercase tracking-wider text-[var(--tomato)]">Error</div>
+                <div className="font-display italic text-xl text-[var(--cream)] mt-1" style={{ fontWeight: 500 }}>{errorMsg}</div>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-      </div>
+          )}
+        </div>
 
-      <div style={{ position: 'relative', width: '100%' }}>
+        {/* Paper card — no rounded corners, extends 10px beyond camera on each side */}
         <div style={{
           background: 'var(--chalk)',
-          borderRadius: '0 0 24px 24px',
-          padding: '22px 24px 40px',
+          borderRadius: 0,
+          margin: '0 -10px',
+          padding: '22px 34px 40px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -323,7 +367,23 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
               Take Picture
             </button>
           )}
+
+          {(phase === 'loading' || phase === 'ready') && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-ink"
+              style={{ padding: '9px 18px', fontSize: 12 }}
+            >
+              ↑ Upload a photo
+            </button>
+          )}
         </div>
+
+        {/* Tape rendered last — paints over camera and paper without z-index hacks */}
+        <div className="tape tape-tl" />
+        <div className="tape tape-tr" />
+        <div className="tape tape-bl" />
+        <div className="tape tape-br" />
       </div>
     </div>
   );

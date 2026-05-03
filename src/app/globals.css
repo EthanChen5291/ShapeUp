@@ -667,6 +667,43 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .project-zoom { animation: project-zoom 500ms cubic-bezier(.4,0,.6,1) both; }
 
+/* ── Empty-state add-button physics sequence ──────────────── */
+@keyframes empty-text-drop {
+  /* text starts far above the card and falls all the way to center */
+  from { transform: translateY(-320px); opacity: 0; }
+  8%   { opacity: 1; }
+  to   { transform: translateY(0);      opacity: 1; }
+}
+@keyframes empty-plus-swell {
+  /* + quickly blooms on impact, then settles */
+  0%   { transform: scale(1);    }
+  25%  { transform: scale(2.1);  }
+  60%  { transform: scale(1.04); }
+  100% { transform: scale(1);    }
+}
+@keyframes empty-impact-shared {
+  /* light shake */
+  0%   { transform: translate(0,    0)    rotate(0deg);    }
+  4%   { transform: translate(-4px, 0)    rotate(-0.7deg); }
+  9%   { transform: translate( 3px, 0)    rotate( 0.7deg); }
+  14%  { transform: translate(-2px, 0)    rotate(-0.4deg); }
+  18%  { transform: translate(0,    0)    rotate(0deg);    }
+  /* sink — exponential decay: 30 → 18 → 9 → 4 → 1 → 0 */
+  30%  { transform: translate(0,   30px)  rotate(0deg);    }
+  43%  { transform: translate(0,   18px)  rotate(0deg);    }
+  54%  { transform: translate(0,    9px)  rotate(0deg);    }
+  63%  { transform: translate(0,    4px)  rotate(0deg);    }
+  70%  { transform: translate(0,    1px)  rotate(0deg);    }
+  75%  { transform: translate(0,    0)    rotate(0deg);    }
+  /* gentle wobble */
+  80%  { transform: rotate(-5deg);  }
+  85%  { transform: rotate( 5deg);  }
+  90%  { transform: rotate(-3deg);  }
+  94%  { transform: rotate( 3deg);  }
+  97%  { transform: rotate(-1deg);  }
+  100% { transform: rotate( 0deg);  }
+}
+
 /* ── Organic progress bar ─────────────────────────────────── */
 @keyframes progress-fill {
   from { width: 0%; }
@@ -736,17 +773,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .profile-pill-bounce { animation: profile-pill-bounce 300ms cubic-bezier(.2,.7,.2,1); }
 
-/* ── Dynamic Island absorb (selfie flying in) ─────────────── */
-@keyframes profile-di-absorb {
-  0%   { transform: scaleX(1)    scaleY(1);    }
-  28%  { transform: scaleX(1.09) scaleY(1.07); }
-  60%  { transform: scaleX(1.04) scaleY(1.02); }
-  100% { transform: scaleX(1)    scaleY(1);    }
+/* ── Profile pill dynamic-island swallow (selfie arrives) ── */
+@keyframes profile-pill-swallow {
+  0%   { transform: scale(1); }
+  28%  { transform: scale(1.13, 1.09); }
+  52%  { transform: scale(0.97, 1.01); }
+  72%  { transform: scale(1.04, 1.02); }
+  100% { transform: scale(1); }
 }
-.profile-di-absorbing {
-  animation: profile-di-absorb 540ms cubic-bezier(.2,.85,.2,1) forwards;
-  transform-origin: right center;
-}
+.profile-pill-swallow { animation: profile-pill-swallow 640ms cubic-bezier(.34,1.2,.64,1) both; }
 
 /* ── Main menu slide in from left ────────────────────────── */
 @keyframes slide-in-left {
@@ -757,6 +792,16 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .slide-in-left {
   animation: slide-in-left 620ms cubic-bezier(.2,.85,.2,1) both;
+}
+
+@keyframes slide-in-right {
+  0%   { transform: translateX(72px);  opacity: 0; }
+  62%  { transform: translateX(-5px);  opacity: 1; }
+  80%  { transform: translateX(2px);   opacity: 1; }
+  100% { transform: translateX(0);     opacity: 1; }
+}
+.slide-in-right {
+  animation: slide-in-right 620ms cubic-bezier(.2,.85,.2,1) both;
 }
 
 /* ── Get More button shine sweep ─────────────────────────── */
