@@ -9,7 +9,10 @@
  */
 
 import type * as facelifts from "../facelifts.js";
+import type * as friends from "../friends.js";
 import type * as http from "../http.js";
+import type * as messages from "../messages.js";
+import type * as projects from "../projects.js";
 import type * as sessions from "../sessions.js";
 import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
@@ -23,7 +26,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   facelifts: typeof facelifts;
+  friends: typeof friends;
   http: typeof http;
+  messages: typeof messages;
+  projects: typeof projects;
   sessions: typeof sessions;
   stripe: typeof stripe;
   users: typeof users;

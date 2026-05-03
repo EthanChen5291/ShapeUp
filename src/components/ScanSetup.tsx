@@ -137,6 +137,11 @@ export default function ScanSetup({ onComplete }: ScanSetupProps) {
   const [cameraState, setCameraState]     = useState<CameraState>('requesting');
   const [scannedProfile, setScannedProfile] = useState<UserHeadProfile | null>(null);
   const [waitingForScan, setWaitingForScan] = useState(false);
+  const [paywallDisabled, setPaywallDisabled] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(d => setPaywallDisabled(d.paywallDisabled ?? false));
+  }, []);
 
   // ── iPhone scan: auto-proceed when mesh arrives ───────────
   const arMesh = useARFaceMesh();
@@ -235,6 +240,7 @@ export default function ScanSetup({ onComplete }: ScanSetupProps) {
             hairType={hairType}
             onScanComplete={handleScanComplete}
             onDismiss={() => setCameraState('denied')}
+            paywallDisabled={paywallDisabled}
           />
         )}
 
