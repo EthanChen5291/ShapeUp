@@ -26,7 +26,7 @@ type AppState = 'loading' | 'landing' | 'home' | 'scan' | 'hairEditLoop' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
 /* ─────────────── Barber Mascot SVG ─────────────── */
-function BarberMascot({ snap = false, size = 'full', isStatic = false }: { snap?: boolean; size?: 'full' | 'sm'; isStatic?: boolean }) {
+function BarberMascot({ snap = false, size = 'full', isStatic = false, color = '#2a201a' }: { snap?: boolean; size?: 'full' | 'sm'; isStatic?: boolean; color?: string }) {
   const bladeClass = isStatic ? '' : snap ? 'scissor-snap-left' : 'scissor-blade-left';
   const bladeClassR = isStatic ? '' : snap ? 'scissor-snap-right' : 'scissor-blade-right';
   return (
@@ -35,17 +35,17 @@ function BarberMascot({ snap = false, size = 'full', isStatic = false }: { snap?
       xmlns="http://www.w3.org/2000/svg"
       className={`${size === 'sm' ? 'w-full h-auto' : 'w-full h-auto'} drop-shadow-lg scissor-mascot`}
     >
-      <line x1="94" y1="188" x2="58" y2="266" stroke="#2a201a" strokeWidth="13" strokeLinecap="round" />
-      <line x1="106" y1="188" x2="142" y2="266" stroke="#2a201a" strokeWidth="13" strokeLinecap="round" />
-      <circle cx="52" cy="300" r="34" fill="none" stroke="#2a201a" strokeWidth="14" />
-      <circle cx="148" cy="300" r="34" fill="none" stroke="#2a201a" strokeWidth="14" />
+      <line x1="94" y1="188" x2="58" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
+      <line x1="106" y1="188" x2="142" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
+      <circle cx="52" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
+      <circle cx="148" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
       <g className={bladeClass}>
-        <path d="M 108 172 L 88 188 L 32 28 L 48 22 Z" fill="#2a201a" stroke="#2a201a" strokeWidth="4" strokeLinejoin="round" />
+        <path d="M 108 172 L 88 188 L 32 28 L 48 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
       </g>
       <g className={bladeClassR}>
-        <path d="M 92 172 L 112 188 L 168 28 L 152 22 Z" fill="#2a201a" stroke="#2a201a" strokeWidth="4" strokeLinejoin="round" />
+        <path d="M 92 172 L 112 188 L 168 28 L 152 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
       </g>
-      <circle cx="100" cy="180" r="13" fill="#2a201a" />
+      <circle cx="100" cy="180" r="13" fill={color} />
     </svg>
   );
 }
@@ -53,11 +53,12 @@ function BarberMascot({ snap = false, size = 'full', isStatic = false }: { snap?
 /* ─────────────── Inline wordmark (✂ Shape Up) ─────────────── */
 function InlineWordmark({ cream = false, small = false }: { cream?: boolean; small?: boolean }) {
   const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
+  const mascotColor = cream ? 'rgba(245,241,234,0.88)' : '#2a201a';
   const textSize = small ? 'text-[13px]' : 'text-[18px]';
   return (
     <div className={`wordmark-inline ${color} ${textSize}`}>
       <span style={{ width: small ? 20 : 28, display: 'inline-block' }}>
-        <BarberMascot />
+        <BarberMascot color={mascotColor} />
       </span>
       <span style={{ fontWeight: 700, letterSpacing: '0.06em' }}>
         Shape <span style={{ display: 'inline' }}>Up</span>
@@ -263,7 +264,7 @@ function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () =>
 
   if (!isSignedIn) {
     return (
-      <BouncyButton onClick={() => openSignIn()} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
+      <BouncyButton onClick={() => openSignIn()} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
         Sign in
       </BouncyButton>
     );
@@ -1557,20 +1558,20 @@ function ProjectCard({
       onClick={handleClick}
       className={`relative rounded-2xl overflow-hidden flex flex-col text-left transition-shadow hover:shadow-xl ${zooming ? 'project-zoom' : ''}`}
       style={{
-        background: 'rgba(255,248,234,0.14)',
-        border: '1px solid rgba(255,248,234,0.22)',
+        background: 'var(--surface)',
+        border: '1px solid rgba(245,241,234,0.08)',
         aspectRatio: '3/4',
-        backdropFilter: 'blur(6px)',
         transform: rotate ? `rotate(${rotate}deg)` : undefined,
         transition: 'transform 200ms ease, box-shadow 200ms ease',
+        boxShadow: '0 8px 24px -8px rgba(0,0,0,0.5)',
       }}
     >
       {project.thumbnailUrl ? (
         <img src={project.thumbnailUrl} alt={project.name} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.2)' }}>
-          <div style={{ width: 40, opacity: 0.4, transform: 'rotate(186deg)' }}>
-            <BarberMascot isStatic />
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: '#111113' }}>
+          <div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}>
+            <BarberMascot isStatic color="rgba(245,241,234,0.9)" />
           </div>
         </div>
       )}
@@ -1614,10 +1615,9 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         onClick={onClick}
         className="relative rounded-2xl flex items-center justify-center transition-opacity hover:opacity-90"
         style={{
-          background: 'rgba(42,32,26,0.35)',
-          border: 'none',
+          background: 'var(--surface)',
+          border: '1px dashed rgba(245,241,234,0.12)',
           aspectRatio: '3/4',
-          backdropFilter: 'blur(4px)',
           width: '100%',
         }}
       >
@@ -2567,10 +2567,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 function DashStat({ icon, top, bottom }: { icon: React.ReactNode; top: string; bottom: string }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-      <span style={{ color: 'rgba(255,248,234,0.6)', fontSize: 18 }}>{icon}</span>
+      <span style={{ color: 'rgba(245,241,234,0.5)', fontSize: 18 }}>{icon}</span>
       <div style={{ lineHeight: 1.15 }}>
-        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,248,234,0.4)', textTransform: 'uppercase' }}>{top}</div>
-        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>{bottom}</div>
+        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(245,241,234,0.35)', textTransform: 'uppercase' }}>{top}</div>
+        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--offwhite)' }}>{bottom}</div>
       </div>
     </div>
   );
@@ -2665,7 +2665,7 @@ function MainMenu({
   ];
 
   return (
-    <main className="relative bg-tomato-shop overflow-hidden" style={{ minHeight: '100vh' }}>
+    <main className="relative bg-void overflow-hidden" style={{ minHeight: '100vh' }}>
       <div
         style={{
           display: 'grid',
@@ -2679,7 +2679,7 @@ function MainMenu({
         {/* ── LEFT NAV RAIL ── */}
         <aside
           style={{
-            borderRight: '1px solid rgba(255,248,234,0.09)',
+            borderRight: '1px solid rgba(245,241,234,0.06)',
             padding: '24px 10px',
             display: 'flex',
             flexDirection: 'column',
@@ -2689,8 +2689,8 @@ function MainMenu({
           }}
         >
           {/* Scissor mascot wordmark */}
-          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.8 }}>
-            <BarberMascot isStatic />
+          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.7 }}>
+            <BarberMascot isStatic color="rgba(245,241,234,0.85)" />
           </div>
 
           {navItems.map(n => {
@@ -2702,8 +2702,8 @@ function MainMenu({
                 style={{
                   border: 'none',
                   cursor: 'pointer',
-                  background: isActive ? 'rgba(245,204,107,0.18)' : 'transparent',
-                  color: isActive ? 'var(--honey)' : 'rgba(255,248,234,0.6)',
+                  background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
+                  color: isActive ? 'var(--coral)' : 'rgba(245,241,234,0.45)',
                   padding: '10px 0',
                   borderRadius: 12,
                   display: 'flex',
@@ -2716,11 +2716,11 @@ function MainMenu({
                   fontWeight: 600,
                   letterSpacing: '0.04em',
                   textTransform: 'uppercase',
-                  outline: isActive ? '1.5px solid rgba(245,204,107,0.35)' : '1.5px solid transparent',
+                  outline: isActive ? '1.5px solid rgba(232,97,77,0.28)' : '1.5px solid transparent',
                   transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
                 }}
                 onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,248,234,0.06)';
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(245,241,234,0.05)';
                 }}
                 onMouseLeave={e => {
                   if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
@@ -2734,7 +2734,7 @@ function MainMenu({
         </aside>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="min-w-0 overflow-y-auto cozy-scroll" style={{ padding: '24px 40px 80px', position: 'relative' }}>
+        <main className="min-w-0 overflow-y-auto cozy-scroll-dark" style={{ padding: '24px 40px 80px', position: 'relative' }}>
 
           {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2743,14 +2743,14 @@ function MainMenu({
             </div>
             <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
               <DashStat icon="🔥" top="Weekly Streak" bottom="5 days" />
-              <div style={{ width: 1, height: 34, background: 'rgba(255,248,234,0.12)' }} />
+              <div style={{ width: 1, height: 34, background: 'rgba(245,241,234,0.09)' }} />
               <DashStat icon="✂" top="Cuts Previewed" bottom={`${projects?.length ?? 0} total`} />
             </div>
             <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
               <button
                 onClick={() => setFriendSearchOpen(true)}
                 className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-                style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,248,234,0.12)', border: '1.5px solid rgba(255,248,234,0.18)', cursor: 'pointer', padding: 0 }}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(245,241,234,0.07)', border: '1.5px solid rgba(245,241,234,0.1)', cursor: 'pointer', padding: 0 }}
               >
                 <img src="/addfriend.png" alt="Add Friend" style={{ width: 19, height: 19, objectFit: 'contain' }} />
               </button>
@@ -2763,22 +2763,22 @@ function MainMenu({
             <div>
               <h1
                 className="type-chonk"
-                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--cream)', lineHeight: 0.88 }}
+                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--offwhite)', lineHeight: 0.88 }}
               >
                 My Cuts
               </h1>
               <p
                 className="font-serif italic"
-                style={{ fontSize: 17, color: 'rgba(255,248,234,0.55)', marginTop: 8, fontStyle: 'italic' }}
+                style={{ fontSize: 17, color: 'rgba(245,241,234,0.42)', marginTop: 8, fontStyle: 'italic' }}
               >
                 your styling studio. the cuts you{' '}
-                <span style={{ borderBottom: '2px solid rgba(255,248,234,0.4)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
+                <span style={{ borderBottom: '2px solid rgba(245,241,234,0.28)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
               </p>
             </div>
             <div style={{ flex: 1 }} />
             {/* Search */}
             <div style={{ position: 'relative', width: 248 }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,248,234,0.3)', fontSize: 14, pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(245,241,234,0.25)', fontSize: 14, pointerEvents: 'none' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                   <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
                 </svg>
@@ -2790,18 +2790,17 @@ function MainMenu({
                 style={{
                   width: '100%',
                   padding: '10px 14px 10px 38px',
-                  border: '1px solid rgba(255,248,234,0.18)',
+                  border: '1px solid rgba(245,241,234,0.1)',
                   borderRadius: 9999,
-                  background: 'rgba(255,248,234,0.07)',
+                  background: 'rgba(245,241,234,0.04)',
                   fontSize: 14,
-                  color: 'var(--cream)',
+                  color: 'var(--offwhite)',
                   fontFamily: 'var(--font-fraunces), Georgia, serif',
                   fontStyle: 'italic',
-                  backdropFilter: 'blur(4px)',
                   outline: 'none',
                 }}
-                onFocus={e => (e.target.style.borderColor = 'rgba(255,248,234,0.4)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(255,248,234,0.18)')}
+                onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(245,241,234,0.1)')}
               />
             </div>
           </div>
@@ -2814,14 +2813,14 @@ function MainMenu({
                 onClick={() => setActiveTab(t)}
                 style={{
                   padding: '7px 17px',
-                  border: `2px solid ${activeTab === t ? 'rgba(245,204,107,0.75)' : 'rgba(255,248,234,0.2)'}`,
-                  background: activeTab === t ? 'rgba(245,204,107,0.14)' : 'transparent',
+                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(245,241,234,0.1)'}`,
+                  background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent',
                   borderRadius: 9999,
                   cursor: 'pointer',
                   fontFamily: 'var(--font-dmsans)',
                   fontWeight: 700,
                   fontSize: 13,
-                  color: activeTab === t ? 'var(--honey)' : 'rgba(255,248,234,0.6)',
+                  color: activeTab === t ? 'var(--coral)' : 'rgba(245,241,234,0.38)',
                   letterSpacing: '0.02em',
                   transition: 'all 160ms ease',
                 }}
@@ -2830,10 +2829,10 @@ function MainMenu({
               </button>
             ))}
             <div style={{ flex: 1 }} />
-            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(255,248,234,0.4)', paddingRight: 6 }}>
+            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(245,241,234,0.28)', paddingRight: 6 }}>
               start here!
             </span>
-            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(255,248,234,0.35)" strokeWidth="1.6" strokeLinecap="round">
+            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(245,241,234,0.22)" strokeWidth="1.6" strokeLinecap="round">
               <path d="M30 4 Q 4 12, 14 38" />
               <path d="M9 32 L14 38 L20 33" />
             </svg>
@@ -2855,7 +2854,7 @@ function MainMenu({
           {/* Scan CTA when empty */}
           {showScanNow && !(projects && projects.length > 0) && (
             <div className="mt-8 flex justify-center">
-              <BouncyButton onClick={onScanNow} className="btn btn-cream" style={{ padding: '12px 28px', fontSize: 14 }}>
+              <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)' }}>
                 ✂ Scan now
               </BouncyButton>
             </div>
@@ -2866,14 +2865,14 @@ function MainMenu({
         <aside
           className={`flex flex-col ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}
           style={{
-            borderLeft: '1px solid rgba(255,248,234,0.09)',
-            background: 'rgba(0,0,0,0.07)',
+            borderLeft: '1px solid rgba(245,241,234,0.06)',
+            background: 'rgba(0,0,0,0.28)',
             minHeight: '100vh',
           }}
         >
           <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 30, fontWeight: 600, margin: 0, fontStyle: 'italic' }}>
+              <h2 className="font-display italic text-[var(--offwhite)]" style={{ fontSize: 30, fontWeight: 600, margin: 0, fontStyle: 'italic' }}>
                 Chats
               </h2>
             </div>
