@@ -2364,7 +2364,11 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   return (
     <main
       className="relative min-h-screen overflow-x-hidden"
-      style={{ background: 'var(--biscuit)' }}
+      style={{
+        backgroundImage: 'url(/offwhitebg.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top',
+      }}
     >
       {/* Gradient blobs */}
       <div
@@ -2454,18 +2458,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 34 }}>
               <BouncyButton
                 onClick={onEnter}
-                className="btn btn-tomato"
-                style={{
-                  padding: '19px 46px',
-                  fontSize: 22,
-                  fontFamily: 'var(--font-fraunces), Georgia, serif',
-                  fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
-                  fontWeight: 900,
-                  letterSpacing: '-0.02em',
-                  borderRadius: 9999,
-                }}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
               >
-                preview your cut
+                <Image src="/previewbutton.png" alt="preview your cut" width={431} height={126} style={{ height: 'auto', maxWidth: 280 }} />
               </BouncyButton>
               <span className="font-serif italic" style={{ fontSize: 20, color: 'var(--char)', opacity: 0.6 }}>
                 (it&rsquo;s free)
@@ -2473,23 +2468,28 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </div>
           </div>
 
-          {/* Right — mascot visual */}
+          {/* Right — blob visual */}
           <div
             style={{ position: 'relative', height: 480, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             className="anim-fade-in delay-200"
           >
-            <div
-              style={{
-                position: 'absolute',
-                width: 380,
-                height: 380,
-                borderRadius: '50%',
-                background: 'radial-gradient(circle at 40% 35%, rgba(217,78,58,0.16), rgba(255,212,184,0.32) 55%, transparent 80%)',
-                filter: 'blur(32px)',
-              }}
-            />
-            <div style={{ position: 'relative', width: 260, zIndex: 1, transform: 'rotate(8deg)', opacity: 0.9 }}>
-              <BarberMascot />
+            <div style={{ position: 'relative', width: 260, zIndex: 1 }}>
+              <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
+              <Image
+                src="/tape.png"
+                alt=""
+                width={308}
+                height={157}
+                style={{
+                  position: 'absolute',
+                  bottom: -18,
+                  right: -28,
+                  width: 104,
+                  height: 'auto',
+                  transform: 'rotate(-40deg)',
+                  transformOrigin: 'center center',
+                }}
+              />
             </div>
             {/* Decorative label */}
             <div
@@ -2515,18 +2515,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         {/* ── Steps ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginTop: 72 }}>
           {[
-            { num: '01', title: 'scan', desc: 'Take a quick selfie — front and back. Takes 30 seconds.' },
-            { num: '02', title: 'describe', desc: 'Tell us the cut you want, or browse popular styles.' },
-            { num: '03', title: 'show your barber', desc: 'Walk in with a live 3D preview on your screen.' },
-          ].map((s, i) => (
-            <div
-              key={s.num}
-              className={`card anim-fade-up delay-${(i + 1) * 100}`}
-              style={{ position: 'relative', overflow: 'hidden' }}
-            >
-              <div className="font-mono" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--smoke)', marginBottom: 14 }}>/ {s.num}</div>
-              <h3 className="type-chonk" style={{ fontSize: 40, color: 'var(--tomato)', lineHeight: 0.88, margin: 0 }}>{s.title}</h3>
-              <p className="font-sans" style={{ fontSize: 14, color: 'var(--char)', marginTop: 14, lineHeight: 1.55, opacity: 0.85 }}>{s.desc}</p>
+            { src: '/scanbutton.png', alt: 'Step 1: Scan', w: 488, h: 244, delay: 'delay-100' },
+            { src: '/describebutton.png', alt: 'Step 2: Describe', w: 485, h: 244, delay: 'delay-200' },
+            { src: '/showbarberbutton.png', alt: 'Step 3: Show your barber', w: 534, h: 244, delay: 'delay-300' },
+          ].map(s => (
+            <div key={s.src} className={`anim-fade-up ${s.delay}`}>
+              <Image src={s.src} alt={s.alt} width={s.w} height={s.h} style={{ width: '100%', height: 'auto' }} />
             </div>
           ))}
         </div>
