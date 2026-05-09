@@ -60,9 +60,9 @@ export default function Landing() {
       </section>
 
       {/* 3D Head Viewer */}
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 24px 80px' }}>
-        <div className="card" style={{ padding: 0, overflow: 'hidden', height: 480, borderRadius: 20 }}>
-          <HairScene params={DEFAULT_PARAMS} bg="#f6ecd8" />
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 24px 80px' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', height: 640, borderRadius: 20 }}>
+          <HairScene params={DEFAULT_PARAMS} bgImage="/blobbg.png" hideControls enableKeyRotation />
         </div>
       </div>
 

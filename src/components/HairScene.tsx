@@ -19,9 +19,9 @@ import * as THREE from 'three';
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
@@ -174,9 +174,43 @@ interface SceneProps {
   hairstepPlyUrl?: string;
   hairColor?: string;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
+  enableKeyRotation?: boolean;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairColor, onPrimaryHairBBoxReady, enableKeyRotation = false }: SceneProps) {
+  const orbitRef = useRef<any>(null);
+  const rotDir = useRef(0);
+
+  useEffect(() => {
+    if (!enableKeyRotation) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') rotDir.current = -1;
+      else if (e.key === 'ArrowRight') rotDir.current = 1;
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') rotDir.current = 0;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [enableKeyRotation]);
+
+  useFrame((_, delta) => {
+    if (!orbitRef.current || rotDir.current === 0) return;
+    const controls = orbitRef.current;
+    const angle = rotDir.current * delta * 0.5;
+    const offset = new THREE.Vector3().subVectors(controls.object.position, controls.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+    spherical.theta += angle;
+    spherical.makeSafe();
+    offset.setFromSpherical(spherical);
+    controls.object.position.copy(controls.target).add(offset);
+    controls.update();
+  });
+
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -187,6 +221,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
 
       {showSplat && (
         <Suspense fallback={null}>
+          <Splat src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
           <Splat src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
         </Suspense>
       )}
@@ -243,6 +278,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
       )}
 
       <OrbitControls
+        ref={orbitRef}
         enablePan={false}
         minPolarAngle={0}
         maxPolarAngle={Math.PI / 2 + (10 * Math.PI / 180)}
@@ -267,9 +303,12 @@ interface HairSceneProps {
   splatSrcOverride?:     string;
   disableDefaultHairLayers?: boolean;
   bg?:                   string;
+  bgImage?:              string;
+  hideControls?:         boolean;
+  enableKeyRotation?:    boolean;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers, bg = '#001f5b' }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, onPrimaryHairBBoxReady, splatSrcOverride, disableDefaultHairLayers, bg = '#001f5b', bgImage, hideControls = false, enableKeyRotation = false }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(true);
   const [showFlame, setShowFlame]     = useState(false);
@@ -372,12 +411,15 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={{
+      position: 'relative', width: '100%', height: '100%',
+      ...(bgImage ? { backgroundImage: `url(${bgImage})`, backgroundSize: '130%', backgroundPosition: 'center' } : {}),
+    }}>
       <Canvas
         shadows
-        gl={{ toneMapping: THREE.NoToneMapping }}
+        gl={{ toneMapping: THREE.NoToneMapping, ...(bgImage ? { alpha: true } : {}) }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
-        style={{ width: '100%', height: '100%', background: bg }}
+        style={{ width: '100%', height: '100%', background: bgImage ? 'transparent' : bg }}
       >
         <Scene
           showPolycam={showPolycam}
@@ -393,9 +435,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
           hairColor={hairColor}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
+          enableKeyRotation={enableKeyRotation}
         />
       </Canvas>
-      <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
+      {!hideControls && <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '90%', zIndex: 10, pointerEvents: 'auto' }}>
         <input type="color" value={hairColor} onChange={e => setHairColor(e.target.value)} title="Hair color" style={{ width: 28, height: 28, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 4 }} />
         <button onClick={() => setShowHair(v => !v)} style={{ ...btnStyle, opacity: showHair ? 1 : 0.4, outline: '2px solid #aaa' }}>
           {showHair ? 'hide hair' : 'show hair'}
@@ -415,7 +458,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
             {l.label}
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
