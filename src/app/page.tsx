@@ -22,7 +22,7 @@ const HairScene  = dynamic(() => import('@/components/HairScene'),  { ssr: false
 const ScanCamera = dynamic(() => import('@/components/ScanCamera'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
 
-type AppState = 'loading' | 'home' | 'scan' | 'hairEditLoop' | '3d';
+type AppState = 'loading' | 'landing' | 'home' | 'scan' | 'hairEditLoop' | '3d';
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
 /* ─────────────── Barber Mascot SVG ─────────────── */
@@ -1543,7 +1543,8 @@ interface ProjectDoc {
 function ProjectCard({
   project,
   onClick,
-}: { project: ProjectDoc; onClick: () => void }) {
+  rotate = 0,
+}: { project: ProjectDoc; onClick: () => void; rotate?: number }) {
   const [zooming, setZooming] = useState(false);
 
   const handleClick = () => {
@@ -1556,10 +1557,12 @@ function ProjectCard({
       onClick={handleClick}
       className={`relative rounded-2xl overflow-hidden flex flex-col text-left transition-shadow hover:shadow-xl ${zooming ? 'project-zoom' : ''}`}
       style={{
-        background: 'rgba(255,248,234,0.12)',
-        border: '1px solid rgba(255,248,234,0.2)',
+        background: 'rgba(255,248,234,0.14)',
+        border: '1px solid rgba(255,248,234,0.22)',
         aspectRatio: '3/4',
-        backdropFilter: 'blur(4px)',
+        backdropFilter: 'blur(6px)',
+        transform: rotate ? `rotate(${rotate}deg)` : undefined,
+        transition: 'transform 200ms ease, box-shadow 200ms ease',
       }}
     >
       {project.thumbnailUrl ? (
@@ -2356,6 +2359,229 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
   );
 }
 
+/* ─────────────── Landing Page ─────────────── */
+function LandingPage({ onEnter }: { onEnter: () => void }) {
+  return (
+    <main
+      className="relative min-h-screen overflow-x-hidden"
+      style={{ background: 'var(--biscuit)' }}
+    >
+      {/* Gradient blobs */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            'radial-gradient(ellipse 800px 500px at 10% 5%, rgba(255,212,184,0.55), transparent 60%),' +
+            'radial-gradient(ellipse 600px 400px at 90% 90%, rgba(107,153,191,0.14), transparent 60%),' +
+            'radial-gradient(ellipse 500px 350px at 55% 50%, rgba(255,231,176,0.3), transparent 70%)',
+        }}
+      />
+
+      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 56px 0' }}>
+
+        {/* ── Nav ── */}
+        <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
+          <InlineWordmark />
+          <div style={{ display: 'flex', gap: 32, color: 'var(--char)' }}>
+            {['how it works', 'features', 'cuts', 'reviews', 'faq'].map(l => (
+              <a
+                key={l}
+                href="#"
+                className="font-serif italic"
+                style={{ color: 'inherit', textDecoration: 'none', fontSize: 16, fontStyle: 'italic', opacity: 0.85, transition: 'opacity 140ms ease' }}
+                onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
+                onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.85')}
+              >
+                {l}
+              </a>
+            ))}
+          </div>
+          <button
+            className="btn-ink"
+            style={{ padding: '11px 20px', fontSize: 13, borderRadius: 10, gap: 8, display: 'inline-flex', alignItems: 'center' }}
+          >
+            download app
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ transform: 'rotate(90deg)' }}>
+              <path d="M2 5L7 10L12 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </nav>
+
+        {/* ── Hero ── */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.1fr 1fr',
+            gap: 56,
+            alignItems: 'center',
+            marginTop: 52,
+            position: 'relative',
+          }}
+        >
+          {/* Left */}
+          <div style={{ position: 'relative', zIndex: 2 }} className="anim-fade-up">
+            <h1
+              className="type-chonk"
+              style={{ fontSize: 'clamp(5.5rem, 11vw, 9.5rem)', color: 'var(--ink)', lineHeight: 0.84, margin: 0 }}
+            >
+              SHaPE
+              <br />
+              <em style={{ color: 'var(--tomato)' }}>UP</em>
+            </h1>
+            <p
+              className="font-sans"
+              style={{ fontSize: 11.5, letterSpacing: '0.2em', color: 'var(--char)', marginTop: 12, textTransform: 'uppercase', opacity: 0.7 }}
+            >
+              THE 3D HAIRCUT PREVIEW APP
+            </p>
+
+            <div
+              className="type-chonk"
+              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 36, color: 'var(--ink)', lineHeight: 1.05 }}
+            >
+              <div>see it first.</div>
+              <div>love it more.</div>
+            </div>
+
+            <p
+              className="font-serif italic"
+              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, marginTop: 22, lineHeight: 1.5 }}
+            >
+              Preview any cut in 3D before you sit down.
+              <br />No more guesswork. No more regrets.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 34 }}>
+              <BouncyButton
+                onClick={onEnter}
+                className="btn btn-tomato"
+                style={{
+                  padding: '19px 46px',
+                  fontSize: 22,
+                  fontFamily: 'var(--font-fraunces), Georgia, serif',
+                  fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+                  fontWeight: 900,
+                  letterSpacing: '-0.02em',
+                  borderRadius: 9999,
+                }}
+              >
+                preview your cut
+              </BouncyButton>
+              <span className="font-serif italic" style={{ fontSize: 20, color: 'var(--char)', opacity: 0.6 }}>
+                (it&rsquo;s free)
+              </span>
+            </div>
+          </div>
+
+          {/* Right — mascot visual */}
+          <div
+            style={{ position: 'relative', height: 480, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="anim-fade-in delay-200"
+          >
+            <div
+              style={{
+                position: 'absolute',
+                width: 380,
+                height: 380,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 40% 35%, rgba(217,78,58,0.16), rgba(255,212,184,0.32) 55%, transparent 80%)',
+                filter: 'blur(32px)',
+              }}
+            />
+            <div style={{ position: 'relative', width: 260, zIndex: 1, transform: 'rotate(8deg)', opacity: 0.9 }}>
+              <BarberMascot />
+            </div>
+            {/* Decorative label */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 60,
+                right: 40,
+                background: 'var(--cream)',
+                border: '1px solid rgba(42,32,26,0.1)',
+                borderRadius: 14,
+                padding: '10px 16px',
+                boxShadow: '0 10px 28px -8px rgba(42,32,26,0.18)',
+                transform: 'rotate(-3deg)',
+              }}
+            >
+              <p className="font-mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--smoke)', textTransform: 'uppercase', margin: 0 }}>today&rsquo;s prompt</p>
+              <p className="font-display italic" style={{ fontSize: 14, color: 'var(--ink)', margin: '4px 0 0', fontWeight: 500 }}>can you pull off a mullet?</p>
+              <button className="btn-ghost" style={{ marginTop: 8, fontSize: 11, padding: '4px 10px' }}>let&rsquo;s find out →</button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Steps ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginTop: 72 }}>
+          {[
+            { num: '01', title: 'scan', desc: 'Take a quick selfie — front and back. Takes 30 seconds.' },
+            { num: '02', title: 'describe', desc: 'Tell us the cut you want, or browse popular styles.' },
+            { num: '03', title: 'show your barber', desc: 'Walk in with a live 3D preview on your screen.' },
+          ].map((s, i) => (
+            <div
+              key={s.num}
+              className={`card anim-fade-up delay-${(i + 1) * 100}`}
+              style={{ position: 'relative', overflow: 'hidden' }}
+            >
+              <div className="font-mono" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--smoke)', marginBottom: 14 }}>/ {s.num}</div>
+              <h3 className="type-chonk" style={{ fontSize: 40, color: 'var(--tomato)', lineHeight: 0.88, margin: 0 }}>{s.title}</h3>
+              <p className="font-sans" style={{ fontSize: 14, color: 'var(--char)', marginTop: 14, lineHeight: 1.55, opacity: 0.85 }}>{s.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Footer strip ── */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gap: 24,
+            padding: '40px 0 44px',
+            marginTop: 32,
+            borderTop: '1px solid rgba(42,32,26,0.08)',
+            alignItems: 'center',
+          }}
+        >
+          {[
+            { icon: '✂', label: 'A HAIRCUT,\nCONSIDERED.' },
+            { icon: '🌐', label: 'BUILT FOR REAL PEOPLE.\nMADE FOR REAL LIFE.' },
+            { icon: '✌', label: 'LOOK BETTER.\nFEEL UNSTOPPABLE.' },
+          ].map(f => (
+            <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontSize: 20, color: 'var(--ink)', flexShrink: 0 }}>{f.icon}</span>
+              <span
+                className="font-sans"
+                style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--char)', lineHeight: 1.45, whiteSpace: 'pre-line', opacity: 0.75 }}
+              >
+                {f.label}
+              </span>
+            </div>
+          ))}
+          <div style={{ textAlign: 'right' }}>
+            <span className="font-serif italic" style={{ fontSize: 26, color: 'var(--ink)', fontStyle: 'italic' }}>Shape Up</span>
+            <sup className="font-sans" style={{ fontSize: 10, marginLeft: 3, verticalAlign: 'super', color: 'var(--char)' }}>™</sup>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  );
+}
+
+/* ─────────────── Dashboard stat pill ─────────────── */
+function DashStat({ icon, top, bottom }: { icon: React.ReactNode; top: string; bottom: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <span style={{ color: 'rgba(255,248,234,0.6)', fontSize: 18 }}>{icon}</span>
+      <div style={{ lineHeight: 1.15 }}>
+        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,248,234,0.4)', textTransform: 'uppercase' }}>{top}</div>
+        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>{bottom}</div>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────── Main Menu ─────────────── */
 function MainMenu({
   onAdd,
@@ -2378,6 +2604,9 @@ function MainMenu({
   const [rightVisible, setRightVisible] = useState(false);
   const [friendSearchOpen, setFriendSearchOpen] = useState(false);
   const [friendRequestsOpen, setFriendRequestsOpen] = useState(false);
+  const [activeNav, setActiveNav] = useState('home');
+  const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const t1 = setTimeout(() => setMenuVisible(true), 60);
@@ -2386,71 +2615,282 @@ function MainMenu({
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
 
+  const navItems: Array<{ key: string; icon: React.ReactNode; onClick?: () => void }> = [
+    {
+      key: 'home',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 12L12 3L21 12" /><path d="M5 10.5V20H9.5V15H14.5V20H19V10.5" />
+        </svg>
+      ),
+    },
+    {
+      key: 'explore',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
+        </svg>
+      ),
+    },
+    {
+      key: 'saved',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 3H19V21L12 15.5L5 21Z" />
+        </svg>
+      ),
+    },
+    {
+      key: 'studio',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="6" cy="17" r="3" /><circle cx="6" cy="7" r="3" />
+          <path d="M9 8.5L20 17" /><path d="M9 15.5L20 7" /><path d="M12 12H15" />
+        </svg>
+      ),
+    },
+    {
+      key: 'friends',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="8" cy="9" r="3" /><path d="M2 20C3 16 5 14 8 14C11 14 13 16 14 20" />
+          <circle cx="16" cy="10" r="2.4" /><path d="M15 20C16 17.5 17 16.5 18.5 16.5C20 16.5 21.5 17.5 22 20" />
+        </svg>
+      ),
+      onClick: () => setFriendSearchOpen(true),
+    },
+    {
+      key: 'settings',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2V5M12 19V22M2 12H5M19 12H22M4.22 4.22L6.34 6.34M17.66 17.66L19.78 19.78M4.22 19.78L6.34 17.66M17.66 6.34L19.78 4.22" />
+        </svg>
+      ),
+    },
+  ];
+
   return (
-    <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
-      {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-6 py-4 pointer-events-none">
-        <div className={`pointer-events-auto ${logoVisible ? 'slide-in-left' : 'opacity-0'}`}>
-          <InlineWordmark cream />
-        </div>
-        <div className={`pointer-events-auto flex flex-col items-end gap-2 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-          <ProfileMenu onRescan={onRescan} onAddFriend={() => setFriendSearchOpen(true)} pulse={profilePillPulse} />
-          <div className="flex items-center gap-2">
-            <span className="font-sans text-sm font-semibold" style={{ color: 'var(--cream)', opacity: 0.9 }}>Add Friends</span>
-            <button
-              onClick={() => setFriendSearchOpen(true)}
-              className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-              style={{
-                width: 36, height: 36, borderRadius: '50%',
-                background: 'rgba(255,248,234,0.15)',
-                border: '1.5px solid rgba(255,248,234,0.25)',
-                cursor: 'pointer', padding: 0,
-              }}
-            >
-              <img src="/addfriend.png" alt="Add Friend" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-            </button>
+    <main className="relative bg-tomato-shop overflow-hidden" style={{ minHeight: '100vh' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '88px 1fr 360px',
+          minHeight: '100vh',
+          opacity: menuVisible ? 1 : 0,
+          transition: 'opacity 400ms ease',
+        }}
+      >
+
+        {/* ── LEFT NAV RAIL ── */}
+        <aside
+          style={{
+            borderRight: '1px solid rgba(255,248,234,0.09)',
+            padding: '24px 10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            alignItems: 'center',
+            zIndex: 2,
+          }}
+        >
+          {/* Scissor mascot wordmark */}
+          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.8 }}>
+            <BarberMascot isStatic />
           </div>
-        </div>
-      </div>
 
-      {/* Content — two-column layout */}
-      <div className={`relative z-10 flex h-screen pt-16 ${menuVisible ? 'slide-in-left' : 'opacity-0'}`}>
+          {navItems.map(n => {
+            const isActive = n.key === activeNav;
+            return (
+              <button
+                key={n.key}
+                onClick={n.onClick ?? (() => setActiveNav(n.key))}
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: isActive ? 'rgba(245,204,107,0.18)' : 'transparent',
+                  color: isActive ? 'var(--honey)' : 'rgba(255,248,234,0.6)',
+                  padding: '10px 0',
+                  borderRadius: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 5,
+                  width: 66,
+                  fontSize: 9.5,
+                  fontFamily: 'var(--font-dmsans)',
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  outline: isActive ? '1.5px solid rgba(245,204,107,0.35)' : '1.5px solid transparent',
+                  transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
+                }}
+                onMouseEnter={e => {
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,248,234,0.06)';
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                }}
+              >
+                {n.icon}
+                <span>{n.key}</span>
+              </button>
+            );
+          })}
+        </aside>
 
-        {/* LEFT — Projects (flex-[3] ≈ 58% of space) */}
-        <div className="min-w-0 overflow-y-auto cozy-scroll px-10 py-6" style={{ flex: 3 }}>
-          <p className="font-serif font-bold text-[var(--cream)] text-2xl mb-6 text-center" style={{ opacity: 0.9 }}>
-            My Cuts
-          </p>
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 72, rowGap: 40 }}
-          >
-            <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
-            {projects?.map(p => (
-              <ProjectCard key={p._id} project={p} onClick={() => onOpenProject(p)} />
+        {/* ── MAIN CONTENT ── */}
+        <main className="min-w-0 overflow-y-auto cozy-scroll" style={{ padding: '24px 40px 80px', position: 'relative' }}>
+
+          {/* Top bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
+              <InlineWordmark cream />
+            </div>
+            <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
+              <DashStat icon="🔥" top="Weekly Streak" bottom="5 days" />
+              <div style={{ width: 1, height: 34, background: 'rgba(255,248,234,0.12)' }} />
+              <DashStat icon="✂" top="Cuts Previewed" bottom={`${projects?.length ?? 0} total`} />
+            </div>
+            <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
+              <button
+                onClick={() => setFriendSearchOpen(true)}
+                className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+                style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,248,234,0.12)', border: '1.5px solid rgba(255,248,234,0.18)', cursor: 'pointer', padding: 0 }}
+              >
+                <img src="/addfriend.png" alt="Add Friend" style={{ width: 19, height: 19, objectFit: 'contain' }} />
+              </button>
+              <ProfileMenu onRescan={onRescan} onAddFriend={() => setFriendSearchOpen(true)} pulse={profilePillPulse} />
+            </div>
+          </div>
+
+          {/* Title row */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
+            <div>
+              <h1
+                className="type-chonk"
+                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--cream)', lineHeight: 0.88 }}
+              >
+                My Cuts
+              </h1>
+              <p
+                className="font-serif italic"
+                style={{ fontSize: 17, color: 'rgba(255,248,234,0.55)', marginTop: 8, fontStyle: 'italic' }}
+              >
+                your styling studio. the cuts you{' '}
+                <span style={{ borderBottom: '2px solid rgba(255,248,234,0.4)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
+              </p>
+            </div>
+            <div style={{ flex: 1 }} />
+            {/* Search */}
+            <div style={{ position: 'relative', width: 248 }}>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,248,234,0.3)', fontSize: 14, pointerEvents: 'none' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
+                </svg>
+              </span>
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="find a style..."
+                style={{
+                  width: '100%',
+                  padding: '10px 14px 10px 38px',
+                  border: '1px solid rgba(255,248,234,0.18)',
+                  borderRadius: 9999,
+                  background: 'rgba(255,248,234,0.07)',
+                  fontSize: 14,
+                  color: 'var(--cream)',
+                  fontFamily: 'var(--font-fraunces), Georgia, serif',
+                  fontStyle: 'italic',
+                  backdropFilter: 'blur(4px)',
+                  outline: 'none',
+                }}
+                onFocus={e => (e.target.style.borderColor = 'rgba(255,248,234,0.4)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(255,248,234,0.18)')}
+              />
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+            {['all', 'drafts', 'approved', 'experiments', 'this month'].map(t => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                style={{
+                  padding: '7px 17px',
+                  border: `2px solid ${activeTab === t ? 'rgba(245,204,107,0.75)' : 'rgba(255,248,234,0.2)'}`,
+                  background: activeTab === t ? 'rgba(245,204,107,0.14)' : 'transparent',
+                  borderRadius: 9999,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-dmsans)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: activeTab === t ? 'var(--honey)' : 'rgba(255,248,234,0.6)',
+                  letterSpacing: '0.02em',
+                  transition: 'all 160ms ease',
+                }}
+              >
+                {t}
+              </button>
             ))}
+            <div style={{ flex: 1 }} />
+            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(255,248,234,0.4)', paddingRight: 6 }}>
+              start here!
+            </span>
+            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(255,248,234,0.35)" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M30 4 Q 4 12, 14 38" />
+              <path d="M9 32 L14 38 L20 33" />
+            </svg>
           </div>
+
+          {/* Project grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
+            {projects?.map((p, i) => (
+              <ProjectCard
+                key={p._id}
+                project={p}
+                onClick={() => onOpenProject(p)}
+                rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]}
+              />
+            ))}
+            <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
+          </div>
+
+          {/* Scan CTA when empty */}
           {showScanNow && !(projects && projects.length > 0) && (
             <div className="mt-8 flex justify-center">
-              <BouncyButton onClick={onScanNow} className="btn btn-cream" style={{ padding: '10px 22px', fontSize: 13 }}>
+              <BouncyButton onClick={onScanNow} className="btn btn-cream" style={{ padding: '12px 28px', fontSize: 14 }}>
                 ✂ Scan now
               </BouncyButton>
             </div>
           )}
-        </div>
+        </main>
 
-        {/* DIVIDER */}
-        <div style={{ width: 1, background: 'rgba(255,248,234,0.1)', flexShrink: 0, margin: '16px 0' }} />
-
-        {/* RIGHT — Friends panel (flex-[2] ≈ 42% of space) */}
-        <div className="min-w-0 flex flex-col" style={{ flex: 2 }}>
+        {/* ── RIGHT PANEL — Chats / Friends ── */}
+        <aside
+          className={`flex flex-col ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}
+          style={{
+            borderLeft: '1px solid rgba(255,248,234,0.09)',
+            background: 'rgba(0,0,0,0.07)',
+            minHeight: '100vh',
+          }}
+        >
+          <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 30, fontWeight: 600, margin: 0, fontStyle: 'italic' }}>
+                Chats
+              </h2>
+            </div>
+          </div>
           <FriendsPanel
             openSearch={friendSearchOpen}
             openRequests={friendRequestsOpen}
             onSearchClose={() => setFriendSearchOpen(false)}
             onRequestsClose={() => setFriendRequestsOpen(false)}
           />
-        </div>
+        </aside>
 
       </div>
     </main>
@@ -2831,7 +3271,12 @@ export default function Home() {
 
   // ─────────────── LOADING ───────────────
   if (appState === 'loading') {
-    return <LoadingScreen onDone={() => setAppState('home')} />;
+    return <LoadingScreen onDone={() => setAppState('landing')} />;
+  }
+
+  // ─────────────── LANDING ───────────────
+  if (appState === 'landing') {
+    return <LandingPage onEnter={() => setAppState('home')} />;
   }
 
   // ─────────────── HOME / MAIN MENU ───────────────

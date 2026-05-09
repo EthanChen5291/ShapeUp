@@ -1,0 +1,133 @@
+{
+  "allowedHttpHookUrls": [
+    "http://127.0.0.1:49825/packet28/claude-hook"
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": "manual|auto"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "/opt/homebrew/bin/Packet28 hook claude --root \"/Users/ethanchen/Documents/GitHub/ShapeUp\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear|compact"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "headers": {
+              "X-Packet28-Hook-Token": "c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d"
+            },
+            "type": "http",
+            "url": "http://127.0.0.1:49825/packet28/claude-hook"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "/opt/homebrew/bin/Packet28 hook claude --root \"/Users/ethanchen/Documents/GitHub/ShapeUp\"",
+            "type": "command"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm i:*)",
+      "Bash(npm run *)"
+    ]
+  }
+}

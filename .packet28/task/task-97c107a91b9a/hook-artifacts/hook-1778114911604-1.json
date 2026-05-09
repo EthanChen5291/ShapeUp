@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "cat",
+    "/Users/ethanchen/Documents/GitHub/ShapeUp/.claude/settings.json"
+  ],
+  "command": "cat /Users/ethanchen/Documents/GitHub/ShapeUp/.claude/settings.json",
+  "command_id": "runner-1778114911378",
+  "cwd": "/Users/ethanchen/Documents/GitHub/ShapeUp",
+  "exit_code": 0,
+  "stderr_bytes": 0,
+  "stderr_preview": "",
+  "stderr_spool_path": "/Users/ethanchen/Documents/GitHub/ShapeUp/.packet28/task/task-97c107a91b9a/hook-spool/runner-1778114911378-stderr.log",
+  "stdout_bytes": 3300,
+  "stdout_preview": "{ \"allowedHttpHookUrls\": [ \"http://127.0.0.1:49825/packet28/claude-hook\" ], \"hooks\": { \"PostToolUse\": [ { \"hooks\": [ { \"headers\": { \"X-Packet28-Hook-Token\": \"c48b325e04909741013bca92efb02749442d50112fcfb6ee1b44acae80666e5d\" }, \"type\": \"http\", \"url\": \"http://127.0.0.1:49825/packet28/claude-hook\" } ], \"matcher\": \".*\" } ], \"PostToolUseFailure\": [ { \"hooks\": [ { \"headers\": { \"X-Packet28-Hook-Token\"...",
+  "stdout_spool_path": "/Users/ethanchen/Documents/GitHub/ShapeUp/.packet28/task/task-97c107a91b9a/hook-spool/runner-1778114911378-stdout.log"
+}

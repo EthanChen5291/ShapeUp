@@ -1,0 +1,8 @@
+{
+  "pid": 67291,
+  "started_at_unix": 1778114863,
+  "ready_at_unix": 1778114863,
+  "socket_path": "/var/folders/46/rpsvmb5j3jg08jwrd5_dd4m00000gn/T/packet28d-sockets/p28-20e0d71c57f50bba.sock",
+  "workspace_root": "/Users/ethanchen/Documents/GitHub/ShapeUp",
+  "log_path": "/Users/ethanchen/Documents/GitHub/ShapeUp/.packet28/daemon/packet28d.log"
+}
