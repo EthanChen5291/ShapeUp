@@ -1558,20 +1558,20 @@ function ProjectCard({
       onClick={handleClick}
       className={`relative rounded-2xl overflow-hidden flex flex-col text-left transition-shadow hover:shadow-xl ${zooming ? 'project-zoom' : ''}`}
       style={{
-        background: 'var(--surface)',
-        border: '1px solid rgba(245,241,234,0.08)',
+        background: 'var(--parchment-card)',
+        border: '1px solid rgba(42,32,26,0.1)',
         aspectRatio: '3/4',
         transform: rotate ? `rotate(${rotate}deg)` : undefined,
         transition: 'transform 200ms ease, box-shadow 200ms ease',
-        boxShadow: '0 8px 24px -8px rgba(0,0,0,0.5)',
+        boxShadow: '0 8px 24px -8px rgba(42,32,26,0.18)',
       }}
     >
       {project.thumbnailUrl ? (
         <img src={project.thumbnailUrl} alt={project.name} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: '#111113' }}>
-          <div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}>
-            <BarberMascot isStatic color="rgba(245,241,234,0.9)" />
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--biscuit)' }}>
+          <div style={{ width: 40, opacity: 0.2, transform: 'rotate(186deg)' }}>
+            <BarberMascot isStatic color="rgba(42,32,26,0.85)" />
           </div>
         </div>
       )}
@@ -1615,18 +1615,18 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         onClick={onClick}
         className="relative rounded-2xl flex items-center justify-center transition-opacity hover:opacity-90"
         style={{
-          background: 'var(--surface)',
-          border: '1px dashed rgba(245,241,234,0.12)',
+          background: 'rgba(42,32,26,0.03)',
+          border: '1px dashed rgba(42,32,26,0.16)',
           aspectRatio: '3/4',
           width: '100%',
         }}
       >
         {/* outer span: shake/sink/wobble on impact; inner span: quick swell on impact */}
         <span
-          className="text-[var(--cream)] font-sans font-bold"
+          className="text-[var(--char)] font-sans font-bold"
           style={{
             fontSize: 32,
-            opacity: 0.7,
+            opacity: 0.5,
             lineHeight: 1,
             display: 'block',
             animation: isImpact
@@ -1671,10 +1671,10 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
           <span
             style={{
               fontSize: 19,
-              color: 'var(--cream)',
+              color: 'var(--ink)',
               fontFamily: 'var(--font-sans)',
               fontWeight: 700,
-              opacity: 0.9,
+              opacity: 0.75,
               whiteSpace: 'nowrap',
             }}
           >
@@ -1735,7 +1735,7 @@ function FriendRow({
 }) {
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ transition: 'background 150ms ease' }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,248,234,0.06)')}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(42,32,26,0.04)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       <button
@@ -1751,7 +1751,7 @@ function FriendRow({
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="font-sans text-[var(--cream)] text-sm font-semibold truncate">
+          <span className="font-sans text-[var(--ink)] text-sm font-semibold truncate">
             {friend.username}
           </span>
           {friend.unreadCount > 0 && (
@@ -1761,7 +1761,7 @@ function FriendRow({
           )}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="font-mono text-[10px]" style={{ color: 'rgba(255,248,234,0.35)' }}>
+          <span className="font-mono text-[10px]" style={{ color: 'rgba(42,32,26,0.45)' }}>
             ✂ {friend.cutCount} cuts
           </span>
           {friend.unreadCount > 0 && (
@@ -1784,17 +1784,17 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(42,32,26,0.08)' }}>
         <button
           onClick={onClose}
           className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.1)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--cream)' }}
+          style={{ width: 30, height: 30, background: 'rgba(42,32,26,0.07)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--ink)' }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
+        <span className="font-display italic text-[var(--ink)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
       </div>
       <div className="px-4 py-3 flex-shrink-0">
         <input
@@ -1803,14 +1803,14 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           placeholder="Search by username..."
           autoFocus
           className="w-full rounded-full px-4 py-2 font-sans text-sm outline-none"
-          style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
+          style={{ background: 'rgba(42,32,26,0.05)', border: '1px solid rgba(42,32,26,0.12)', color: 'var(--ink)' }}
         />
       </div>
       <div className="flex-1 overflow-y-auto cozy-scroll px-4">
         {results?.map(u => (
           <div key={u.userId} className="flex items-center gap-3 py-2.5">
             <AvatarCircle username={u.username} size={38} />
-            <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{u.username}</span>
+            <span className="flex-1 font-sans text-[var(--ink)] text-sm font-semibold truncate">{u.username}</span>
             <button
               onClick={async () => {
                 await sendRequest({ addresseeId: u.userId });
@@ -1819,8 +1819,8 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
               disabled={requested.has(u.userId)}
               className="font-sans text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full flex-shrink-0"
               style={{
-                background: requested.has(u.userId) ? 'rgba(255,248,234,0.1)' : 'var(--tomato)',
-                color: 'var(--cream)', border: 'none',
+                background: requested.has(u.userId) ? 'rgba(42,32,26,0.08)' : 'var(--coral)',
+                color: requested.has(u.userId) ? 'var(--char)' : 'var(--cream)', border: 'none',
                 cursor: requested.has(u.userId) ? 'default' : 'pointer',
               }}
             >
@@ -1829,10 +1829,10 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           </div>
         ))}
         {query.length >= 2 && results?.length === 0 && (
-          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(255,248,234,0.35)' }}>No users found</p>
+          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(42,32,26,0.35)' }}>No users found</p>
         )}
         {query.length < 2 && (
-          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(255,248,234,0.25)' }}>Type a username to search</p>
+          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(42,32,26,0.28)' }}>Type a username to search</p>
         )}
       </div>
     </div>
@@ -1852,22 +1852,22 @@ function RequestsAndSearchPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
-        <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(42,32,26,0.08)' }}>
+        <button onClick={onClose} className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
+        <span className="font-display italic text-[var(--ink)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
       </div>
 
       {requests && requests.length > 0 && (
-        <div className="px-4 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-          <p className="font-mono text-[9px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
+        <div className="px-4 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(42,32,26,0.08)' }}>
+          <p className="font-mono text-[9px] uppercase tracking-wider mb-2" style={{ color: 'rgba(42,32,26,0.38)' }}>Requests</p>
           {requests.map(req => (
             <div key={req.friendshipId} className="flex items-center gap-3 py-2">
               <AvatarCircle username={req.username} size={34} />
-              <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
+              <span className="flex-1 font-sans text-[var(--ink)] text-sm font-semibold truncate">{req.username}</span>
               <button
                 onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
                 className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
-                style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+                style={{ background: 'var(--coral)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
               >
                 Accept
               </button>
@@ -1883,14 +1883,14 @@ function RequestsAndSearchPanel({ onClose }: { onClose: () => void }) {
           placeholder="Search by username..."
           autoFocus
           className="w-full rounded-full px-4 py-2 font-sans text-sm outline-none"
-          style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
+          style={{ background: 'rgba(42,32,26,0.05)', border: '1px solid rgba(42,32,26,0.12)', color: 'var(--ink)' }}
         />
       </div>
       <div className="flex-1 overflow-y-auto cozy-scroll px-4">
         {results?.map(u => (
           <div key={u.userId} className="flex items-center gap-3 py-2.5">
             <AvatarCircle username={u.username} size={38} />
-            <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{u.username}</span>
+            <span className="flex-1 font-sans text-[var(--ink)] text-sm font-semibold truncate">{u.username}</span>
             <button
               onClick={async () => {
                 await sendRequest({ addresseeId: u.userId });
@@ -1899,8 +1899,8 @@ function RequestsAndSearchPanel({ onClose }: { onClose: () => void }) {
               disabled={requested.has(u.userId)}
               className="font-sans text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full flex-shrink-0"
               style={{
-                background: requested.has(u.userId) ? 'rgba(255,248,234,0.1)' : 'var(--tomato)',
-                color: 'var(--cream)', border: 'none',
+                background: requested.has(u.userId) ? 'rgba(42,32,26,0.08)' : 'var(--coral)',
+                color: requested.has(u.userId) ? 'var(--char)' : 'var(--cream)', border: 'none',
                 cursor: requested.has(u.userId) ? 'default' : 'pointer',
               }}
             >
@@ -1909,10 +1909,10 @@ function RequestsAndSearchPanel({ onClose }: { onClose: () => void }) {
           </div>
         ))}
         {query.length >= 2 && results?.length === 0 && (
-          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(255,248,234,0.35)' }}>No users found</p>
+          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(42,32,26,0.35)' }}>No users found</p>
         )}
         {query.length < 2 && (
-          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(255,248,234,0.25)' }}>Type a username to search</p>
+          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(42,32,26,0.28)' }}>Type a username to search</p>
         )}
       </div>
     </div>
@@ -1955,22 +1955,22 @@ function MessageThread({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(42,32,26,0.08)' }}>
         <button
           onClick={onClose}
           className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.1)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--cream)' }}
+          style={{ width: 30, height: 30, background: 'rgba(42,32,26,0.07)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--ink)' }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <AvatarCircle username={friendUsername} size={30} />
-        <span className="flex-1 font-sans text-[var(--cream)] font-semibold text-sm">{friendUsername}</span>
+        <span className="flex-1 font-sans text-[var(--ink)] font-semibold text-sm">{friendUsername}</span>
       </div>
       <div className="flex-1 overflow-y-auto cozy-scroll px-4 py-3 flex flex-col gap-2 min-h-0">
         {messages?.length === 0 && (
-          <p className="font-sans text-xs text-center py-6" style={{ color: 'rgba(255,248,234,0.3)' }}>Start the conversation ✂</p>
+          <p className="font-sans text-xs text-center py-6" style={{ color: 'rgba(42,32,26,0.35)' }}>Start the conversation ✂</p>
         )}
         {messages?.map((msg: { _id: string; senderId: Id<'users'>; text: string }) => {
           const isMine = msg.senderId === meId;
@@ -1979,8 +1979,8 @@ function MessageThread({
               <div
                 className="max-w-[82%] px-3 py-2 font-sans text-sm leading-snug"
                 style={{
-                  background: isMine ? 'var(--tomato)' : 'rgba(255,248,234,0.1)',
-                  color: 'var(--cream)',
+                  background: isMine ? 'var(--coral)' : 'rgba(42,32,26,0.07)',
+                  color: isMine ? 'var(--cream)' : 'var(--ink)',
                   borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                 }}
               >
@@ -1991,7 +1991,7 @@ function MessageThread({
         })}
         <div ref={bottomRef} />
       </div>
-      <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,248,234,0.08)' }}>
+      <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(42,32,26,0.08)' }}>
         <div className="flex items-center gap-2">
           <input
             value={text}
@@ -1999,7 +1999,7 @@ function MessageThread({
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
             placeholder="Message..."
             className="flex-1 rounded-full px-4 py-2 font-sans text-sm outline-none"
-            style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
+            style={{ background: 'rgba(42,32,26,0.05)', border: '1px solid rgba(42,32,26,0.12)', color: 'var(--ink)' }}
           />
           <button
             onClick={() => void handleSend()}
@@ -2068,19 +2068,19 @@ function FriendsPanel({
         transition: SLIDE,
       }}>
         <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-          <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 19, fontWeight: 600 }}>Friends</h2>
+          <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 19, fontWeight: 600 }}>Friends</h2>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setView('search')}
               className="font-sans text-[10px] font-bold uppercase tracking-wider rounded-full hover:scale-105 active:scale-95 transition-transform flex-shrink-0"
-              style={{ padding: '5px 10px', background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'rgba(255,248,234,0.7)', cursor: 'pointer', letterSpacing: '0.05em' }}
+              style={{ padding: '5px 10px', background: 'rgba(42,32,26,0.06)', border: '1px solid rgba(42,32,26,0.12)', color: 'rgba(42,32,26,0.65)', cursor: 'pointer', letterSpacing: '0.05em' }}
             >
               Add Friends
             </button>
             <button
               onClick={() => setView('requests')}
               className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-              style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', cursor: 'pointer', padding: 0 }}
+              style={{ width: 30, height: 30, background: 'rgba(42,32,26,0.06)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', padding: 0 }}
               title="Friend requests"
             >
               <img src="/addfriend.png" width={14} height={14} alt="" style={{ objectFit: 'contain' }} />
@@ -2090,21 +2090,21 @@ function FriendsPanel({
 
         {requests && requests.length > 0 && (
           <div className="px-4 mb-2 flex-shrink-0">
-            <p className="font-mono text-[9px] uppercase tracking-wider mb-1.5" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
+            <p className="font-mono text-[9px] uppercase tracking-wider mb-1.5" style={{ color: 'rgba(42,32,26,0.38)' }}>Requests</p>
             {requests.map(req => (
               <div key={req.friendshipId} className="flex items-center gap-3 py-2">
                 <AvatarCircle username={req.username} size={34} />
-                <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
+                <span className="flex-1 font-sans text-[var(--ink)] text-sm font-semibold truncate">{req.username}</span>
                 <button
                   onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
                   className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
-                  style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+                  style={{ background: 'var(--coral)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
                 >
                   Accept
                 </button>
               </div>
             ))}
-            <div style={{ height: 1, background: 'rgba(255,248,234,0.08)', margin: '6px 0 10px' }} />
+            <div style={{ height: 1, background: 'rgba(42,32,26,0.08)', margin: '6px 0 10px' }} />
           </div>
         )}
 
@@ -2112,7 +2112,7 @@ function FriendsPanel({
           {friends != null && friends.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 px-4 py-12" style={{ opacity: 0.38 }}>
               <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
-              <p className="font-sans text-[var(--cream)] text-xs text-center leading-snug">No friends yet.<br/>Add some to see their cuts!</p>
+              <p className="font-sans text-[var(--ink)] text-xs text-center leading-snug">No friends yet.<br/>Add some to see their cuts!</p>
             </div>
           )}
           {friends?.map(f => (
@@ -2196,7 +2196,7 @@ function FriendProfileModal({
   const cardW    = isUnpacking ? '36vw' : isRect ? '280px' : '64px';
   const cardH    = isUnpacking ? '90vh' : isRect ? '380px' : '64px';
   const cardR    = isUnpacking ? 26 : isRect ? 22 : 9999;
-  const cardBg   = isCircle ? avatarBgColor(friend.username) : '#201a13';
+  const cardBg   = isCircle ? avatarBgColor(friend.username) : 'var(--parchment-raised)';
 
   return (
     <div
@@ -2218,7 +2218,7 @@ function FriendProfileModal({
           height: cardH,
           borderRadius: cardR,
           background: cardBg,
-          boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)',
+          boxShadow: '0 40px 100px -24px rgba(42,32,26,0.25), 0 0 0 1px rgba(42,32,26,0.08)',
           overflow: 'hidden',
           opacity: stage === 'init' || isClosing ? 0 : 1,
           transition: [
@@ -2256,13 +2256,13 @@ function FriendProfileModal({
             <button
               onClick={close}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full transition-all"
-              style={{ background: 'rgba(255,248,234,0.1)', color: 'rgba(255,248,234,0.6)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+              style={{ background: 'rgba(42,32,26,0.07)', color: 'rgba(42,32,26,0.5)', border: 'none', cursor: 'pointer', fontSize: 13 }}
             >✕</button>
           )}
           <AvatarCircle username={friend.username} size={isUnpacking ? 76 : 60} />
           <div className="text-center">
-            <h3 className="font-display italic text-[var(--cream)]" style={{ fontSize: isUnpacking ? 24 : 20, fontWeight: 600 }}>{friend.username}</h3>
-            <p className="font-mono mt-1" style={{ fontSize: 12, color: 'rgba(255,248,234,0.45)' }}>✂ {friend.cutCount} cuts</p>
+            <h3 className="font-display italic text-[var(--ink)]" style={{ fontSize: isUnpacking ? 24 : 20, fontWeight: 600 }}>{friend.username}</h3>
+            <p className="font-mono mt-1" style={{ fontSize: 12, color: 'rgba(42,32,26,0.45)' }}>✂ {friend.cutCount} cuts</p>
           </div>
           <button
             className="btn btn-tomato"
@@ -2285,16 +2285,16 @@ function FriendProfileModal({
             right: '5vw',
             height: '90vh',
             borderRadius: 26,
-            background: '#201a13',
-            boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)',
+            background: 'var(--parchment-card)',
+            boxShadow: '0 40px 100px -24px rgba(42,32,26,0.2), 0 0 0 1px rgba(42,32,26,0.08)',
             overflow: 'hidden',
             opacity: isFull ? 1 : 0,
             transform: isFull ? 'translateX(0)' : 'translateX(36px)',
             transition: 'opacity 420ms ease 200ms, transform 520ms cubic-bezier(.2,.85,.2,1) 150ms',
           }}
         >
-          <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid rgba(255,248,234,0.07)' }}>
-            <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 20, fontWeight: 600 }}>
+          <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid rgba(42,32,26,0.08)' }}>
+            <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 20, fontWeight: 600 }}>
               {friend.username}&rsquo;s cuts
             </h2>
           </div>
@@ -2302,7 +2302,7 @@ function FriendProfileModal({
             {projects?.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ opacity: 0.35 }}>
                 <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
-                <p className="font-sans text-[var(--cream)] text-xs">No cuts yet</p>
+                <p className="font-sans text-[var(--ink)] text-xs">No cuts yet</p>
               </div>
             )}
             <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -2567,10 +2567,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 function DashStat({ icon, top, bottom }: { icon: React.ReactNode; top: string; bottom: string }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-      <span style={{ color: 'rgba(245,241,234,0.5)', fontSize: 18 }}>{icon}</span>
+      <span style={{ color: 'rgba(42,32,26,0.45)', fontSize: 18 }}>{icon}</span>
       <div style={{ lineHeight: 1.15 }}>
-        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(245,241,234,0.35)', textTransform: 'uppercase' }}>{top}</div>
-        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--offwhite)' }}>{bottom}</div>
+        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(42,32,26,0.38)', textTransform: 'uppercase' }}>{top}</div>
+        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{bottom}</div>
       </div>
     </div>
   );
@@ -2665,7 +2665,7 @@ function MainMenu({
   ];
 
   return (
-    <main className="relative bg-void overflow-hidden" style={{ minHeight: '100vh' }}>
+    <main className="relative bg-parchment overflow-hidden" style={{ minHeight: '100vh' }}>
       <div
         style={{
           display: 'grid',
@@ -2679,7 +2679,7 @@ function MainMenu({
         {/* ── LEFT NAV RAIL ── */}
         <aside
           style={{
-            borderRight: '1px solid rgba(245,241,234,0.06)',
+            borderRight: '1px solid rgba(42,32,26,0.08)',
             padding: '24px 10px',
             display: 'flex',
             flexDirection: 'column',
@@ -2689,8 +2689,8 @@ function MainMenu({
           }}
         >
           {/* Scissor mascot wordmark */}
-          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.7 }}>
-            <BarberMascot isStatic color="rgba(245,241,234,0.85)" />
+          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.55 }}>
+            <BarberMascot isStatic color="rgba(42,32,26,0.85)" />
           </div>
 
           {navItems.map(n => {
@@ -2703,7 +2703,7 @@ function MainMenu({
                   border: 'none',
                   cursor: 'pointer',
                   background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
-                  color: isActive ? 'var(--coral)' : 'rgba(245,241,234,0.45)',
+                  color: isActive ? 'var(--coral)' : 'rgba(42,32,26,0.38)',
                   padding: '10px 0',
                   borderRadius: 12,
                   display: 'flex',
@@ -2720,7 +2720,7 @@ function MainMenu({
                   transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
                 }}
                 onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(245,241,234,0.05)';
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
                 }}
                 onMouseLeave={e => {
                   if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
@@ -2734,23 +2734,23 @@ function MainMenu({
         </aside>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="min-w-0 overflow-y-auto cozy-scroll-dark" style={{ padding: '24px 40px 80px', position: 'relative' }}>
+        <main className="min-w-0 overflow-y-auto cozy-scroll" style={{ padding: '24px 40px 80px', position: 'relative' }}>
 
           {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
-              <InlineWordmark cream />
+              <InlineWordmark />
             </div>
             <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
               <DashStat icon="🔥" top="Weekly Streak" bottom="5 days" />
-              <div style={{ width: 1, height: 34, background: 'rgba(245,241,234,0.09)' }} />
+              <div style={{ width: 1, height: 34, background: 'rgba(42,32,26,0.1)' }} />
               <DashStat icon="✂" top="Cuts Previewed" bottom={`${projects?.length ?? 0} total`} />
             </div>
             <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
               <button
                 onClick={() => setFriendSearchOpen(true)}
                 className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-                style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(245,241,234,0.07)', border: '1.5px solid rgba(245,241,234,0.1)', cursor: 'pointer', padding: 0 }}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(42,32,26,0.06)', border: '1.5px solid rgba(42,32,26,0.1)', cursor: 'pointer', padding: 0 }}
               >
                 <img src="/addfriend.png" alt="Add Friend" style={{ width: 19, height: 19, objectFit: 'contain' }} />
               </button>
@@ -2763,22 +2763,22 @@ function MainMenu({
             <div>
               <h1
                 className="type-chonk"
-                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--offwhite)', lineHeight: 0.88 }}
+                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}
               >
                 My Cuts
               </h1>
               <p
                 className="font-serif italic"
-                style={{ fontSize: 17, color: 'rgba(245,241,234,0.42)', marginTop: 8, fontStyle: 'italic' }}
+                style={{ fontSize: 17, color: 'rgba(42,32,26,0.45)', marginTop: 8, fontStyle: 'italic' }}
               >
                 your styling studio. the cuts you{' '}
-                <span style={{ borderBottom: '2px solid rgba(245,241,234,0.28)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
+                <span style={{ borderBottom: '2px solid rgba(42,32,26,0.25)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
               </p>
             </div>
             <div style={{ flex: 1 }} />
             {/* Search */}
             <div style={{ position: 'relative', width: 248 }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(245,241,234,0.25)', fontSize: 14, pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.3)', fontSize: 14, pointerEvents: 'none' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                   <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
                 </svg>
@@ -2790,17 +2790,17 @@ function MainMenu({
                 style={{
                   width: '100%',
                   padding: '10px 14px 10px 38px',
-                  border: '1px solid rgba(245,241,234,0.1)',
+                  border: '1px solid rgba(42,32,26,0.12)',
                   borderRadius: 9999,
-                  background: 'rgba(245,241,234,0.04)',
+                  background: 'rgba(42,32,26,0.04)',
                   fontSize: 14,
-                  color: 'var(--offwhite)',
+                  color: 'var(--ink)',
                   fontFamily: 'var(--font-fraunces), Georgia, serif',
                   fontStyle: 'italic',
                   outline: 'none',
                 }}
                 onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(245,241,234,0.1)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.12)')}
               />
             </div>
           </div>
@@ -2813,14 +2813,14 @@ function MainMenu({
                 onClick={() => setActiveTab(t)}
                 style={{
                   padding: '7px 17px',
-                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(245,241,234,0.1)'}`,
+                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.12)'}`,
                   background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent',
                   borderRadius: 9999,
                   cursor: 'pointer',
                   fontFamily: 'var(--font-dmsans)',
                   fontWeight: 700,
                   fontSize: 13,
-                  color: activeTab === t ? 'var(--coral)' : 'rgba(245,241,234,0.38)',
+                  color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.42)',
                   letterSpacing: '0.02em',
                   transition: 'all 160ms ease',
                 }}
@@ -2829,10 +2829,10 @@ function MainMenu({
               </button>
             ))}
             <div style={{ flex: 1 }} />
-            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(245,241,234,0.28)', paddingRight: 6 }}>
+            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(42,32,26,0.3)', paddingRight: 6 }}>
               start here!
             </span>
-            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(245,241,234,0.22)" strokeWidth="1.6" strokeLinecap="round">
+            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(42,32,26,0.2)" strokeWidth="1.6" strokeLinecap="round">
               <path d="M30 4 Q 4 12, 14 38" />
               <path d="M9 32 L14 38 L20 33" />
             </svg>
@@ -2865,14 +2865,14 @@ function MainMenu({
         <aside
           className={`flex flex-col ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}
           style={{
-            borderLeft: '1px solid rgba(245,241,234,0.06)',
-            background: 'rgba(0,0,0,0.28)',
+            borderLeft: '1px solid rgba(42,32,26,0.08)',
+            background: 'rgba(247,243,236,0.7)',
             minHeight: '100vh',
           }}
         >
           <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h2 className="font-display italic text-[var(--offwhite)]" style={{ fontSize: 30, fontWeight: 600, margin: 0, fontStyle: 'italic' }}>
+              <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 30, fontWeight: 600, margin: 0, fontStyle: 'italic' }}>
                 Chats
               </h2>
             </div>
