@@ -2359,8 +2359,232 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
   );
 }
 
+/* ─────────────── Face Video Swiper ─────────────── */
+const FACE_VIDS = ['a','b','c','d','e','f'].map(l => `/landing_face1/face1${l}.mov`);
+
+function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef }: { onSwipeUp?: () => void; onSwipeDown?: () => void; scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null> }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeRef   = useRef(0);
+  const videoRefs   = useRef<(HTMLVideoElement | null)[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+  const wheelLock   = useRef(false);
+  const onSwipeUpRef = useRef(onSwipeUp);
+  const onSwipeDownRef = useRef(onSwipeDown);
+  useEffect(() => { onSwipeUpRef.current = onSwipeUp; }, [onSwipeUp]);
+  useEffect(() => { onSwipeDownRef.current = onSwipeDown; }, [onSwipeDown]);
+
+  const switchTo = useCallback((newIdx: number) => {
+    const cur  = videoRefs.current[activeRef.current];
+    const next = videoRefs.current[newIdx];
+    if (cur && next) {
+      next.currentTime = cur.currentTime;
+      next.play().catch(() => {});
+    }
+    activeRef.current = newIdx;
+    setActiveIdx(newIdx);
+  }, []);
+
+  const goNext = useCallback(() => { switchTo((activeRef.current + 1) % FACE_VIDS.length); onSwipeUpRef.current?.(); }, [switchTo]);
+  const goPrev = useCallback(() => { switchTo((activeRef.current - 1 + FACE_VIDS.length) % FACE_VIDS.length); onSwipeDownRef.current?.(); }, [switchTo]);
+
+  useEffect(() => {
+    if (scrollRef) scrollRef.current = { goNext, goPrev };
+  }, [scrollRef, goNext, goPrev]);
+
+  // Native wheel listener with { passive: false } so we can preventDefault
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        wheelLock.current = false;
+        idleTimer = null;
+      }, 80);
+      if (wheelLock.current) return;
+      if (Math.abs(e.deltaY) < 5) return;
+      wheelLock.current = true;
+      if (e.deltaY > 0) goNext();
+      else goPrev();
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => { el.removeEventListener('wheel', handler); if (idleTimer) clearTimeout(idleTimer); };
+  }, [goNext, goPrev]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    const delta = touchStartY.current - e.changedTouches[0].clientY;
+    if (delta > 40) goNext();
+    else if (delta < -40) goPrev();
+  }, [goNext, goPrev]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 2,
+      } as React.CSSProperties}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Visual layer: clip top 10% + blob mask. Kept separate from the event container so wheel/touch hit area is unaffected. */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        clipPath: 'inset(10% 0 0 0)',
+        WebkitMaskImage: 'url(/blob.png)',
+        WebkitMaskSize: '100% 100%',
+        WebkitMaskRepeat: 'no-repeat',
+        maskImage: 'url(/blob.png)',
+        maskSize: '100% 100%',
+        maskRepeat: 'no-repeat',
+        pointerEvents: 'none',
+      } as React.CSSProperties}>
+        {/* 15% scale-down wrapper */}
+        <div style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+          {FACE_VIDS.map((src, i) => (
+            <video
+              key={src}
+              ref={el => { videoRefs.current[i] = el; }}
+              src={src}
+              loop
+              muted
+              autoPlay
+              playsInline
+              preload="auto"
+              style={{
+                position: 'absolute',
+                top: 0, left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: i === activeIdx ? 1 : 0,
+                transition: 'opacity 60ms ease',
+                transform: i === 0 || i === 2 ? 'scale(0.93)' : i === 3 ? 'scale(0.97)' : undefined,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Scroll Arrows ─────────────── */
+function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTriggerRef: React.MutableRefObject<((dir: 'up' | 'down') => void) | null>; onClickUp?: () => void; onClickDown?: () => void }) {
+  const upContainerRef = useRef<HTMLDivElement>(null);
+  const downContainerRef = useRef<HTMLDivElement>(null);
+  const [upHovered, setUpHovered] = useState(false);
+  const [downHovered, setDownHovered] = useState(false);
+
+  useEffect(() => {
+    let rafId: number;
+    let t = 0;
+    const dt = 1 / 60;
+    const S = 94;
+    const EXIT_TARGET = S * 1.5;
+
+    const es = {
+      upActive: false, upY: 0, upOpacity: 1, upReturning: false, upReturnDelay: 0,
+      downActive: false, downY: 0, downOpacity: 1, downReturning: false, downReturnDelay: 0,
+    };
+
+    swipeTriggerRef.current = (dir: 'up' | 'down') => {
+      if (dir === 'up') {
+        if (es.downReturning) es.downReturning = false;
+        es.downActive = true; es.downY = 0; es.downOpacity = 1;
+      } else {
+        if (es.upReturning) es.upReturning = false;
+        es.upActive = true; es.upY = 0; es.upOpacity = 1;
+      }
+    };
+
+    const tick = () => {
+      t += dt;
+
+      const upFloatY = Math.sin(t * 0.63) * 6.5 + Math.sin(t * 1.27 + 0.4) * 1.8;
+      const upFloatX = Math.sin(t * 0.41 + 0.8) * 2.5;
+      const downFloatY = Math.sin(t * 0.71 + 1.9) * 6.5 + Math.sin(t * 1.15 + 0.9) * 1.8;
+      const downFloatX = Math.sin(t * 0.47 + 1.4) * 2.5;
+
+      // Exit animations
+      if (es.upActive) {
+        es.upY += (-EXIT_TARGET - es.upY) * 0.1;
+        es.upOpacity -= 0.07;
+        if (es.upOpacity <= 0) { es.upActive = false; es.upOpacity = 0; es.upY = 0; es.upReturning = true; es.upReturnDelay = 0.35; }
+      }
+      if (es.upReturning) {
+        es.upReturnDelay -= dt;
+        if (es.upReturnDelay <= 0) { es.upOpacity += 0.04; if (es.upOpacity >= 1) { es.upOpacity = 1; es.upReturning = false; } }
+      }
+      if (es.downActive) {
+        es.downY += (EXIT_TARGET - es.downY) * 0.1;
+        es.downOpacity -= 0.07;
+        if (es.downOpacity <= 0) { es.downActive = false; es.downOpacity = 0; es.downY = 0; es.downReturning = true; es.downReturnDelay = 0.35; }
+      }
+      if (es.downReturning) {
+        es.downReturnDelay -= dt;
+        if (es.downReturnDelay <= 0) { es.downOpacity += 0.04; if (es.downOpacity >= 1) { es.downOpacity = 1; es.downReturning = false; } }
+      }
+
+      if (upContainerRef.current) {
+        upContainerRef.current.style.transform = `translate(${upFloatX}px, ${upFloatY + es.upY}px)`;
+        upContainerRef.current.style.opacity = String(Math.max(0, es.upOpacity));
+      }
+      if (downContainerRef.current) {
+        downContainerRef.current.style.transform = `translate(${downFloatX}px, ${downFloatY + es.downY}px)`;
+        downContainerRef.current.style.opacity = String(Math.max(0, es.downOpacity));
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(rafId); swipeTriggerRef.current = null; };
+  }, [swipeTriggerRef]);
+
+  const SH = 94;
+  const SW = 170;
+  // left: 30 + 200% of SW (170) = 370; tops derived from centered pair ± vertical shifts
+  const arrowLeft = 218.5;
+
+  return (
+    <>
+      <div
+        ref={upContainerRef}
+        onMouseEnter={() => setUpHovered(true)}
+        onMouseLeave={() => setUpHovered(false)}
+        onClick={onClickUp}
+        style={{ position: 'absolute', left: arrowLeft, top: 'calc(50% - 314.4px)', width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={upHovered ? "/arrows/arrowup_highlighted.png" : "/arrows/arrowup.png"} alt="scroll up" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: upHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
+      </div>
+      <div
+        ref={downContainerRef}
+        onMouseEnter={() => setDownHovered(true)}
+        onMouseLeave={() => setDownHovered(false)}
+        onClick={onClickDown}
+        style={{ position: 'absolute', left: arrowLeft, top: 'calc(50% + 258px)', width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={downHovered ? "/arrows/arrowdown_highlighted.png" : "/arrows/arrowdown.png"} alt="scroll down" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: downHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
+      </div>
+    </>
+  );
+}
+
 /* ─────────────── Landing Page ─────────────── */
 function LandingPage({ onEnter }: { onEnter: () => void }) {
+  const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
+  const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
   return (
     <main
       className="relative min-h-screen overflow-x-hidden"
@@ -2479,6 +2703,16 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           >
             <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
+              <FaceVideoSwiper
+                onSwipeUp={() => swipeTriggerRef.current?.('up')}
+                onSwipeDown={() => swipeTriggerRef.current?.('down')}
+                scrollRef={faceScrollRef}
+              />
+              <ScrollArrows
+                swipeTriggerRef={swipeTriggerRef}
+                onClickUp={() => faceScrollRef.current?.goPrev()}
+                onClickDown={() => faceScrollRef.current?.goNext()}
+              />
               <Image
                 src="/tape.png"
                 alt=""
@@ -2486,12 +2720,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 height={157}
                 style={{
                   position: 'absolute',
-                  bottom: -36,
-                  right: 38,
-                  width: 312,
-                  height: 'auto',
+                  bottom: -72.6,
+                  right: 91.04,
+                  width: 405.6,
+                  height: 183,
                   transform: 'rotate(10deg)',
                   transformOrigin: 'center center',
+                  zIndex: 3,
                 }}
               />
             </div>
