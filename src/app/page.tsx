@@ -2385,7 +2385,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
         {/* ── Nav ── */}
         <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
-          <InlineWordmark />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28 }}><BarberMascot isStatic color="#2a201a" /></div>
+            <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)' }}>
+              shape<em style={{ color: 'var(--tomato)' }}>up</em>
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: 32, color: 'var(--char)' }}>
             {['how it works', 'features', 'cuts', 'reviews', 'faq'].map(l => (
               <a
@@ -2423,22 +2428,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           }}
         >
           {/* Left */}
-          <div style={{ position: 'relative', zIndex: 2 }} className="anim-fade-up">
-            <h1
-              className="type-chonk"
-              style={{ fontSize: 'clamp(5.5rem, 11vw, 9.5rem)', color: 'var(--ink)', lineHeight: 0.84, margin: 0 }}
-            >
-              SHaPE
-              <br />
-              <em style={{ color: 'var(--tomato)' }}>UP</em>
-            </h1>
-            <p
-              className="font-sans"
-              style={{ fontSize: 11.5, letterSpacing: '0.2em', color: 'var(--char)', marginTop: 12, textTransform: 'uppercase', opacity: 0.7 }}
-            >
-              THE 3D HAIRCUT PREVIEW APP
-            </p>
-
+          <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }} className="anim-fade-up">
             <div
               className="type-chonk"
               style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 36, color: 'var(--ink)', lineHeight: 1.05 }}
@@ -2455,25 +2445,39 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               <br />No more guesswork. No more regrets.
             </p>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 34 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22, marginTop: 34 }}>
               <BouncyButton
                 onClick={onEnter}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative', display: 'inline-block' }}
               >
-                <Image src="/previewbutton.png" alt="preview your cut" width={431} height={126} style={{ height: 'auto', maxWidth: 280 }} />
+                <Image src="/previewbutton.png" alt="preview your cut" width={431} height={126} style={{ height: 'auto', maxWidth: 364, display: 'block' }} />
+                <span
+                  className="font-sans"
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '45%',
+                    transform: 'translate(-50%, -50%) rotate(-4deg)',
+                    fontSize: 23,
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    letterSpacing: '0.01em',
+                    pointerEvents: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  preview your cut
+                </span>
               </BouncyButton>
-              <span className="font-serif italic" style={{ fontSize: 20, color: 'var(--char)', opacity: 0.6 }}>
-                (it&rsquo;s free)
-              </span>
             </div>
           </div>
 
           {/* Right — blob visual */}
           <div
-            style={{ position: 'relative', height: 480, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             className="anim-fade-in delay-200"
           >
-            <div style={{ position: 'relative', width: 260, zIndex: 1 }}>
+            <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
               <Image
                 src="/tape.png"
@@ -2482,32 +2486,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 height={157}
                 style={{
                   position: 'absolute',
-                  bottom: -18,
-                  right: -28,
-                  width: 104,
+                  bottom: -36,
+                  right: 38,
+                  width: 312,
                   height: 'auto',
-                  transform: 'rotate(-40deg)',
+                  transform: 'rotate(10deg)',
                   transformOrigin: 'center center',
                 }}
               />
-            </div>
-            {/* Decorative label */}
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 60,
-                right: 40,
-                background: 'var(--cream)',
-                border: '1px solid rgba(42,32,26,0.1)',
-                borderRadius: 14,
-                padding: '10px 16px',
-                boxShadow: '0 10px 28px -8px rgba(42,32,26,0.18)',
-                transform: 'rotate(-3deg)',
-              }}
-            >
-              <p className="font-mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--smoke)', textTransform: 'uppercase', margin: 0 }}>today&rsquo;s prompt</p>
-              <p className="font-display italic" style={{ fontSize: 14, color: 'var(--ink)', margin: '4px 0 0', fontWeight: 500 }}>can you pull off a mullet?</p>
-              <button className="btn-ghost" style={{ marginTop: 8, fontSize: 11, padding: '4px 10px' }}>let&rsquo;s find out →</button>
             </div>
           </div>
         </div>
