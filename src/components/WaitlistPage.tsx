@@ -311,11 +311,11 @@ export function WaitlistPage() {
             <span>May 16th, 2026</span>
             <span>·</span>
             <a
-              href="mailto:shapeup.ai@gmail.com"
+              href="mailto:unchopped.ai@gmail.com"
               className="hover:text-[var(--cream)] transition-colors"
               style={{ textDecoration: 'none' }}
             >
-              questions? shapeup.ai@gmail.com
+              questions? unchopped.ai@gmail.com
             </a>
           </div>
         </div>

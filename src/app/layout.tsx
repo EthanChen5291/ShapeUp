@@ -27,7 +27,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ShapeUp · The 3D Barber',
+  title: 'Un-Chopped · The 3D Barber',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
 };
 

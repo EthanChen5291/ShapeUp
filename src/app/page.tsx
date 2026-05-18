@@ -50,7 +50,7 @@ function BarberMascot({ snap = false, size = 'full', isStatic = false }: { snap?
   );
 }
 
-/* ─────────────── Inline wordmark (✂ Shape Up) ─────────────── */
+/* ─────────────── Inline wordmark (✂ Un-Chopped) ─────────────── */
 function InlineWordmark({ cream = false, small = false }: { cream?: boolean; small?: boolean }) {
   const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
   const textSize = small ? 'text-[13px]' : 'text-[18px]';
@@ -60,7 +60,7 @@ function InlineWordmark({ cream = false, small = false }: { cream?: boolean; sma
         <BarberMascot />
       </span>
       <span style={{ fontWeight: 700, letterSpacing: '0.06em' }}>
-        Shape <span style={{ display: 'inline' }}>Up</span>
+        Un-Chopped
       </span>
     </div>
   );
@@ -220,11 +220,9 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
         </div>
         <h1
           className="type-chonk text-[var(--ink)] select-none text-center"
-          style={{ fontSize: 'clamp(4rem, 13vw, 8rem)', lineHeight: 0.9 }}
+          style={{ fontSize: 'clamp(3rem, 9vw, 6rem)', lineHeight: 0.9 }}
         >
-          SHaPE
-          <br />
-          <em style={{ color: 'var(--tomato)' }}>UP</em>
+          <em style={{ color: 'var(--tomato)' }}>Un-Chopped</em>
         </h1>
       </div>
     </main>

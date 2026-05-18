@@ -191,7 +191,7 @@ export default function ScanSetup({ onComplete }: ScanSetupProps) {
       <div className="bg-gray-900 rounded-2xl p-8 w-full max-w-md flex flex-col gap-6 shadow-2xl">
 
         <div>
-          <h1 className="text-2xl font-bold text-white">ShapeUp</h1>
+          <h1 className="text-2xl font-bold text-white">Un-Chopped</h1>
           <p className="text-gray-400 text-sm mt-1">Scan your face to get started</p>
         </div>
 
@@ -226,7 +226,7 @@ export default function ScanSetup({ onComplete }: ScanSetupProps) {
                 <div className="w-3 h-3 rounded-full bg-blue-400 animate-pulse" />
                 <p className="text-white font-medium">Waiting for face scan…</p>
                 <p className="text-gray-400 text-xs leading-relaxed">
-                  Open the ShapeUp iOS app on your iPhone and tap <strong className="text-gray-300">Capture Face</strong>.<br />
+                  Open the Un-Chopped iOS app on your iPhone and tap <strong className="text-gray-300">Capture Face</strong>.<br />
                   This screen will advance automatically.
                 </p>
               </>
