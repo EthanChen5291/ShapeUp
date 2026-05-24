@@ -156,6 +156,44 @@ const HAIR_LAYERS: HairLayer[] = [
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
+// ── Prebake style selector ──────────────────────────────────
+type PrebakeStyle = { id: string; label: string; pcCount: number };
+
+const PREBAKE_STYLES: PrebakeStyle[] = [
+  { id: 'afro',              label: 'Afro',              pcCount: 3  },
+  { id: 'bob_cut',           label: 'Bob Cut',           pcCount: 3  },
+  { id: 'bun_low',           label: 'Bun Low',           pcCount: 3  },
+  { id: 'bun_top',           label: 'Bun Top',           pcCount: 3  },
+  { id: 'coily',             label: 'Coily',             pcCount: 3  },
+  { id: 'half_up_half_down', label: 'Half Up Half Down', pcCount: 3  },
+  { id: 'infer_haar',        label: 'Haar',              pcCount: 10 },
+  { id: 'kinky_curly',       label: 'Kinky Curly',       pcCount: 3  },
+  { id: 'lob_cut',           label: 'Lob Cut',           pcCount: 3  },
+  { id: 'long_curly',        label: 'Long Curly',        pcCount: 3  },
+  { id: 'long_layers',       label: 'Long Layers',       pcCount: 3  },
+  { id: 'long_loose',        label: 'Long Loose',        pcCount: 3  },
+  { id: 'long_straight',     label: 'Long Straight',     pcCount: 3  },
+  { id: 'long_wavy',         label: 'Long Wavy',         pcCount: 3  },
+  { id: 'loose_curls',       label: 'Loose Curls',       pcCount: 3  },
+  { id: 'medium_curly',      label: 'Medium Curly',      pcCount: 3  },
+  { id: 'medium_layers',     label: 'Medium Layers',     pcCount: 3  },
+  { id: 'medium_straight',   label: 'Medium Straight',   pcCount: 3  },
+  { id: 'medium_wavy',       label: 'Medium Wavy',       pcCount: 3  },
+  { id: 'pixie_cut',         label: 'Pixie Cut',         pcCount: 3  },
+  { id: 'ponytail_high',     label: 'Ponytail High',     pcCount: 3  },
+  { id: 'ponytail_low',      label: 'Ponytail Low',      pcCount: 3  },
+  { id: 'short_curly',       label: 'Short Curly',       pcCount: 3  },
+  { id: 'short_straight',    label: 'Short Straight',    pcCount: 3  },
+  { id: 'short_wavy',        label: 'Short Wavy',        pcCount: 3  },
+  { id: 'tight_curls',       label: 'Tight Curls',       pcCount: 3  },
+];
+
+function prebakePlyUrls(style: PrebakeStyle): string[] {
+  return Array.from({ length: style.pcCount }, (_, i) =>
+    `/inference_results/${style.id}/upsampled_hairstyle/pc_${i}.ply`
+  );
+}
+
 // ── Keyboard camera controller ──────────────────────────────
 const CAM_ROTATE_SPEED = 0.4;
 const CAM_PAN_SPEED    = 1.2;
@@ -490,6 +528,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [hairColor, setHairColor] = useState('#3b1f0a');
   const [cursorHidden, setCursorHidden] = useState(false);
   const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(2);
+  const [selectedPrebake, setSelectedPrebake] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -516,6 +555,14 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     return next;
   }, [visibleLayers, hoveredLayer, showHair]);
 
+  const effectivePlyUrls = useMemo(() => {
+    if (selectedPrebake) {
+      const style = PREBAKE_STYLES.find(s => s.id === selectedPrebake);
+      return style ? prebakePlyUrls(style) : hairstepPlyUrls;
+    }
+    return hairstepPlyUrls;
+  }, [selectedPrebake, hairstepPlyUrls]);
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', cursor: cursorHidden ? 'none' : undefined }}>
       <Canvas
@@ -535,14 +582,58 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatScale={2.772}
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
-          hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
-          hairstepPlyUrls={showHair ? hairstepPlyUrls : undefined}
+          hairstepPlyUrl={showHair && !selectedPrebake ? hairstepPlyUrl : undefined}
+          hairstepPlyUrls={showHair ? effectivePlyUrls : undefined}
           hairColor={hairColor}
           orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
           onThumbnailReady={onThumbnailReady}
         />
       </Canvas>
+
+      {!uiHidden && (
+        <div style={{
+          position: 'absolute',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          maxWidth: 'calc(100% - 32px)',
+          padding: '6px 8px',
+          borderRadius: 10,
+          background: 'rgba(0,0,0,0.45)',
+          backdropFilter: 'blur(8px)',
+          scrollbarWidth: 'none',
+          pointerEvents: 'all',
+        }}>
+          {PREBAKE_STYLES.map(style => {
+            const active = selectedPrebake === style.id;
+            return (
+              <button
+                key={style.id}
+                onClick={() => setSelectedPrebake(active ? null : style.id)}
+                style={{
+                  flexShrink: 0,
+                  padding: '4px 12px',
+                  borderRadius: 20,
+                  border: active ? '1px solid #fff' : '1px solid rgba(255,255,255,0.25)',
+                  background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.65)',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {style.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
