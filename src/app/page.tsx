@@ -2268,8 +2268,15 @@ function GlimpseSection() {
           </div>
         </div>
 
-        {/* Satellite video placeholders */}
-        {Array.from({ length: GLIMPSE_SATELLITE_COUNT }).map((_, i) => (
+        {/* Satellite hairstyle cards */}
+        {[
+          { name: 'Taper Fade', sub: 'clean & sharp' },
+          { name: 'French Crop', sub: 'textured top' },
+          { name: 'Textured Quiff', sub: 'volume & flow' },
+          { name: 'Buzz Cut', sub: 'low maintenance' },
+          { name: 'Curtain Bangs', sub: 'effortless cool' },
+          { name: 'Mid Fade', sub: 'versatile classic' },
+        ].map((style, i) => (
           <div
             key={i}
             ref={el => { satelliteRefs.current[i] = el; }}
@@ -2277,8 +2284,8 @@ function GlimpseSection() {
               position: 'absolute',
               left: '50%',
               top: '50%',
-              width: 260,
-              height: 340,
+              width: 200,
+              height: 260,
               transform: 'translate(-50%, -50%) scale(0)',
               opacity: 0,
               borderRadius: 20,
@@ -2288,21 +2295,41 @@ function GlimpseSection() {
               boxShadow: '0 12px 36px -8px rgba(0,0,0,0.2)',
               zIndex: 1,
               willChange: 'transform, opacity',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              padding: '20px 18px',
             }}
           >
-            <div
+            <div style={{ width: 32, opacity: 0.2, transform: 'rotate(186deg)', marginBottom: 'auto', alignSelf: 'flex-end', marginTop: 20 }}>
+              <BarberMascot isStatic color="#2a201a" />
+            </div>
+            <p
+              className="font-display"
               style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                fontStyle: 'italic',
+                fontVariationSettings: "'SOFT' 60, 'WONK' 1, 'opsz' 144",
+                fontWeight: 700,
+                fontSize: 22,
+                color: 'var(--ink)',
+                lineHeight: 1.1,
+                margin: 0,
               }}
             >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(42,32,26,0.28)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-            </div>
+              {style.name}
+            </p>
+            <p
+              className="font-mono"
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                color: 'rgba(42,32,26,0.55)',
+                margin: '6px 0 0',
+              }}
+            >
+              {style.sub}
+            </p>
           </div>
         ))}
       </div>
@@ -2345,27 +2372,22 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 32, color: 'var(--char)' }}>
-            {['how it works', 'features', 'cuts', 'reviews', 'faq'].map(l => (
-              <a
-                key={l}
-                href="#"
-                className="font-serif italic"
-                style={{ color: 'inherit', textDecoration: 'none', fontSize: 16, fontStyle: 'italic', opacity: 0.85, transition: 'opacity 140ms ease' }}
-                onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
-                onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.85')}
-              >
-                {l}
-              </a>
-            ))}
-          </div>
-          <button
-            className="btn-ink"
-            onClick={() => openSignIn()}
-            style={{ padding: '11px 20px', fontSize: 13, borderRadius: 10, display: 'inline-flex', alignItems: 'center' }}
+          <a
+            href="#how-it-works"
+            className="font-serif italic"
+            style={{ color: 'var(--char)', textDecoration: 'none', fontSize: 16, opacity: 0.75, transition: 'opacity 140ms ease' }}
+            onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
+            onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.75')}
           >
-            sign in
-          </button>
+            how it works
+          </a>
+          <BouncyButton
+            onClick={onEnter}
+            className="btn-tomato"
+            style={{ padding: '11px 22px', fontSize: 13, borderRadius: 10 }}
+          >
+            try it free →
+          </BouncyButton>
         </nav>
 
         {/* ── Hero ── */}
@@ -2400,26 +2422,19 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22, marginTop: 34 }}>
               <BouncyButton
                 onClick={onEnter}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative', display: 'inline-block' }}
+                className="btn-tomato"
+                style={{
+                  padding: '18px 44px',
+                  fontSize: 22,
+                  fontFamily: 'var(--font-fraunces), Georgia, serif',
+                  fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+                  fontWeight: 900,
+                  letterSpacing: '-0.01em',
+                  borderRadius: 18,
+                  boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
+                }}
               >
-                <Image src="/previewbutton.png" alt="preview your cut" width={431} height={126} style={{ height: 'auto', maxWidth: 364, display: 'block' }} />
-                <span
-                  className="font-sans"
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '45%',
-                    transform: 'translate(-50%, -50%) rotate(-4deg)',
-                    fontSize: 23,
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    letterSpacing: '0.01em',
-                    pointerEvents: 'none',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  preview your cut
-                </span>
+                Preview your cut →
               </BouncyButton>
             </div>
           </div>
@@ -2462,16 +2477,25 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         </div>
 
         {/* ── Steps ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginTop: 72, paddingBottom: 'calc((100% / 3) * 0.25)' }}>
-          {[
-            { src: '/scanbutton.png', alt: 'Step 1: Scan', w: 488, h: 244, delay: 'delay-100' },
-            { src: '/describebutton.png', alt: 'Step 2: Describe', w: 485, h: 244, delay: 'delay-200' },
-            { src: '/showbarberbutton.png', alt: 'Step 3: Show your barber', w: 534, h: 244, delay: 'delay-300' },
-          ].map(s => (
-            <div key={s.src} className={`anim-fade-up ${s.delay}`}>
-              <Image src={s.src} alt={s.alt} width={s.w} height={s.h} style={{ width: '100%', height: 'auto', transform: 'translateY(50%)' }} />
-            </div>
-          ))}
+        <div id="how-it-works" style={{ marginTop: 96, paddingTop: 8 }}>
+          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--smoke)', textAlign: 'center', marginBottom: 48 }}>
+            how it works
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32 }}>
+            {[
+              { src: '/scanbutton.png', alt: 'Scan your face', w: 488, h: 244, step: '01', label: 'Scan', delay: 'delay-100' },
+              { src: '/describebutton.png', alt: 'Describe your cut', w: 485, h: 244, step: '02', label: 'Describe', delay: 'delay-200' },
+              { src: '/showbarberbutton.png', alt: 'Show your barber', w: 534, h: 244, step: '03', label: 'Show your barber', delay: 'delay-300' },
+            ].map(s => (
+              <div key={s.src} className={`anim-fade-up ${s.delay}`} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="font-mono" style={{ fontSize: 10, color: 'var(--tomato)', letterSpacing: '0.14em', fontWeight: 700 }}>{s.step}</span>
+                  <span className="font-sans" style={{ fontSize: 13, fontWeight: 600, color: 'var(--char)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{s.label}</span>
+                </div>
+                <Image src={s.src} alt={s.alt} width={s.w} height={s.h} style={{ width: '100%', height: 'auto', borderRadius: 16 }} />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* ── Glimpse orbit section ── */}
@@ -2634,13 +2658,15 @@ function MainMenu({
 
           {navItems.map(n => {
             const isActive = n.key === activeNav;
+            const isDisabled = n.key === 'explore' || n.key === 'saved';
             return (
               <button
                 key={n.key}
-                onClick={n.onClick ?? (() => setActiveNav(n.key))}
+                onClick={isDisabled ? undefined : (n.onClick ?? (() => setActiveNav(n.key)))}
+                title={isDisabled ? 'Coming soon' : undefined}
                 style={{
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
                   background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
                   color: isActive ? 'var(--coral)' : 'var(--ink)',
                   padding: '10px 0',
@@ -2657,12 +2683,13 @@ function MainMenu({
                   textTransform: 'uppercase',
                   outline: isActive ? '1.5px solid rgba(232,97,77,0.28)' : '1.5px solid transparent',
                   transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
+                  opacity: isDisabled ? 0.35 : 1,
                 }}
                 onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
+                  if (!isActive && !isDisabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
                 }}
                 onMouseLeave={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  if (!isActive && !isDisabled) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 }}
               >
                 {n.icon}
@@ -2726,8 +2753,8 @@ function MainMenu({
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-            {['all', 'drafts', 'approved', 'experiments', 'this month'].map(t => (
+          <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
+            {['all', 'recent'].map(t => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
@@ -2748,14 +2775,6 @@ function MainMenu({
                 {t}
               </button>
             ))}
-            <div style={{ flex: 1 }} />
-            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(42,32,26,0.65)', paddingRight: 6 }}>
-              start here!
-            </span>
-            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(42,32,26,0.5)" strokeWidth="1.6" strokeLinecap="round">
-              <path d="M30 4 Q 4 12, 14 38" />
-              <path d="M9 32 L14 38 L20 33" />
-            </svg>
           </div>
 
           {/* Project grid */}
@@ -3011,7 +3030,6 @@ export default function Home() {
 
   // UI state
   const [showScanPopup, setShowScanPopup]       = useState(false);
-  const [showScanNowPopup, setShowScanNowPopup] = useState(false);
   const [showScanResult, setShowScanResult]     = useState(false);
   const [hasScanEver, setHasScanEver]           = useState(false);
   const [selfieFlying, setSelfieFlying] = useState<{ url: string; fromRect: DOMRect; toRect: DOMRect } | null>(null);
@@ -3024,13 +3042,6 @@ export default function Home() {
     }
   }, [appState, needsUsername]);
 
-  // Show "Scan now!" popup each time user enters home — skip if username setup is pending
-  useEffect(() => {
-    if (appState === 'home' && !hasScanEver && isSignedIn && !needsUsername) {
-      const t = setTimeout(() => setShowScanNowPopup(true), 600);
-      return () => clearTimeout(t);
-    }
-  }, [appState, hasScanEver, isSignedIn, needsUsername]);
 
   // Auto-save project every 30s when in 3D studio
   useEffect(() => {
@@ -3181,14 +3192,6 @@ export default function Home() {
           onRescan={() => setShowScanPopup(true)}
           profilePillPulse={profilePillPulse}
         />
-
-        {/* Scan now popup — on first entry */}
-        {showScanNowPopup && (
-          <ScanNowPopup
-            onLetsDo={() => { setShowScanNowPopup(false); setShowScanPopup(true); }}
-            onDismiss={() => setShowScanNowPopup(false)}
-          />
-        )}
 
         {/* Camera scan popup */}
         {showScanPopup && (
