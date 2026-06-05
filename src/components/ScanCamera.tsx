@@ -11,6 +11,7 @@ import { UserHeadProfile } from '@/types';
 interface ScanCameraProps {
   hairType: 'straight' | 'wavy' | 'curly';
   onScanComplete: (profile: UserHeadProfile, sessionId: string | null, imageUrl: string | null) => void;
+  onDataUrlReady?: (dataUrl: string) => void;
   onDismiss: () => void;
   onNoTokens?: () => void;
   paywallDisabled?: boolean;
@@ -76,7 +77,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captur
   ctx.stroke();
 }
 
-export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTokens, paywallDisabled = false }: ScanCameraProps) {
+export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, onDismiss, onNoTokens, paywallDisabled = false }: ScanCameraProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
   const previewCanvas = useRef<HTMLCanvasElement>(null);
   const fileInputRef  = useRef<HTMLInputElement>(null);
@@ -158,6 +159,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
 
   async function finishWithDataUrl(imageDataUrl: string) {
     setPhase('captured');
+    onDataUrlReady?.(imageDataUrl);
 
     const W = 640;
     const H = 640;
@@ -371,10 +373,9 @@ export default function ScanCamera({ hairType, onScanComplete, onDismiss, onNoTo
           {(phase === 'loading' || phase === 'ready') && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="btn-ink"
-              style={{ padding: '9px 18px', fontSize: 12 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 13, color: 'var(--char)', letterSpacing: '-0.01em', opacity: 0.7, marginTop: 2 }}
             >
-              ↑ Upload a photo
+              Upload a photo
             </button>
           )}
         </div>

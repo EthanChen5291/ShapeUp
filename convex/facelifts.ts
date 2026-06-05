@@ -27,3 +27,16 @@ export const getByJobId = query({
       .unique();
   },
 });
+
+export const getLatestByUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    return ctx.db
+      .query("facelifts")
+      .withIndex("by_user_id", q => q.eq("userId", identity.subject))
+      .order("desc")
+      .first();
+  },
+});

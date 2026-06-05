@@ -12,7 +12,6 @@ import { Id } from '@convex/_generated/dataModel';
 import EditPanel from '@/components/EditPanel';
 import { WaitlistPage } from '@/components/WaitlistPage';
 import Image from 'next/image';
-import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
@@ -304,24 +303,21 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
       id="profile-menu-pill"
       ref={containerRef}
       className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${swallowing ? 'profile-pill-swallow' : ''}`}
-      style={{
-        background: 'var(--cream)',
-        border: '1px solid rgba(42,32,26,0.12)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: open ? 18 : 40,
-        width: open ? 290 : 176,
-        overflow: 'hidden',
-        transition: open
-          ? 'width 540ms cubic-bezier(.08,.82,.17,1), border-radius 420ms cubic-bezier(.08,.82,.17,1), background 280ms ease, box-shadow 300ms ease'
-          : 'width 320ms cubic-bezier(.4,0,1,1), border-radius 300ms cubic-bezier(.4,0,1,1), background 280ms ease, box-shadow 300ms ease',
-        boxShadow: open ? '0 20px 50px -12px rgba(0,0,0,0.3)' : 'none',
-      }}
     >
       {/* Pill header */}
       <button
         onClick={handleToggle}
-        className="flex items-center gap-2 w-full px-3 py-2"
-        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+        className="flex items-center gap-2 px-3 py-2"
+        style={{
+          background: 'var(--cream)',
+          border: '1px solid rgba(42,32,26,0.12)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 40,
+          width: 176,
+          cursor: 'pointer',
+          boxShadow: open ? '0 4px 16px -4px rgba(0,0,0,0.15)' : 'none',
+          transition: 'box-shadow 300ms ease',
+        }}
       >
         <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
           {username}
@@ -334,16 +330,26 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
         </svg>
       </button>
 
-      {/* Expanding content */}
+      {/* Dropdown overlay — absolutely positioned so it doesn't shift layout */}
       <div style={{
-        maxHeight: open ? '420px' : '0px',
+        position: 'absolute',
+        top: 'calc(100% + 8px)',
+        right: 0,
+        width: 290,
+        background: 'var(--cream)',
+        border: '1px solid rgba(42,32,26,0.12)',
+        backdropFilter: 'blur(8px)',
+        borderRadius: 18,
+        boxShadow: '0 20px 50px -12px rgba(0,0,0,0.25)',
         overflow: 'hidden',
+        maxHeight: open ? '420px' : '0px',
         opacity: open ? 1 : 0,
+        pointerEvents: open ? 'auto' : 'none',
         transition: open
-          ? 'max-height 540ms cubic-bezier(.08,.82,.17,1), opacity 300ms 130ms ease'
-          : 'max-height 320ms cubic-bezier(.4,0,1,1), opacity 180ms ease',
+          ? 'max-height 400ms cubic-bezier(.08,.82,.17,1), opacity 250ms 80ms ease'
+          : 'max-height 280ms cubic-bezier(.4,0,1,1), opacity 150ms ease',
       }}>
-        <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '1px solid rgba(42,32,26,0.08)', paddingTop: 12 }}>
+        <div className="px-4 pb-4 flex flex-col gap-3" style={{ paddingTop: 12 }}>
 
           {/* Tokens */}
           <div className="flex flex-col gap-2">
@@ -355,8 +361,8 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
             </div>
             <BouncyButton
               onClick={() => setShowPricing(true)}
-              className="btn btn-denim w-full"
-              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none' }}
+              className="btn btn-cream w-full"
+              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
             >
               Get more!
             </BouncyButton>
@@ -381,7 +387,7 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
         </div>
       </div>
 
-      {showPricing && <PricingPopup onDismiss={() => setShowPricing(false)} />}
+      {showPricing && createPortal(<PricingPopup onDismiss={() => setShowPricing(false)} />, document.body)}
       {showSettings && settingsOriginRect && (
         <SettingsPopup
           onDismiss={handleSettingsDismiss}
@@ -472,22 +478,127 @@ function ScanNowPopup({
 }
 
 /* ─────────────── Scan Popup — organic loading steps ─────── */
-const SCAN_STEPS = [
-  { label: 'Face scan',       delay: 0,    duration: 2600 },
-  { label: 'Mirror scan',     delay: 700,  duration: 2800 },
-  { label: 'AI styling',      delay: 1400, duration: 2400 },
-  { label: '3D preview',      delay: 2100, duration: 2600 },
-  { label: "Barber's notes",  delay: 2800, duration: 2200 },
-  { label: 'Second opinions', delay: 3500, duration: 2400 },
+// Each step is either a fill animation {to, ms} or a stall {hold}.
+// Bars run in parallel from their startDelay. Timeline:
+//   Bar 1 finishes ~7.5 s  (delay 0)
+//   Bar 2 finishes ~16.5 s (delay 1800)
+//   Bar 3 finishes ~26 s   (delay 5000)
+//   Bar 4 hits 88% ~29 s   (delay 9000) then holds until facelift returns
+type BarSegment = { to: number; ms: number } | { hold: number };
+
+const SCAN_STEPS: { label: string; delay: number; holdAt88: boolean; segments: BarSegment[] }[] = [
+  {
+    label: 'Scanning geometry', delay: 0, holdAt88: false,
+    segments: [
+      { to: 28, ms: 1600 }, { hold: 1000 },
+      { to: 64, ms: 2200 }, { hold: 700 },
+      { to: 100, ms: 2000 },
+    ],
+  },
+  {
+    label: 'Mapping features', delay: 1800, holdAt88: false,
+    segments: [
+      { to: 16, ms: 1800 }, { hold: 2200 },
+      { to: 44, ms: 3000 }, { hold: 1400 },
+      { to: 78, ms: 3200 }, { hold: 900 },
+      { to: 100, ms: 2200 },
+    ],
+  },
+  {
+    label: 'Generating mesh', delay: 5000, holdAt88: false,
+    segments: [
+      { to: 11, ms: 2000 }, { hold: 2800 },
+      { to: 34, ms: 3500 }, { hold: 1800 },
+      { to: 62, ms: 4000 }, { hold: 1500 },
+      { to: 86, ms: 3000 }, { hold: 600 },
+      { to: 100, ms: 2000 },
+    ],
+  },
+  {
+    label: 'Building model', delay: 9000, holdAt88: true,
+    segments: [
+      { to: 19, ms: 2500 }, { hold: 3500 },
+      { to: 47, ms: 4500 }, { hold: 2500 },
+      { to: 88, ms: 6500 },
+    ],
+  },
 ];
 
-function OrganicBar({ label, startDelay = 0, duration = 2400 }: { label: string; startDelay?: number; duration?: number }) {
-  const [visible, setVisible] = useState(startDelay === 0);
+function easeInOut(t: number) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complete = false }: {
+  label: string; startDelay?: number; segments: BarSegment[]; holdAt88?: boolean; complete?: boolean;
+}) {
+  const [visible, setVisible]       = useState(startDelay === 0);
+  const [fillPct, setFillPct]       = useState(0);
+  const [completing, setCompleting] = useState(false);
+  const rafRef      = useRef<number>(0);
+  const holdRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepRef     = useRef(0);
+  const stepStartRef = useRef(0);
+  const fromPctRef  = useRef(0);
+
   useEffect(() => {
     if (startDelay === 0) return;
     const t = setTimeout(() => setVisible(true), startDelay);
     return () => clearTimeout(t);
   }, [startDelay]);
+
+  useEffect(() => {
+    if (!visible) return;
+    stepRef.current = 0;
+    stepStartRef.current = performance.now();
+    fromPctRef.current = 0;
+
+    const advance = (now: number) => {
+      const seg = segments[stepRef.current];
+      if (!seg) return;
+
+      if ('hold' in seg) {
+        // Use a timeout for the hold so we don't burn RAF frames doing nothing
+        holdRef.current = setTimeout(() => {
+          stepRef.current++;
+          stepStartRef.current = performance.now();
+          rafRef.current = requestAnimationFrame(advance);
+        }, seg.hold);
+        return;
+      }
+
+      const elapsed = now - stepStartRef.current;
+      const t = Math.min(elapsed / seg.ms, 1);
+      const pct = fromPctRef.current + easeInOut(t) * (seg.to - fromPctRef.current);
+      setFillPct(pct);
+
+      if (t >= 1) {
+        fromPctRef.current = seg.to;
+        stepRef.current++;
+        stepStartRef.current = now;
+        if (stepRef.current < segments.length) {
+          rafRef.current = requestAnimationFrame(advance);
+        }
+      } else {
+        rafRef.current = requestAnimationFrame(advance);
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(advance);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      if (holdRef.current) clearTimeout(holdRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  useEffect(() => {
+    if (!complete || !holdAt88) return;
+    cancelAnimationFrame(rafRef.current);
+    if (holdRef.current) clearTimeout(holdRef.current);
+    setCompleting(true);
+    setFillPct(100);
+  }, [complete, holdAt88]);
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', gap: 5, width: '100%',
@@ -499,7 +610,10 @@ function OrganicBar({ label, startDelay = 0, duration = 2400 }: { label: string;
         {label}
       </span>
       <div style={{ height: 11, borderRadius: 9999, background: 'rgba(42,32,26,0.1)', overflow: 'hidden', position: 'relative' }}>
-        {visible && <div className="organic-bar-anim" style={{ animationDuration: `${duration}ms` }} />}
+        <div className="organic-bar-fill" style={{
+          width: `${fillPct}%`,
+          transition: completing ? 'width 700ms ease-out' : 'none',
+        }} />
       </div>
     </div>
   );
@@ -997,7 +1111,7 @@ function ScanPopup({
   onDismiss,
   needsUsername = false,
 }: {
-  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean) => void;
+  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => void;
   onDismiss: () => void;
   needsUsername?: boolean;
 }) {
@@ -1011,11 +1125,15 @@ function ScanPopup({
   const [phase, setPhase] = useState<ScanPhase>(needsUsername ? 'username' : 'camera');
   const [cameraKey, setCameraKey] = useState(0);
   const [captured, setCaptured] = useState<{ profile: UserHeadProfile; sid: string | null; url: string | null } | null>(null);
+  const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
   const [showVerifyBtns, setShowVerifyBtns] = useState(false);
   const [collapsing, setCollapsing] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [paywallDisabled, setPaywallDisabled] = useState(false);
+  const [faceliftStatus, setFaceliftStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
+  const [faceliftError, setFaceliftError] = useState<string | null>(null);
+  const faceliftAbortRef = useRef<AbortController | null>(null);
   const isDismissing = useRef(false);
 
   useEffect(() => {
@@ -1061,7 +1179,9 @@ function ScanPopup({
 
   const dismiss = () => {
     if (isDismissing.current) return;
+    if (phase === 'processing') return;
     isDismissing.current = true;
+    faceliftAbortRef.current?.abort();
     setCollapsing(true);
     setTimeout(() => setExiting(true), 350);
     setTimeout(onDismiss, 850);
@@ -1082,19 +1202,87 @@ function ScanPopup({
     }, 350);
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
+    if (!captured || !capturedDataUrl) return;
     setShowVerifyBtns(false);
     setPhase('processing');
-    const lastStep = SCAN_STEPS[SCAN_STEPS.length - 1];
-    const totalMs = lastStep.delay + lastStep.duration + 800;
-    setTimeout(() => {
-      if (captured && !isDismissing.current) {
+    setFaceliftStatus('processing');
+    setFaceliftError(null);
+
+    const abort = new AbortController();
+    faceliftAbortRef.current = abort;
+
+    try {
+      const submitRes = await fetch('/api/facelift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: capturedDataUrl }),
+        signal: abort.signal,
+      });
+
+      if (submitRes.status === 401 || submitRes.status === 402) {
+        const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
+        const { url } = await checkout.json() as { url?: string };
+        if (url) { window.location.href = url; return; }
+      }
+      if (!submitRes.ok) {
+        const body = await submitRes.text().catch(() => '');
+        throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`);
+      }
+      const { jobId } = await submitRes.json() as { jobId?: string };
+      if (!jobId) throw new Error('Server did not return a job ID');
+
+      let splatUrl: string | null = null;
+      while (!abort.signal.aborted) {
+        await new Promise(r => setTimeout(r, 5000));
+        if (abort.signal.aborted) return;
+
+        const pollRes = await fetch(
+          `/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=scan-output`,
+          { signal: abort.signal },
+        );
+        if (!pollRes.ok) {
+          const body = await pollRes.text().catch(() => '');
+          throw new Error(`Build check failed (${pollRes.status})${body ? ': ' + body : ''}`);
+        }
+        const data = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
+        if (data.status === 'success') { splatUrl = data.splatUrl!; break; }
+        if (data.status === 'error') throw new Error(data.error ?? '3D build failed');
+      }
+
+      if (!splatUrl || abort.signal.aborted) return;
+
+      setFaceliftStatus('done');
+      setTimeout(() => {
+        if (isDismissing.current) return;
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
         setExiting(true);
-        setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url, fromRect, wasFirstScanRef.current), 600);
-      }
-    }, totalMs);
+        setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url, fromRect, wasFirstScanRef.current, splatUrl!), 600);
+      }, 900);
+    } catch (err) {
+      if (abort.signal.aborted) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      setFaceliftError(msg);
+      setFaceliftStatus('error');
+    }
+  };
+
+  const handleRetryFacelift = () => {
+    setFaceliftStatus('idle');
+    setFaceliftError(null);
+    setPhase('processing');
+    handleProceed();
+  };
+
+  const handleCancelFacelift = () => {
+    faceliftAbortRef.current?.abort();
+    setFaceliftStatus('idle');
+    setFaceliftError(null);
+    setPhase('camera');
+    setCaptured(null);
+    setCapturedDataUrl(null);
+    setCameraKey(k => k + 1);
   };
 
   const panelTransition = exiting
@@ -1179,7 +1367,7 @@ function ScanPopup({
                 {SELFIE_REQS.map((req, i) => (
                   <div key={req.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 28 }}>
                     <span style={{ fontSize: 36, color: 'var(--tomato)', flexShrink: 0, lineHeight: 1 }}>{req.icon}</span>
-                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 20, color: 'var(--cream)', fontWeight: 500, lineHeight: 1.4, margin: 0 }}>
+                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 15, color: 'var(--cream)', fontWeight: 500, lineHeight: 1.4, margin: 0 }}>
                       <LetterFade text={req.label} startDelay={300 + i * 280} charDelay={22} />
                     </p>
                   </div>
@@ -1199,11 +1387,77 @@ function ScanPopup({
                   opacity: 0.85,
                   marginBottom: 4,
                 }}>
-                  Analyzing your look...
+                  {faceliftStatus === 'error' ? 'Something went wrong' : 'Analyzing your look...'}
                 </p>
-                {SCAN_STEPS.map(s => (
-                  <OrganicBar key={s.label} label={s.label} startDelay={s.delay} duration={s.duration} />
+                {SCAN_STEPS.map((s) => (
+                  <OrganicBar
+                    key={s.label}
+                    label={s.label}
+                    startDelay={s.delay}
+                    segments={s.segments}
+                    holdAt88={s.holdAt88}
+                    complete={s.holdAt88 ? faceliftStatus === 'done' : undefined}
+                  />
                 ))}
+                {faceliftStatus === 'processing' && (
+                  <p style={{
+                    fontFamily: 'var(--font-dmsans)',
+                    fontSize: 11,
+                    color: 'rgba(255,248,234,0.35)',
+                    marginTop: 4,
+                    fontStyle: 'italic',
+                  }}>
+                    Building your 3D model — this takes about 2 minutes
+                  </p>
+                )}
+                {faceliftStatus === 'error' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+                    <p style={{
+                      fontFamily: 'var(--font-mono, monospace)',
+                      fontSize: 10,
+                      color: 'rgba(255,100,80,0.8)',
+                      lineHeight: 1.4,
+                      wordBreak: 'break-word',
+                    }}>
+                      {faceliftError ?? 'Unknown error'}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={handleRetryFacelift}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: 'var(--tomato)',
+                          color: 'var(--cream)',
+                          border: 'none',
+                          borderRadius: 8,
+                          fontFamily: 'var(--font-dmsans)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Try again
+                      </button>
+                      <button
+                        onClick={handleCancelFacelift}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: 'rgba(255,248,234,0.08)',
+                          color: 'rgba(255,248,234,0.6)',
+                          border: 'none',
+                          borderRadius: 8,
+                          fontFamily: 'var(--font-dmsans)',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Retake photo
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1373,6 +1627,7 @@ function ScanPopup({
                   <ScanCamera
                     hairType="straight"
                     onScanComplete={handleCapture}
+                    onDataUrlReady={(d) => setCapturedDataUrl(d)}
                     onDismiss={dismiss}
                     onNoTokens={() => setShowPricing(true)}
                     paywallDisabled={paywallDisabled}
@@ -1462,20 +1717,20 @@ function ProjectCard({
       onClick={handleClick}
       className={`relative rounded-2xl overflow-hidden flex flex-col text-left transition-shadow hover:shadow-xl ${zooming ? 'project-zoom' : ''}`}
       style={{
-        background: 'var(--surface)',
-        border: '1px solid rgba(245,241,234,0.08)',
+        background: 'var(--cream)',
+        border: '1px solid rgba(42,32,26,0.1)',
         aspectRatio: '3/4',
         transform: rotate ? `rotate(${rotate}deg)` : undefined,
         transition: 'transform 200ms ease, box-shadow 200ms ease',
-        boxShadow: '0 8px 24px -8px rgba(0,0,0,0.5)',
+        boxShadow: '0 8px 24px -8px rgba(0,0,0,0.18)',
       }}
     >
       {project.thumbnailUrl ? (
         <img src={project.thumbnailUrl} alt={project.name} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: '#111113' }}>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--biscuit)' }}>
           <div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}>
-            <BarberMascot isStatic color="rgba(245,241,234,0.9)" />
+            <BarberMascot isStatic color="var(--ink)" />
           </div>
         </div>
       )}
@@ -1519,15 +1774,15 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         onClick={onClick}
         className="relative rounded-2xl flex items-center justify-center transition-opacity hover:opacity-90"
         style={{
-          background: 'var(--surface)',
-          border: '1px dashed rgba(245,241,234,0.12)',
+          background: 'var(--cream)',
+          border: '1px dashed rgba(42,32,26,0.15)',
           aspectRatio: '3/4',
           width: '100%',
         }}
       >
         {/* outer span: shake/sink/wobble on impact; inner span: quick swell on impact */}
         <span
-          className="text-[var(--cream)] font-sans font-bold"
+          className="text-[var(--ink)] font-sans font-bold"
           style={{
             fontSize: 32,
             opacity: 0.7,
@@ -1575,7 +1830,7 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
           <span
             style={{
               fontSize: 19,
-              color: 'var(--cream)',
+              color: 'var(--ink)',
               fontFamily: 'var(--font-sans)',
               fontWeight: 700,
               opacity: 0.9,
@@ -1856,6 +2111,206 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
   );
 }
 
+/* ─────────────── Glimpse / Orbit Section ─────────────── */
+const GLIMPSE_SATELLITE_COUNT = 6;
+const GLIMPSE_FINAL_RADIUS = 220;
+const GLIMPSE_ERUPTION_DURATION = 1900;
+const GLIMPSE_ORBIT_SPEED = 0.00022; // radians per ms, CCW
+
+function GlimpseSection() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const satelliteRefs = useRef<(HTMLDivElement | null)[]>(Array(GLIMPSE_SATELLITE_COUNT).fill(null));
+  const stateRef = useRef({ phase: 'idle' as 'idle' | 'erupting' | 'orbiting', eruptionStart: 0, orbitOffset: 0, lastTime: 0 });
+  const rafRef = useRef<number>(0);
+  const [centerVisible, setCenterVisible] = useState(false);
+
+  const runFrame = useCallback((now: number) => {
+    const s = stateRef.current;
+    const dt = s.lastTime > 0 ? Math.min(now - s.lastTime, 50) : 16;
+    s.lastTime = now;
+
+    if (s.phase === 'erupting') {
+      const elapsed = now - s.eruptionStart;
+      const t = Math.min(elapsed / GLIMPSE_ERUPTION_DURATION, 1);
+      // easeOutExpo: fast burst, decelerates
+      const ease = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+      const radius = ease * GLIMPSE_FINAL_RADIUS;
+      // total CCW sweep during eruption: 270°
+      const sweepOffset = ease * (Math.PI * 1.5);
+
+      for (let i = 0; i < GLIMPSE_SATELLITE_COUNT; i++) {
+        const el = satelliteRefs.current[i];
+        if (!el) continue;
+        const baseAngle = (i / GLIMPSE_SATELLITE_COUNT) * Math.PI * 2;
+        const angle = baseAngle - sweepOffset;
+        const scale = 0.2 + ease * 0.8;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${scale})`;
+        el.style.opacity = String(Math.min(1, ease * 1.8));
+      }
+
+      if (t >= 1) {
+        s.phase = 'orbiting';
+        s.orbitOffset = Math.PI * 1.5;
+      }
+    } else if (s.phase === 'orbiting') {
+      s.orbitOffset += GLIMPSE_ORBIT_SPEED * dt;
+      for (let i = 0; i < GLIMPSE_SATELLITE_COUNT; i++) {
+        const el = satelliteRefs.current[i];
+        if (!el) continue;
+        const baseAngle = (i / GLIMPSE_SATELLITE_COUNT) * Math.PI * 2;
+        const angle = baseAngle - s.orbitOffset;
+        const x = Math.cos(angle) * GLIMPSE_FINAL_RADIUS;
+        const y = Math.sin(angle) * GLIMPSE_FINAL_RADIUS;
+        el.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(1)`;
+        el.style.opacity = '1';
+      }
+    }
+
+    if (s.phase !== 'idle') {
+      rafRef.current = requestAnimationFrame(runFrame);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && stateRef.current.phase === 'idle') {
+          stateRef.current.phase = 'erupting';
+          stateRef.current.eruptionStart = performance.now();
+          stateRef.current.lastTime = 0;
+          setCenterVisible(true);
+          rafRef.current = requestAnimationFrame(runFrame);
+        }
+      },
+      { threshold: 0.25 },
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [runFrame]);
+
+  const PALETTE = [
+    'linear-gradient(135deg, #ffd4b8, #ffe7b0)',
+    'linear-gradient(135deg, #ffe7b0, #f6ecd8)',
+    'linear-gradient(135deg, #ffd4b8, #e8b454 80%)',
+    'linear-gradient(135deg, #d8e8f4, #b0cce0)',
+    'linear-gradient(135deg, #f5cc6b, #ffd4b8)',
+    'linear-gradient(135deg, #c7d8b0, #ffe7b0)',
+  ];
+
+  return (
+    <section style={{ padding: '140px 0 180px', textAlign: 'center', position: 'relative' }}>
+      {/* Headline */}
+      <h2
+        className="font-serif"
+        style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--ink)', marginBottom: 100, lineHeight: 1.25, letterSpacing: '-0.01em' }}
+      >
+        Get a glimpse of all{' '}
+        <em
+          className="font-display"
+          style={{
+            color: 'var(--tomato)',
+            fontStyle: 'italic',
+            fontVariationSettings: "'SOFT' 100, 'WONK' 1, 'opsz' 144",
+            fontWeight: 900,
+            fontSize: '1.18em',
+          }}
+        >
+          &ldquo;you&rdquo;
+        </em>{' '}
+        could be.
+      </h2>
+
+      {/* Orbit stage */}
+      <div
+        ref={sectionRef}
+        style={{ position: 'relative', height: 660, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {/* Center image */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            width: 196,
+            height: 196,
+            marginLeft: -98,
+            marginTop: -98,
+            borderRadius: 26,
+            overflow: 'hidden',
+            background: 'var(--biscuit)',
+            border: '2px solid rgba(42,32,26,0.12)',
+            boxShadow: '0 24px 60px -12px rgba(0,0,0,0.22), 0 4px 12px -4px rgba(0,0,0,0.1)',
+            zIndex: 2,
+            // spring bounce: overshoots 1.08x then settles
+            transform: centerVisible ? 'scale(1)' : 'scale(0)',
+            transition: centerVisible ? 'transform 680ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(145deg, var(--peach) 0%, var(--butter) 55%, var(--biscuit) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{ width: 44, opacity: 0.22, transform: 'rotate(186deg)' }}>
+              <BarberMascot isStatic />
+            </div>
+          </div>
+        </div>
+
+        {/* Satellite video placeholders */}
+        {Array.from({ length: GLIMPSE_SATELLITE_COUNT }).map((_, i) => (
+          <div
+            key={i}
+            ref={el => { satelliteRefs.current[i] = el; }}
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              width: 88,
+              height: 116,
+              transform: 'translate(-50%, -50%) scale(0)',
+              opacity: 0,
+              borderRadius: 14,
+              overflow: 'hidden',
+              background: PALETTE[i],
+              border: '1.5px solid rgba(42,32,26,0.09)',
+              boxShadow: '0 8px 28px -6px rgba(0,0,0,0.18)',
+              zIndex: 1,
+              willChange: 'transform, opacity',
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(42,32,26,0.28)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /* ─────────────── Landing Page ─────────────── */
 function LandingPage({ onEnter }: { onEnter: () => void }) {
   const { openSignIn } = useClerk();
@@ -2053,6 +2508,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </div>
         </div>
 
+        {/* ── Glimpse orbit section ── */}
+        <GlimpseSection />
+
       </div>
     </main>
   );
@@ -2062,10 +2520,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 function DashStat({ icon, top, bottom }: { icon: React.ReactNode; top: string; bottom: string }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-      <span style={{ color: 'rgba(245,241,234,0.5)', fontSize: 18 }}>{icon}</span>
+      <span style={{ color: 'rgba(42,32,26,0.45)', fontSize: 18 }}>{icon}</span>
       <div style={{ lineHeight: 1.15 }}>
-        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(245,241,234,0.35)', textTransform: 'uppercase' }}>{top}</div>
-        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--offwhite)' }}>{bottom}</div>
+        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)', textTransform: 'uppercase' }}>{top}</div>
+        <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{bottom}</div>
       </div>
     </div>
   );
@@ -2148,7 +2606,7 @@ function MainMenu({
   ];
 
   return (
-    <main className="relative bg-void overflow-hidden" style={{ minHeight: '100vh' }}>
+    <main className="relative overflow-hidden" style={{ minHeight: '100vh', background: 'var(--biscuit-lt)' }}>
       <div
         style={{
           display: 'grid',
@@ -2162,7 +2620,8 @@ function MainMenu({
         {/* ── LEFT NAV RAIL ── */}
         <aside
           style={{
-            borderRight: '1px solid rgba(245,241,234,0.06)',
+            borderRight: '1px solid rgba(42,32,26,0.08)',
+            background: 'var(--biscuit)',
             padding: '24px 10px',
             display: 'flex',
             flexDirection: 'column',
@@ -2172,8 +2631,8 @@ function MainMenu({
           }}
         >
           {/* Scissor mascot wordmark */}
-          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.7 }}>
-            <BarberMascot isStatic color="rgba(245,241,234,0.85)" />
+          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.5 }}>
+            <BarberMascot isStatic color="var(--ink)" />
           </div>
 
           {navItems.map(n => {
@@ -2186,7 +2645,7 @@ function MainMenu({
                   border: 'none',
                   cursor: 'pointer',
                   background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
-                  color: isActive ? 'var(--coral)' : 'rgba(245,241,234,0.45)',
+                  color: isActive ? 'var(--coral)' : 'rgba(42,32,26,0.4)',
                   padding: '10px 0',
                   borderRadius: 12,
                   display: 'flex',
@@ -2203,7 +2662,7 @@ function MainMenu({
                   transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
                 }}
                 onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(245,241,234,0.05)';
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
                 }}
                 onMouseLeave={e => {
                   if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
@@ -2217,16 +2676,16 @@ function MainMenu({
         </aside>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="min-w-0 overflow-y-auto cozy-scroll-dark" style={{ padding: '24px 40px 80px', position: 'relative' }}>
+        <main className="min-w-0 overflow-y-auto cozy-scroll" style={{ padding: '24px 40px 80px', position: 'relative' }}>
 
           {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
-              <InlineWordmark cream />
+              <InlineWordmark />
             </div>
             <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
               <DashStat icon="🔥" top="Weekly Streak" bottom="5 days" />
-              <div style={{ width: 1, height: 34, background: 'rgba(245,241,234,0.09)' }} />
+              <div style={{ width: 1, height: 34, background: 'rgba(42,32,26,0.1)' }} />
               <DashStat icon="✂" top="Cuts Previewed" bottom={`${projects?.length ?? 0} total`} />
             </div>
             <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
@@ -2239,22 +2698,22 @@ function MainMenu({
             <div>
               <h1
                 className="type-chonk"
-                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--offwhite)', lineHeight: 0.88 }}
+                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}
               >
                 My Cuts
               </h1>
               <p
                 className="font-serif italic"
-                style={{ fontSize: 17, color: 'rgba(245,241,234,0.42)', marginTop: 8, fontStyle: 'italic' }}
+                style={{ fontSize: 17, color: 'rgba(42,32,26,0.5)', marginTop: 8, fontStyle: 'italic' }}
               >
                 your styling studio. the cuts you{' '}
-                <span style={{ borderBottom: '2px solid rgba(245,241,234,0.28)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
+                <span style={{ borderBottom: '2px solid rgba(42,32,26,0.28)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
               </p>
             </div>
             <div style={{ flex: 1 }} />
             {/* Search */}
             <div style={{ position: 'relative', width: 248 }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(245,241,234,0.25)', fontSize: 14, pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.3)', fontSize: 14, pointerEvents: 'none' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                   <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
                 </svg>
@@ -2266,17 +2725,17 @@ function MainMenu({
                 style={{
                   width: '100%',
                   padding: '10px 14px 10px 38px',
-                  border: '1px solid rgba(245,241,234,0.1)',
+                  border: '1px solid rgba(42,32,26,0.12)',
                   borderRadius: 9999,
-                  background: 'rgba(245,241,234,0.04)',
+                  background: 'rgba(42,32,26,0.05)',
                   fontSize: 14,
-                  color: 'var(--offwhite)',
+                  color: 'var(--ink)',
                   fontFamily: 'var(--font-fraunces), Georgia, serif',
                   fontStyle: 'italic',
                   outline: 'none',
                 }}
                 onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(245,241,234,0.1)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.12)')}
               />
             </div>
           </div>
@@ -2289,14 +2748,14 @@ function MainMenu({
                 onClick={() => setActiveTab(t)}
                 style={{
                   padding: '7px 17px',
-                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(245,241,234,0.1)'}`,
+                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.12)'}`,
                   background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent',
                   borderRadius: 9999,
                   cursor: 'pointer',
                   fontFamily: 'var(--font-dmsans)',
                   fontWeight: 700,
                   fontSize: 13,
-                  color: activeTab === t ? 'var(--coral)' : 'rgba(245,241,234,0.38)',
+                  color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.45)',
                   letterSpacing: '0.02em',
                   transition: 'all 160ms ease',
                 }}
@@ -2305,10 +2764,10 @@ function MainMenu({
               </button>
             ))}
             <div style={{ flex: 1 }} />
-            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(245,241,234,0.28)', paddingRight: 6 }}>
+            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(42,32,26,0.35)', paddingRight: 6 }}>
               start here!
             </span>
-            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(245,241,234,0.22)" strokeWidth="1.6" strokeLinecap="round">
+            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(42,32,26,0.25)" strokeWidth="1.6" strokeLinecap="round">
               <path d="M30 4 Q 4 12, 14 38" />
               <path d="M9 32 L14 38 L20 33" />
             </svg>
@@ -2448,11 +2907,6 @@ interface DemoToolboxProps {
   onSubmit: () => void;
 }
 function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxProps) {
-  const currentParams = profile.currentStyle.params;
-  const llmPayload = buildCurrentProfilePayload(profile);
-  const liveMeasurementsJson = JSON.stringify(llmPayload.measurementSnapshot, null, 2);
-  const llmPayloadJson = JSON.stringify(llmPayload, null, 2);
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(); }
   };
@@ -2486,35 +2940,6 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
         </div>
       </form>
 
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-gray-500 uppercase tracking-widest">Hair Parameters</p>
-        {([ { key: 'pc1', label: 'Hair length' }, { key: 'pc2', label: 'Width' }, { key: 'pc3', label: 'Ponytail-ness' }, { key: 'pc4', label: 'Density' }, { key: 'pc5', label: 'Wavyness' }, { key: 'pc6', label: 'Parting' } ] as const).map(({ key, label }) => (
-          <div key={key} className="flex flex-col gap-1">
-            <div className="flex justify-between text-sm">
-              <span>{label}</span>
-              <span className="text-gray-400">{(currentParams[key] ?? 0).toFixed(2)}</span>
-            </div>
-            <input type="range" min={-3} max={3} step={0.1} value={currentParams[key] ?? 0} disabled onChange={() => {}} className="slider-warm w-full opacity-40 cursor-not-allowed" />
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <div className="flex items-baseline justify-between">
-          <span className="pill pill-denim">live measurements</span>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">auto</span>
-        </div>
-        <textarea readOnly value={liveMeasurementsJson} className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-40 focus:outline-none" style={{ fontStyle: 'normal' }} />
-      </div>
-
-      <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <div className="flex items-baseline justify-between">
-          <span className="pill pill-denim">llm payload</span>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">current_profile</span>
-        </div>
-        <textarea readOnly value={llmPayloadJson} className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-56 focus:outline-none" style={{ fontStyle: 'normal' }} />
-      </div>
-
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
         <span className="pill pill-tomato">take it to your barber</span>
         <button disabled className="btn btn-cream opacity-40 cursor-not-allowed" style={{ padding: '10px 16px', fontSize: 13 }}>📜 Barber&rsquo;s order</button>
@@ -2539,7 +2964,8 @@ export default function Home() {
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
-  const meUser = useQuery(api.users.getMe);
+  const meUser    = useQuery(api.users.getMe);
+  const myProjects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -2638,15 +3064,17 @@ export default function Home() {
   }, [appState, activeProjectId, params, profile, imageUrl, saveProject]);
 
   const smirk = useSmirk(undefined);
-  const { splatSrc, status: demoStatus } = useDemoFacelift(imageUrl);
+  // Only run useDemoFacelift as a fallback if we don't already have a splat from ScanPopup
+  const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
 
-  // Persist the splat URL once facelift finishes so we can restore it on re-open
+  // Persist the splat URL once facelift finishes (from either ScanPopup or useDemoFacelift fallback)
   useEffect(() => {
-    if (!splatSrc || !activeProjectId) return;
-    setPersistedSplatUrl(splatSrc);
-    saveProject({ projectId: activeProjectId, lastSplatUrl: splatSrc }).catch(() => {});
+    const urlToSave = splatSrc ?? persistedSplatUrl;
+    if (!urlToSave || !activeProjectId) return;
+    if (splatSrc) setPersistedSplatUrl(splatSrc);
+    saveProject({ projectId: activeProjectId, lastSplatUrl: urlToSave }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splatSrc, activeProjectId]);
+  }, [splatSrc, persistedSplatUrl, activeProjectId]);
 
   const handleParamsChange = useCallback((next: HairParams) => {
     setParams(next);
@@ -2663,12 +3091,14 @@ export default function Home() {
     } : prev);
   }, []);
 
-  const handleScanComplete = (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean) => {
+  const handleScanComplete = (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setProfile(profileWithMeasurements);
     setParams(profileWithMeasurements.currentStyle.params);
     setHasScanEver(true);
     setShowScanPopup(false);
+
+    if (splatUrl) setPersistedSplatUrl(splatUrl);
 
     if (isFirstScan && url) {
       // First-time setup: don't open a session — animate the selfie into the profile button
@@ -2690,6 +3120,14 @@ export default function Home() {
       setAppState('3d');
     }
   };
+
+  // Auto-load the most recent project for returning users so they skip re-scanning
+  useEffect(() => {
+    if (!isSignedIn || hasScanEver || !myProjects?.length) return;
+    const latest = myProjects[0];
+    if ((latest as { lastSplatUrl?: string })?.lastSplatUrl) handleOpenProject(latest);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, myProjects]);
 
   const handleHairBBoxReady = useCallback((bbox: RawHairBBox) => {
     setProfile(prev => prev ? {
