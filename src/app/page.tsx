@@ -335,21 +335,21 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
         position: 'absolute',
         top: 'calc(100% + 8px)',
         right: 0,
-        width: 290,
+        width: 330,
         background: 'var(--cream)',
         border: '1px solid rgba(42,32,26,0.12)',
         backdropFilter: 'blur(8px)',
         borderRadius: 18,
         boxShadow: '0 20px 50px -12px rgba(0,0,0,0.25)',
         overflow: 'hidden',
-        maxHeight: open ? '420px' : '0px',
+        maxHeight: open ? '480px' : '0px',
         opacity: open ? 1 : 0,
         pointerEvents: open ? 'auto' : 'none',
         transition: open
           ? 'max-height 400ms cubic-bezier(.08,.82,.17,1), opacity 250ms 80ms ease'
           : 'max-height 280ms cubic-bezier(.4,0,1,1), opacity 150ms ease',
       }}>
-        <div className="px-4 pb-4 flex flex-col gap-3" style={{ paddingTop: 12 }}>
+        <div className="px-5 pb-5 flex flex-col gap-4" style={{ paddingTop: 16 }}>
 
           {/* Tokens */}
           <div className="flex flex-col gap-2">
@@ -362,7 +362,7 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
             <BouncyButton
               onClick={() => setShowPricing(true)}
               className="btn btn-cream w-full"
-              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
+              style={{ padding: '14px 16px', fontSize: 13, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
             >
               Get more!
             </BouncyButton>
@@ -1718,7 +1718,7 @@ function ProjectCard({
       className={`relative rounded-2xl overflow-hidden flex flex-col text-left transition-shadow hover:shadow-xl ${zooming ? 'project-zoom' : ''}`}
       style={{
         background: 'var(--cream)',
-        border: '1px solid rgba(42,32,26,0.1)',
+        border: '1.5px solid rgba(42,32,26,0.25)',
         aspectRatio: '3/4',
         transform: rotate ? `rotate(${rotate}deg)` : undefined,
         transition: 'transform 200ms ease, box-shadow 200ms ease',
@@ -1775,7 +1775,7 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         className="relative rounded-2xl flex items-center justify-center transition-opacity hover:opacity-90"
         style={{
           background: 'var(--cream)',
-          border: '1px dashed rgba(42,32,26,0.15)',
+          border: '1.5px dashed rgba(42,32,26,0.3)',
           aspectRatio: '3/4',
           width: '100%',
         }}
@@ -2113,7 +2113,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 
 /* ─────────────── Glimpse / Orbit Section ─────────────── */
 const GLIMPSE_SATELLITE_COUNT = 6;
-const GLIMPSE_FINAL_RADIUS = 220;
+const GLIMPSE_FINAL_RADIUS = 490;
 const GLIMPSE_ERUPTION_DURATION = 1900;
 const GLIMPSE_ORBIT_SPEED = 0.00022; // radians per ms, CCW
 
@@ -2230,7 +2230,7 @@ function GlimpseSection() {
       {/* Orbit stage */}
       <div
         ref={sectionRef}
-        style={{ position: 'relative', height: 660, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'relative', height: 1360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         {/* Center image */}
         <div
@@ -2238,17 +2238,16 @@ function GlimpseSection() {
             position: 'absolute',
             left: '50%',
             top: '50%',
-            width: 196,
-            height: 196,
-            marginLeft: -98,
-            marginTop: -98,
-            borderRadius: 26,
+            width: 400,
+            height: 400,
+            marginLeft: -200,
+            marginTop: -200,
+            borderRadius: 28,
             overflow: 'hidden',
             background: 'var(--biscuit)',
             border: '2px solid rgba(42,32,26,0.12)',
             boxShadow: '0 24px 60px -12px rgba(0,0,0,0.22), 0 4px 12px -4px rgba(0,0,0,0.1)',
             zIndex: 2,
-            // spring bounce: overshoots 1.08x then settles
             transform: centerVisible ? 'scale(1)' : 'scale(0)',
             transition: centerVisible ? 'transform 680ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
           }}
@@ -2263,7 +2262,7 @@ function GlimpseSection() {
               justifyContent: 'center',
             }}
           >
-            <div style={{ width: 44, opacity: 0.22, transform: 'rotate(186deg)' }}>
+            <div style={{ width: 80, opacity: 0.18, transform: 'rotate(186deg)' }}>
               <BarberMascot isStatic />
             </div>
           </div>
@@ -2278,15 +2277,15 @@ function GlimpseSection() {
               position: 'absolute',
               left: '50%',
               top: '50%',
-              width: 88,
-              height: 116,
+              width: 260,
+              height: 340,
               transform: 'translate(-50%, -50%) scale(0)',
               opacity: 0,
-              borderRadius: 14,
+              borderRadius: 20,
               overflow: 'hidden',
               background: PALETTE[i],
               border: '1.5px solid rgba(42,32,26,0.09)',
-              boxShadow: '0 8px 28px -6px rgba(0,0,0,0.18)',
+              boxShadow: '0 12px 36px -8px rgba(0,0,0,0.2)',
               zIndex: 1,
               willChange: 'transform, opacity',
             }}
@@ -2300,7 +2299,7 @@ function GlimpseSection() {
                 justifyContent: 'center',
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(42,32,26,0.28)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(42,32,26,0.28)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
             </div>
@@ -2475,41 +2474,57 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           ))}
         </div>
 
+        {/* ── Glimpse orbit section ── */}
+        <GlimpseSection />
+
         {/* ── Footer strip ── */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr 1fr',
-            gap: 24,
-            padding: '40px 0 44px',
-            marginTop: 32,
-            borderTop: '1px solid rgba(42,32,26,0.08)',
+            display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '28px 0 40px',
+            marginTop: 0,
+            borderTop: '1px solid rgba(42,32,26,0.08)',
           }}
         >
-          {[
-            { icon: '✂', label: 'A HAIRCUT,\nCONSIDERED.' },
-            { icon: '🌐', label: 'BUILT FOR REAL PEOPLE.\nMADE FOR REAL LIFE.' },
-            { icon: '✌', label: 'LOOK BETTER.\nFEEL UNSTOPPABLE.' },
-          ].map(f => (
-            <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ fontSize: 20, color: 'var(--ink)', flexShrink: 0 }}>{f.icon}</span>
-              <span
-                className="font-sans"
-                style={{ fontSize: 10, letterSpacing: '0.14em', color: 'var(--char)', lineHeight: 1.45, whiteSpace: 'pre-line', opacity: 0.75 }}
-              >
-                {f.label}
-              </span>
-            </div>
-          ))}
-          <div style={{ textAlign: 'right' }}>
-            <span className="font-serif italic" style={{ fontSize: 26, color: 'var(--ink)', fontStyle: 'italic' }}>Shape Up</span>
-            <sup className="font-sans" style={{ fontSize: 10, marginLeft: 3, verticalAlign: 'super', color: 'var(--char)' }}>™</sup>
-          </div>
-        </div>
+          {/* Instagram */}
+          <a
+            href="https://instagram.com/unchopped_"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--char)', opacity: 0.7, transition: 'opacity 140ms ease' }}
+            onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+            onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+              <circle cx="12" cy="12" r="4" />
+              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+            </svg>
+            <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>@unchopped_</span>
+          </a>
 
-        {/* ── Glimpse orbit section ── */}
-        <GlimpseSection />
+          {/* Brand */}
+          <div style={{ textAlign: 'center' }}>
+            <span className="font-serif italic" style={{ fontSize: 22, color: 'var(--ink)', fontStyle: 'italic', opacity: 0.6 }}>Shape Up</span>
+            <sup className="font-sans" style={{ fontSize: 9, marginLeft: 2, verticalAlign: 'super', color: 'var(--char)', opacity: 0.5 }}>™</sup>
+          </div>
+
+          {/* Email */}
+          <a
+            href="mailto:shapeup.ai@gmail.com"
+            style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--char)', opacity: 0.7, transition: 'opacity 140ms ease' }}
+            onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+            onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+          >
+            <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>shapeup.ai@gmail.com</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="3" />
+              <polyline points="2,4 12,13 22,4" />
+            </svg>
+          </a>
+        </div>
 
       </div>
     </main>
@@ -2520,9 +2535,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 function DashStat({ icon, top, bottom }: { icon: React.ReactNode; top: string; bottom: string }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-      <span style={{ color: 'rgba(42,32,26,0.45)', fontSize: 18 }}>{icon}</span>
+      <span style={{ color: 'rgba(42,32,26,0.7)', fontSize: 18 }}>{icon}</span>
       <div style={{ lineHeight: 1.15 }}>
-        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)', textTransform: 'uppercase' }}>{top}</div>
+        <div className="font-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(42,32,26,0.65)', textTransform: 'uppercase' }}>{top}</div>
         <div className="font-sans" style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{bottom}</div>
       </div>
     </div>
@@ -2585,24 +2600,6 @@ function MainMenu({
         </svg>
       ),
     },
-    {
-      key: 'studio',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="6" cy="17" r="3" /><circle cx="6" cy="7" r="3" />
-          <path d="M9 8.5L20 17" /><path d="M9 15.5L20 7" /><path d="M12 12H15" />
-        </svg>
-      ),
-    },
-    {
-      key: 'settings',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2V5M12 19V22M2 12H5M19 12H22M4.22 4.22L6.34 6.34M17.66 17.66L19.78 19.78M4.22 19.78L6.34 17.66M17.66 6.34L19.78 4.22" />
-        </svg>
-      ),
-    },
   ];
 
   return (
@@ -2620,7 +2617,7 @@ function MainMenu({
         {/* ── LEFT NAV RAIL ── */}
         <aside
           style={{
-            borderRight: '1px solid rgba(42,32,26,0.08)',
+            borderRight: '2px solid rgba(42,32,26,0.22)',
             background: 'var(--biscuit)',
             padding: '24px 10px',
             display: 'flex',
@@ -2631,7 +2628,7 @@ function MainMenu({
           }}
         >
           {/* Scissor mascot wordmark */}
-          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.5 }}>
+          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.85 }}>
             <BarberMascot isStatic color="var(--ink)" />
           </div>
 
@@ -2645,7 +2642,7 @@ function MainMenu({
                   border: 'none',
                   cursor: 'pointer',
                   background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
-                  color: isActive ? 'var(--coral)' : 'rgba(42,32,26,0.4)',
+                  color: isActive ? 'var(--coral)' : 'var(--ink)',
                   padding: '10px 0',
                   borderRadius: 12,
                   display: 'flex',
@@ -2679,14 +2676,9 @@ function MainMenu({
         <main className="min-w-0 overflow-y-auto cozy-scroll" style={{ padding: '24px 40px 80px', position: 'relative' }}>
 
           {/* Top bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, position: 'relative', zIndex: 10 }}>
             <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
               <InlineWordmark />
-            </div>
-            <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
-              <DashStat icon="🔥" top="Weekly Streak" bottom="5 days" />
-              <div style={{ width: 1, height: 34, background: 'rgba(42,32,26,0.1)' }} />
-              <DashStat icon="✂" top="Cuts Previewed" bottom={`${projects?.length ?? 0} total`} />
             </div>
             <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
               <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} />
@@ -2702,18 +2694,11 @@ function MainMenu({
               >
                 My Cuts
               </h1>
-              <p
-                className="font-serif italic"
-                style={{ fontSize: 17, color: 'rgba(42,32,26,0.5)', marginTop: 8, fontStyle: 'italic' }}
-              >
-                your styling studio. the cuts you{' '}
-                <span style={{ borderBottom: '2px solid rgba(42,32,26,0.28)', paddingBottom: 1 }}>didn&rsquo;t</span> ruin.
-              </p>
             </div>
             <div style={{ flex: 1 }} />
             {/* Search */}
             <div style={{ position: 'relative', width: 248 }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.3)', fontSize: 14, pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                   <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
                 </svg>
@@ -2725,7 +2710,7 @@ function MainMenu({
                 style={{
                   width: '100%',
                   padding: '10px 14px 10px 38px',
-                  border: '1px solid rgba(42,32,26,0.12)',
+                  border: '1.5px solid rgba(42,32,26,0.28)',
                   borderRadius: 9999,
                   background: 'rgba(42,32,26,0.05)',
                   fontSize: 14,
@@ -2735,7 +2720,7 @@ function MainMenu({
                   outline: 'none',
                 }}
                 onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.12)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.28)')}
               />
             </div>
           </div>
@@ -2748,14 +2733,14 @@ function MainMenu({
                 onClick={() => setActiveTab(t)}
                 style={{
                   padding: '7px 17px',
-                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.12)'}`,
+                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`,
                   background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent',
                   borderRadius: 9999,
                   cursor: 'pointer',
                   fontFamily: 'var(--font-dmsans)',
                   fontWeight: 700,
                   fontSize: 13,
-                  color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.45)',
+                  color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)',
                   letterSpacing: '0.02em',
                   transition: 'all 160ms ease',
                 }}
@@ -2764,10 +2749,10 @@ function MainMenu({
               </button>
             ))}
             <div style={{ flex: 1 }} />
-            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(42,32,26,0.35)', paddingRight: 6 }}>
+            <span className="font-serif italic" style={{ fontSize: 17, color: 'rgba(42,32,26,0.65)', paddingRight: 6 }}>
               start here!
             </span>
-            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(42,32,26,0.25)" strokeWidth="1.6" strokeLinecap="round">
+            <svg width="32" height="38" viewBox="0 0 40 46" fill="none" stroke="rgba(42,32,26,0.5)" strokeWidth="1.6" strokeLinecap="round">
               <path d="M30 4 Q 4 12, 14 38" />
               <path d="M9 32 L14 38 L20 33" />
             </svg>
