@@ -2246,21 +2246,65 @@ function ChatMsgBubble({ msg }: { msg: ChatMsg }) {
   );
 }
 
+function PhoneFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="phone-frame-bg"
+      style={{
+        width: 200,
+        height: 330,
+        borderRadius: 30,
+        boxShadow: '0 20px 52px -10px rgba(180,40,30,0.52), 0 6px 20px -4px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,160,140,0.18)',
+        flexShrink: 0,
+      }}
+    >
+      {/* Screen */}
+      <div style={{
+        position: 'absolute',
+        top: 4, left: 4, right: 4, bottom: 4,
+        borderRadius: 24,
+        background: '#F3F3F3',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 1,
+      }}>
+        {/* Dynamic island */}
+        <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: '#F3F3F3' }}>
+          <div style={{ width: 62, height: 13, background: '#1A1A1A', borderRadius: 9999 }} />
+        </div>
+        {/* Message area */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {children}
+        </div>
+        {/* Home bar */}
+        <div style={{ height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 54, height: 4, background: 'rgba(0,0,0,0.18)', borderRadius: 9999 }} />
+        </div>
+      </div>
+      {/* Volume buttons */}
+      <div style={{ position: 'absolute', left: -3, top: 68, width: 4, height: 24, background: 'rgba(150,28,18,0.65)', borderRadius: '2px 0 0 2px', zIndex: 2 }} />
+      <div style={{ position: 'absolute', left: -3, top: 102, width: 4, height: 24, background: 'rgba(150,28,18,0.65)', borderRadius: '2px 0 0 2px', zIndex: 2 }} />
+      {/* Power button */}
+      <div style={{ position: 'absolute', right: -3, top: 88, width: 4, height: 34, background: 'rgba(150,28,18,0.65)', borderRadius: '0 2px 2px 0', zIndex: 2 }} />
+    </div>
+  );
+}
+
 function ChatStack({ messages }: { messages: ChatMsg[] }) {
   return (
     <div
       style={{
         position: 'absolute',
-        right: 16,
-        bottom: '50%',
-        width: 186,
+        bottom: 4,
+        left: 0,
+        right: 0,
         display: 'flex',
         flexDirection: 'column-reverse',
-        gap: 8,
-        zIndex: 20,
-        pointerEvents: 'none',
-        maxHeight: 380,
+        gap: 6,
         overflow: 'hidden',
+        maxHeight: '100%',
+        padding: '0 10px',
       }}
     >
       {messages.map(msg => (
@@ -2745,7 +2789,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       resetTimerRef.current = setTimeout(() => {
         resetTimerRef.current = null;
         setChatMsgs([{ id: chatIdRef.current++, text: FACE_MESSAGES[0], phase: 'entering', disintDelay: 0 }]);
-      }, count * 80 + 480);
+      }, count * 80 + 180);
     } else {
       // New message appears at bottom, existing ones shift up
       setChatMsgs(msgs => [
@@ -2849,10 +2893,23 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* Right — blob visual */}
           <div
-            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
             className="anim-fade-in delay-200"
           >
             <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
+              {/* Phone frame — left of blob, slightly below center */}
+              <div style={{
+                position: 'absolute',
+                left: -84,
+                top: 'calc(57% + 132px)',
+                transform: 'translateY(-50%)',
+                zIndex: 15,
+                pointerEvents: 'none',
+              }}>
+                <PhoneFrame>
+                  <ChatStack messages={chatMsgs} />
+                </PhoneFrame>
+              </div>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
               <FaceVideoSwiper
                 onSwipeUp={() => swipeTriggerRef.current?.('up')}
@@ -2860,7 +2917,6 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 scrollRef={faceScrollRef}
                 onActiveChange={handleFaceChange}
               />
-              <ChatStack messages={chatMsgs} />
               <ScrollArrows
                 swipeTriggerRef={swipeTriggerRef}
                 onClickUp={() => faceScrollRef.current?.goPrev()}
