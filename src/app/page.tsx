@@ -2,7 +2,7 @@
 
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
@@ -303,86 +303,80 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
       id="profile-menu-pill"
       ref={containerRef}
       className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${swallowing ? 'profile-pill-swallow' : ''}`}
+      style={{ width: 176, height: 36, flexShrink: 0 }}
     >
-      {/* Pill header */}
-      <button
-        onClick={handleToggle}
-        className="flex items-center gap-2 px-3 py-2"
-        style={{
-          background: 'var(--cream)',
-          border: '1px solid rgba(42,32,26,0.12)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: 40,
-          width: 176,
-          cursor: 'pointer',
-          boxShadow: open ? '0 4px 16px -4px rgba(0,0,0,0.15)' : 'none',
-          transition: 'box-shadow 300ms ease',
-        }}
-      >
-        <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
-          {username}
-        </span>
-        <svg
-          width="10" height="10" viewBox="0 0 10 10" fill="none"
-          style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}
-        >
-          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-
-      {/* Dropdown overlay — absolutely positioned so it doesn't shift layout */}
+      {/* Morphing layer — absolutely positioned so it never disturbs layout */}
       <div style={{
         position: 'absolute',
-        top: 'calc(100% + 8px)',
+        top: 0,
         right: 0,
-        width: 330,
+        width: open ? 380 : 176,
+        maxHeight: open ? '600px' : '36px',
         background: 'var(--cream)',
         border: '1px solid rgba(42,32,26,0.12)',
         backdropFilter: 'blur(8px)',
-        borderRadius: 18,
-        boxShadow: '0 20px 50px -12px rgba(0,0,0,0.25)',
+        borderRadius: open ? 22 : 40,
+        boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
         overflow: 'hidden',
-        maxHeight: open ? '480px' : '0px',
-        opacity: open ? 1 : 0,
-        pointerEvents: open ? 'auto' : 'none',
-        transition: open
-          ? 'max-height 400ms cubic-bezier(.08,.82,.17,1), opacity 250ms 80ms ease'
-          : 'max-height 280ms cubic-bezier(.4,0,1,1), opacity 150ms ease',
+        zIndex: 50,
+        transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease',
       }}>
-        <div className="px-5 pb-5 flex flex-col gap-4" style={{ paddingTop: 16 }}>
+        {/* Pill header */}
+        <button
+          onClick={handleToggle}
+          className="flex items-center gap-2 w-full"
+          style={{ cursor: 'pointer', background: 'none', border: 'none', padding: '8px 14px', height: 36 }}
+        >
+          <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
+            {username}
+          </span>
+          <svg
+            width="10" height="10" viewBox="0 0 10 10" fill="none"
+            style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}
+          >
+            <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
 
-          {/* Tokens */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
-              <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
-                {user?.credits ?? 0}
-              </span>
+        {/* Content — opacity only, width+height are handled by the parent */}
+        <div style={{
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+          transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease',
+        }}>
+          <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
+            <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[13px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
+                <span className="font-sans text-[22px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
+                  {user?.credits ?? 0}
+                </span>
+              </div>
+              <BouncyButton
+                onClick={() => setShowPricing(true)}
+                className="btn btn-cream w-full"
+                style={{ padding: '16px 20px', fontSize: 15, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
+              >
+                Get more!
+              </BouncyButton>
             </div>
-            <BouncyButton
-              onClick={() => setShowPricing(true)}
-              className="btn btn-cream w-full"
-              style={{ padding: '14px 16px', fontSize: 13, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
-            >
-              Get more!
-            </BouncyButton>
-          </div>
 
-          <div className="border-t border-dashed border-[var(--char)]/15 pt-2 flex items-center justify-between">
-            <BouncyButton
-              onClick={handleOpenSettings}
-              className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
-              style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
-            >
-              <span style={{ fontSize: 28, display: 'block', lineHeight: 1 }}>⚙</span>
-            </BouncyButton>
-            <BouncyButton
-              onClick={() => { setOpen(false); signOut(); }}
-              className="font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors"
-              style={{ background: 'none', border: 'none', paddingRight: 2 }}
-            >
-              Sign out
-            </BouncyButton>
+            <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
+              <BouncyButton
+                onClick={handleOpenSettings}
+                className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
+                style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
+              >
+                <span style={{ fontSize: 32, display: 'block', lineHeight: 1 }}>⚙</span>
+              </BouncyButton>
+              <BouncyButton
+                onClick={() => { setOpen(false); signOut(); }}
+                className="font-sans text-[15px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors"
+                style={{ background: 'none', border: 'none', paddingRight: 2 }}
+              >
+                Sign out
+              </BouncyButton>
+            </div>
           </div>
         </div>
       </div>
@@ -912,7 +906,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   const PLANS = [
     { id: 'starter',  label: '20 haircut generations',       price: '$1.99',  featured: false },
     { id: 'popular',  label: '60 haircut generations',       price: '$4.99',  featured: true  },
-    { id: 'lifetime', label: 'Lifetime haircut generations', price: '$29.99', featured: false },
+    { id: 'lifetime', label: '500 haircut generations',      price: '$14.99', featured: false },
   ] as const;
 
   const handleBuy = async (planId: string) => {
@@ -1698,51 +1692,321 @@ interface ProjectDoc {
   lastProfile?: UserHeadProfile;
   lastImageUrl?: string;
   updatedAt: number;
+  savedAt?: number;
+}
+
+/* ─────────────── Flying Card (save animation) ─────────────── */
+function FlyingCard({ fromRect, toPoint, thumbnailUrl, onDone }: {
+  fromRect: DOMRect;
+  toPoint: { x: number; y: number };
+  thumbnailUrl?: string;
+  onDone: () => void;
+}) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+
+    const sx = fromRect.left + fromRect.width / 2;
+    const sy = fromRect.top + fromRect.height / 2;
+    const ex = toPoint.x;
+    const ey = toPoint.y;
+    // Arc control point: sweep above both points
+    const cpX = sx * 0.4 + ex * 0.6;
+    const cpY = Math.min(sy, ey) - 170;
+
+    const duration = 720;
+    let startTime = 0;
+
+    const tick = (now: number) => {
+      if (!startTime) startTime = now;
+      const raw = Math.min((now - startTime) / duration, 1);
+      const t = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
+
+      const x = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * cpX + t * t * ex;
+      const y = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * cpY + t * t * ey;
+      const scale = 1 - t * 0.8;
+      const opacity = raw > 0.7 ? Math.max(0, 1 - (raw - 0.7) / 0.3) : 1;
+
+      el.style.transform = `translate(${x - sx}px, ${y - sy}px) scale(${scale})`;
+      el.style.opacity = String(opacity);
+
+      if (raw < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        onDoneRef.current();
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return createPortal(
+    <div
+      ref={elRef}
+      style={{
+        position: 'fixed',
+        left: fromRect.left,
+        top: fromRect.top,
+        width: fromRect.width,
+        height: fromRect.height,
+        borderRadius: 16,
+        overflow: 'hidden',
+        zIndex: 9999,
+        pointerEvents: 'none',
+        boxShadow: '0 12px 40px rgba(0,0,0,0.35)',
+        transformOrigin: 'center center',
+        willChange: 'transform, opacity',
+        border: '1.5px solid rgba(212,175,55,0.7)',
+      }}
+    >
+      {thumbnailUrl ? (
+        <img src={thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      ) : (
+        <div style={{ width: '100%', height: '100%', background: 'var(--biscuit)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div>
+        </div>
+      )}
+    </div>,
+    document.body
+  );
 }
 
 function ProjectCard({
   project,
   onClick,
   rotate = 0,
-}: { project: ProjectDoc; onClick: () => void; rotate?: number }) {
+  onDelete,
+  onSave,
+}: { project: ProjectDoc; onClick: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void }) {
   const [zooming, setZooming] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isGlowing, setIsGlowing] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [arrowHovered, setArrowHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const handleClick = () => {
+  const DRAWER_H = 72;
+  const EASE = 'cubic-bezier(0,0,0.2,1)';
+  const DUR = '270ms';
+  const isSaved = !!project.savedAt;
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        setDrawerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [drawerOpen]);
+
+  const handleCardClick = () => {
+    if (drawerOpen) return;
     setZooming(true);
     setTimeout(onClick, 480);
   };
 
+  const handleDelete = () => {
+    setDrawerOpen(false);
+    setTimeout(() => {
+      setIsDeleting(true);
+      setTimeout(() => { onDelete?.(); }, 350);
+    }, 280);
+  };
+
+  const handleSave = () => {
+    setDrawerOpen(false);
+    setTimeout(() => {
+      setIsGlowing(true);
+      if (cardRef.current) onSave?.(cardRef.current.getBoundingClientRect());
+      setTimeout(() => setIsGlowing(false), 1400);
+    }, 240);
+  };
+
+  const cardTransform = isDeleting
+    ? `scale(0.42) rotate(${(rotate || 0) - 15}deg)`
+    : isHovered
+    ? `rotate(${rotate || 0}deg) scale(1.025)`
+    : rotate ? `rotate(${rotate}deg)` : undefined;
+
+  const cardTransition = isDeleting
+    ? 'transform 350ms cubic-bezier(0.4,0,1,1), opacity 350ms cubic-bezier(0.4,0,1,1)'
+    : `box-shadow 380ms ease, border-color ${DUR} ${EASE}, transform 200ms ease`;
+
+  const cardBorder = drawerOpen
+    ? '1.5px solid transparent'
+    : isGlowing
+    ? '1.5px solid rgba(212,175,55,0.95)'
+    : isSaved
+    ? '1.5px solid rgba(212,175,55,0.6)'
+    : isHovered
+    ? '1.5px solid rgba(232,97,77,0.6)'
+    : '1.5px solid rgba(42,32,26,0.25)';
+
+  const arrowBorderColor = arrowHovered
+    ? 'rgba(232,97,77,0.75)'
+    : isGlowing
+    ? 'rgba(212,175,55,0.95)'
+    : isSaved
+    ? 'rgba(212,175,55,0.6)'
+    : 'rgba(42,32,26,0.25)';
+
+  const cardShadow = isGlowing
+    ? '0 0 0 4px rgba(212,175,55,0.45), 0 0 28px rgba(212,175,55,0.28), 0 8px 24px -8px rgba(0,0,0,0.18)'
+    : isSaved
+    ? '0 0 0 1px rgba(212,175,55,0.22), 0 8px 24px -8px rgba(0,0,0,0.18)'
+    : '0 8px 24px -8px rgba(0,0,0,0.18)';
+
   return (
-    <BouncyButton
-      onClick={handleClick}
-      className={`relative rounded-2xl overflow-hidden flex flex-col text-left transition-shadow hover:shadow-xl ${zooming ? 'project-zoom' : ''}`}
+    <div
+      ref={cardRef}
+      className={`relative overflow-hidden ${zooming ? 'project-zoom' : ''}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         background: 'var(--cream)',
-        border: '1.5px solid rgba(42,32,26,0.25)',
+        border: cardBorder,
         aspectRatio: '3/4',
-        transform: rotate ? `rotate(${rotate}deg)` : undefined,
-        transition: 'transform 200ms ease, box-shadow 200ms ease',
-        boxShadow: '0 8px 24px -8px rgba(0,0,0,0.18)',
+        borderRadius: 16,
+        transform: cardTransform,
+        opacity: isDeleting ? 0 : 1,
+        transition: cardTransition,
+        boxShadow: cardShadow,
+        cursor: 'pointer',
+        pointerEvents: isDeleting ? 'none' : 'auto',
       }}
     >
-      {project.thumbnailUrl ? (
-        <img src={project.thumbnailUrl} alt={project.name} className="absolute inset-0 w-full h-full object-cover" />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--biscuit)' }}>
-          <div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}>
-            <BarberMascot isStatic color="var(--ink)" />
-          </div>
-        </div>
-      )}
+      {/* Drawer — sits at bottom, revealed when content slides up */}
       <div
-        className="absolute bottom-0 left-0 right-0 px-3 py-2"
-        style={{ background: 'linear-gradient(transparent, rgba(42,32,26,0.7))' }}
+        style={{
+          position: 'absolute',
+          bottom: 0, left: 0, right: 0,
+          height: DRAWER_H,
+          background: 'var(--cream)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '0 16px',
+          zIndex: 1,
+        }}
       >
-        <span className="font-sans text-[11px] text-[var(--cream)] font-600" style={{ fontWeight: 600 }}>
-          {project.name}
-        </span>
+        {/* Delete — red circle */}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+          style={{
+            width: 58, height: 58, borderRadius: '50%', border: 'none',
+            background: 'rgba(214,60,47,0.1)', color: '#d63c2f',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0,
+            transition: 'background 150ms ease, transform 120ms ease',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(214,60,47,0.18)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(214,60,47,0.1)'; }}
+          onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.87)'; }}
+          onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+            <path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" />
+          </svg>
+        </button>
+        {/* Save/unsave — coral→gold when saved, filled bookmark */}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleSave(); }}
+          style={{
+            width: 58, height: 58, borderRadius: '50%', border: 'none',
+            background: isSaved ? 'rgba(212,175,55,0.15)' : 'rgba(124,92,222,0.1)',
+            color: isSaved ? 'rgba(180,140,30,1)' : '#7C5CDE',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0,
+            transition: 'background 200ms ease, color 200ms ease, transform 120ms ease',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = isSaved ? 'rgba(212,175,55,0.25)' : 'rgba(124,92,222,0.18)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = isSaved ? 'rgba(212,175,55,0.15)' : 'rgba(124,92,222,0.1)'; }}
+          onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.87)'; }}
+          onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <path d="M5 3H19V21L12 15.5L5 21Z" />
+          </svg>
+        </button>
       </div>
-    </BouncyButton>
+
+      {/* Content — slides up to expose drawer; rounded bottom preserves curved edge */}
+      <div
+        onClick={handleCardClick}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          borderRadius: '0 0 16px 16px',
+          transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)',
+          transition: `transform ${DUR} ${EASE}`,
+          zIndex: 2,
+        }}
+      >
+        {project.thumbnailUrl ? (
+          <img src={project.thumbnailUrl} alt={project.name} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'var(--biscuit)' }}>
+            <div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}>
+              <BarberMascot isStatic color="var(--ink)" />
+            </div>
+          </div>
+        )}
+        <div
+          className="absolute bottom-0 left-0 right-0 px-3 py-2"
+          style={{ background: 'linear-gradient(transparent, rgba(42,32,26,0.7))' }}
+        >
+          <span className="font-sans text-[11px] text-[var(--cream)]" style={{ fontWeight: 600 }}>
+            {project.name}
+          </span>
+        </div>
+      </div>
+
+      {/* Arrow toggle — bottom-right, always on top */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setDrawerOpen(o => !o); }}
+        onMouseEnter={(e) => { e.stopPropagation(); setArrowHovered(true); }}
+        onMouseLeave={(e) => { e.stopPropagation(); setArrowHovered(false); }}
+        style={{
+          position: 'absolute',
+          bottom: drawerOpen ? DRAWER_H + 12 : 12,
+          right: 14,
+          zIndex: 3,
+          width: 28, height: 28,
+          borderRadius: '50%',
+          border: `1.5px solid ${arrowBorderColor}`,
+          background: 'var(--cream)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', padding: 0,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+          color: arrowHovered ? 'var(--coral)' : 'var(--ink)',
+          transform: arrowHovered ? 'scale(1.16)' : 'scale(1)',
+          transition: `bottom ${DUR} ${EASE}, transform 180ms ease, border-color 150ms ease, color 150ms ease`,
+        }}
+      >
+        <svg
+          width="11" height="11" viewBox="0 0 10 10" fill="none"
+          style={{
+            transform: drawerOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: `transform ${DUR} ${EASE}`,
+          }}
+        >
+          <path d="M2 6.5L5 3.5L8 6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -1890,9 +2154,123 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─────────────── Face Video Swiper ─────────────── */
-const FACE_VIDS = ['a','b','c','d','e','f'].map(l => `/landing_face1/face1${l}.mov`);
+// face1b first (original haircut), then wolf cut (a), etc.
+const FACE_VIDS = ['b','a','c','d','e','f'].map(l => `/landing_face1/face1${l}.mov`);
 
-function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef }: { onSwipeUp?: () => void; onSwipeDown?: () => void; scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null> }) {
+const FACE_MESSAGES = [
+  "Original Haircut (Swipe me!)",
+  "Give me a wolf cut",
+  "Slightly shorter wolf cut",
+  "Give me a bleached buzz cut",
+  "I want a korean perm middle part",
+  "Make me bald",
+];
+
+const IMSG_BLUE = '#007AFF';
+
+type ChatMsg = {
+  id: number;
+  text: string;
+  phase: 'entering' | 'idle' | 'disintegrating';
+  disintDelay: number;
+};
+
+function ChatMsgBubble({ msg }: { msg: ChatMsg }) {
+  const [showText, setShowText] = useState(false);
+
+  // Very short typing indicator — 280ms
+  useEffect(() => {
+    const t = setTimeout(() => setShowText(true), 280);
+    return () => clearTimeout(t);
+  }, []);
+
+  const entering = msg.phase === 'entering';
+  const disint = msg.phase === 'disintegrating';
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        background: IMSG_BLUE,
+        color: 'white',
+        borderRadius: showText ? '18px 18px 4px 18px' : '18px',
+        padding: showText ? '8px 12px' : '8px 13px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
+        fontSize: 13.5,
+        fontWeight: 400,
+        lineHeight: 1.35,
+        letterSpacing: '-0.01em',
+        maxWidth: '100%',
+        boxShadow: '0 2px 10px rgba(0,80,200,0.22), 0 1px 3px rgba(0,0,0,0.14)',
+        transition: 'border-radius 0.18s ease',
+        animationName: disint ? 'msg-disintegrate' : entering ? 'msg-enter' : undefined,
+        animationDuration: disint ? '0.4s' : '0.4s',
+        animationFillMode: 'both',
+        animationTimingFunction: disint ? 'ease-in' : 'cubic-bezier(0.34,1.2,0.64,1)',
+        animationDelay: `${msg.disintDelay}ms`,
+      }}
+    >
+      {!showText ? (
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', height: 14 }}>
+          {[0, 1, 2].map(i => (
+            <div
+              key={i}
+              style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.88)',
+                animationName: 'imessage-dot',
+                animationDuration: '1s',
+                animationTimingFunction: 'ease-in-out',
+                animationIterationCount: 'infinite',
+                animationDelay: `${i * 0.18}s`,
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <span style={{ animationName: 'imessage-text-in', animationDuration: '0.18s', animationFillMode: 'both' }}>
+          {msg.text}
+        </span>
+      )}
+
+      {/* Tail — bottom-right, sent-message style, only when showing text */}
+      {showText && !disint && (
+        <svg
+          style={{ position: 'absolute', bottom: 0, right: -8, display: 'block' }}
+          width="12" height="11" viewBox="0 0 12 11"
+        >
+          <path d="M 0 0 Q 4 0 7 3 Q 10 6 12 11 Q 5 9 2 5 Q 0 3 0 0 Z" fill={IMSG_BLUE} />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+function ChatStack({ messages }: { messages: ChatMsg[] }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: 16,
+        bottom: '50%',
+        width: 186,
+        display: 'flex',
+        flexDirection: 'column-reverse',
+        gap: 8,
+        zIndex: 20,
+        pointerEvents: 'none',
+        maxHeight: 380,
+        overflow: 'hidden',
+      }}
+    >
+      {messages.map(msg => (
+        <ChatMsgBubble key={msg.id} msg={msg} />
+      ))}
+    </div>
+  );
+}
+
+function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: { onSwipeUp?: () => void; onSwipeDown?: () => void; scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null>; onActiveChange?: (idx: number) => void }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const activeRef   = useRef(0);
   const videoRefs   = useRef<(HTMLVideoElement | null)[]>([]);
@@ -1901,8 +2279,10 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef }: { onSwipeUp?: ()
   const wheelLock   = useRef(false);
   const onSwipeUpRef = useRef(onSwipeUp);
   const onSwipeDownRef = useRef(onSwipeDown);
+  const onActiveChangeRef = useRef(onActiveChange);
   useEffect(() => { onSwipeUpRef.current = onSwipeUp; }, [onSwipeUp]);
   useEffect(() => { onSwipeDownRef.current = onSwipeDown; }, [onSwipeDown]);
+  useEffect(() => { onActiveChangeRef.current = onActiveChange; }, [onActiveChange]);
 
   const switchTo = useCallback((newIdx: number) => {
     const cur  = videoRefs.current[activeRef.current];
@@ -1913,6 +2293,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef }: { onSwipeUp?: ()
     }
     activeRef.current = newIdx;
     setActiveIdx(newIdx);
+    onActiveChangeRef.current?.(newIdx);
   }, []);
 
   const goNext = useCallback(() => { switchTo((activeRef.current + 1) % FACE_VIDS.length); onSwipeUpRef.current?.(); }, [switchTo]);
@@ -1997,12 +2378,13 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef }: { onSwipeUp?: ()
                 objectFit: 'cover',
                 opacity: i === activeIdx ? 1 : 0,
                 transition: 'opacity 60ms ease',
-                transform: i === 0 || i === 2 ? 'scale(0.93)' : i === 3 ? 'scale(0.97)' : undefined,
+                transform: i === 1 || i === 2 ? 'scale(0.93)' : i === 3 ? 'scale(0.97)' : undefined,
               }}
             />
           ))}
         </div>
       </div>
+
     </div>
   );
 }
@@ -2080,8 +2462,8 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
     return () => { cancelAnimationFrame(rafId); swipeTriggerRef.current = null; };
   }, [swipeTriggerRef]);
 
-  const SH = 94;
-  const SW = 170;
+  const SH = 78;
+  const SW = 140;
   // left: 30 + 200% of SW (170) = 370; tops derived from centered pair ± vertical shifts
   const arrowLeft = 218.5;
 
@@ -2209,7 +2591,7 @@ function GlimpseSection() {
       {/* Headline */}
       <h2
         className="font-serif"
-        style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--ink)', marginBottom: 100, lineHeight: 1.25, letterSpacing: '-0.01em' }}
+        style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--cream)', marginBottom: 100, lineHeight: 1.25, letterSpacing: '-0.01em' }}
       >
         Get a glimpse of all{' '}
         <em
@@ -2342,15 +2724,41 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const { openSignIn } = useClerk();
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
+  const chatIdRef = useRef(1);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatMsgsRef = useRef<ChatMsg[]>([]);
+  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([
+    { id: 0, text: FACE_MESSAGES[0], phase: 'entering', disintDelay: 0 },
+  ]);
+  chatMsgsRef.current = chatMsgs;
+
+  const handleFaceChange = useCallback((newIdx: number) => {
+    if (resetTimerRef.current) { clearTimeout(resetTimerRef.current); resetTimerRef.current = null; }
+    if (newIdx === 0) {
+      // Disintegrate all existing messages top→bottom (oldest first)
+      const count = chatMsgsRef.current.length;
+      setChatMsgs(msgs => msgs.map((m, i) => ({
+        ...m,
+        phase: 'disintegrating' as const,
+        disintDelay: (msgs.length - 1 - i) * 80,
+      })));
+      resetTimerRef.current = setTimeout(() => {
+        resetTimerRef.current = null;
+        setChatMsgs([{ id: chatIdRef.current++, text: FACE_MESSAGES[0], phase: 'entering', disintDelay: 0 }]);
+      }, count * 80 + 480);
+    } else {
+      // New message appears at bottom, existing ones shift up
+      setChatMsgs(msgs => [
+        { id: chatIdRef.current++, text: FACE_MESSAGES[newIdx], phase: 'entering', disintDelay: 0 },
+        ...msgs.map(m => ({ ...m, phase: 'idle' as const })),
+      ]);
+    }
+  }, []);
+
   return (
-    <main
-      className="relative min-h-screen overflow-x-hidden"
-      style={{
-        backgroundImage: 'url(/offwhitebg.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center top',
-      }}
-    >
+    <main className="relative min-h-screen overflow-x-hidden">
+      {/* ─── Light section ─── */}
+      <div style={{ backgroundImage: 'url(/offwhitebg.png)', backgroundSize: 'cover', backgroundPosition: 'center top', position: 'relative' }}>
       {/* Gradient blobs */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -2362,7 +2770,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         }}
       />
 
-      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 56px 0' }}>
+      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 56px 80px' }}>
 
         {/* ── Nav ── */}
         <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
@@ -2450,7 +2858,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 onSwipeUp={() => swipeTriggerRef.current?.('up')}
                 onSwipeDown={() => swipeTriggerRef.current?.('down')}
                 scrollRef={faceScrollRef}
+                onActiveChange={handleFaceChange}
               />
+              <ChatStack messages={chatMsgs} />
               <ScrollArrows
                 swipeTriggerRef={swipeTriggerRef}
                 onClickUp={() => faceScrollRef.current?.goPrev()}
@@ -2498,58 +2908,70 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </div>
         </div>
 
-        {/* ── Glimpse orbit section ── */}
-        <GlimpseSection />
+      </div>
+      </div>
 
-        {/* ── Footer strip ── */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '28px 0 40px',
-            marginTop: 0,
-            borderTop: '1px solid rgba(42,32,26,0.08)',
-          }}
-        >
-          {/* Instagram */}
-          <a
-            href="https://instagram.com/unchopped_"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--char)', opacity: 0.7, transition: 'opacity 140ms ease' }}
-            onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
-            onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+      {/* ── Transition image ── */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/transition.png" alt="" style={{ display: 'block', width: '100%' }} />
+
+      {/* ── Dark charcoal section ── */}
+      <div style={{ backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }}>
+        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
+
+          {/* ── Glimpse orbit section ── */}
+          <GlimpseSection />
+
+          {/* ── Footer strip ── */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '28px 0 40px',
+              marginTop: 0,
+              borderTop: '1px solid rgba(255,248,234,0.12)',
+            }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-              <circle cx="12" cy="12" r="4" />
-              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-            </svg>
-            <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>@unchopped_</span>
-          </a>
+            {/* Instagram */}
+            <a
+              href="https://instagram.com/unchopped_"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                <circle cx="12" cy="12" r="4" />
+                <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+              </svg>
+              <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>@unchopped_</span>
+            </a>
 
-          {/* Brand */}
-          <div style={{ textAlign: 'center' }}>
-            <span className="font-serif italic" style={{ fontSize: 22, color: 'var(--ink)', fontStyle: 'italic', opacity: 0.6 }}>Shape Up</span>
-            <sup className="font-sans" style={{ fontSize: 9, marginLeft: 2, verticalAlign: 'super', color: 'var(--char)', opacity: 0.5 }}>™</sup>
+            {/* Brand */}
+            <div style={{ textAlign: 'center' }}>
+              <span className="font-serif italic" style={{ fontSize: 22, color: 'var(--cream)', fontStyle: 'italic', opacity: 0.6 }}>Shape Up</span>
+              <sup className="font-sans" style={{ fontSize: 9, marginLeft: 2, verticalAlign: 'super', color: 'rgba(255,248,234,0.5)', opacity: 0.5 }}>™</sup>
+            </div>
+
+            {/* Email */}
+            <a
+              href="mailto:shapeup.ai@gmail.com"
+              style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+            >
+              <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>shapeup.ai@gmail.com</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="3" />
+                <polyline points="2,4 12,13 22,4" />
+              </svg>
+            </a>
           </div>
 
-          {/* Email */}
-          <a
-            href="mailto:shapeup.ai@gmail.com"
-            style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--char)', opacity: 0.7, transition: 'opacity 140ms ease' }}
-            onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
-            onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
-          >
-            <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>shapeup.ai@gmail.com</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="4" width="20" height="16" rx="3" />
-              <polyline points="2,4 12,13 22,4" />
-            </svg>
-          </a>
         </div>
-
       </div>
     </main>
   );
@@ -2585,12 +3007,82 @@ function MainMenu({
   profilePillPulse?: boolean;
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
+  const removeProject = useMutation(api.projects.remove);
+  const toggleSaveProject = useMutation(api.projects.toggleSave);
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
   const [rightVisible, setRightVisible] = useState(false);
   const [activeNav, setActiveNav] = useState('home');
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [flyingCard, setFlyingCard] = useState<{
+    fromRect: DOMRect;
+    toPoint: { x: number; y: number };
+    thumbnailUrl?: string;
+  } | null>(null);
+
+  const cardWrapRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const prevFlipPositions = useRef<Map<string, { top: number; left: number }>>(new Map());
+  const pendingFlip = useRef(false);
+
+  const snapshotForFlip = () => {
+    prevFlipPositions.current = new Map();
+    cardWrapRefs.current.forEach((el, id) => {
+      const r = el.getBoundingClientRect();
+      prevFlipPositions.current.set(id, { top: r.top, left: r.left });
+    });
+    pendingFlip.current = true;
+  };
+
+  useLayoutEffect(() => {
+    if (!pendingFlip.current) return;
+    pendingFlip.current = false;
+    cardWrapRefs.current.forEach((el, id) => {
+      const prev = prevFlipPositions.current.get(id);
+      if (!prev) return;
+      const curr = el.getBoundingClientRect();
+      const dx = prev.left - curr.left;
+      const dy = prev.top - curr.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          el.style.transition = 'transform 320ms cubic-bezier(0,0,0.2,1)';
+          el.style.transform = '';
+        });
+      });
+    });
+    prevFlipPositions.current = new Map();
+  });
+
+  const hasSavedProjects = !!(projects?.some(p => !!p.savedAt));
+
+  const displayProjects = (() => {
+    if (!projects) return undefined;
+    let list = activeNav === 'saved' ? projects.filter(p => !!p.savedAt) : [...projects];
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q));
+    }
+    if (activeTab === 'recent') list = list.slice(0, 6);
+    return list;
+  })();
+
+  const handleSaveProject = (p: ProjectDoc, cardRect: DOMRect) => {
+    toggleSaveProject({ projectId: p._id });
+    if (!p.savedAt) {
+      const savedBtn = document.querySelector('[data-nav="saved"]');
+      if (savedBtn) {
+        const r = savedBtn.getBoundingClientRect();
+        setFlyingCard({
+          fromRect: cardRect,
+          toPoint: { x: r.left + r.width / 2, y: r.top + r.height / 2 },
+          thumbnailUrl: p.thumbnailUrl,
+        });
+      }
+    }
+  };
 
   useEffect(() => {
     const t1 = setTimeout(() => setMenuVisible(true), 60);
@@ -2627,12 +3119,12 @@ function MainMenu({
   ];
 
   return (
-    <main className="relative overflow-hidden" style={{ minHeight: '100vh', background: 'var(--biscuit-lt)' }}>
+    <main className="relative overflow-hidden" style={{ height: '100vh', background: 'var(--biscuit-lt)' }}>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: '88px 1fr',
-          minHeight: '100vh',
+          height: '100vh',
           opacity: menuVisible ? 1 : 0,
           transition: 'opacity 400ms ease',
         }}
@@ -2658,12 +3150,13 @@ function MainMenu({
 
           {navItems.map(n => {
             const isActive = n.key === activeNav;
-            const isDisabled = n.key === 'explore' || n.key === 'saved';
+            const isDisabled = n.key === 'explore' || (n.key === 'saved' && !hasSavedProjects);
             return (
               <button
                 key={n.key}
+                data-nav={n.key}
                 onClick={isDisabled ? undefined : (n.onClick ?? (() => setActiveNav(n.key)))}
-                title={isDisabled ? 'Coming soon' : undefined}
+                title={isDisabled ? (n.key === 'saved' ? 'Save a project first' : 'Coming soon') : undefined}
                 style={{
                   border: 'none',
                   cursor: isDisabled ? 'not-allowed' : 'pointer',
@@ -2717,9 +3210,9 @@ function MainMenu({
             <div>
               <h1
                 className="type-chonk"
-                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}
+                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, transition: 'opacity 200ms ease' }}
               >
-                My Cuts
+                {activeNav === 'saved' ? 'Saved' : 'My Cuts'}
               </h1>
             </div>
             <div style={{ flex: 1 }} />
@@ -2779,16 +3272,33 @@ function MainMenu({
 
           {/* Project grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
-            {projects?.map((p, i) => (
-              <ProjectCard
+            {activeNav !== 'saved' && (
+              <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
+            )}
+            {displayProjects?.map((p, i) => (
+              <div
                 key={p._id}
-                project={p}
-                onClick={() => onOpenProject(p)}
-                rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]}
-              />
+                ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }}
+              >
+                <ProjectCard
+                  project={p}
+                  onClick={() => onOpenProject(p)}
+                  rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]}
+                  onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }}
+                  onSave={(cardRect) => handleSaveProject(p, cardRect)}
+                />
+              </div>
             ))}
-            <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
           </div>
+
+          {flyingCard && (
+            <FlyingCard
+              fromRect={flyingCard.fromRect}
+              toPoint={flyingCard.toPoint}
+              thumbnailUrl={flyingCard.thumbnailUrl}
+              onDone={() => setFlyingCard(null)}
+            />
+          )}
 
           {/* Scan CTA when empty */}
           {showScanNow && !(projects && projects.length > 0) && (
@@ -3231,7 +3741,7 @@ export default function Home() {
   if (appState === 'hairEditLoop' && imageUrl) {
     const faceliftReady = splatSrc != null;
     return (
-      <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
+      <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
         <div className="absolute top-5 left-6 z-20">
           <InlineWordmark cream small />
         </div>
@@ -3294,7 +3804,7 @@ export default function Home() {
 
   // ─────────────── 3D STUDIO ───────────────
   return (
-    <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
+    <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
       <div className="absolute top-5 left-6 z-20">
         <InlineWordmark cream small />
       </div>

@@ -698,6 +698,16 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .project-zoom { animation: project-zoom 500ms cubic-bezier(.4,0,.6,1) both; }
 
+/* ── Project card hover wiggle ─────────────────────────────── */
+@keyframes card-wiggle {
+  0%   { transform: rotate(var(--card-rotate, 0deg)); }
+  20%  { transform: rotate(calc(var(--card-rotate, 0deg) + 1.8deg)); }
+  50%  { transform: rotate(calc(var(--card-rotate, 0deg) - 1.4deg)); }
+  75%  { transform: rotate(calc(var(--card-rotate, 0deg) + 0.8deg)); }
+  100% { transform: rotate(var(--card-rotate, 0deg)); }
+}
+.card-wiggle { animation: card-wiggle 320ms cubic-bezier(.36,.07,.19,.97) both; }
+
 /* ── Empty-state add-button physics sequence ──────────────── */
 @keyframes empty-text-drop {
   /* text starts far above the card and falls all the way to center */
@@ -849,4 +859,29 @@ input[type="range"].slider-warm::-moz-range-thumb {
   );
   animation: get-more-shine 3.4s linear 1.8s infinite;
   pointer-events: none;
+}
+
+/* ── iMessage chat stack (landing face swiper) ───────────── */
+@keyframes imessage-dot {
+  0%, 55%, 100% { transform: translateY(0); opacity: 0.4; }
+  28%            { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes imessage-text-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* new bubble slides up from below */
+@keyframes msg-enter {
+  0%   { opacity: 0; transform: translateY(48px) scale(0.88); }
+  62%  { opacity: 1; transform: translateY(-4px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* message disintegrates upward with stagger */
+@keyframes msg-disintegrate {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  35%  { opacity: 0.6; transform: translateY(-10px) scale(0.91); }
+  100% { opacity: 0; transform: translateY(-28px) scale(0.72); }
 }

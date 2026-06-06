@@ -304,7 +304,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
     const demoHairPlys = DEMO_PRESETS[selectedPreset]?.plys ?? [];
 
     return (
-      <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
+      <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
         {/* Corner wordmark */}
         <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
           <span>Shape</span>
