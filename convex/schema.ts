@@ -47,6 +47,7 @@ export default defineSchema({
     lastImageUrl: v.optional(v.string()),
     lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
+    savedAt: v.optional(v.number()),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_token_and_updated", ["tokenIdentifier", "updatedAt"]),
