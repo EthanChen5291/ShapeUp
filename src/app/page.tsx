@@ -3795,7 +3795,8 @@ export default function Home() {
 
   // ─────────────── HAIR EDIT LOOP ───────────────
   if (appState === 'hairEditLoop' && imageUrl) {
-    const faceliftReady = splatSrc != null;
+    const effectiveSplatSrc = splatSrc ?? persistedSplatUrl;
+    const faceliftReady = effectiveSplatSrc != null;
     return (
       <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
         <div className="absolute top-5 left-6 z-20">
@@ -3808,7 +3809,7 @@ export default function Home() {
               params={params}
               colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
               profile={profile ?? mockUserHeadProfile}
-              splatSrcOverride={splatSrc}
+              splatSrcOverride={effectiveSplatSrc}
               disableDefaultHairLayers
             />
           ) : (
@@ -3906,8 +3907,8 @@ export default function Home() {
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
-            splatSrcOverride={editSplatSrc ?? splatSrc ?? undefined}
-            disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc)}
+            splatSrcOverride={editSplatSrc ?? splatSrc ?? persistedSplatUrl ?? undefined}
+            disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc ?? persistedSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
             flameData={
