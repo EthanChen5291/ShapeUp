@@ -1,4 +1,4 @@
-## SCAN PHASE (runs once)
+f## SCAN PHASE (runs once)
 
 Camera input (video stream)
 

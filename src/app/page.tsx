@@ -1299,10 +1299,12 @@ function ScanPopup({
           throw new Error(`Build check failed (${pollRes.status})${body ? ': ' + body : ''}`);
         }
         const data = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
+        console.log('[ScanPopup] poll response:', data.status, '| splatUrl:', data.splatUrl);
         if (data.status === 'success') { splatUrl = data.splatUrl!; break; }
         if (data.status === 'error') throw new Error(data.error ?? '3D build failed');
       }
 
+      console.log('[ScanPopup] poll complete — splatUrl:', splatUrl);
       if (!splatUrl || abort.signal.aborted) return;
 
       setFaceliftStatus('done');
@@ -1310,6 +1312,7 @@ function ScanPopup({
         if (isDismissing.current) return;
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
+        console.log('[ScanPopup] calling onScanComplete with splatUrl:', splatUrl);
         setExiting(true);
         setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url, fromRect, wasFirstScanRef.current, splatUrl!), 600);
       }, 900);
@@ -2412,7 +2415,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
         const dt = Math.min((now - lastTs) / 1000, 0.1);
         const vid = videoRefs.current[activeRef.current];
         if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
-          let next = vid.currentTime + dt * 1.2;
+          let next = vid.currentTime + dt * 1.3;
           if (next >= vid.duration) next %= vid.duration;
           vid.currentTime = next;
         }
@@ -2631,10 +2634,12 @@ function Face2VideoSwiper({
   scrollRef,
   onActiveChange,
   externalIdx,
+  disableInteraction,
 }: {
   scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null>;
   onActiveChange?: (idx: number) => void;
   externalIdx?: number;
+  disableInteraction?: boolean;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const activeRef = useRef(0);
@@ -2671,6 +2676,7 @@ function Face2VideoSwiper({
   }, [externalIdx]);
 
   useEffect(() => {
+    if (disableInteraction) return;
     const el = containerRef.current;
     if (!el) return;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -2686,14 +2692,18 @@ function Face2VideoSwiper({
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => { el.removeEventListener('wheel', handler); if (idleTimer) clearTimeout(idleTimer); };
-  }, [goNext, goPrev]);
+  }, [disableInteraction, goNext, goPrev]);
 
-  const onTouchStart = useCallback((e: React.TouchEvent) => { touchStartY.current = e.touches[0].clientY; }, []);
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (disableInteraction) return;
+    touchStartY.current = e.touches[0].clientY;
+  }, [disableInteraction]);
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (disableInteraction) return;
     const delta = touchStartY.current - e.changedTouches[0].clientY;
     if (delta > 40) goNext();
     else if (delta < -40) goPrev();
-  }, [goNext, goPrev]);
+  }, [disableInteraction, goNext, goPrev]);
 
   useEffect(() => {
     let raf: number;
@@ -2862,6 +2872,49 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
   const onSendRef = useRef(onSend);
   useEffect(() => { onSendRef.current = onSend; }, [onSend]);
 
+  const chatAreaRef = useRef<HTMLDivElement>(null);
+  const msgListRef = useRef<HTMLDivElement>(null);
+  const lerpActiveRef = useRef(false);
+  const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearPending = useCallback(() => {
+    pendingTimers.current.forEach(clearTimeout);
+    pendingTimers.current = [];
+  }, []);
+
+  // On first message of each cycle: snap to bottom, then lerp to top after 200ms
+  useEffect(() => {
+    if (msgs.length !== 1 || lerpActiveRef.current) return;
+    lerpActiveRef.current = true;
+
+    const outer = chatAreaRef.current;
+    const inner = msgListRef.current;
+    if (!outer || !inner) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const outerH = outer.clientHeight;
+        const innerH = inner.offsetHeight;
+        const offset = Math.max(0, outerH - innerH - 6);
+
+        inner.style.transition = 'none';
+        inner.style.transform = `translateY(${offset}px)`;
+
+        const t1 = setTimeout(() => {
+          inner.style.transition = 'transform 600ms cubic-bezier(0.32, 0.72, 0, 1)';
+          inner.style.transform = 'translateY(0px)';
+
+          const t2 = setTimeout(() => {
+            inner.style.transition = '';
+            inner.style.transform = '';
+          }, 600);
+          pendingTimers.current.push(t2);
+        }, 200);
+        pendingTimers.current.push(t1);
+      });
+    });
+  }, [msgs]);
+
   const handleSend = useCallback(() => {
     const idx = curIdxRef.current;
     const text = FACE2_MESSAGES[idx];
@@ -2873,15 +2926,22 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     if (idx === 0 && idRef.current > 0) {
       // Cycling back: disintegrate existing messages upward, then add the new first message
       setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
-      setTimeout(() => {
+      const t = setTimeout(() => {
+        clearPending();
+        lerpActiveRef.current = false;
+        if (msgListRef.current) {
+          msgListRef.current.style.transition = 'none';
+          msgListRef.current.style.transform = '';
+        }
         idRef.current = 0;
         setMsgs([{ id: idRef.current++, text, isNew: true }]);
       }, 600);
+      pendingTimers.current.push(t);
     } else {
       const newMsg: DescribeChatMsg = { id: idRef.current++, text, isNew: true };
       setMsgs(prev => [newMsg, ...prev.map(m => ({ ...m, isNew: false }))]);
     }
-  }, []);
+  }, [clearPending]);
 
   const nextMsg = FACE2_MESSAGES[curIdx];
 
@@ -2896,16 +2956,22 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
         position: 'relative',
       }}>
         {/* Chat scroll area */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 68,
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute', bottom: 6, left: 0, right: 0,
-            display: 'flex', flexDirection: 'column-reverse', gap: 7,
-            padding: '0 12px',
-          }}>
-            {msgs.map(m => <DescribeMsgBubble key={m.id} msg={m} />)}
+        <div
+          ref={chatAreaRef}
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 68,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            ref={msgListRef}
+            style={{
+              position: 'absolute', top: 6, left: 0, right: 0,
+              display: 'flex', flexDirection: 'column', gap: 7,
+              padding: '0 12px',
+            }}
+          >
+            {[...msgs].reverse().map(m => <DescribeMsgBubble key={m.id} msg={m} />)}
           </div>
         </div>
         {/* Typing bar */}
@@ -2949,7 +3015,7 @@ function ShowBarberDemo({ activeIdx }: { activeIdx?: number }) {
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
-      <Face2VideoSwiper externalIdx={activeIdx} />
+      <Face2VideoSwiper externalIdx={activeIdx} disableInteraction />
     </div>
   );
 }
@@ -3183,7 +3249,7 @@ function GlimpseSection() {
 /* ─────────────── Sign-Up Widget ─────────────── */
 function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?: boolean }) {
   const { signUp } = useSignUp();
-  const { signIn } = useSignIn();
+  const { signIn, setActive } = useSignIn();
   const { isSignedIn } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -3246,36 +3312,51 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
     );
   }
 
-  // Shared auth logic: try sign-up, fall back to sign-in
+  // Shared auth logic: try sign-in first (no verification for returning users),
+  // fall back to sign-up with email verification only for new accounts.
   const submitCredentials = async () => {
     setSubmitting(true);
     setError('');
     try {
+      // Try sign-in first — existing users never hit email verification
+      const { error: signInErr } = await signIn.password({ identifier: email.trim(), password });
+      if (!signInErr) {
+        if (signIn.status === 'complete' && signIn.createdSessionId) {
+          await setActive({ session: signIn.createdSessionId });
+          onEnter();
+          return;
+        }
+        setError('Sign-in incomplete — please try again.');
+        return;
+      }
+
+      // Only fall back to sign-up when the account doesn't exist yet
+      const signInErrAny = signInErr as { code?: string; message?: string };
+      const isNotFound = signInErrAny.code === 'form_identifier_not_found'
+        || (signInErrAny.message ?? '').toLowerCase().includes('find');
+
+      if (!isNotFound) {
+        const msg = signInErr.message ?? 'Something went wrong';
+        setError(msg.toLowerCase().includes('password') ? 'Wrong password — try again.' : msg);
+        return;
+      }
+
+      // New user — sign up and require email verification once
       const { error: signUpErr } = await signUp.password({ emailAddress: email.trim(), password });
       if (!signUpErr) {
         if (signUp.status === 'missing_requirements') {
           const { error: sendErr } = await signUp.verifications.sendEmailCode();
           if (sendErr) { setError(sendErr.message ?? 'Failed to send verification email'); return; }
           setStep('verify');
+        } else if (signUp.createdSessionId) {
+          await setActive({ session: signUp.createdSessionId });
+          onEnter();
         } else {
-          const { error: finalErr } = await signUp.finalize();
-          if (!finalErr) onEnter();
-          else setError('Sign-up failed — please try again.');
+          setError('Sign-up failed — please try again.');
         }
         return;
       }
-      // Email already taken — sign in instead
-      const { error: signInErr } = await signIn.password({ identifier: email.trim(), password });
-      if (!signInErr) {
-        if (signIn.status === 'complete') {
-          const { error: finalErr } = await signIn.finalize();
-          if (!finalErr) { onEnter(); return; }
-        }
-        onEnter();
-        return;
-      }
-      const msg = signInErr.message ?? signUpErr.message ?? 'Something went wrong';
-      setError(msg.toLowerCase().includes('password') ? 'Wrong password — try again.' : msg);
+      setError(signUpErr.message ?? 'Something went wrong');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -3305,9 +3386,12 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
     try {
       const { error: verifyErr } = await signUp.verifications.verifyEmailCode({ code });
       if (verifyErr) { setError(verifyErr.message ?? 'Invalid code — try again'); return; }
-      const { error: finalErr } = await signUp.finalize();
-      if (!finalErr) onEnter();
-      else setError('Sign-up failed — please try again.');
+      if (signUp.createdSessionId) {
+        await setActive({ session: signUp.createdSessionId });
+        onEnter();
+      } else {
+        setError('Sign-up failed — please try again.');
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid code — try again');
     } finally {
@@ -3318,10 +3402,10 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
   const handleGoogle = async () => {
     setError('');
     try {
-      const { error: ssoErr } = await signUp.sso({
+      const { error: ssoErr } = await signIn.sso({
         strategy: 'oauth_google',
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectCallbackUrl: `${window.location.origin}/`,
+        redirectUrl: `${window.location.origin}/`,
+        redirectCallbackUrl: `${window.location.origin}/sso-callback`,
       });
       if (ssoErr) setError(ssoErr.message ?? 'Google sign-in failed');
     } catch (err: unknown) {
@@ -3643,14 +3727,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         </div>
 
         {/* ── Value props bar ── */}
-        <div style={{ borderTop: '1px solid rgba(42,32,26,0.09)', borderBottom: '1px solid rgba(42,32,26,0.09)', margin: '56px 0 0', padding: '28px 0' }}>
+        <div style={{ borderTop: '1.5px solid rgba(42,32,26,0.18)', borderBottom: '1.5px solid rgba(42,32,26,0.18)', margin: '56px 0 0', padding: '65px 0', backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
             {[
               { stat: '1 selfie', label: 'all you need to start' },
               { stat: '~60 sec', label: 'scan to first 3D preview' },
               { stat: 'free to start', label: 'no card required' },
             ].map((item, i) => (
-              <div key={i} style={{ textAlign: 'center', padding: '8px 0', borderRight: i < 2 ? '1px solid rgba(42,32,26,0.09)' : 'none' }}>
+              <div key={i} style={{ textAlign: 'center', padding: '8px 0', borderRight: i < 2 ? '1.5px solid rgba(42,32,26,0.18)' : 'none' }}>
                 <div className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.3rem, 2vw, 1.7rem)', color: 'var(--tomato)', lineHeight: 1.1 }}>
                   {item.stat}
                 </div>
@@ -4452,6 +4536,11 @@ export default function Home() {
   // Only run useDemoFacelift as a fallback if we don't already have a splat from ScanPopup
   const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
 
+  // Effective splat URL: prefer the one from ScanPopup/project, fall back to useDemoFacelift
+  const effectiveSplatUrl = persistedSplatUrl ?? splatSrc;
+
+  console.log('[page] splat debug — persistedSplatUrl:', persistedSplatUrl, '| splatSrc (demo):', splatSrc, '| effectiveSplatUrl:', effectiveSplatUrl);
+
   // Persist the splat URL once facelift finishes (from either ScanPopup or useDemoFacelift fallback)
   useEffect(() => {
     const urlToSave = splatSrc ?? persistedSplatUrl;
@@ -4477,13 +4566,17 @@ export default function Home() {
   }, []);
 
   const handleScanComplete = (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => {
+    console.log('[handleScanComplete] splatUrl received:', splatUrl, '| isFirstScan:', isFirstScan);
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setProfile(profileWithMeasurements);
     setParams(profileWithMeasurements.currentStyle.params);
     setHasScanEver(true);
     setShowScanPopup(false);
 
-    if (splatUrl) setPersistedSplatUrl(splatUrl);
+    if (splatUrl) {
+      console.log('[handleScanComplete] calling setPersistedSplatUrl with:', splatUrl);
+      setPersistedSplatUrl(splatUrl);
+    }
 
     if (isFirstScan && url) {
       // First-time setup: don't open a session — animate the selfie into the profile button
@@ -4624,8 +4717,8 @@ export default function Home() {
 
   // ─────────────── HAIR EDIT LOOP ───────────────
   if (appState === 'hairEditLoop' && imageUrl) {
-    const effectiveSplatSrc = splatSrc ?? persistedSplatUrl;
-    const faceliftReady = effectiveSplatSrc != null;
+    const faceliftReady = effectiveSplatUrl != null;
+    console.log('[page] hairEditLoop — faceliftReady:', faceliftReady, 'effectiveSplatUrl:', effectiveSplatUrl);
     return (
       <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
         <div className="absolute top-5 left-6 z-20">
@@ -4638,7 +4731,7 @@ export default function Home() {
               params={params}
               colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
               profile={profile ?? mockUserHeadProfile}
-              splatSrcOverride={effectiveSplatSrc}
+              splatSrcOverride={effectiveSplatUrl}
               disableDefaultHairLayers
             />
           ) : (
@@ -4736,8 +4829,8 @@ export default function Home() {
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
-            splatSrcOverride={editSplatSrc ?? splatSrc ?? persistedSplatUrl ?? undefined}
-            disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc ?? persistedSplatUrl)}
+            splatSrcOverride={editSplatSrc ?? effectiveSplatUrl ?? undefined}
+            disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
             flameData={
