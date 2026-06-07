@@ -1079,14 +1079,14 @@ function SignInPopup({ onDismiss }: { onDismiss: () => void }) {
         <div style={{ width: 40, transform: 'rotate(186deg)' }}>
           <BarberMascot />
         </div>
-        <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 640 }}>
           <button
             onClick={dismiss}
             className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-xs z-10"
           >
             ✕
           </button>
-          {!done && <SignUpWidget onEnter={handleDone} />}
+          {!done && <SignUpWidget onEnter={handleDone} large />}
         </div>
       </div>
     </div>
@@ -2213,8 +2213,7 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─────────────── Face Video Swiper ─────────────── */
-// face1b first (original haircut), then wolf cut (a), etc.
-const FACE_VIDS = ['b','a','c','d','e','f'].map(l => `/landing_face1/face1${l}.mov`);
+const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mov`);
 
 const FACE_MESSAGES = [
   "Original Haircut (Swipe me!)",
@@ -2222,7 +2221,6 @@ const FACE_MESSAGES = [
   "Slightly shorter wolf cut",
   "Give me a bleached buzz cut",
   "I want a korean perm middle part",
-  "Make me bald",
 ];
 
 const IMSG_BLUE = '#007AFF';
@@ -2375,11 +2373,11 @@ function ChatStack({ messages }: { messages: ChatMsg[] }) {
 
 function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: { onSwipeUp?: () => void; onSwipeDown?: () => void; scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null>; onActiveChange?: (idx: number) => void }) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const activeRef   = useRef(0);
-  const videoRefs   = useRef<(HTMLVideoElement | null)[]>([]);
+  const activeRef    = useRef(0);
+  const videoRefs    = useRef<(HTMLVideoElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const touchStartY = useRef(0);
-  const wheelLock   = useRef(false);
+  const touchStartY  = useRef(0);
+  const wheelLock    = useRef(false);
   const onSwipeUpRef = useRef(onSwipeUp);
   const onSwipeDownRef = useRef(onSwipeDown);
   const onActiveChangeRef = useRef(onActiveChange);
@@ -2387,17 +2385,26 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
   useEffect(() => { onSwipeDownRef.current = onSwipeDown; }, [onSwipeDown]);
   useEffect(() => { onActiveChangeRef.current = onActiveChange; }, [onActiveChange]);
 
+  // Seek next video to current time while it's still invisible, reveal only after
+  // the seeked frame is ready — eliminates the frame-0 flash without running 5 streams.
   const switchTo = useCallback((newIdx: number) => {
+    if (newIdx === activeRef.current) return;
     const cur  = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
-    if (cur) cur.pause();
-    if (next) {
-      if (cur) next.currentTime = cur.currentTime;
+    if (!next) return;
+
+    const targetTime = cur?.currentTime ?? 0;
+    next.currentTime = targetTime;
+
+    const onSeeked = () => {
+      next.removeEventListener('seeked', onSeeked);
+      if (cur) cur.pause();
       next.play().catch(() => {});
-    }
-    activeRef.current = newIdx;
-    setActiveIdx(newIdx);
-    onActiveChangeRef.current?.(newIdx);
+      activeRef.current = newIdx;
+      setActiveIdx(newIdx);
+      onActiveChangeRef.current?.(newIdx);
+    };
+    next.addEventListener('seeked', onSeeked);
   }, []);
 
   const goNext = useCallback(() => { switchTo((activeRef.current + 1) % FACE_VIDS.length); onSwipeUpRef.current?.(); }, [switchTo]);
@@ -2407,7 +2414,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     if (scrollRef) scrollRef.current = { goNext, goPrev };
   }, [scrollRef, goNext, goPrev]);
 
-  // Start the first video on mount with loop enabled
+  // Start first video on mount
   useEffect(() => {
     const vid = videoRefs.current[0];
     if (!vid) return;
@@ -2415,24 +2422,22 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     vid.play().catch(() => {});
   }, []);
 
-  // Active video loops natively (no pause gap). On each loop, reset inactive videos to 0.
+  // Keep active video looping; on each loop boundary reset inactive videos to 0
+  // so their next seek lands quickly (decoded I-frame near start).
   useEffect(() => {
     const vid = videoRefs.current[activeIdx];
     if (!vid) return;
     vid.loop = true;
-    let prevTime = 0;
-    const handleTimeUpdate = () => {
+    let prev = 0;
+    const onTime = () => {
       const dur = vid.duration;
-      if (dur && prevTime > dur - 0.5 && vid.currentTime < 0.5) {
+      if (dur && prev > dur - 0.5 && vid.currentTime < 0.5) {
         videoRefs.current.forEach((v, i) => { if (v && i !== activeIdx) v.currentTime = 0; });
       }
-      prevTime = vid.currentTime;
+      prev = vid.currentTime;
     };
-    vid.addEventListener('timeupdate', handleTimeUpdate);
-    return () => {
-      vid.removeEventListener('timeupdate', handleTimeUpdate);
-      vid.loop = false;
-    };
+    vid.addEventListener('timeupdate', onTime);
+    return () => { vid.removeEventListener('timeupdate', onTime); vid.loop = false; };
   }, [activeIdx]);
 
   // Native wheel listener with { passive: false } so we can preventDefault
@@ -2443,10 +2448,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     const handler = (e: WheelEvent) => {
       e.preventDefault();
       if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        wheelLock.current = false;
-        idleTimer = null;
-      }, 80);
+      idleTimer = setTimeout(() => { wheelLock.current = false; idleTimer = null; }, 80);
       if (wheelLock.current) return;
       if (Math.abs(e.deltaY) < 5) return;
       wheelLock.current = true;
@@ -2508,7 +2510,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
                 objectFit: 'cover',
                 opacity: i === activeIdx ? 1 : 0,
                 transition: 'opacity 60ms ease',
-                transform: i === 1 || i === 2 ? 'scale(0.93)' : i === 3 ? 'scale(0.97)' : undefined,
+                transform: i === 1 || i === 2 ? 'scale(0.93)' : i === 3 ? 'scale(0.97)' : i === 4 ? 'scale(0.96)' : undefined,
               }}
             />
           ))}
@@ -2626,14 +2628,14 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
 const FACE2_VIDS = ['/face2a.mov', '/face2b.mov', '/face2c.mov', '/face2d.mov'];
 
-// Returns TARGET playback rate for normalized video position t ∈ [0,1].
-// Sine bell across the middle 80% (10%–90%): derivative is 0 at both ends so the
-// rate eases in AND out with zero jerk. Actual applied rate is lerp-smoothed in the RAF loop.
+// Returns playback rate for normalized video position t ∈ [0,1].
+// Narrow sine bell (35% of duration, centered at 50%): brief spike to 50x with
+// zero-derivative entry/exit so the decoder gets a smooth ramp, not a sudden jump.
 function face2PlaybackRate(t: number): number {
-  const rampStart = 0.10;
-  const rampEnd = 0.90;
-  if (t < rampStart || t >= rampEnd) return 1;
-  const s = (t - rampStart) / (rampEnd - rampStart); // 0→1
+  const center = 0.50;
+  const halfWidth = 0.175; // spike spans t=0.325 → 0.675
+  if (t < center - halfWidth || t >= center + halfWidth) return 1;
+  const s = (t - (center - halfWidth)) / (halfWidth * 2); // 0→1
   return 1 + 49 * Math.sin(Math.PI * s);
 }
 const FACE2_MESSAGES = [
@@ -2714,14 +2716,11 @@ function Face2VideoSwiper({
 
   useEffect(() => {
     let raf: number;
-    let smoothedRate = 1;
     const tick = () => {
       const vid = videoRefs.current[activeRef.current];
       if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
         const t = (vid.currentTime % vid.duration) / vid.duration;
-        const target = face2PlaybackRate(t);
-        smoothedRate += (target - smoothedRate) * 0.10;
-        vid.playbackRate = smoothedRate;
+        vid.playbackRate = face2PlaybackRate(t);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -3194,16 +3193,49 @@ function GlimpseSection() {
 }
 
 /* ─────────────── Sign-Up Widget ─────────────── */
-function SignUpWidget({ onEnter }: { onEnter: () => void }) {
+function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?: boolean }) {
   const { signUp } = useSignUp();
   const { signIn } = useSignIn();
   const { isSignedIn } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  // large (dashboard): combined email+password, no 'password' step
+  // default (landing): multi-step — start → password → verify
   const [step, setStep] = useState<'start' | 'password' | 'verify'>('start');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Size tokens
+  const s = {
+    cardMaxWidth:     large ? 640  : 340,
+    cardRadius:       large ? 28   : 20,
+    cardPadding:      large ? '40px 40px 32px' : '24px 24px 20px',
+    cardGap:          large ? 20   : 12,
+    inputFontSize:    large ? 22   : 15,
+    inputPadding:     large ? '18px 24px' : '13px 16px',
+    inputRadius:      large ? 16   : 12,
+    formGap:          large ? 14   : 10,
+    btnFontSize:      large ? 22   : 15,
+    btnPadding:       large ? '18px 0' : '13px 0',
+    btnRadius:        large ? 16   : 12,
+    googleFontSize:   large ? 20   : 14,
+    googlePadding:    large ? '18px 0' : '12px 0',
+    googleRadius:     large ? 16   : 12,
+    googleGap:        large ? 14   : 10,
+    googleIconSize:   large ? 24   : 18,
+    orFontSize:       large ? 13   : 10,
+    orGap:            large ? 14   : 10,
+    noteFontSize:     large ? 13   : 10,
+    errorFontSize:    large ? 16   : 12,
+    backFontSize:     large ? 18   : 13,
+    titleFontSize:    large ? 22   : 15,
+    subtitleFontSize: large ? 18   : 13,
+    codeFontSize:     large ? 32   : 20,
+    dashBtnPadding:   large ? '22px 56px' : '18px 44px',
+    dashBtnFontSize:  large ? 28   : 22,
+    dashBtnRadius:    large ? 20   : 18,
+  };
 
   if (isSignedIn) {
     return (
@@ -3211,13 +3243,13 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
         onClick={onEnter}
         className="btn-tomato"
         style={{
-          padding: '18px 44px',
-          fontSize: 22,
+          padding: s.dashBtnPadding,
+          fontSize: s.dashBtnFontSize,
           fontFamily: 'var(--font-fraunces), Georgia, serif',
           fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
           fontWeight: 900,
           letterSpacing: '-0.01em',
-          borderRadius: 18,
+          borderRadius: s.dashBtnRadius,
           boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
         }}
       >
@@ -3226,18 +3258,8 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
     );
   }
 
-  // Step 1: collect email only, advance locally
-  const handleEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setError('');
-    setStep('password');
-  };
-
-  // Step 2: try sign-up; if email taken, silently sign in with same password
-  const handlePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password) return;
+  // Shared auth logic: try sign-up, fall back to sign-in
+  const submitCredentials = async () => {
     setSubmitting(true);
     setError('');
     try {
@@ -3248,11 +3270,13 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
           if (sendErr) { setError(sendErr.message ?? 'Failed to send verification email'); return; }
           setStep('verify');
         } else {
-          onEnter();
+          const { error: finalErr } = await signUp.finalize();
+          if (!finalErr) onEnter();
+          else setError('Sign-up failed — please try again.');
         }
         return;
       }
-      // Email already taken — sign in with the same password instead
+      // Email already taken — sign in instead
       const { error: signInErr } = await signIn.password({ identifier: email.trim(), password });
       if (!signInErr) {
         if (signIn.status === 'complete') {
@@ -3271,7 +3295,21 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
     }
   };
 
-  // Step 3: email verification code (only when Clerk requires it)
+  // Landing page: advance from email step to password step
+  const handleEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setError('');
+    setStep('password');
+  };
+
+  // Landing page: password step submit
+  const handlePassword = async (e: React.FormEvent) => { e.preventDefault(); if (!password) return; await submitCredentials(); };
+
+  // Dashboard: combined email+password submit
+  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!email.trim() || !password) return; await submitCredentials(); };
+
+  // Email verification code (only when Clerk requires it after sign-up)
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -3279,7 +3317,9 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
     try {
       const { error: verifyErr } = await signUp.verifications.verifyEmailCode({ code });
       if (verifyErr) { setError(verifyErr.message ?? 'Invalid code — try again'); return; }
-      onEnter();
+      const { error: finalErr } = await signUp.finalize();
+      if (!finalErr) onEnter();
+      else setError('Sign-up failed — please try again.');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid code — try again');
     } finally {
@@ -3304,9 +3344,9 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
   const inputStyle: React.CSSProperties = {
     width: '100%',
     fontFamily: 'var(--font-dmsans)',
-    fontSize: 15,
-    padding: '13px 16px',
-    borderRadius: 12,
+    fontSize: s.inputFontSize,
+    padding: s.inputPadding,
+    borderRadius: s.inputRadius,
     border: '1.5px solid rgba(42,32,26,0.13)',
     background: 'var(--biscuit)',
     color: 'var(--ink)',
@@ -3315,62 +3355,71 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
     transition: 'border-color 180ms ease',
   };
 
+  const GoogleIcon = () => (
+    <svg width={s.googleIconSize} height={s.googleIconSize} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+      <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332Z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+    </svg>
+  );
+
   return (
     <div style={{
       width: '100%',
-      maxWidth: 340,
+      maxWidth: s.cardMaxWidth,
       background: 'var(--cream)',
       border: '1px solid rgba(42,32,26,0.1)',
-      borderRadius: 20,
-      padding: '24px 24px 20px',
+      borderRadius: s.cardRadius,
+      padding: s.cardPadding,
       boxShadow: '0 10px 44px -12px rgba(42,32,26,0.16)',
       display: 'flex',
       flexDirection: 'column',
-      gap: 12,
+      gap: s.cardGap,
     }}>
-      {/* ── Verify email code (only when Clerk requires it after password sign-up) ── */}
+      {/* ── Verify email code ── */}
       {step === 'verify' && (
         <>
           <button
-            onClick={() => { setStep('password'); setCode(''); setError(''); }}
+            onClick={() => { setStep(large ? 'start' : 'password'); setCode(''); setError(''); }}
             className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, marginBottom: 2 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
           >
             ← back
           </button>
           <div style={{ marginBottom: 4 }}>
-            <p className="font-sans" style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', margin: '0 0 4px' }}>Check your inbox</p>
-            <p className="font-sans" style={{ fontSize: 13, color: 'var(--smoke)', margin: 0 }}>We sent a 6-digit code to {email}</p>
+            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>Check your inbox</p>
+            <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>We sent a 6-digit code to {email}</p>
           </div>
-          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
             <input
               autoFocus type="text" inputMode="numeric" maxLength={6}
               value={code}
               onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
               placeholder="123456"
-              style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: 20, textAlign: 'center' }}
+              style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: s.codeFontSize, textAlign: 'center' }}
             />
-            {error && <p className="font-sans" style={{ fontSize: 12, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
             <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
-              style={{ ...inputStyle, padding: '13px 0', background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 15, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
+              style={{ ...inputStyle, padding: s.btnPadding, background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: s.btnFontSize, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
               {submitting ? 'Verifying…' : 'Verify →'}
             </button>
           </form>
         </>
       )}
 
-      {/* ── Password step ── */}
-      {step === 'password' && (
+      {/* ── Landing page: password step ── */}
+      {!large && step === 'password' && (
         <>
           <button
             onClick={() => { setStep('start'); setPassword(''); setError(''); }}
             className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, marginBottom: 2 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
           >
             ← back
           </button>
-          <p className="font-sans" style={{ fontSize: 13, color: 'var(--smoke)', margin: 0 }}>{email}</p>
-          <form onSubmit={handlePassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>{email}</p>
+          <form onSubmit={handlePassword} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
             <input
               autoFocus type="password" autoComplete="new-password"
               value={password}
@@ -3380,38 +3429,68 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
               onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
               onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
             />
-            {error && <p className="font-sans" style={{ fontSize: 12, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
             <button type="submit" disabled={submitting || !password} className="btn-tomato"
-              style={{ padding: '13px 0', borderRadius: 12, fontSize: 15, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !password ? 0.5 : 1, cursor: submitting || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
+              style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !password ? 0.5 : 1, cursor: submitting || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
               {submitting ? 'One sec…' : 'Continue →'}
             </button>
           </form>
         </>
       )}
 
-      {/* ── Start: email + Google ── */}
+      {/* ── Start step ── */}
       {step === 'start' && (
         <>
-          <form onSubmit={handleEmail} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input
-              type="email" autoComplete="email"
-              value={email}
-              onChange={e => { setEmail(e.target.value); setError(''); }}
-              placeholder="your@email.com"
-              style={inputStyle}
-              onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
-              onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
-            />
-            {error && <p className="font-sans" style={{ fontSize: 12, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
-            <button type="submit" disabled={!email.trim()} className="btn-tomato"
-              style={{ padding: '13px 0', borderRadius: 12, fontSize: 15, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: !email.trim() ? 0.5 : 1, cursor: !email.trim() ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-              Continue with email →
-            </button>
-          </form>
+          {large ? (
+            /* Dashboard: email + password together */
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
+              <input
+                autoFocus type="email" autoComplete="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(''); }}
+                placeholder="your@email.com"
+                style={inputStyle}
+                onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
+              />
+              <input
+                type="password" autoComplete="current-password"
+                value={password}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
+                placeholder="password"
+                style={inputStyle}
+                onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
+              />
+              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+              <button type="submit" disabled={submitting || !email.trim() || !password} className="btn-tomato"
+                style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !email.trim() || !password ? 0.5 : 1, cursor: submitting || !email.trim() || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
+                {submitting ? 'One sec…' : 'Continue →'}
+              </button>
+            </form>
+          ) : (
+            /* Landing page: email only, advances to password step */
+            <form onSubmit={handleEmail} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
+              <input
+                type="email" autoComplete="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(''); }}
+                placeholder="your@email.com"
+                style={inputStyle}
+                onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
+              />
+              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+              <button type="submit" disabled={!email.trim()} className="btn-tomato"
+                style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: !email.trim() ? 0.5 : 1, cursor: !email.trim() ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
+                Continue with email →
+              </button>
+            </form>
+          )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: s.orGap }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
-            <span className="font-mono" style={{ fontSize: 10, color: 'var(--smoke)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>or</span>
+            <span className="font-mono" style={{ fontSize: s.orFontSize, color: 'var(--smoke)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>or</span>
             <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
           </div>
 
@@ -3419,10 +3498,10 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
             onClick={handleGoogle}
             className="font-sans"
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              width: '100%', padding: '12px 0', borderRadius: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: s.googleGap,
+              width: '100%', padding: s.googlePadding, borderRadius: s.googleRadius,
               border: '1.5px solid rgba(42,32,26,0.13)', background: 'var(--cream)',
-              color: 'var(--ink)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              color: 'var(--ink)', fontSize: s.googleFontSize, fontWeight: 600, cursor: 'pointer',
               transition: 'background 150ms ease, border-color 150ms ease',
             }}
             onMouseEnter={e => {
@@ -3434,20 +3513,16 @@ function SignUpWidget({ onEnter }: { onEnter: () => void }) {
               (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(42,32,26,0.13)';
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
-              <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
-              <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332Z" fill="#FBBC05"/>
-              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
-            </svg>
+            <GoogleIcon />
             Continue with Google
           </button>
 
-          <p className="font-mono" style={{ fontSize: 10, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
+          <p className="font-mono" style={{ fontSize: s.noteFontSize, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
             Free to start · No credit card
           </p>
         </>
       )}
+      <div id="clerk-captcha" />
     </div>
   );
 }
@@ -4326,14 +4401,13 @@ export default function Home() {
   }, []);
 
   // App state
-  const [appState, setAppState] = useState<AppState>('loading');
+  const [appState, setAppState] = useState<AppState>('landing');
   const [activeProjectId, setActiveProjectId] = useState<Id<'projects'> | null>(null);
 
-  // After OAuth redirect, isSignedIn becomes true on the landing page — auto-enter dashboard
+  // Auto-enter dashboard when signed in (handles both OAuth redirect and in-popup sign-in)
   useEffect(() => {
     if (appState === 'landing' && isSignedIn) setAppState('home');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn]);
+  }, [isSignedIn, appState]);
 
   // Scan/hair state
   const [profile, setProfile]   = useState<UserHeadProfile | null>(null);
