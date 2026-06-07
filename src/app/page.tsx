@@ -1246,10 +1246,12 @@ function ScanPopup({
           throw new Error(`Build check failed (${pollRes.status})${body ? ': ' + body : ''}`);
         }
         const data = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
+        console.log('[ScanPopup] poll response:', data.status, '| splatUrl:', data.splatUrl);
         if (data.status === 'success') { splatUrl = data.splatUrl!; break; }
         if (data.status === 'error') throw new Error(data.error ?? '3D build failed');
       }
 
+      console.log('[ScanPopup] poll complete — splatUrl:', splatUrl);
       if (!splatUrl || abort.signal.aborted) return;
 
       setFaceliftStatus('done');
@@ -1257,6 +1259,7 @@ function ScanPopup({
         if (isDismissing.current) return;
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
+        console.log('[ScanPopup] calling onScanComplete with splatUrl:', splatUrl);
         setExiting(true);
         setTimeout(() => onScanComplete(captured.profile, captured.sid, captured.url, fromRect, wasFirstScanRef.current, splatUrl!), 600);
       }, 900);
@@ -3052,6 +3055,11 @@ export default function Home() {
   // Only run useDemoFacelift as a fallback if we don't already have a splat from ScanPopup
   const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
 
+  // Effective splat URL: prefer the one from ScanPopup/project, fall back to useDemoFacelift
+  const effectiveSplatUrl = persistedSplatUrl ?? splatSrc;
+
+  console.log('[page] splat debug — persistedSplatUrl:', persistedSplatUrl, '| splatSrc (demo):', splatSrc, '| effectiveSplatUrl:', effectiveSplatUrl);
+
   // Persist the splat URL once facelift finishes (from either ScanPopup or useDemoFacelift fallback)
   useEffect(() => {
     const urlToSave = splatSrc ?? persistedSplatUrl;
@@ -3077,13 +3085,17 @@ export default function Home() {
   }, []);
 
   const handleScanComplete = (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => {
+    console.log('[handleScanComplete] splatUrl received:', splatUrl, '| isFirstScan:', isFirstScan);
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setProfile(profileWithMeasurements);
     setParams(profileWithMeasurements.currentStyle.params);
     setHasScanEver(true);
     setShowScanPopup(false);
 
-    if (splatUrl) setPersistedSplatUrl(splatUrl);
+    if (splatUrl) {
+      console.log('[handleScanComplete] calling setPersistedSplatUrl with:', splatUrl);
+      setPersistedSplatUrl(splatUrl);
+    }
 
     if (isFirstScan && url) {
       // First-time setup: don't open a session — animate the selfie into the profile button
@@ -3226,7 +3238,8 @@ export default function Home() {
 
   // ─────────────── HAIR EDIT LOOP ───────────────
   if (appState === 'hairEditLoop' && imageUrl) {
-    const faceliftReady = splatSrc != null;
+    const faceliftReady = effectiveSplatUrl != null;
+    console.log('[page] hairEditLoop — faceliftReady:', faceliftReady, 'effectiveSplatUrl:', effectiveSplatUrl);
     return (
       <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
         <div className="absolute top-5 left-6 z-20">
@@ -3239,7 +3252,7 @@ export default function Home() {
               params={params}
               colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
               profile={profile ?? mockUserHeadProfile}
-              splatSrcOverride={splatSrc}
+              splatSrcOverride={effectiveSplatUrl}
               disableDefaultHairLayers
             />
           ) : (
@@ -3337,8 +3350,8 @@ export default function Home() {
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
-            splatSrcOverride={editSplatSrc ?? splatSrc ?? undefined}
-            disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc)}
+            splatSrcOverride={editSplatSrc ?? effectiveSplatUrl ?? undefined}
+            disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
             flameData={

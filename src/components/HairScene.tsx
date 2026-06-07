@@ -292,6 +292,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
 
 function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
+  console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -404,6 +405,7 @@ interface HairSceneProps {
 }
 
 export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+  console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
   const [showFlame, setShowFlame]     = useState(false);
@@ -476,11 +478,13 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
 
   // Turn splat on automatically as soon as a real URL becomes available
   useEffect(() => {
+    console.log('[HairScene] splat effect — splatSrcOverride:', splatSrcOverride, '| ethanSplatSrc:', ethanSplatSrc);
     if (splatSrcOverride || ethanSplatSrc) setShowSplat(true);
   }, [splatSrcOverride, ethanSplatSrc]);
 
   // ethanSplatSrc (FaceLift result) replaces any static fallback when ready
   const effectiveSplatSrc = splatSrcOverride ?? ethanSplatSrc ?? '';
+  console.log('[HairScene] effectiveSplatSrc:', effectiveSplatSrc, '| showSplat:', showSplat);
 
   const hairScale = HAIR_PLY_SCALE_DEFAULT;
   const hairPos: [number, number, number] = HAIR_PLY_POS_DEFAULT;
