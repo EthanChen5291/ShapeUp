@@ -463,7 +463,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
             WH<em>a</em>T&rsquo;LL
             <br />
             IT BE,{' '}
-            <em style={{ color: 'var(--butter)' }}>friend?</em>
+            <em style={{ color: 'var(--butter)' }}>today?</em>
           </h1>
           <p className="mt-6 font-serif italic text-[var(--cream)] text-lg max-w-md mx-auto" style={{ opacity: 0.92 }}>
             Say it plainly. The barber&rsquo;s heard it all.

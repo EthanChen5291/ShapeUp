@@ -230,19 +230,15 @@ function LoadingScreen({ onDone }: { onDone: () => void }) {
 }
 
 /* ─────────────── Profile Menu ─────────────── */
-function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () => void; onAddFriend: () => void; pulse?: boolean }) {
+function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { openSignIn, signOut } = useClerk();
   const userQuery = useQuery(api.users.getMe);
-  const friendsQuery = useQuery(api.friends.list) as FriendData[] | undefined;
-  const requestsQuery = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
-  const acceptRequest = useMutation(api.friends.acceptRequest);
   const [open, setOpen] = useState(false);
   const [bouncing, setBouncing] = useState(false);
   const [swallowing, setSwallowing] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showRequests, setShowRequests] = useState(false);
   const [settingsOriginRect, setSettingsOriginRect] = useState<DOMRect | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -256,9 +252,6 @@ function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () =>
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
 
-  const requestCount = requestsQuery?.length ?? 0;
-  const friendCount = friendsQuery?.length ?? 0;
-
   if (!isSignedIn) {
     return (
       <BouncyButton onClick={() => openSignIn()} className="btn-ink" style={{ padding: '9px 18px', fontSize: 11 }}>
@@ -269,12 +262,7 @@ function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () =>
 
   const username = user?.username ?? clerkUser?.firstName ?? clerkUser?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ?? 'You';
 
-  const handleToggle = () => {
-    setOpen(o => {
-      if (o) setShowRequests(false);
-      return !o;
-    });
-  };
+  const handleToggle = () => setOpen(o => !o);
 
   const handleOpenSettings = () => {
     if (containerRef.current) {
@@ -312,20 +300,6 @@ function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () =>
         className="flex items-center gap-2 w-full px-3 py-2"
         style={{ background: 'none', border: 'none', cursor: 'pointer' }}
       >
-        {requestCount > 0 && (
-          <span
-            style={{
-              minWidth: 18, height: 18, borderRadius: 999,
-              background: 'var(--tomato)', color: 'var(--cream)',
-              fontSize: 10, fontWeight: 700,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: '0 5px', flexShrink: 0,
-              fontFamily: 'var(--font-dmsans)',
-            }}
-          >
-            {requestCount}
-          </span>
-        )}
         <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
           {username}
         </span>
@@ -339,7 +313,7 @@ function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () =>
 
       {/* Expanding content */}
       <div style={{
-        maxHeight: open ? (showRequests ? '680px' : '420px') : '0px',
+        maxHeight: open ? '320px' : '0px',
         overflow: 'hidden',
         opacity: open ? 1 : 0,
         transition: open
@@ -364,96 +338,6 @@ function ProfileMenu({ onRescan, onAddFriend, pulse = false }: { onRescan: () =>
               Get more!
             </BouncyButton>
           </div>
-
-          {/* Friends */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Friends</span>
-              <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>{friendCount}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <BouncyButton
-                onClick={() => { setOpen(false); onAddFriend(); }}
-                className="btn"
-                style={{
-                  padding: '9px 12px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none',
-                  background: 'rgba(42,32,26,0.08)', color: 'var(--ink)', border: '1.5px solid rgba(42,32,26,0.12)',
-                  borderRadius: 999,
-                }}
-              >
-                Add friends
-              </BouncyButton>
-              <button
-                onClick={() => setShowRequests(r => !r)}
-                className="flex items-center justify-center hover:scale-105 active:scale-95 transition-transform flex-shrink-0"
-                style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: showRequests ? 'rgba(42,32,26,0.15)' : 'rgba(42,32,26,0.06)',
-                  border: '1.5px solid rgba(42,32,26,0.12)',
-                  cursor: 'pointer', padding: 0,
-                  position: 'relative',
-                  transition: 'background 200ms ease',
-                }}
-              >
-                <img src="/addfriend.png" alt="Friend Requests" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-                {requestCount > 0 && (
-                  <span style={{
-                    position: 'absolute', top: -3, right: -3,
-                    minWidth: 15, height: 15, borderRadius: 999,
-                    background: 'var(--tomato)', color: 'var(--cream)',
-                    fontSize: 9, fontWeight: 700,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: '0 3px',
-                    fontFamily: 'var(--font-dmsans)',
-                    lineHeight: 1,
-                  }}>
-                    {requestCount}
-                  </span>
-                )}
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <BouncyButton
-                onClick={() => { setOpen(false); onAddFriend(); }}
-                className="font-sans text-[11px] font-bold uppercase tracking-wider rounded-full flex-1"
-                style={{ padding: '7px 12px', background: 'rgba(42,32,26,0.08)', color: 'var(--ink)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', letterSpacing: '0.05em' }}
-              >
-                Add Friends
-              </BouncyButton>
-              <button
-                onClick={() => { setShowRequests(r => !r); }}
-                className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-                style={{ width: 32, height: 32, background: 'rgba(42,32,26,0.08)', border: '1px solid rgba(42,32,26,0.12)', cursor: 'pointer', padding: 0 }}
-                title="Friend requests"
-              >
-                <img src="/addfriend.png" width={16} height={16} alt="" style={{ objectFit: 'contain' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* Friend requests expanded */}
-          {showRequests && (
-            <div style={{ borderTop: '1px solid rgba(42,32,26,0.08)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--smoke)' }}>
-                Requests
-              </span>
-              {requestsQuery?.map(req => (
-                <div key={req.friendshipId} className="flex items-center gap-2.5 py-0.5">
-                  <AvatarCircle username={req.username} size={30} />
-                  <span className="flex-1 font-sans text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                    {req.username}
-                  </span>
-                  <button
-                    onClick={() => void acceptRequest({ friendshipId: req.friendshipId })}
-                    className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0 hover:scale-105 active:scale-95 transition-transform"
-                    style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
-                  >
-                    Accept
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
 
           <div className="border-t border-dashed border-[var(--char)]/15 pt-2 flex items-center justify-between">
             <BouncyButton
@@ -1390,7 +1274,7 @@ function ScanPopup({
                       margin: 0,
                       lineHeight: 1.5,
                     }}>
-                      Letters, numbers, and underscores. This is how friends find you.
+                      Letters, numbers, and underscores. This keeps your saved cuts organized.
                     </p>
                   </div>
 
@@ -1681,637 +1565,6 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
   );
 }
 
-/* ─────────────── Social types ─────────────── */
-interface FriendData {
-  userId: Id<'users'>;
-  username: string;
-  cutCount: number;
-  unreadCount: number;
-}
-interface FriendRequestData {
-  friendshipId: Id<'friends'>;
-  userId: Id<'users'>;
-  username: string;
-}
-
-/* ─────────────── Avatar helpers ─────────────── */
-function avatarBgColor(username: string): string {
-  const palette = ['#c0402e', '#b5541e', '#7a5430', '#3d6b50', '#2e5e7a', '#6a3d7a'];
-  const h = username.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  return palette[h % palette.length];
-}
-
-function AvatarCircle({ username, size = 40 }: { username: string; size?: number }) {
-  return (
-    <div
-      style={{
-        width: size, height: size, borderRadius: '50%',
-        background: avatarBgColor(username),
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, color: 'rgba(255,248,234,0.92)',
-        fontFamily: 'var(--font-dmsans)', fontWeight: 700,
-        fontSize: Math.round(size * 0.38), userSelect: 'none',
-      }}
-    >
-      {username.slice(0, 2).toUpperCase()}
-    </div>
-  );
-}
-
-/* ─────────────── Friend Row ─────────────── */
-function FriendRow({
-  friend,
-  onOpenProfile,
-  onOpenConversation,
-}: {
-  friend: FriendData;
-  onOpenProfile: () => void;
-  onOpenConversation: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ transition: 'background 150ms ease' }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,248,234,0.06)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-    >
-      <button
-        onClick={e => { e.stopPropagation(); onOpenProfile(); }}
-        className="flex-shrink-0 hover:scale-110 active:scale-95 transition-transform"
-        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-      >
-        <AvatarCircle username={friend.username} size={40} />
-      </button>
-      <button
-        onClick={onOpenConversation}
-        className="flex-1 min-w-0 text-left"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-sans text-[var(--cream)] text-sm font-semibold truncate">
-            {friend.username}
-          </span>
-          {friend.unreadCount > 0 && (
-            <span className="font-mono text-[var(--tomato)] text-[9px] font-bold uppercase tracking-wider flex-shrink-0">
-              new msg
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="font-mono text-[10px]" style={{ color: 'rgba(255,248,234,0.35)' }}>
-            ✂ {friend.cutCount} cuts
-          </span>
-          {friend.unreadCount > 0 && (
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--tomato)' }} />
-          )}
-        </div>
-      </button>
-    </div>
-  );
-}
-
-/* ─────────────── Search Panel ─────────────── */
-function SearchPanel({ onClose }: { onClose: () => void }) {
-  const [query, setQuery] = useState('');
-  const results = useQuery(api.friends.searchUsers, query.length >= 2 ? { query } : 'skip') as
-    | { userId: Id<'users'>; username: string }[]
-    | undefined;
-  const sendRequest = useMutation(api.friends.sendRequest);
-  const [requested, setRequested] = useState<Set<string>>(new Set());
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-        <button
-          onClick={onClose}
-          className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.1)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--cream)' }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
-      </div>
-      <div className="px-4 py-3 flex-shrink-0">
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search by username..."
-          autoFocus
-          className="w-full rounded-full px-4 py-2 font-sans text-sm outline-none"
-          style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
-        />
-      </div>
-      <div className="flex-1 overflow-y-auto cozy-scroll px-4">
-        {results?.map(u => (
-          <div key={u.userId} className="flex items-center gap-3 py-2.5">
-            <AvatarCircle username={u.username} size={38} />
-            <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{u.username}</span>
-            <button
-              onClick={async () => {
-                await sendRequest({ addresseeId: u.userId });
-                setRequested(s => new Set([...s, u.userId]));
-              }}
-              disabled={requested.has(u.userId)}
-              className="font-sans text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full flex-shrink-0"
-              style={{
-                background: requested.has(u.userId) ? 'rgba(255,248,234,0.1)' : 'var(--tomato)',
-                color: 'var(--cream)', border: 'none',
-                cursor: requested.has(u.userId) ? 'default' : 'pointer',
-              }}
-            >
-              {requested.has(u.userId) ? 'Sent ✓' : 'Add'}
-            </button>
-          </div>
-        ))}
-        {query.length >= 2 && results?.length === 0 && (
-          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(255,248,234,0.35)' }}>No users found</p>
-        )}
-        {query.length < 2 && (
-          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(255,248,234,0.25)' }}>Type a username to search</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────── Requests + Search Panel ─────────────── */
-function RequestsAndSearchPanel({ onClose }: { onClose: () => void }) {
-  const [query, setQuery] = useState('');
-  const results = useQuery(api.friends.searchUsers, query.length >= 2 ? { query } : 'skip') as
-    | { userId: Id<'users'>; username: string }[]
-    | undefined;
-  const sendRequest = useMutation(api.friends.sendRequest);
-  const requests = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
-  const acceptRequest = useMutation(api.friends.acceptRequest);
-  const [requested, setRequested] = useState<Set<string>>(new Set());
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-        <button onClick={onClose} className="font-sans text-[var(--cream)]/50 hover:text-[var(--cream)] transition-colors text-lg leading-none" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>←</button>
-        <span className="font-display italic text-[var(--cream)]" style={{ fontSize: 18, fontWeight: 600 }}>Add Friends</span>
-      </div>
-
-      {requests && requests.length > 0 && (
-        <div className="px-4 pt-3 pb-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-          <p className="font-mono text-[9px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
-          {requests.map(req => (
-            <div key={req.friendshipId} className="flex items-center gap-3 py-2">
-              <AvatarCircle username={req.username} size={34} />
-              <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
-              <button
-                onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
-                className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
-                style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
-              >
-                Accept
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="px-4 py-3 flex-shrink-0">
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search by username..."
-          autoFocus
-          className="w-full rounded-full px-4 py-2 font-sans text-sm outline-none"
-          style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
-        />
-      </div>
-      <div className="flex-1 overflow-y-auto cozy-scroll px-4">
-        {results?.map(u => (
-          <div key={u.userId} className="flex items-center gap-3 py-2.5">
-            <AvatarCircle username={u.username} size={38} />
-            <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{u.username}</span>
-            <button
-              onClick={async () => {
-                await sendRequest({ addresseeId: u.userId });
-                setRequested(s => new Set([...s, u.userId]));
-              }}
-              disabled={requested.has(u.userId)}
-              className="font-sans text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full flex-shrink-0"
-              style={{
-                background: requested.has(u.userId) ? 'rgba(255,248,234,0.1)' : 'var(--tomato)',
-                color: 'var(--cream)', border: 'none',
-                cursor: requested.has(u.userId) ? 'default' : 'pointer',
-              }}
-            >
-              {requested.has(u.userId) ? 'Sent ✓' : 'Add'}
-            </button>
-          </div>
-        ))}
-        {query.length >= 2 && results?.length === 0 && (
-          <p className="font-sans text-sm text-center py-8" style={{ color: 'rgba(255,248,234,0.35)' }}>No users found</p>
-        )}
-        {query.length < 2 && (
-          <p className="font-sans text-xs text-center py-8" style={{ color: 'rgba(255,248,234,0.25)' }}>Type a username to search</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────── Message Thread ─────────────── */
-function MessageThread({
-  friendId,
-  friendUsername,
-  meId,
-  onClose,
-}: {
-  friendId: Id<'users'>;
-  friendUsername: string;
-  meId: Id<'users'>;
-  onClose: () => void;
-}) {
-  const messages = useQuery(api.messages.listConversation, { friendId });
-  const sendMsg = useMutation(api.messages.send);
-  const markRead = useMutation(api.messages.markRead);
-  const [text, setText] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    markRead({ senderId: friendId }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [friendId]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleSend = async () => {
-    const t = text.trim();
-    if (!t) return;
-    setText('');
-    await sendMsg({ receiverId: friendId, text: t });
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,248,234,0.08)' }}>
-        <button
-          onClick={onClose}
-          className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-          style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.1)', border: 'none', cursor: 'pointer', borderRadius: '50%', color: 'var(--cream)' }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <AvatarCircle username={friendUsername} size={30} />
-        <span className="flex-1 font-sans text-[var(--cream)] font-semibold text-sm">{friendUsername}</span>
-      </div>
-      <div className="flex-1 overflow-y-auto cozy-scroll px-4 py-3 flex flex-col gap-2 min-h-0">
-        {messages?.length === 0 && (
-          <p className="font-sans text-xs text-center py-6" style={{ color: 'rgba(255,248,234,0.3)' }}>Start the conversation ✂</p>
-        )}
-        {messages?.map((msg: { _id: string; senderId: Id<'users'>; text: string }) => {
-          const isMine = msg.senderId === meId;
-          return (
-            <div key={msg._id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className="max-w-[82%] px-3 py-2 font-sans text-sm leading-snug"
-                style={{
-                  background: isMine ? 'var(--tomato)' : 'rgba(255,248,234,0.1)',
-                  color: 'var(--cream)',
-                  borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                }}
-              >
-                {msg.text}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={bottomRef} />
-      </div>
-      <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,248,234,0.08)' }}>
-        <div className="flex items-center gap-2">
-          <input
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
-            placeholder="Message..."
-            className="flex-1 rounded-full px-4 py-2 font-sans text-sm outline-none"
-            style={{ background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'var(--cream)' }}
-          />
-          <button
-            onClick={() => void handleSend()}
-            className="rounded-full flex items-center justify-center flex-shrink-0 hover:scale-105 active:scale-95 transition-transform"
-            style={{ width: 34, height: 34, background: 'var(--tomato)', border: 'none', cursor: 'pointer', color: 'var(--cream)', fontSize: 16 }}
-          >
-            ↑
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────── Friends Panel ─────────────── */
-function FriendsPanel({
-  openSearch,
-  openRequests,
-  onSearchClose,
-  onRequestsClose,
-}: {
-  openSearch: boolean;
-  openRequests: boolean;
-  onSearchClose: () => void;
-  onRequestsClose: () => void;
-}) {
-  const friends = useQuery(api.friends.list) as FriendData[] | undefined;
-  const requests = useQuery(api.friends.listRequests) as FriendRequestData[] | undefined;
-  const acceptRequest = useMutation(api.friends.acceptRequest);
-  const meUser = useQuery(api.users.getMe);
-
-  const [view, setView] = useState<'list' | 'search' | 'requests' | 'conversation'>('list');
-  const [activeThread, setActiveThread] = useState<FriendData | null>(null);
-  const [profileFriend, setProfileFriend] = useState<FriendData | null>(null);
-
-  useEffect(() => { if (openSearch) setView('search'); }, [openSearch]);
-  useEffect(() => { if (openRequests) setView('requests'); }, [openRequests]);
-
-  const handleBack = () => {
-    setView('list');
-    onSearchClose();
-    onRequestsClose();
-  };
-
-  const showAddFriends = view === 'search' || view === 'requests';
-  const SLIDE = 'transform 380ms cubic-bezier(.2,.85,.2,1)';
-
-  if (view === 'conversation' && activeThread && meUser?._id) {
-    return (
-      <MessageThread
-        friendId={activeThread.userId}
-        friendUsername={activeThread.username}
-        meId={meUser._id}
-        onClose={() => { setActiveThread(null); setView('list'); }}
-      />
-    );
-  }
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-
-      {/* ── Friends list panel ── */}
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        transform: showAddFriends ? 'translateX(-100%)' : 'translateX(0%)',
-        transition: SLIDE,
-      }}>
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-          <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 19, fontWeight: 600 }}>Friends</h2>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setView('search')}
-              className="font-sans text-[10px] font-bold uppercase tracking-wider rounded-full hover:scale-105 active:scale-95 transition-transform flex-shrink-0"
-              style={{ padding: '5px 10px', background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', color: 'rgba(255,248,234,0.7)', cursor: 'pointer', letterSpacing: '0.05em' }}
-            >
-              Add Friends
-            </button>
-            <button
-              onClick={() => setView('requests')}
-              className="flex items-center justify-center rounded-full hover:scale-110 active:scale-95 transition-transform flex-shrink-0"
-              style={{ width: 30, height: 30, background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.1)', cursor: 'pointer', padding: 0 }}
-              title="Friend requests"
-            >
-              <img src="/addfriend.png" width={14} height={14} alt="" style={{ objectFit: 'contain' }} />
-            </button>
-          </div>
-        </div>
-
-        {requests && requests.length > 0 && (
-          <div className="px-4 mb-2 flex-shrink-0">
-            <p className="font-mono text-[9px] uppercase tracking-wider mb-1.5" style={{ color: 'rgba(255,248,234,0.35)' }}>Requests</p>
-            {requests.map(req => (
-              <div key={req.friendshipId} className="flex items-center gap-3 py-2">
-                <AvatarCircle username={req.username} size={34} />
-                <span className="flex-1 font-sans text-[var(--cream)] text-sm font-semibold truncate">{req.username}</span>
-                <button
-                  onClick={() => acceptRequest({ friendshipId: req.friendshipId })}
-                  className="font-sans text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
-                  style={{ background: 'var(--tomato)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
-                >
-                  Accept
-                </button>
-              </div>
-            ))}
-            <div style={{ height: 1, background: 'rgba(255,248,234,0.08)', margin: '6px 0 10px' }} />
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto cozy-scroll px-1 min-h-0">
-          {friends != null && friends.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 px-4 py-12" style={{ opacity: 0.38 }}>
-              <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
-              <p className="font-sans text-[var(--cream)] text-xs text-center leading-snug">No friends yet.<br/>Add some to see their cuts!</p>
-            </div>
-          )}
-          {friends?.map(f => (
-            <FriendRow
-              key={f.userId}
-              friend={f}
-              onOpenProfile={() => setProfileFriend(f)}
-              onOpenConversation={() => { setActiveThread(f); setView('conversation'); }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Add Friends slide-in panel ── */}
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        transform: showAddFriends ? 'translateX(0%)' : 'translateX(100%)',
-        transition: SLIDE,
-      }}>
-        {view === 'search'
-          ? <SearchPanel onClose={handleBack} />
-          : <RequestsAndSearchPanel onClose={handleBack} />
-        }
-      </div>
-
-      {profileFriend && (
-        <FriendProfileModal
-          friend={profileFriend}
-          onClose={() => setProfileFriend(null)}
-          onOpenConversation={() => {
-            const f = profileFriend;
-            setProfileFriend(null);
-            setActiveThread(f);
-            setView('conversation');
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ─────────────── Friend Profile Modal (two-stage animation) ─────────────── */
-type ProfileModalStage = 'init' | 'circle' | 'rect' | 'unpacking' | 'full' | 'closing';
-
-function FriendProfileModal({
-  friend,
-  onClose,
-  onOpenConversation,
-}: {
-  friend: FriendData;
-  onClose: () => void;
-  onOpenConversation?: () => void;
-}) {
-  const [stage, setStage] = useState<ProfileModalStage>('init');
-  const projects = useQuery(api.friends.getFriendProjects, { userId: friend.userId }) as ProjectDoc[] | undefined;
-  const isDismissing = useRef(false);
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setStage('circle'), 30);
-    const t2 = setTimeout(() => setStage('rect'), 330);
-    const t3 = setTimeout(() => setStage('unpacking'), 1380);
-    const t4 = setTimeout(() => setStage('full'), 2040);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
-  }, []);
-
-  const close = () => {
-    if (isDismissing.current) return;
-    isDismissing.current = true;
-    setStage('closing');
-    setTimeout(onClose, 350);
-  };
-
-  const isCircle = stage === 'init' || stage === 'circle';
-  const isRect = stage === 'rect';
-  const isUnpacking = stage === 'unpacking' || stage === 'full';
-  const isFull = stage === 'full';
-  const isClosing = stage === 'closing';
-
-  const cardLeft = isUnpacking ? '5vw' : isRect ? 'calc(50% - 140px)' : 'calc(50% - 32px)';
-  const cardTop  = isUnpacking ? '5vh'  : isRect ? 'calc(50% - 190px)' : 'calc(50% - 32px)';
-  const cardW    = isUnpacking ? '36vw' : isRect ? '280px' : '64px';
-  const cardH    = isUnpacking ? '90vh' : isRect ? '380px' : '64px';
-  const cardR    = isUnpacking ? 26 : isRect ? 22 : 9999;
-  const cardBg   = isCircle ? avatarBgColor(friend.username) : '#201a13';
-
-  return (
-    <div
-      className="fixed inset-0 z-50"
-      style={{
-        background: isClosing ? 'rgba(0,0,0,0)' : isUnpacking ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.45)',
-        transition: 'background 400ms ease',
-      }}
-      onClick={close}
-    >
-      {/* Profile card */}
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          position: 'fixed',
-          left: cardLeft,
-          top: cardTop,
-          width: cardW,
-          height: cardH,
-          borderRadius: cardR,
-          background: cardBg,
-          boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)',
-          overflow: 'hidden',
-          opacity: stage === 'init' || isClosing ? 0 : 1,
-          transition: [
-            'left 650ms cubic-bezier(.2,.85,.2,1)',
-            'top 650ms cubic-bezier(.2,.85,.2,1)',
-            'width 450ms cubic-bezier(.2,.85,.2,1)',
-            'height 450ms cubic-bezier(.2,.85,.2,1)',
-            'border-radius 450ms cubic-bezier(.2,.85,.2,1)',
-            'background 300ms ease',
-            'opacity 300ms ease',
-          ].join(', '),
-        }}
-      >
-        {/* Initials — visible only in circle stage */}
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ opacity: isCircle ? 1 : 0, transition: 'opacity 180ms ease', pointerEvents: 'none' }}
-        >
-          <span style={{ fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 22, color: 'rgba(255,248,234,0.92)' }}>
-            {friend.username.slice(0, 2).toUpperCase()}
-          </span>
-        </div>
-
-        {/* Profile content — fades in after rect expansion */}
-        <div
-          className="absolute inset-0 flex flex-col items-center gap-5 p-7"
-          style={{
-            opacity: isCircle ? 0 : 1,
-            transition: 'opacity 280ms ease 200ms',
-            justifyContent: isUnpacking ? 'flex-start' : 'center',
-            paddingTop: isUnpacking ? 48 : 28,
-          }}
-        >
-          {!isCircle && (isRect || isUnpacking) && (
-            <button
-              onClick={close}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full transition-all"
-              style={{ background: 'rgba(255,248,234,0.1)', color: 'rgba(255,248,234,0.6)', border: 'none', cursor: 'pointer', fontSize: 13 }}
-            >✕</button>
-          )}
-          <AvatarCircle username={friend.username} size={isUnpacking ? 76 : 60} />
-          <div className="text-center">
-            <h3 className="font-display italic text-[var(--cream)]" style={{ fontSize: isUnpacking ? 24 : 20, fontWeight: 600 }}>{friend.username}</h3>
-            <p className="font-mono mt-1" style={{ fontSize: 12, color: 'rgba(255,248,234,0.45)' }}>✂ {friend.cutCount} cuts</p>
-          </div>
-          <button
-            className="btn btn-tomato"
-            style={{ padding: '9px 22px', fontSize: 13 }}
-            onClick={() => { onOpenConversation?.(); }}
-          >
-            💬 Message
-          </button>
-        </div>
-      </div>
-
-      {/* Projects panel — slides in from right */}
-      {isUnpacking && (
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{
-            position: 'fixed',
-            left: 'calc(5vw + 36vw + 16px)',
-            top: '5vh',
-            right: '5vw',
-            height: '90vh',
-            borderRadius: 26,
-            background: '#201a13',
-            boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)',
-            overflow: 'hidden',
-            opacity: isFull ? 1 : 0,
-            transform: isFull ? 'translateX(0)' : 'translateX(36px)',
-            transition: 'opacity 420ms ease 200ms, transform 520ms cubic-bezier(.2,.85,.2,1) 150ms',
-          }}
-        >
-          <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid rgba(255,248,234,0.07)' }}>
-            <h2 className="font-display italic text-[var(--cream)]" style={{ fontSize: 20, fontWeight: 600 }}>
-              {friend.username}&rsquo;s cuts
-            </h2>
-          </div>
-          <div className="overflow-y-auto cozy-scroll p-5" style={{ height: 'calc(100% - 60px)' }}>
-            {projects?.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ opacity: 0.35 }}>
-                <div style={{ width: 32, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
-                <p className="font-sans text-[var(--cream)] text-xs">No cuts yet</p>
-              </div>
-            )}
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              {projects?.map(p => (
-                <ProjectCard key={p._id} project={p} onClick={() => {}} />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ─────────────── Selfie flight animation (initial scan → profile button) ─── */
 function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: () => void }) {
   const [flying, setFlying] = useState(false);
@@ -2374,8 +1627,6 @@ function MainMenu({
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
   const [rightVisible, setRightVisible] = useState(false);
-  const [friendSearchOpen, setFriendSearchOpen] = useState(false);
-  const [friendRequestsOpen, setFriendRequestsOpen] = useState(false);
 
   useEffect(() => {
     const t1 = setTimeout(() => setMenuVisible(true), 60);
@@ -2391,31 +1642,15 @@ function MainMenu({
         <div className={`pointer-events-auto ${logoVisible ? 'slide-in-left' : 'opacity-0'}`}>
           <InlineWordmark cream />
         </div>
-        <div className={`pointer-events-auto flex flex-col items-end gap-2 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-          <ProfileMenu onRescan={onRescan} onAddFriend={() => setFriendSearchOpen(true)} pulse={profilePillPulse} />
-          <div className="flex items-center gap-2">
-            <span className="font-sans text-sm font-semibold" style={{ color: 'var(--cream)', opacity: 0.9 }}>Add Friends</span>
-            <button
-              onClick={() => setFriendSearchOpen(true)}
-              className="flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-              style={{
-                width: 36, height: 36, borderRadius: '50%',
-                background: 'rgba(255,248,234,0.15)',
-                border: '1.5px solid rgba(255,248,234,0.25)',
-                cursor: 'pointer', padding: 0,
-              }}
-            >
-              <img src="/addfriend.png" alt="Add Friend" style={{ width: 20, height: 20, objectFit: 'contain' }} />
-            </button>
-          </div>
+        <div className={`pointer-events-auto ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
+          <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} />
         </div>
       </div>
 
-      {/* Content — two-column layout */}
+      {/* Content */}
       <div className={`relative z-10 flex h-screen pt-16 ${menuVisible ? 'slide-in-left' : 'opacity-0'}`}>
 
-        {/* LEFT — Projects (flex-[3] ≈ 58% of space) */}
-        <div className="min-w-0 overflow-y-auto cozy-scroll px-10 py-6" style={{ flex: 3 }}>
+        <div className="min-w-0 overflow-y-auto cozy-scroll px-10 py-6 w-full max-w-5xl mx-auto">
           <p className="font-serif font-bold text-[var(--cream)] text-2xl mb-6 text-center" style={{ opacity: 0.9 }}>
             My Cuts
           </p>
@@ -2435,19 +1670,6 @@ function MainMenu({
               </BouncyButton>
             </div>
           )}
-        </div>
-
-        {/* DIVIDER */}
-        <div style={{ width: 1, background: 'rgba(255,248,234,0.1)', flexShrink: 0, margin: '16px 0' }} />
-
-        {/* RIGHT — Friends panel (flex-[2] ≈ 42% of space) */}
-        <div className="min-w-0 flex flex-col" style={{ flex: 2 }}>
-          <FriendsPanel
-            openSearch={friendSearchOpen}
-            openRequests={friendRequestsOpen}
-            onSearchClose={() => setFriendSearchOpen(false)}
-            onRequestsClose={() => setFriendRequestsOpen(false)}
-          />
         </div>
 
       </div>
