@@ -230,11 +230,11 @@ describe('local file editing API', () => {
   });
 
   test('/api/edit-hair-measurements validates numeric deltas before invoking a shell command', async () => {
-    const execMock = vi.fn((_cmd, _opts, cb) => cb(null, '{}', ''));
-    Object.assign(execMock, {
+    const execFileMock = vi.fn((_cmd, _args, _opts, cb) => cb(null, '{}', ''));
+    Object.assign(execFileMock, {
       [promisify.custom]: vi.fn().mockResolvedValue({ stdout: '{}', stderr: '' }),
     });
-    vi.doMock('child_process', () => ({ exec: execMock }));
+    vi.doMock('child_process', () => ({ execFile: execFileMock }));
     vi.doMock('fs', () => ({
       default: {
         existsSync: vi.fn().mockReturnValue(true),
@@ -252,6 +252,6 @@ describe('local file editing API', () => {
     }));
 
     expect(res.status).toBe(400);
-    expect(execMock).not.toHaveBeenCalled();
+    expect(execFileMock).not.toHaveBeenCalled();
   });
 });
