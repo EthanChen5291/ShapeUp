@@ -4,7 +4,7 @@ import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useClerk, useUser } from '@clerk/nextjs';
+import { useClerk, useUser, useSignUp, useSignIn } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { Id } from '@convex/_generated/dataModel';
@@ -252,9 +252,9 @@ function LoadingScreen({ onDone, ready }: { onDone: () => void; ready: boolean }
 }
 
 /* ─────────────── Profile Menu ─────────────── */
-function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?: boolean }) {
+function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => void; onSignIn: () => void; pulse?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
-  const { openSignIn, signOut } = useClerk();
+  const { signOut } = useClerk();
   const userQuery = useQuery(api.users.getMe);
   const [open, setOpen] = useState(false);
   const [bouncing, setBouncing] = useState(false);
@@ -276,7 +276,7 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
 
   if (!isSignedIn) {
     return (
-      <BouncyButton onClick={() => openSignIn()} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
+      <BouncyButton onClick={onSignIn} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
         Sign in
       </BouncyButton>
     );
@@ -484,42 +484,43 @@ const SCAN_STEPS: { label: string; delay: number; holdAt88: boolean; segments: B
   {
     label: 'Scanning geometry', delay: 0, holdAt88: false,
     segments: [
-      { to: 28, ms: 1600 }, { hold: 1000 },
-      { to: 64, ms: 2200 }, { hold: 700 },
-      { to: 100, ms: 2000 },
+      { to: 28, ms: 820 },  { hold: 1100 },
+      { to: 64, ms: 1050 }, { hold: 750 },
+      { to: 100, ms: 880 },
     ],
   },
   {
-    label: 'Mapping features', delay: 1800, holdAt88: false,
+    label: 'Mapping features', delay: 1600, holdAt88: false,
     segments: [
-      { to: 16, ms: 1800 }, { hold: 2200 },
-      { to: 44, ms: 3000 }, { hold: 1400 },
-      { to: 78, ms: 3200 }, { hold: 900 },
-      { to: 100, ms: 2200 },
+      { to: 16, ms: 900 },  { hold: 2300 },
+      { to: 44, ms: 1450 }, { hold: 1500 },
+      { to: 78, ms: 1550 }, { hold: 1000 },
+      { to: 100, ms: 1050 },
     ],
   },
   {
-    label: 'Generating mesh', delay: 5000, holdAt88: false,
+    label: 'Generating mesh', delay: 4500, holdAt88: false,
     segments: [
-      { to: 11, ms: 2000 }, { hold: 2800 },
-      { to: 34, ms: 3500 }, { hold: 1800 },
-      { to: 62, ms: 4000 }, { hold: 1500 },
-      { to: 86, ms: 3000 }, { hold: 600 },
-      { to: 100, ms: 2000 },
+      { to: 11, ms: 950 },  { hold: 2900 },
+      { to: 34, ms: 1650 }, { hold: 1900 },
+      { to: 62, ms: 1900 }, { hold: 1600 },
+      { to: 86, ms: 1400 }, { hold: 650 },
+      { to: 100, ms: 950 },
     ],
   },
   {
-    label: 'Building model', delay: 9000, holdAt88: true,
+    label: 'Building model', delay: 8000, holdAt88: true,
     segments: [
-      { to: 19, ms: 2500 }, { hold: 3500 },
-      { to: 47, ms: 4500 }, { hold: 2500 },
-      { to: 88, ms: 6500 },
+      { to: 19, ms: 1150 }, { hold: 3600 },
+      { to: 47, ms: 2050 }, { hold: 2700 },
+      { to: 88, ms: 2900 },
     ],
   },
 ];
 
-function easeInOut(t: number) {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+// Fills fast, decelerates sharply — snappier than symmetric easeInOut
+function easeOut(t: number) {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complete = false }: {
@@ -562,7 +563,7 @@ function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complet
 
       const elapsed = now - stepStartRef.current;
       const t = Math.min(elapsed / seg.ms, 1);
-      const pct = fromPctRef.current + easeInOut(t) * (seg.to - fromPctRef.current);
+      const pct = fromPctRef.current + easeOut(t) * (seg.to - fromPctRef.current);
       setFillPct(pct);
 
       if (t >= 1) {
@@ -886,7 +887,6 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: {
 /* ─────────────── Pricing Popup ─────────────── */
 function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   const { isSignedIn } = useUser();
-  const { openSignIn } = useClerk();
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   // 0 = compact, 1 = compact fading + container expanding, 2 = expanded cards growing in
@@ -910,7 +910,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   ] as const;
 
   const handleBuy = async (planId: string) => {
-    if (!isSignedIn) { openSignIn(); return; }
+    if (!isSignedIn) return;
     if (loading) return;
     setLoading(planId);
     try {
@@ -1028,6 +1028,65 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
           >
             <div style={{ height: 180 }} />
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Sign-In Popup ─────────────── */
+function SignInPopup({ onDismiss }: { onDismiss: () => void }) {
+  const [show, setShow] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 16);
+    return () => clearTimeout(t);
+  }, []);
+
+  const dismiss = () => {
+    setClosing(true);
+    setTimeout(onDismiss, 320);
+  };
+
+  const handleDone = () => {
+    setDone(true);
+    dismiss();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{
+        background: show && !closing ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)',
+        transition: 'background 300ms ease',
+      }}
+      onClick={dismiss}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          transform: closing || !show ? 'scale(0.94) translateY(10px)' : 'scale(1) translateY(0)',
+          opacity: closing || !show ? 0 : 1,
+          transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 14,
+        }}
+      >
+        <div style={{ width: 40, transform: 'rotate(186deg)' }}>
+          <BarberMascot />
+        </div>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
+          <button
+            onClick={dismiss}
+            className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-xs z-10"
+          >
+            ✕
+          </button>
+          {!done && <SignUpWidget onEnter={handleDone} />}
         </div>
       </div>
     </div>
@@ -2331,8 +2390,9 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
   const switchTo = useCallback((newIdx: number) => {
     const cur  = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
-    if (cur && next) {
-      next.currentTime = cur.currentTime;
+    if (cur) cur.pause();
+    if (next) {
+      if (cur) next.currentTime = cur.currentTime;
       next.play().catch(() => {});
     }
     activeRef.current = newIdx;
@@ -2346,6 +2406,34 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
   useEffect(() => {
     if (scrollRef) scrollRef.current = { goNext, goPrev };
   }, [scrollRef, goNext, goPrev]);
+
+  // Start the first video on mount with loop enabled
+  useEffect(() => {
+    const vid = videoRefs.current[0];
+    if (!vid) return;
+    vid.loop = true;
+    vid.play().catch(() => {});
+  }, []);
+
+  // Active video loops natively (no pause gap). On each loop, reset inactive videos to 0.
+  useEffect(() => {
+    const vid = videoRefs.current[activeIdx];
+    if (!vid) return;
+    vid.loop = true;
+    let prevTime = 0;
+    const handleTimeUpdate = () => {
+      const dur = vid.duration;
+      if (dur && prevTime > dur - 0.5 && vid.currentTime < 0.5) {
+        videoRefs.current.forEach((v, i) => { if (v && i !== activeIdx) v.currentTime = 0; });
+      }
+      prevTime = vid.currentTime;
+    };
+    vid.addEventListener('timeupdate', handleTimeUpdate);
+    return () => {
+      vid.removeEventListener('timeupdate', handleTimeUpdate);
+      vid.loop = false;
+    };
+  }, [activeIdx]);
 
   // Native wheel listener with { passive: false } so we can preventDefault
   useEffect(() => {
@@ -2409,9 +2497,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
               key={src}
               ref={el => { videoRefs.current[i] = el; }}
               src={src}
-              loop
               muted
-              autoPlay
               playsInline
               preload="auto"
               style={{
@@ -2534,6 +2620,350 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
         <img src={downHovered ? "/arrows/arrowdown_highlighted.png" : "/arrows/arrowdown.png"} alt="scroll down" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: downHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
       </div>
     </>
+  );
+}
+
+/* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
+const FACE2_VIDS = ['/face2a.mov', '/face2b.mov', '/face2c.mov', '/face2d.mov'];
+
+// Returns TARGET playback rate for normalized video position t ∈ [0,1].
+// Sine bell across the middle 80% (10%–90%): derivative is 0 at both ends so the
+// rate eases in AND out with zero jerk. Actual applied rate is lerp-smoothed in the RAF loop.
+function face2PlaybackRate(t: number): number {
+  const rampStart = 0.10;
+  const rampEnd = 0.90;
+  if (t < rampStart || t >= rampEnd) return 1;
+  const s = (t - rampStart) / (rampEnd - rampStart); // 0→1
+  return 1 + 49 * Math.sin(Math.PI * s);
+}
+const FACE2_MESSAGES = [
+  "6 inches shorter",
+  "two pigtails",
+  "blonde highlights and perm",
+  "messy high bun",
+];
+
+function Face2VideoSwiper({
+  scrollRef,
+  onActiveChange,
+  externalIdx,
+}: {
+  scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null>;
+  onActiveChange?: (idx: number) => void;
+  externalIdx?: number;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeRef = useRef(0);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+  const wheelLock = useRef(false);
+  const onActiveChangeRef = useRef(onActiveChange);
+  useEffect(() => { onActiveChangeRef.current = onActiveChange; }, [onActiveChange]);
+
+  const switchTo = useCallback((newIdx: number) => {
+    const cur = videoRefs.current[activeRef.current];
+    const next = videoRefs.current[newIdx];
+    if (cur && next) {
+      next.currentTime = cur.currentTime;
+      next.play().catch(() => {});
+    }
+    activeRef.current = newIdx;
+    setActiveIdx(newIdx);
+    onActiveChangeRef.current?.(newIdx);
+  }, []);
+
+  const goNext = useCallback(() => switchTo((activeRef.current + 1) % FACE2_VIDS.length), [switchTo]);
+  const goPrev = useCallback(() => switchTo((activeRef.current - 1 + FACE2_VIDS.length) % FACE2_VIDS.length), [switchTo]);
+
+  useEffect(() => {
+    if (scrollRef) scrollRef.current = { goNext, goPrev };
+  }, [scrollRef, goNext, goPrev]);
+
+  useEffect(() => {
+    if (externalIdx !== undefined && externalIdx !== activeRef.current) {
+      switchTo(externalIdx);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalIdx]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { wheelLock.current = false; idleTimer = null; }, 80);
+      if (wheelLock.current) return;
+      if (Math.abs(e.deltaY) < 5) return;
+      wheelLock.current = true;
+      if (e.deltaY > 0) goNext();
+      else goPrev();
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => { el.removeEventListener('wheel', handler); if (idleTimer) clearTimeout(idleTimer); };
+  }, [goNext, goPrev]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => { touchStartY.current = e.touches[0].clientY; }, []);
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    const delta = touchStartY.current - e.changedTouches[0].clientY;
+    if (delta > 40) goNext();
+    else if (delta < -40) goPrev();
+  }, [goNext, goPrev]);
+
+  useEffect(() => {
+    let raf: number;
+    let smoothedRate = 1;
+    const tick = () => {
+      const vid = videoRefs.current[activeRef.current];
+      if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
+        const t = (vid.currentTime % vid.duration) / vid.duration;
+        const target = face2PlaybackRate(t);
+        smoothedRate += (target - smoothedRate) * 0.10;
+        vid.playbackRate = smoothedRate;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2 }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      <div style={{
+        position: 'absolute', inset: 0,
+        clipPath: 'inset(10% 0 0 0)',
+        WebkitMaskImage: 'url(/blob.png)',
+        WebkitMaskSize: '100% 100%',
+        WebkitMaskRepeat: 'no-repeat',
+        maskImage: 'url(/blob.png)',
+        maskSize: '100% 100%',
+        maskRepeat: 'no-repeat',
+        pointerEvents: 'none',
+      } as React.CSSProperties}>
+        <div style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+          {FACE2_VIDS.map((src, i) => (
+            <video
+              key={src}
+              ref={el => { videoRefs.current[i] = el; }}
+              src={src}
+              loop muted autoPlay playsInline preload="auto"
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: '100%', height: '100%',
+                objectFit: 'cover',
+                opacity: i === activeIdx ? 1 : 0,
+                transition: 'opacity 60ms ease',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Dark Phone Frame (iPhone-proportioned) ─────────────── */
+function DarkPhoneFrame({ children, width = 168, cornerFraction = 0.24, screenBg = '#F3F3F3' }: { children: React.ReactNode; width?: number; cornerFraction?: number; screenBg?: string }) {
+  const height = Math.round(width * 2.16);
+  const br = Math.round(width * cornerFraction);
+  const screenBr = Math.round(br * 0.88);
+  const siH = Math.round(width * 0.04);
+  const siV = Math.round(width * 0.028);
+  const diH = Math.round(width * 0.145);
+  const diW = Math.round(width * 0.32);
+  const diDot = Math.round(width * 0.065);
+  const homeBarW = Math.round(width * 0.27);
+  const homeBarH = Math.round(height * 0.042);
+
+  return (
+    <div style={{ width, height, borderRadius: br, background: '#1C1C1E', position: 'relative', boxShadow: '0 20px 52px -10px rgba(0,0,0,0.55), 0 6px 20px -4px rgba(0,0,0,0.35)', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', top: siV, left: siH, right: siH, bottom: siV, borderRadius: screenBr, background: screenBg, overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 1 }}>
+        <div style={{ height: diH, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: screenBg }}>
+          <div style={{ width: diW, height: diDot, background: '#1C1C1E', borderRadius: 9999 }} />
+        </div>
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {children}
+        </div>
+        <div style={{ height: homeBarH, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: screenBg }}>
+          <div style={{ width: homeBarW, height: 4, background: 'rgba(0,0,0,0.22)', borderRadius: 9999 }} />
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: -2, top: Math.round(height * 0.21), width: 3, height: Math.round(height * 0.07), background: '#3A3A3C', borderRadius: '2px 0 0 2px', zIndex: 2 }} />
+      <div style={{ position: 'absolute', left: -2, top: Math.round(height * 0.30), width: 3, height: Math.round(height * 0.07), background: '#3A3A3C', borderRadius: '2px 0 0 2px', zIndex: 2 }} />
+      <div style={{ position: 'absolute', right: -2, top: Math.round(height * 0.25), width: 3, height: Math.round(height * 0.1), background: '#3A3A3C', borderRadius: '0 2px 2px 0', zIndex: 2 }} />
+    </div>
+  );
+}
+
+/* brand colors for the describe phone */
+const PHONE_TOMATO = '#D94E3A';
+const PHONE_CREAM  = '#F5F1EA';
+const PHONE_INK    = '#2a201a';
+
+type DescribeChatMsg = { id: number; text: string; isNew: boolean; disintegrating?: boolean; disintegrateDelay?: number };
+
+function DescribeMsgBubble({ msg }: { msg: DescribeChatMsg }) {
+  const [showText, setShowText] = useState(!msg.isNew);
+
+  useEffect(() => {
+    if (!msg.isNew) return;
+    const t = setTimeout(() => setShowText(true), 300);
+    return () => clearTimeout(t);
+  }, [msg.isNew]);
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        background: PHONE_CREAM,
+        color: PHONE_INK,
+        borderRadius: showText ? '18px 18px 4px 18px' : '18px',
+        padding: showText ? '8px 12px' : '8px 13px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
+        fontSize: 14, fontWeight: 400, lineHeight: 1.35, letterSpacing: '-0.01em',
+        maxWidth: '100%',
+        boxShadow: '0 2px 10px rgba(80,20,10,0.14)',
+        transition: 'border-radius 0.18s ease',
+        animationName: msg.disintegrating ? 'msg-disintegrate' : msg.isNew ? 'msg-enter' : undefined,
+        animationDuration: msg.disintegrating ? '0.5s' : '0.4s',
+        animationDelay: msg.disintegrating ? `${msg.disintegrateDelay ?? 0}ms` : undefined,
+        animationFillMode: 'both',
+        animationTimingFunction: msg.disintegrating ? 'ease-in' : 'cubic-bezier(0.34,1.2,0.64,1)',
+      }}
+    >
+      {!showText ? (
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', height: 16 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: PHONE_INK, opacity: 0.45,
+              animationName: 'imessage-dot',
+              animationDuration: '1s',
+              animationTimingFunction: 'ease-in-out',
+              animationIterationCount: 'infinite',
+              animationDelay: `${i * 0.18}s`,
+            }} />
+          ))}
+        </div>
+      ) : (
+        <span style={{ animationName: 'imessage-text-in', animationDuration: '0.18s', animationFillMode: 'both' }}>
+          {msg.text}
+        </span>
+      )}
+      {showText && (
+        <svg style={{ position: 'absolute', bottom: 0, right: -8, display: 'block' }} width="12" height="11" viewBox="0 0 12 11">
+          <path d="M 0 0 Q 4 0 7 3 Q 10 6 12 11 Q 5 9 2 5 Q 0 3 0 0 Z" fill={PHONE_CREAM} />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────── Describe Phone Demo (interactive, branded) ─────────────── */
+function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) {
+  const [msgs, setMsgs] = useState<DescribeChatMsg[]>([]);
+  const [curIdx, setCurIdx] = useState(0);
+  const idRef = useRef(0);
+  const curIdxRef = useRef(0);
+  const onSendRef = useRef(onSend);
+  useEffect(() => { onSendRef.current = onSend; }, [onSend]);
+
+  const handleSend = useCallback(() => {
+    const idx = curIdxRef.current;
+    const text = FACE2_MESSAGES[idx];
+    const next = (idx + 1) % FACE2_MESSAGES.length;
+    curIdxRef.current = next;
+    setCurIdx(next);
+    onSendRef.current?.(idx);
+
+    if (idx === 0 && idRef.current > 0) {
+      // Cycling back: disintegrate existing messages upward, then add the new first message
+      setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
+      setTimeout(() => {
+        idRef.current = 0;
+        setMsgs([{ id: idRef.current++, text, isNew: true }]);
+      }, 600);
+    } else {
+      const newMsg: DescribeChatMsg = { id: idRef.current++, text, isNew: true };
+      setMsgs(prev => [newMsg, ...prev.map(m => ({ ...m, isNew: false }))]);
+    }
+  }, []);
+
+  const nextMsg = FACE2_MESSAGES[curIdx];
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+      <div style={{
+        width: '70%',
+        aspectRatio: '966 / 1326',
+        borderRadius: 18,
+        background: PHONE_TOMATO,
+        overflow: 'hidden',
+        position: 'relative',
+      }}>
+        {/* Chat scroll area */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 68,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', bottom: 6, left: 0, right: 0,
+            display: 'flex', flexDirection: 'column-reverse', gap: 7,
+            padding: '0 12px',
+          }}>
+            {msgs.map(m => <DescribeMsgBubble key={m.id} msg={m} />)}
+          </div>
+        </div>
+        {/* Typing bar */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 68,
+          background: 'rgba(0,0,0,0.18)',
+          display: 'flex', alignItems: 'center', padding: '0 12px', gap: 9,
+        }}>
+          <div style={{
+            flex: 1, background: PHONE_CREAM, borderRadius: 22,
+            padding: '8px 14px',
+            fontSize: 13.5, color: PHONE_INK,
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            lineHeight: 1.35,
+          }}>
+            {nextMsg}
+          </div>
+          <button
+            onClick={handleSend}
+            className="send-btn-pulse"
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: PHONE_INK, border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
+              <path d="M6 10.5V1.5M6 1.5L2.5 5M6 1.5L9.5 5" stroke={PHONE_CREAM} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── Show Barber Demo (face2 swiper, no phone) ─────────────── */
+function ShowBarberDemo({ activeIdx }: { activeIdx?: number }) {
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
+      <Face2VideoSwiper externalIdx={activeIdx} />
+    </div>
   );
 }
 
@@ -2763,41 +3193,289 @@ function GlimpseSection() {
   );
 }
 
+/* ─────────────── Sign-Up Widget ─────────────── */
+function SignUpWidget({ onEnter }: { onEnter: () => void }) {
+  const { signUp } = useSignUp();
+  const { signIn } = useSignIn();
+  const { isSignedIn } = useUser();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'start' | 'password' | 'verify'>('start');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  if (isSignedIn) {
+    return (
+      <BouncyButton
+        onClick={onEnter}
+        className="btn-tomato"
+        style={{
+          padding: '18px 44px',
+          fontSize: 22,
+          fontFamily: 'var(--font-fraunces), Georgia, serif',
+          fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+          fontWeight: 900,
+          letterSpacing: '-0.01em',
+          borderRadius: 18,
+          boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
+        }}
+      >
+        Go to dashboard →
+      </BouncyButton>
+    );
+  }
+
+  // Step 1: collect email only, advance locally
+  const handleEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setError('');
+    setStep('password');
+  };
+
+  // Step 2: try sign-up; if email taken, silently sign in with same password
+  const handlePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const { error: signUpErr } = await signUp.password({ emailAddress: email.trim(), password });
+      if (!signUpErr) {
+        if (signUp.status === 'missing_requirements') {
+          const { error: sendErr } = await signUp.verifications.sendEmailCode();
+          if (sendErr) { setError(sendErr.message ?? 'Failed to send verification email'); return; }
+          setStep('verify');
+        } else {
+          onEnter();
+        }
+        return;
+      }
+      // Email already taken — sign in with the same password instead
+      const { error: signInErr } = await signIn.password({ identifier: email.trim(), password });
+      if (!signInErr) {
+        if (signIn.status === 'complete') {
+          const { error: finalErr } = await signIn.finalize();
+          if (!finalErr) { onEnter(); return; }
+        }
+        onEnter();
+        return;
+      }
+      const msg = signInErr.message ?? signUpErr.message ?? 'Something went wrong';
+      setError(msg.toLowerCase().includes('password') ? 'Wrong password — try again.' : msg);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Step 3: email verification code (only when Clerk requires it)
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const { error: verifyErr } = await signUp.verifications.verifyEmailCode({ code });
+      if (verifyErr) { setError(verifyErr.message ?? 'Invalid code — try again'); return; }
+      onEnter();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid code — try again');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError('');
+    try {
+      const { error: ssoErr } = await signUp.sso({
+        strategy: 'oauth_google',
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectCallbackUrl: `${window.location.origin}/`,
+      });
+      if (ssoErr) setError(ssoErr.message ?? 'Google sign-in failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    fontFamily: 'var(--font-dmsans)',
+    fontSize: 15,
+    padding: '13px 16px',
+    borderRadius: 12,
+    border: '1.5px solid rgba(42,32,26,0.13)',
+    background: 'var(--biscuit)',
+    color: 'var(--ink)',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 180ms ease',
+  };
+
+  return (
+    <div style={{
+      width: '100%',
+      maxWidth: 340,
+      background: 'var(--cream)',
+      border: '1px solid rgba(42,32,26,0.1)',
+      borderRadius: 20,
+      padding: '24px 24px 20px',
+      boxShadow: '0 10px 44px -12px rgba(42,32,26,0.16)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+    }}>
+      {/* ── Verify email code (only when Clerk requires it after password sign-up) ── */}
+      {step === 'verify' && (
+        <>
+          <button
+            onClick={() => { setStep('password'); setCode(''); setError(''); }}
+            className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, marginBottom: 2 }}
+          >
+            ← back
+          </button>
+          <div style={{ marginBottom: 4 }}>
+            <p className="font-sans" style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink)', margin: '0 0 4px' }}>Check your inbox</p>
+            <p className="font-sans" style={{ fontSize: 13, color: 'var(--smoke)', margin: 0 }}>We sent a 6-digit code to {email}</p>
+          </div>
+          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              autoFocus type="text" inputMode="numeric" maxLength={6}
+              value={code}
+              onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
+              placeholder="123456"
+              style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: 20, textAlign: 'center' }}
+            />
+            {error && <p className="font-sans" style={{ fontSize: 12, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
+              style={{ ...inputStyle, padding: '13px 0', background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 15, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
+              {submitting ? 'Verifying…' : 'Verify →'}
+            </button>
+          </form>
+        </>
+      )}
+
+      {/* ── Password step ── */}
+      {step === 'password' && (
+        <>
+          <button
+            onClick={() => { setStep('start'); setPassword(''); setError(''); }}
+            className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, marginBottom: 2 }}
+          >
+            ← back
+          </button>
+          <p className="font-sans" style={{ fontSize: 13, color: 'var(--smoke)', margin: 0 }}>{email}</p>
+          <form onSubmit={handlePassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              autoFocus type="password" autoComplete="new-password"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError(''); }}
+              placeholder="password"
+              style={inputStyle}
+              onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
+              onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
+            />
+            {error && <p className="font-sans" style={{ fontSize: 12, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            <button type="submit" disabled={submitting || !password} className="btn-tomato"
+              style={{ padding: '13px 0', borderRadius: 12, fontSize: 15, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !password ? 0.5 : 1, cursor: submitting || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
+              {submitting ? 'One sec…' : 'Continue →'}
+            </button>
+          </form>
+        </>
+      )}
+
+      {/* ── Start: email + Google ── */}
+      {step === 'start' && (
+        <>
+          <form onSubmit={handleEmail} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              type="email" autoComplete="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError(''); }}
+              placeholder="your@email.com"
+              style={inputStyle}
+              onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
+              onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
+            />
+            {error && <p className="font-sans" style={{ fontSize: 12, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            <button type="submit" disabled={!email.trim()} className="btn-tomato"
+              style={{ padding: '13px 0', borderRadius: 12, fontSize: 15, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: !email.trim() ? 0.5 : 1, cursor: !email.trim() ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
+              Continue with email →
+            </button>
+          </form>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
+            <span className="font-mono" style={{ fontSize: 10, color: 'var(--smoke)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>or</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
+          </div>
+
+          <button
+            onClick={handleGoogle}
+            className="font-sans"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              width: '100%', padding: '12px 0', borderRadius: 12,
+              border: '1.5px solid rgba(42,32,26,0.13)', background: 'var(--cream)',
+              color: 'var(--ink)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              transition: 'background 150ms ease, border-color 150ms ease',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--biscuit)';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(42,32,26,0.22)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--cream)';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(42,32,26,0.13)';
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
+              <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332Z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
+            </svg>
+            Continue with Google
+          </button>
+
+          <p className="font-mono" style={{ fontSize: 10, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
+            Free to start · No credit card
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────── Landing Page ─────────────── */
 function LandingPage({ onEnter }: { onEnter: () => void }) {
-  const { openSignIn } = useClerk();
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
-  const chatIdRef = useRef(1);
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const chatMsgsRef = useRef<ChatMsg[]>([]);
-  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([
-    { id: 0, text: FACE_MESSAGES[0], phase: 'entering', disintDelay: 0 },
-  ]);
-  chatMsgsRef.current = chatMsgs;
 
-  const handleFaceChange = useCallback((newIdx: number) => {
-    if (resetTimerRef.current) { clearTimeout(resetTimerRef.current); resetTimerRef.current = null; }
-    if (newIdx === 0) {
-      // Disintegrate all existing messages top→bottom (oldest first)
-      const count = chatMsgsRef.current.length;
-      setChatMsgs(msgs => msgs.map((m, i) => ({
-        ...m,
-        phase: 'disintegrating' as const,
-        disintDelay: (msgs.length - 1 - i) * 80,
-      })));
-      resetTimerRef.current = setTimeout(() => {
-        resetTimerRef.current = null;
-        setChatMsgs([{ id: chatIdRef.current++, text: FACE_MESSAGES[0], phase: 'entering', disintDelay: 0 }]);
-      }, count * 80 + 180);
-    } else {
-      // New message appears at bottom, existing ones shift up
-      setChatMsgs(msgs => [
-        { id: chatIdRef.current++, text: FACE_MESSAGES[newIdx], phase: 'entering', disintDelay: 0 },
-        ...msgs.map(m => ({ ...m, phase: 'idle' as const })),
-      ]);
-    }
-  }, []);
+  const scrollToHowItWorks = () => {
+    const el = document.getElementById('how-it-works');
+    if (!el) return;
+    const start = window.scrollY;
+    const end = el.getBoundingClientRect().top + window.scrollY;
+    const dist = end - start;
+    const duration = 1100;
+    // ease-in-out quart: very slow start, rapid acceleration, gentle stop
+    const ease = (t: number) => t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+    let t0: number | null = null;
+    const tick = (now: number) => {
+      if (t0 === null) t0 = now;
+      const t = Math.min((now - t0) / duration, 1);
+      window.scrollTo(0, start + dist * ease(t));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+  const [describeActiveIdx, setDescribeActiveIdx] = useState<number | undefined>(undefined);
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -2824,15 +3502,15 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </div>
-          <a
-            href="#how-it-works"
+          <button
+            onClick={scrollToHowItWorks}
             className="font-serif italic"
-            style={{ color: 'var(--char)', textDecoration: 'none', fontSize: 16, opacity: 0.75, transition: 'opacity 140ms ease' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.75, transition: 'opacity 140ms ease' }}
             onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
             onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.75')}
           >
             how it works
-          </a>
+          </button>
           <BouncyButton
             onClick={onEnter}
             className="btn-tomato"
@@ -2855,9 +3533,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         >
           {/* Left */}
           <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }} className="anim-fade-up">
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '5px 14px', marginTop: 8 }}>
+              <span style={{ color: 'var(--tomato)', fontSize: 10 }}>✦</span>
+              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8 }}>Free to try · No credit card · 3D preview in ~60 sec</span>
+            </div>
             <div
               className="type-chonk"
-              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 36, color: 'var(--ink)', lineHeight: 1.05 }}
+              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05 }}
             >
               <div>see it first.</div>
               <div>love it more.</div>
@@ -2867,27 +3549,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               className="font-serif italic"
               style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, marginTop: 22, lineHeight: 1.5 }}
             >
-              Preview any cut in 3D before you sit down.
-              <br />No more guesswork. No more regrets.
+              Take one selfie. See 10+ haircuts on your actual 3D face.
+              <br />Walk into the barber knowing exactly what you want.
             </p>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22, marginTop: 34 }}>
-              <BouncyButton
-                onClick={onEnter}
-                className="btn-tomato"
-                style={{
-                  padding: '18px 44px',
-                  fontSize: 22,
-                  fontFamily: 'var(--font-fraunces), Georgia, serif',
-                  fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
-                  fontWeight: 900,
-                  letterSpacing: '-0.01em',
-                  borderRadius: 18,
-                  boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
-                }}
-              >
-                Preview your cut →
-              </BouncyButton>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 34 }}>
+              <SignUpWidget onEnter={onEnter} />
             </div>
           </div>
 
@@ -2897,71 +3564,104 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             className="anim-fade-in delay-200"
           >
             <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
-              {/* Phone frame — left of blob, slightly below center */}
-              <div style={{
-                position: 'absolute',
-                left: -84,
-                top: 'calc(57% + 132px)',
-                transform: 'translateY(-50%)',
-                zIndex: 15,
-                pointerEvents: 'none',
-              }}>
-                <PhoneFrame>
-                  <ChatStack messages={chatMsgs} />
-                </PhoneFrame>
-              </div>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
               <FaceVideoSwiper
                 onSwipeUp={() => swipeTriggerRef.current?.('up')}
                 onSwipeDown={() => swipeTriggerRef.current?.('down')}
                 scrollRef={faceScrollRef}
-                onActiveChange={handleFaceChange}
               />
               <ScrollArrows
                 swipeTriggerRef={swipeTriggerRef}
                 onClickUp={() => faceScrollRef.current?.goPrev()}
                 onClickDown={() => faceScrollRef.current?.goNext()}
               />
-              <Image
-                src="/tape.png"
-                alt=""
-                width={308}
-                height={157}
-                style={{
-                  position: 'absolute',
-                  bottom: -72.6,
-                  right: 91.04,
-                  width: 405.6,
-                  height: 183,
-                  transform: 'rotate(10deg)',
-                  transformOrigin: 'center center',
-                  zIndex: 3,
-                }}
-              />
             </div>
           </div>
         </div>
 
-        {/* ── Steps ── */}
-        <div id="how-it-works" style={{ marginTop: 96, paddingTop: 8 }}>
-          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--smoke)', textAlign: 'center', marginBottom: 48 }}>
-            how it works
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32 }}>
+        {/* ── Value props bar ── */}
+        <div style={{ borderTop: '1px solid rgba(42,32,26,0.09)', borderBottom: '1px solid rgba(42,32,26,0.09)', margin: '56px 0 0', padding: '28px 0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
             {[
-              { src: '/scanbutton.png', alt: 'Scan your face', w: 488, h: 244, step: '01', label: 'Scan', delay: 'delay-100' },
-              { src: '/describebutton.png', alt: 'Describe your cut', w: 485, h: 244, step: '02', label: 'Describe', delay: 'delay-200' },
-              { src: '/showbarberbutton.png', alt: 'Show your barber', w: 534, h: 244, step: '03', label: 'Show your barber', delay: 'delay-300' },
-            ].map(s => (
-              <div key={s.src} className={`anim-fade-up ${s.delay}`} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span className="font-mono" style={{ fontSize: 10, color: 'var(--tomato)', letterSpacing: '0.14em', fontWeight: 700 }}>{s.step}</span>
-                  <span className="font-sans" style={{ fontSize: 13, fontWeight: 600, color: 'var(--char)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{s.label}</span>
+              { stat: '1 selfie', label: 'all you need to start' },
+              { stat: '~60 sec', label: 'scan to first 3D preview' },
+              { stat: 'free to start', label: 'no card required' },
+            ].map((item, i) => (
+              <div key={i} style={{ textAlign: 'center', padding: '8px 0', borderRight: i < 2 ? '1px solid rgba(42,32,26,0.09)' : 'none' }}>
+                <div className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.3rem, 2vw, 1.7rem)', color: 'var(--tomato)', lineHeight: 1.1 }}>
+                  {item.stat}
                 </div>
-                <Image src={s.src} alt={s.alt} width={s.w} height={s.h} style={{ width: '100%', height: 'auto', borderRadius: 16 }} />
+                <div className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)', marginTop: 5 }}>
+                  {item.label}
+                </div>
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ── Steps ── */}
+        <div id="how-it-works" style={{ marginTop: 80, paddingTop: 8 }}>
+          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--smoke)', textAlign: 'center', marginBottom: 56 }}>
+            how it works
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 40, alignItems: 'start' }}>
+
+            {/* Step 1: Scan */}
+            <div className="anim-fade-up delay-100" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+              <Image src="/1.png" alt="Step 1" width={52} height={52} style={{ width: 52, height: 52, objectFit: 'contain' }} />
+              <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Scan</span>
+              <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>30 seconds</span>
+              <Image
+                src="/face2_selfie.png"
+                alt="Scan your face"
+                width={600} height={600}
+                style={{ width: '70%', height: 'auto', borderRadius: 18 }}
+              />
+            </div>
+
+            {/* Step 2: Describe */}
+            <div className="anim-fade-up delay-200" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+              <Image src="/2.png" alt="Step 2" width={52} height={52} style={{ width: 52, height: 52, objectFit: 'contain' }} />
+              <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Describe</span>
+              <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>just type or tap</span>
+              <DescribePhoneDemo onSend={setDescribeActiveIdx} />
+            </div>
+
+            {/* Step 3: Show your barber */}
+            <div className="anim-fade-up delay-300" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+              <Image src="/3.png" alt="Step 3" width={52} height={52} style={{ width: 52, height: 52, objectFit: 'contain' }} />
+              <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Show your barber</span>
+              <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>share your 3D preview</span>
+              <ShowBarberDemo activeIdx={describeActiveIdx} />
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── Mid-page CTA ── */}
+        <div style={{ textAlign: 'center', padding: '72px 0 16px' }}>
+          <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', opacity: 0.6, margin: '0 0 20px' }}>
+            Ready to see your next cut?
+          </p>
+          <BouncyButton
+            onClick={onEnter}
+            className="btn-tomato"
+            style={{
+              padding: '18px 44px',
+              fontSize: 20,
+              fontFamily: 'var(--font-fraunces), Georgia, serif',
+              fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+              fontWeight: 900,
+              letterSpacing: '-0.01em',
+              borderRadius: 18,
+              boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
+            }}
+          >
+            Preview My Cut — It&apos;s Free →
+          </BouncyButton>
+          <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.38)', marginTop: 14 }}>
+            takes about 60 seconds · no account required
+          </p>
         </div>
 
       </div>
@@ -2978,53 +3678,106 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           {/* ── Glimpse orbit section ── */}
           <GlimpseSection />
 
+          {/* ── Orbit CTA ── */}
+          <div style={{ textAlign: 'center', padding: '0 0 72px' }}>
+            <p className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 'clamp(1.1rem, 1.8vw, 1.4rem)', color: 'rgba(255,248,234,0.6)', margin: '0 0 20px' }}>
+              Pick your style.
+            </p>
+            <BouncyButton
+              onClick={onEnter}
+              className="btn-tomato"
+              style={{
+                padding: '18px 44px',
+                fontSize: 20,
+                fontFamily: 'var(--font-fraunces), Georgia, serif',
+                fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+                fontWeight: 900,
+                letterSpacing: '-0.01em',
+                borderRadius: 18,
+                boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
+              }}
+            >
+              Try It Free — No Card Needed →
+            </BouncyButton>
+            <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.3)', marginTop: 14 }}>
+              takes about 60 seconds
+            </p>
+          </div>
+
+          {/* ── Trust Strip ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: '0 0 64px' }}>
+            {[
+              { title: 'Your photo stays private', body: 'We never sell or share your scan. Delete your data anytime from settings.' },
+              { title: 'AI trained on real cuts', body: '3D facial mesh and strand-level simulation built from real barbershop styles.' },
+              { title: 'Free to try, no risk', body: 'Your first previews are completely free. Pay only if you love the results.' },
+            ].map((item, i) => (
+              <div key={i} style={{ background: 'rgba(255,248,234,0.05)', border: '1px solid rgba(255,248,234,0.1)', borderRadius: 16, padding: '24px 22px' }}>
+                <div className="font-sans" style={{ fontSize: 15, fontWeight: 600, color: 'var(--cream)', marginBottom: 8 }}>{item.title}</div>
+                <div className="font-sans" style={{ fontSize: 13, color: 'rgba(255,248,234,0.5)', lineHeight: 1.6 }}>{item.body}</div>
+              </div>
+            ))}
+          </div>
+
           {/* ── Footer strip ── */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '28px 0 40px',
-              marginTop: 0,
-              borderTop: '1px solid rgba(255,248,234,0.12)',
-            }}
-          >
-            {/* Instagram */}
-            <a
-              href="https://instagram.com/unchopped_"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
-              onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
-              onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-              </svg>
-              <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>@unchopped_</span>
-            </a>
+          <div style={{ borderTop: '1px solid rgba(255,248,234,0.12)', padding: '28px 0 40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Instagram */}
+              <a
+                href="https://instagram.com/unchopped_"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
+                onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+                onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <circle cx="12" cy="12" r="4" />
+                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                </svg>
+                <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>@unchopped_</span>
+              </a>
 
-            {/* Brand */}
-            <div style={{ textAlign: 'center' }}>
-              <span className="font-serif italic" style={{ fontSize: 22, color: 'var(--cream)', fontStyle: 'italic', opacity: 0.6 }}>Shape Up</span>
-              <sup className="font-sans" style={{ fontSize: 9, marginLeft: 2, verticalAlign: 'super', color: 'rgba(255,248,234,0.5)', opacity: 0.5 }}>™</sup>
+              {/* Brand */}
+              <div style={{ textAlign: 'center' }}>
+                <span className="font-serif italic" style={{ fontSize: 22, color: 'var(--cream)', fontStyle: 'italic', opacity: 0.6 }}>Shape Up</span>
+                <sup className="font-sans" style={{ fontSize: 9, marginLeft: 2, verticalAlign: 'super', color: 'rgba(255,248,234,0.5)', opacity: 0.5 }}>™</sup>
+              </div>
+
+              {/* Email */}
+              <a
+                href="mailto:shapeup.ai@gmail.com"
+                style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
+                onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+                onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
+              >
+                <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>shapeup.ai@gmail.com</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="3" />
+                  <polyline points="2,4 12,13 22,4" />
+                </svg>
+              </a>
             </div>
-
-            {/* Email */}
-            <a
-              href="mailto:shapeup.ai@gmail.com"
-              style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
-              onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
-              onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.7')}
-            >
-              <span className="font-sans" style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.01em' }}>shapeup.ai@gmail.com</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="3" />
-                <polyline points="2,4 12,13 22,4" />
-              </svg>
-            </a>
+            <div style={{ textAlign: 'center', marginTop: 20 }}>
+              {[
+                { label: 'Privacy', href: '#' },
+                { label: 'Delete my data', href: '#' },
+                { label: 'Contact', href: 'mailto:shapeup.ai@gmail.com' },
+              ].map(({ label, href }, i) => (
+                <span key={label}>
+                  <a
+                    href={href}
+                    className="font-mono"
+                    style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,248,234,0.3)', textDecoration: 'none', transition: 'color 140ms ease' }}
+                    onMouseEnter={e => ((e.target as HTMLElement).style.color = 'rgba(255,248,234,0.6)')}
+                    onMouseLeave={e => ((e.target as HTMLElement).style.color = 'rgba(255,248,234,0.3)')}
+                  >
+                    {label}
+                  </a>
+                  {i < 2 && <span className="font-mono" style={{ fontSize: 10, color: 'rgba(255,248,234,0.15)', margin: '0 14px' }}>·</span>}
+                </span>
+              ))}
+            </div>
           </div>
 
         </div>
@@ -3053,6 +3806,7 @@ function MainMenu({
   showScanNow,
   onScanNow,
   onRescan,
+  onSignIn,
   profilePillPulse = false,
 }: {
   onAdd: () => void;
@@ -3060,6 +3814,7 @@ function MainMenu({
   showScanNow: boolean;
   onScanNow: () => void;
   onRescan: () => void;
+  onSignIn: () => void;
   profilePillPulse?: boolean;
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
@@ -3257,7 +4012,7 @@ function MainMenu({
               <InlineWordmark />
             </div>
             <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-              <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} />
+              <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
             </div>
           </div>
 
@@ -3530,7 +4285,6 @@ const DEMO_STATUS_LABEL: Record<string, string> = {
 
 export default function Home() {
   const { isSignedIn } = useUser();
-  const { openSignIn } = useClerk();
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
@@ -3556,10 +4310,10 @@ export default function Home() {
       '/offwhitebg.png',
       '/blob.png',
       '/tape.png',
-      '/previewbutton.png',
-      '/scanbutton.png',
-      '/describebutton.png',
-      '/showbarberbutton.png',
+      '/face2_selfie.png',
+      '/1.png',
+      '/2.png',
+      '/3.png',
     ];
     let loaded = 0;
     const onLoad = () => { if (++loaded === LANDING_IMAGES.length) setLandingAssetsReady(true); };
@@ -3574,6 +4328,12 @@ export default function Home() {
   // App state
   const [appState, setAppState] = useState<AppState>('loading');
   const [activeProjectId, setActiveProjectId] = useState<Id<'projects'> | null>(null);
+
+  // After OAuth redirect, isSignedIn becomes true on the landing page — auto-enter dashboard
+  useEffect(() => {
+    if (appState === 'landing' && isSignedIn) setAppState('home');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
 
   // Scan/hair state
   const [profile, setProfile]   = useState<UserHeadProfile | null>(null);
@@ -3598,6 +4358,7 @@ export default function Home() {
   const [showScanPopup, setShowScanPopup]       = useState(false);
   const [showScanResult, setShowScanResult]     = useState(false);
   const [hasScanEver, setHasScanEver]           = useState(false);
+  const [showSignInPopup, setShowSignInPopup]   = useState(false);
   const [selfieFlying, setSelfieFlying] = useState<{ url: string; fromRect: DOMRect; toRect: DOMRect } | null>(null);
   const [profilePillPulse, setProfilePillPulse] = useState(false);
 
@@ -3710,7 +4471,7 @@ export default function Home() {
   };
 
   const handleAddProject = async () => {
-    if (!isSignedIn) { openSignIn(); return; }
+    if (!isSignedIn) { setShowSignInPopup(true); return; }
     setPendingNewProject(true);
     setShowScanPopup(true);
   };
@@ -3756,8 +4517,14 @@ export default function Home() {
           showScanNow={!hasScanEver}
           onScanNow={() => setShowScanPopup(true)}
           onRescan={() => setShowScanPopup(true)}
+          onSignIn={() => setShowSignInPopup(true)}
           profilePillPulse={profilePillPulse}
         />
+
+        {/* Sign-in popup */}
+        {showSignInPopup && (
+          <SignInPopup onDismiss={() => setShowSignInPopup(false)} />
+        )}
 
         {/* Camera scan popup */}
         {showScanPopup && (
