@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { isSafeImageSource } from '@/lib/urlSafety';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   if (!imageUrl || !prompt || !sessionId) {
     console.error('[gemini-hair-edit] missing fields — imageUrl:', !!imageUrl, '| prompt:', !!prompt, '| sessionId:', !!sessionId);
     return NextResponse.json({ ok: false, error: 'imageUrl, prompt, and sessionId are required' }, { status: 400 });
+  }
+  if (!isSafeImageSource(imageUrl)) {
+    return NextResponse.json({ ok: false, error: 'imageUrl is not allowed' }, { status: 400 });
   }
 
   // --- Fetch source image ---

@@ -2,11 +2,15 @@
 // Proxies Firebase Storage through the Next.js server to avoid browser CORS blocks.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isSafeRemoteUrl } from '@/lib/urlSafety';
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
   if (!url) {
     return NextResponse.json({ error: 'url param required' }, { status: 400 });
+  }
+  if (!isSafeRemoteUrl(url)) {
+    return NextResponse.json({ error: 'url is not allowed' }, { status: 400 });
   }
 
   console.log(`[proxy-ply] fetching ${url.slice(0, 80)}…`);
