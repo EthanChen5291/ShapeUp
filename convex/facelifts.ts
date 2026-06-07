@@ -3,14 +3,16 @@ import { v } from "convex/values";
 
 export const recordResult = mutation({
   args: {
-    userId:    v.string(),
     jobId:     v.string(),
     plyS3Key:  v.string(),
     splatS3Key: v.string(),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
     await ctx.db.insert("facelifts", {
-      userId:    args.userId,
+      userId:    identity.tokenIdentifier,
       jobId:     args.jobId,
       plyS3Key:  args.plyS3Key,
       splatS3Key: args.splatS3Key,
@@ -35,7 +37,7 @@ export const getLatestByUser = query({
     if (!identity) return null;
     return ctx.db
       .query("facelifts")
-      .withIndex("by_user_id", q => q.eq("userId", identity.subject))
+      .withIndex("by_user_id", q => q.eq("userId", identity.tokenIdentifier))
       .order("desc")
       .first();
   },
