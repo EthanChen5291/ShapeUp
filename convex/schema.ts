@@ -41,6 +41,28 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_event_id", ["eventId"]),
 
+  friends: defineTable({
+    requesterId: v.id("users"),
+    addresseeId: v.id("users"),
+    status: v.union(v.literal("pending"), v.literal("accepted")),
+    createdAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_requester_and_addressee", ["requesterId", "addresseeId"])
+    .index("by_addressee_and_requester", ["addresseeId", "requesterId"])
+    .index("by_requester_and_status", ["requesterId", "status"])
+    .index("by_addressee_and_status", ["addresseeId", "status"]),
+
+  messages: defineTable({
+    senderId: v.id("users"),
+    receiverId: v.id("users"),
+    text: v.string(),
+    read: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_sender_and_receiver", ["senderId", "receiverId"])
+    .index("by_receiver_and_sender", ["receiverId", "senderId"]),
+
   projects: defineTable({
     tokenIdentifier: v.string(),
     name: v.string(),

@@ -159,6 +159,6 @@ describe('security regressions reproduced from Phase 1', () => {
       jobId: 'job_123',
       plyS3Key: 'facelifts/job_123/output.ply',
       splatS3Key: 'facelifts/job_123/output.splat',
-    })).rejects.toThrow(/Unauthenticated|userId|Unauthorized/);
+    } as any)).rejects.toThrow(/Unauthenticated|userId|Unauthorized/);
   });
 });

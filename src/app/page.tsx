@@ -3249,7 +3249,8 @@ function GlimpseSection() {
 /* ─────────────── Sign-Up Widget ─────────────── */
 function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?: boolean }) {
   const { signUp } = useSignUp();
-  const { signIn, setActive } = useSignIn();
+  const { signIn } = useSignIn();
+  const { setActive } = useClerk();
   const { isSignedIn } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
