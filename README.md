@@ -1,127 +1,57 @@
-f## SCAN PHASE (runs once)
+# ShapeUp
 
-Camera input (video stream)
+AI haircut visualization app built with Next.js, Convex, Clerk, S3, Stripe, and a separate ML service.
 
-      ↓
-      
-MediaPipe FaceMesh → 468 landmarks (normalized coords)
+Users scan or upload a face image, generate haircut looks through the facelift pipeline, view the result as a 3D Gaussian Splat, and save projects to their account.
 
-MediaPipe Selfie Segmentation → hair mask
+## Run Locally
 
-      ↓
-      
-Per-frame extraction:
+Install dependencies:
 
-  Face:
+```bash
+npm install
+```
 
-         landmark coords → head width, height, 
-         
-         crown position, ear anchors
+Start the Next.js app:
 
-         
-  Hair:  
-  
-         silhouette measurements (crown_height, 
-         
-         side_width, back_length, top_flatness)
-         
-         + avg color RGB
-         
-         + texture roughness (frequency analysis 
-         
-           OR user input: straight/wavy/curly) -> discuss with bruno
-           
-      ↓
-      
-Aggregate across all frames → userHeadProfile {}
+```bash
+npm run dev
+```
 
-  {
-  
-    head_width, head_height, crown_y, ear_left, ear_right,
-    
-    hair_crown_height, hair_side_width, hair_back_length,
-    
-    hair_top_flatness, hair_color_rgb, hair_type
-    
-  }
-  
-      ↓
-      
-Convert normalized coords → Three.js scene units
+By default the app runs at `http://localhost:3000`. If that port is busy:
 
-      ↓
-      
-Deform canonical head mesh (pre-built .glb) 
+```bash
+npm run dev -- --port 3001
+```
 
-to match head proportions
+## Quality Checks
 
+Run the test suite:
 
+```bash
+npm test
+```
 
+Run tests with coverage:
 
+```bash
+npm run test:coverage
+```
 
+Run TypeScript:
 
+```bash
+npm run typecheck
+```
 
-## RENDER PHASE (initial)
+Run ESLint:
 
+```bash
+npm run lint
+```
 
-Select closest matching hair preset 
+## Notes
 
-based on userHeadProfile measurements
-
-      ↓
-      
-Scale + position hair mesh zones (top/sides/back)
-
-to userHeadProfile params
-
-      ↓
-      
-Apply hair color (mesh material color = hair_color_rgb)
-
-      ↓
-      
-Mount head mesh + hair mesh → Three.js scene
-
-OrbitControls (upper hemisphere only)
-
-
-
-
-
-
-## EDIT LOOP (repeating)
-
-
-User prompt
-
-      ↓
-      
-LLM (Gemini 3.5 / Grok / Claude Haiku / GPT-4o mini) 
-
-  context: userHeadProfile + current hair params
-  
-  output: {
-  
-            preset?, top_length, side_length, 
-            back_length, messiness, taper }
-            
-      ↓
-      
-Update hair mesh params (no full re-render)
-
-      ↓
-      
-Undo/redo stack (just store param snapshots)
-
-
-
-
-
-
-## OUTPUT PHASE
-
-
-Final params → LLM → barber summary string (need to analyze current userHeadProfile)
-
-Copy / share button
-
+- Convex functions live in `convex/`.
+- App Router pages and API routes live in `src/app/`.
+- Generated and local-only artifacts such as `.next/`, `coverage/`, and `tsconfig.tsbuildinfo` should not be committed.

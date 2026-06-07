@@ -4,7 +4,7 @@ import { useClerk, useUser } from '@clerk/nextjs';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { UserHeadProfile } from '@/types';
 
@@ -91,17 +91,33 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
   const [phase, setPhase]     = useState<Phase>('loading');
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    startCamera();
-    return () => {
-      activeRef.current = false;
-      if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
-      const stream = videoRef.current?.srcObject as MediaStream | null;
-      stream?.getTracks().forEach(t => t.stop());
-    };
+  const drawFrame = useCallback(() => {
+    if (!activeRef.current) return;
+    const video  = videoRef.current;
+    const canvas = previewCanvas.current;
+    if (video && canvas && video.readyState >= 2) {
+      const W = 640;
+      const H = 640;
+      const ctx = canvas.getContext('2d')!;
+
+      const vW       = video.videoWidth  || 640;
+      const vH       = video.videoHeight || 480;
+      const cropSize = Math.min(vW, vH);
+      const cropX    = (vW - cropSize) / 2;
+      const cropY    = (vH - cropSize) / 2;
+
+      ctx.save();
+      ctx.translate(W, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
+      ctx.restore();
+
+      drawOverlay(ctx, W, H, false);
+    }
+    animFrameId.current = requestAnimationFrame(drawFrame);
   }, []);
 
-  async function startCamera() {
+  const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: 1280, height: 960 },
@@ -129,33 +145,18 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
       setPhase('error');
       setErrorMsg('Camera access denied.');
     }
-  }
+  }, [drawFrame]);
 
-  function drawFrame() {
-    if (!activeRef.current) return;
-    const video  = videoRef.current;
-    const canvas = previewCanvas.current;
-    if (video && canvas && video.readyState >= 2) {
-      const W = 640;
-      const H = 640;
-      const ctx = canvas.getContext('2d')!;
-
-      const vW       = video.videoWidth  || 640;
-      const vH       = video.videoHeight || 480;
-      const cropSize = Math.min(vW, vH);
-      const cropX    = (vW - cropSize) / 2;
-      const cropY    = (vH - cropSize) / 2;
-
-      ctx.save();
-      ctx.translate(W, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, W, H);
-      ctx.restore();
-
-      drawOverlay(ctx, W, H, false);
-    }
-    animFrameId.current = requestAnimationFrame(drawFrame);
-  }
+  useEffect(() => {
+    const video = videoRef.current;
+    void startCamera();
+    return () => {
+      activeRef.current = false;
+      if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
+      const stream = video?.srcObject as MediaStream | null;
+      stream?.getTracks().forEach(t => t.stop());
+    };
+  }, [startCamera]);
 
   async function finishWithDataUrl(imageDataUrl: string) {
     setPhase('captured');

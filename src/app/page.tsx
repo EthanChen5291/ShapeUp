@@ -160,7 +160,6 @@ function LoadingScreen({ onDone, ready }: { onDone: () => void; ready: boolean }
     isDoneRef.current = true;
     setDone(true);
     setTimeout(() => onDoneRef.current(), 650);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
