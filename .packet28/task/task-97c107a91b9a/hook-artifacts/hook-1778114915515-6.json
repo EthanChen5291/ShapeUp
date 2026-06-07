@@ -1,0 +1,10 @@
+{
+  "file": {
+    "content": "{\n  \"mcpServers\": {\n    \"packet28\": {\n      \"args\": [\n        \"--root\",\n        \"/Users/ethanchen/Documents/GitHub/ShapeUp\"\n      ],\n      \"command\": \"/opt/homebrew/bin/packet28-mcp\"\n    }\n  }\n}\n",
+    "filePath": "/Users/ethanchen/Documents/GitHub/ShapeUp/.mcp.json",
+    "numLines": 12,
+    "startLine": 1,
+    "totalLines": 12
+  },
+  "type": "text"
+}

@@ -39,6 +39,17 @@
   --shadow-sm:   0 2px 6px rgba(42, 32, 26, 0.08);
   --shadow-md:   0 10px 24px -8px rgba(42, 32, 26, 0.18);
   --shadow-lg:   0 30px 60px -24px rgba(42, 32, 26, 0.3);
+
+  /* ── Dark studio palette ──────────────────────────── */
+  --void:        #0F0F10;
+  --surface:     #1A1A1C;
+  --surface2:    #222224;
+  --offwhite:    #F5F1EA;
+  --coral:       #E8614D;
+
+  --shadow-void-sm: 0 2px 8px rgba(0,0,0,0.45);
+  --shadow-void-md: 0 12px 32px -8px rgba(0,0,0,0.6);
+  --shadow-void-lg: 0 32px 64px -24px rgba(0,0,0,0.75);
 }
 
 html, body, #__next {
@@ -568,6 +579,26 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .cozy-scroll::-webkit-scrollbar-thumb:hover { background: rgba(42,32,26,0.35); }
 
+.cozy-scroll-dark::-webkit-scrollbar { width: 6px; }
+.cozy-scroll-dark::-webkit-scrollbar-track { background: transparent; }
+.cozy-scroll-dark::-webkit-scrollbar-thumb {
+  background: rgba(245,241,234,0.09);
+  border-radius: 999px;
+}
+.cozy-scroll-dark::-webkit-scrollbar-thumb:hover { background: rgba(245,241,234,0.18); }
+
+/* ── Dark studio background ───────────────────────────── */
+.bg-void {
+  background-color: var(--void);
+  color: var(--offwhite);
+}
+
+/* Placeholder color for inputs on dark bg */
+.bg-void input::placeholder {
+  color: rgba(245, 241, 234, 0.28);
+  font-style: italic;
+}
+
 /* Barber pole (retained small accent) */
 @keyframes poleSpin {
   from { background-position: 0 0; }
@@ -741,21 +772,14 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .flip-digit-out { animation: flip-digit-out-anim 0.28s cubic-bezier(0.4, 0, 1, 1) forwards; }
 .flip-digit-in  { animation: flip-digit-in-anim  0.28s cubic-bezier(0, 0, 0.6, 1) forwards; }
 
-/* ── Organic scan loading bar ─────────────────────────────── */
-@keyframes organic-bar-fill {
-  0%   { width: 10px; opacity: 0.5; }
-  8%   { opacity: 1; }
-  85%  { width: 100%; opacity: 1; }
-  100% { width: 100%; opacity: 1; }
-}
-.organic-bar-anim {
+/* ── Organic scan loading bar — fill managed via JS state ─── */
+.organic-bar-fill {
   position: absolute;
   top: 0; left: 0;
   height: 100%;
   min-width: 10px;
   border-radius: 9999px;
   background: var(--tomato);
-  animation: organic-bar-fill 2.4s ease-in-out 1 forwards;
 }
 
 /* ── Letter fade-in — selfie requirements ─────────────── */

@@ -52,24 +52,4 @@ export default defineSchema({
     .index("by_token", ["tokenIdentifier"])
     .index("by_token_and_updated", ["tokenIdentifier", "updatedAt"]),
 
-  friends: defineTable({
-    requesterId: v.id("users"),
-    addresseeId: v.id("users"),
-    status: v.union(v.literal("pending"), v.literal("accepted")),
-    createdAt: v.number(),
-  })
-    .index("by_requester", ["requesterId"])
-    .index("by_addressee", ["addresseeId"])
-    .index("by_pair", ["requesterId", "addresseeId"]),
-
-  messages: defineTable({
-    senderId: v.id("users"),
-    receiverId: v.id("users"),
-    conversationId: v.string(),
-    text: v.string(),
-    createdAt: v.number(),
-    isRead: v.boolean(),
-  })
-    .index("by_conversation", ["conversationId", "createdAt"])
-    .index("by_receiver_unread", ["receiverId", "isRead"]),
 });

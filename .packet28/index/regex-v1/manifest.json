@@ -1,0 +1,15 @@
+{
+  "schema_version": 3,
+  "weight_table_version": 2,
+  "generation": 2,
+  "include_tests": true,
+  "status": "ready",
+  "total_files": 144,
+  "indexed_files": 144,
+  "overlay_files": 2,
+  "base_commit": "3ed65458bb5860b566e161e25d62704818dd0c16",
+  "stale_reason": null,
+  "last_build_started_at_unix": 1778114867,
+  "last_build_completed_at_unix": 1778115355,
+  "last_error": null
+}

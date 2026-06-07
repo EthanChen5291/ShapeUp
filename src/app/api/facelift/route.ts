@@ -6,6 +6,8 @@ import { auth } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { getSignedDownloadUrl, uploadToS3 } from '@/lib/s3';
+import fs from 'fs/promises';
+import path from 'path';
 
 const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
 const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'shapeup', 'Accept': 'application/json' };
@@ -188,6 +190,7 @@ export async function GET(req: NextRequest) {
   if (!jobId) {
     return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
   }
+  const outputName = req.nextUrl.searchParams.get('outputName') ?? 'edit-output';
 
   let authSession: Awaited<ReturnType<typeof auth>> | null = null;
   try { authSession = await auth(); } catch { /* unauthenticated poll is fine */ }
@@ -237,6 +240,18 @@ export async function GET(req: NextRequest) {
       uploadToS3(splatKey, splatBuffer, 'application/octet-stream'),
     ]);
     console.log(`[facelift] GET: uploaded to S3 — ply=${plyBuffer.length}B splat=${splatBuffer.length}B`);
+
+    // Mirror to public/ so local files stay in sync with the latest job
+    try {
+      const publicDir = path.join(process.cwd(), 'public');
+      await Promise.all([
+        fs.writeFile(path.join(publicDir, `${outputName}.ply`),   plyBuffer),
+        fs.writeFile(path.join(publicDir, `${outputName}.splat`), splatBuffer),
+      ]);
+      console.log(`[facelift] GET: mirrored to public/${outputName}.{ply,splat}`);
+    } catch (err) {
+      console.warn('[facelift] GET: could not write local public/ files (non-fatal):', err);
+    }
 
     if (userId && authSession) {
       try {
