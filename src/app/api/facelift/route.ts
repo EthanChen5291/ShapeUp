@@ -117,6 +117,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
   }
 
+  let imageDataUrl: string | undefined;
+  let currentProfile: unknown;
+  try {
+    ({ imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown });
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image')) {
+    return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
+  }
+
   // Credit gate: require Clerk auth and deduct 1 credit per facelift job
   if (process.env.DISABLE_PAYWALL !== '1') {
     let authSession: Awaited<ReturnType<typeof auth>> | null = null;
@@ -139,11 +151,6 @@ export async function POST(req: NextRequest) {
       const status = msg.includes('No credits') ? 402 : 400;
       return NextResponse.json({ error: msg }, { status });
     }
-  }
-
-  const { imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown };
-  if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image')) {
-    return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
   }
 
   const base64 = imageDataUrl.split(',')[1];
@@ -258,7 +265,7 @@ export async function GET(req: NextRequest) {
         const convexToken = await authSession.getToken({ template: 'convex' });
         const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
         convex.setAuth(convexToken!);
-        await convex.mutation(api.facelifts.recordResult, { userId, jobId, plyS3Key: plyKey, splatS3Key: splatKey });
+        await convex.mutation(api.facelifts.recordResult, { jobId, plyS3Key: plyKey, splatS3Key: splatKey });
         console.log(`[facelift] GET: recorded result in Convex for user=${userId}`);
       } catch (err) {
         console.error('[facelift] GET: failed to record in Convex (non-fatal):', err);
