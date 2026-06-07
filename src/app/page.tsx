@@ -2385,26 +2385,14 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
   useEffect(() => { onSwipeDownRef.current = onSwipeDown; }, [onSwipeDown]);
   useEffect(() => { onActiveChangeRef.current = onActiveChange; }, [onActiveChange]);
 
-  // Seek next video to current time while it's still invisible, reveal only after
-  // the seeked frame is ready — eliminates the frame-0 flash without running 5 streams.
   const switchTo = useCallback((newIdx: number) => {
     if (newIdx === activeRef.current) return;
     const cur  = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
-    if (!next) return;
-
-    const targetTime = cur?.currentTime ?? 0;
-    next.currentTime = targetTime;
-
-    const onSeeked = () => {
-      next.removeEventListener('seeked', onSeeked);
-      if (cur) cur.pause();
-      next.play().catch(() => {});
-      activeRef.current = newIdx;
-      setActiveIdx(newIdx);
-      onActiveChangeRef.current?.(newIdx);
-    };
-    next.addEventListener('seeked', onSeeked);
+    if (next && cur) next.currentTime = cur.currentTime;
+    activeRef.current = newIdx;
+    setActiveIdx(newIdx);
+    onActiveChangeRef.current?.(newIdx);
   }, []);
 
   const goNext = useCallback(() => { switchTo((activeRef.current + 1) % FACE_VIDS.length); onSwipeUpRef.current?.(); }, [switchTo]);
@@ -2414,31 +2402,27 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     if (scrollRef) scrollRef.current = { goNext, goPrev };
   }, [scrollRef, goNext, goPrev]);
 
-  // Start first video on mount
+  // RAF-driven manual currentTime advancement — constant 1.2× speed.
+  // Keeps decode load at 60fps regardless of playback speed.
   useEffect(() => {
-    const vid = videoRefs.current[0];
-    if (!vid) return;
-    vid.loop = true;
-    vid.play().catch(() => {});
-  }, []);
-
-  // Keep active video looping; on each loop boundary reset inactive videos to 0
-  // so their next seek lands quickly (decoded I-frame near start).
-  useEffect(() => {
-    const vid = videoRefs.current[activeIdx];
-    if (!vid) return;
-    vid.loop = true;
-    let prev = 0;
-    const onTime = () => {
-      const dur = vid.duration;
-      if (dur && prev > dur - 0.5 && vid.currentTime < 0.5) {
-        videoRefs.current.forEach((v, i) => { if (v && i !== activeIdx) v.currentTime = 0; });
+    let raf: number;
+    let lastTs: number | null = null;
+    const tick = (now: number) => {
+      if (lastTs !== null) {
+        const dt = Math.min((now - lastTs) / 1000, 0.1);
+        const vid = videoRefs.current[activeRef.current];
+        if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
+          let next = vid.currentTime + dt * 1.2;
+          if (next >= vid.duration) next %= vid.duration;
+          vid.currentTime = next;
+        }
       }
-      prev = vid.currentTime;
+      lastTs = now;
+      raf = requestAnimationFrame(tick);
     };
-    vid.addEventListener('timeupdate', onTime);
-    return () => { vid.removeEventListener('timeupdate', onTime); vid.loop = false; };
-  }, [activeIdx]);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // Native wheel listener with { passive: false } so we can preventDefault
   useEffect(() => {
@@ -2510,7 +2494,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
                 objectFit: 'cover',
                 opacity: i === activeIdx ? 1 : 0,
                 transition: 'opacity 60ms ease',
-                transform: i === 1 || i === 2 ? 'scale(0.93)' : i === 3 ? 'scale(0.97)' : i === 4 ? 'scale(0.96)' : undefined,
+                transform: i === 0 ? 'scale(1.02)' : i === 1 ? 'scale(0.95)' : i === 2 ? 'scale(0.96)' : i === 3 ? 'scale(0.97)' : i === 4 ? 'scale(0.96)' : undefined,
               }}
             />
           ))}
@@ -2628,15 +2612,13 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
 const FACE2_VIDS = ['/face2a.mov', '/face2b.mov', '/face2c.mov', '/face2d.mov'];
 
-// Returns playback rate for normalized video position t ∈ [0,1].
-// Narrow sine bell (35% of duration, centered at 50%): brief spike to 50x with
-// zero-derivative entry/exit so the decoder gets a smooth ramp, not a sudden jump.
+// Returns the speed multiplier for normalized video position t ∈ [0,1].
+// Sine bell across the middle 80% (t=0.10–0.90), peaks at 16×.
+// Used to advance currentTime manually — never set as playbackRate.
 function face2PlaybackRate(t: number): number {
-  const center = 0.50;
-  const halfWidth = 0.175; // spike spans t=0.325 → 0.675
-  if (t < center - halfWidth || t >= center + halfWidth) return 1;
-  const s = (t - (center - halfWidth)) / (halfWidth * 2); // 0→1
-  return 1 + 49 * Math.sin(Math.PI * s);
+  // Sine bell across the full video (t=0→1), peaks at 16× at t=0.5.
+  // Outer 10% zones ramp gradually (1× → ~5.6× → 16×) instead of being flat 1×.
+  return 1 + 15 * Math.sin(Math.PI * t);
 }
 const FACE2_MESSAGES = [
   "6 inches shorter",
@@ -2667,8 +2649,7 @@ function Face2VideoSwiper({
     const cur = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
     if (cur && next) {
-      next.currentTime = cur.currentTime;
-      next.play().catch(() => {});
+      next.currentTime = cur.currentTime; // RAF manages advancement; no play() needed
     }
     activeRef.current = newIdx;
     setActiveIdx(newIdx);
@@ -2716,12 +2697,19 @@ function Face2VideoSwiper({
 
   useEffect(() => {
     let raf: number;
-    const tick = () => {
-      const vid = videoRefs.current[activeRef.current];
-      if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
-        const t = (vid.currentTime % vid.duration) / vid.duration;
-        vid.playbackRate = face2PlaybackRate(t);
+    let lastTs: number | null = null;
+    const tick = (now: number) => {
+      if (lastTs !== null) {
+        const dt = Math.min((now - lastTs) / 1000, 0.1); // cap to avoid jumps after tab-switch
+        const vid = videoRefs.current[activeRef.current];
+        if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
+          const t = vid.currentTime / vid.duration;
+          let next = vid.currentTime + dt * face2PlaybackRate(t);
+          if (next >= vid.duration) next %= vid.duration;
+          vid.currentTime = next;
+        }
       }
+      lastTs = now;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -2752,7 +2740,7 @@ function Face2VideoSwiper({
               key={src}
               ref={el => { videoRefs.current[i] = el; }}
               src={src}
-              loop muted autoPlay playsInline preload="auto"
+              muted playsInline preload="auto"
               style={{
                 position: 'absolute', top: 0, left: 0,
                 width: '100%', height: '100%',
