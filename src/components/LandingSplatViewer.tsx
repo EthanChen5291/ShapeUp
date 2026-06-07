@@ -5,14 +5,9 @@ import { OrbitControls, Splat } from '@react-three/drei';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
-// Press keys 1-5 to switch. All files are pre-converted .splat binaries.
-// Paths with spaces/parens are percent-encoded for safe URL handling.
 const HAIRSTYLES = [
-  { key: '1', src: '/edit-output.splat%20copy' },
-  { key: '2', src: '/gaussians%20(1).splat' },
-  { key: '3', src: '/gaussians.splat' },
-  { key: '4', src: '/edit-output%20copy.splat' },
-  { key: '5', src: '/output.splat' },
+  { key: '1', src: '/edit-output.splat' },
+  { key: '2', src: '/original-output.splat' },
 ];
 
 function Scene({ splatSrc }: { splatSrc: string }) {
