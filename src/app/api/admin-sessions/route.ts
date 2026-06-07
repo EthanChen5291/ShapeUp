@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
+import { requireAdmin } from '@/lib/serverAuth';
 
 export async function GET() {
+  const authResult = await requireAdmin();
+  if (authResult.response) return authResult.response;
+
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
   try {
     const sessions = await convex.query(api.sessions.listRecent, {});
