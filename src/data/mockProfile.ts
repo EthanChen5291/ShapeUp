@@ -1,6 +1,6 @@
 // ============================================================
 // Mock UserHeadProfile — use this during development so you
-// don't need a live camera/MediaPipe stream.
+// don't need a live camera scan.
 //
 // Values are roughly calibrated to a "medium build" head in a
 // Three.js scene where the head sphere has radius ≈ 1.0.

@@ -67,7 +67,7 @@ export interface FaceFrame {
 }
 
 export interface FaceScanData {
-  // Raw MediaPipe landmarks at scan completion (468 points, normalized 0–1)
+  // Raw scan landmarks at completion, normalized 0-1 when available
   landmarks: FaceFrame['landmarks'];
   // Base64 snapshot of the camera frame (used as face texture)
   imageDataUrl: FaceFrame['imageDataUrl'];
@@ -82,7 +82,7 @@ export interface FaceScanData {
 }
 
 export interface UserHeadProfile {
-  // ── Scan Phase Output (MediaPipe) ──────────────────────────
+  // ── Scan phase output ──────────────────────────────────────
   headProportions: {
     width: number;    // Three.js scene units
     height: number;
