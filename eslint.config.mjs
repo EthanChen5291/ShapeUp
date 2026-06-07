@@ -11,7 +11,13 @@ const compat = new FlatCompat({ baseDirectory: __dirname });
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals"),
   {
-    ignores: [".venv/**", "**/.venv/**"],
+    ignores: [
+      ".next/**",
+      ".venv/**",
+      "**/.venv/**",
+      "coverage/**",
+      "convex/_generated/**",
+    ],
   },
 ];
 
