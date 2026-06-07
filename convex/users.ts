@@ -113,3 +113,40 @@ export const addCredits = internalMutation({
     }
   },
 });
+
+export const addCreditsForStripeEvent = internalMutation({
+  args: { eventId: v.string(), clerkId: v.string(), amount: v.number() },
+  handler: async (ctx, args) => {
+    if (!Number.isFinite(args.amount) || args.amount <= 0) {
+      throw new Error("Invalid credit amount");
+    }
+
+    const existingEvent = await ctx.db
+      .query("stripeEvents")
+      .withIndex("by_event_id", (q) => q.eq("eventId", args.eventId))
+      .unique();
+    if (existingEvent) return { status: "duplicate" };
+
+    await ctx.db.insert("stripeEvents", {
+      eventId: args.eventId,
+      createdAt: Date.now(),
+    });
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+
+    if (user) {
+      await ctx.db.patch(user._id, { credits: user.credits + args.amount });
+    } else {
+      await ctx.db.insert("users", {
+        tokenIdentifier: `pending|${args.clerkId}`,
+        clerkId: args.clerkId,
+        credits: args.amount,
+      });
+    }
+
+    return { status: "credited" };
+  },
+});

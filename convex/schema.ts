@@ -36,6 +36,11 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_email", ["email"]),
 
+  stripeEvents: defineTable({
+    eventId: v.string(),
+    createdAt: v.number(),
+  }).index("by_event_id", ["eventId"]),
+
   projects: defineTable({
     tokenIdentifier: v.string(),
     name: v.string(),

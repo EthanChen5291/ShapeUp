@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 describe('Stripe checkout route', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock('@/lib/serverAuth');
     vi.unstubAllEnvs();
     vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_123');
     vi.stubEnv('NEXT_PUBLIC_BASE_URL', 'https://shapeup.test');
@@ -15,8 +16,14 @@ describe('Stripe checkout route', () => {
     vi.doMock('stripe', () => ({
       default: vi.fn(function Stripe() {
         return {
-        checkout: { sessions: { create: createCheckoutSession } },
+          checkout: { sessions: { create: createCheckoutSession } },
         };
+      }),
+    }));
+    vi.doMock('@/lib/serverAuth', () => ({
+      requireSignedIn: vi.fn().mockResolvedValue({
+        response: null,
+        session: { userId: 'user_123' },
       }),
     }));
 
@@ -29,7 +36,11 @@ describe('Stripe checkout route', () => {
 
     expect(res.status).toBe(200);
     expect(createCheckoutSession).toHaveBeenCalledWith(expect.objectContaining({
-      metadata: expect.objectContaining({ clerkId: expect.any(String) }),
+      metadata: expect.objectContaining({
+        clerkId: 'user_123',
+        plan: 'starter',
+        credits: '20',
+      }),
     }));
   });
 });
@@ -37,6 +48,7 @@ describe('Stripe checkout route', () => {
 describe('admin APIs', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock('@/lib/serverAuth');
     vi.unstubAllEnvs();
     vi.stubEnv('AWS_REGION', 'us-east-1');
     vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
@@ -93,6 +105,7 @@ describe('admin APIs', () => {
 describe('scan and generation APIs', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock('@/lib/serverAuth');
     vi.unstubAllEnvs();
     vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', 'https://convex.test');
   });
