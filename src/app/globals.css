@@ -771,6 +771,13 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .scan-pop-in { animation: scan-pop-in 600ms cubic-bezier(.34,1.56,.64,1) both; }
 
+@keyframes scan-btn-pop {
+  0%   { transform: scale(0.72); opacity: 0; }
+  65%  { transform: scale(1.1);  opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.scan-btn-pop { animation: scan-btn-pop 480ms cubic-bezier(.34,1.56,.64,1) 280ms both; }
+
 /* ── Wordmark inline (scissors left of "Shape Up") ──────── */
 .wordmark-inline {
   display: inline-flex;
@@ -888,6 +895,16 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background-size: 260px 260px;
   pointer-events: none;
   z-index: 0;
+}
+
+/* ── Explore floor cog animation ─────────────────────────── */
+@keyframes cog-turn {
+  0%   { transform: rotate(0deg); }
+  28%  { transform: rotate(90deg); animation-timing-function: ease-out; }
+  34%  { transform: rotate(97deg); }
+  41%  { transform: rotate(83deg); }
+  48%  { transform: rotate(90deg); }
+  100% { transform: rotate(90deg); }
 }
 
 /* ── iMessage chat stack (landing face swiper) ───────────── */

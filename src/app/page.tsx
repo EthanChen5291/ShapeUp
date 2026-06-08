@@ -4,7 +4,8 @@ import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot, ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useClerk, useUser, useSignUp, useSignIn } from '@clerk/nextjs';
+import { useClerk, useUser } from '@clerk/nextjs';
+import { useSignIn, useSignUp } from '@clerk/nextjs/legacy';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { Id } from '@convex/_generated/dataModel';
@@ -2086,7 +2087,6 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
 
   const isFalling = animPhase === 'falling';
   const isImpact  = animPhase === 'impact';
-  const showText  = isEmpty && animPhase !== 'pre';
 
   return (
     <div
@@ -2131,41 +2131,6 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         </span>
       </BouncyButton>
 
-      {showText && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            pointerEvents: 'none',
-            zIndex: 10,
-            animation: isFalling
-              ? 'empty-text-drop 1.2s cubic-bezier(.4,0,.7,1) both'
-              : isImpact
-              ? 'empty-impact-shared 3.4s linear both'
-              : 'none',
-          }}
-        >
-          <span
-            style={{
-              fontSize: 19,
-              color: 'var(--ink)',
-              fontFamily: 'var(--font-sans)',
-              fontWeight: 700,
-              opacity: 0.9,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Start styling yourself in 3D
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -3247,16 +3212,16 @@ function GlimpseSection() {
 
 /* ─────────────── Sign-Up Widget ─────────────── */
 function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?: boolean }) {
-  const { signUp } = useSignUp();
+  const { signUp, setActive } = useSignUp();
   const { signIn } = useSignIn();
-  const { setActive } = useClerk();
   const { isSignedIn } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   // large (dashboard): combined email+password, no 'password' step
-  // default (landing): multi-step — start → password → verify
-  const [step, setStep] = useState<'start' | 'password' | 'verify'>('start');
+  // default (landing): multi-step — start → password → verify / 2fa
+  const [step, setStep] = useState<'start' | 'password' | 'verify' | '2fa'>('start');
+  const [secondFactorStrategy, setSecondFactorStrategy] = useState<'email_code' | 'totp' | 'phone_code' | 'backup_code'>('email_code');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -3315,50 +3280,70 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
   // Shared auth logic: try sign-in first (no verification for returning users),
   // fall back to sign-up with email verification only for new accounts.
   const submitCredentials = async () => {
+    if (!signIn || !signUp || !setActive) return;
     setSubmitting(true);
     setError('');
     try {
       // Try sign-in first — existing users never hit email verification
-      const { error: signInErr } = await signIn.password({ identifier: email.trim(), password });
-      if (!signInErr) {
-        if (signIn.status === 'complete' && signIn.createdSessionId) {
-          await setActive({ session: signIn.createdSessionId });
+      let signInResult;
+      try {
+        signInResult = await signIn.create({ strategy: 'password', identifier: email.trim(), password });
+      } catch (rawErr: unknown) {
+        const err = rawErr as { errors?: Array<{ code?: string; message?: string }> };
+        const firstErr = err?.errors?.[0];
+        const isNotFound = firstErr?.code === 'form_identifier_not_found'
+          || (firstErr?.message ?? '').toLowerCase().includes('find');
+        if (!isNotFound) {
+          const msg = firstErr?.message ?? 'Something went wrong';
+          setError(msg.toLowerCase().includes('password') ? 'Wrong password — try again.' : msg);
+          return;
+        }
+        signInResult = null;
+      }
+
+      if (signInResult) {
+        let finalResult = signInResult;
+        if (signInResult.status === 'needs_first_factor') {
+          finalResult = await signIn.attemptFirstFactor({ strategy: 'password', password });
+        }
+        if (finalResult.status === 'complete' && finalResult.createdSessionId) {
+          await setActive({ session: finalResult.createdSessionId });
           onEnter();
+          return;
+        }
+        if (finalResult.status === 'needs_second_factor') {
+          const supported = finalResult.supportedSecondFactors ?? [];
+          const strategy =
+            supported.find(f => f.strategy === 'email_code') ? 'email_code' :
+            supported.find(f => f.strategy === 'phone_code') ? 'phone_code' :
+            supported.find(f => f.strategy === 'totp') ? 'totp' :
+            'email_code';
+          setSecondFactorStrategy(strategy as 'email_code' | 'totp' | 'phone_code' | 'backup_code');
+          if (strategy === 'email_code' || strategy === 'phone_code') {
+            await signIn.prepareSecondFactor({ strategy });
+          }
+          setCode('');
+          setStep('2fa');
           return;
         }
         setError('Sign-in incomplete — please try again.');
         return;
       }
 
-      // Only fall back to sign-up when the account doesn't exist yet
-      const signInErrAny = signInErr as { code?: string; message?: string };
-      const isNotFound = signInErrAny.code === 'form_identifier_not_found'
-        || (signInErrAny.message ?? '').toLowerCase().includes('find');
-
-      if (!isNotFound) {
-        const msg = signInErr.message ?? 'Something went wrong';
-        setError(msg.toLowerCase().includes('password') ? 'Wrong password — try again.' : msg);
-        return;
-      }
-
       // New user — sign up and require email verification once
-      const { error: signUpErr } = await signUp.password({ emailAddress: email.trim(), password });
-      if (!signUpErr) {
-        if (signUp.status === 'missing_requirements') {
-          const { error: sendErr } = await signUp.verifications.sendEmailCode();
-          if (sendErr) { setError(sendErr.message ?? 'Failed to send verification email'); return; }
-          setStep('verify');
-        } else if (signUp.createdSessionId) {
-          await setActive({ session: signUp.createdSessionId });
-          onEnter();
-        } else {
-          setError('Sign-up failed — please try again.');
-        }
-        return;
+      const signUpResult = await signUp.create({ emailAddress: email.trim(), password });
+      if (signUpResult.status === 'missing_requirements') {
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+        setStep('verify');
+      } else if (signUpResult.status === 'complete' && signUpResult.createdSessionId) {
+        await setActive({ session: signUpResult.createdSessionId });
+        onEnter();
+      } else {
+        setError('Sign-up failed — please try again.');
       }
-      setError(signUpErr.message ?? 'Something went wrong');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      const e = err as { errors?: Array<{ message?: string }> };
+      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Something went wrong'));
     } finally {
       setSubmitting(false);
     }
@@ -3380,36 +3365,59 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
 
   // Email verification code (only when Clerk requires it after sign-up)
   const handleVerify = async (e: React.FormEvent) => {
+    if (!signUp || !setActive) return;
     e.preventDefault();
     setSubmitting(true);
     setError('');
     try {
-      const { error: verifyErr } = await signUp.verifications.verifyEmailCode({ code });
-      if (verifyErr) { setError(verifyErr.message ?? 'Invalid code — try again'); return; }
-      if (signUp.createdSessionId) {
-        await setActive({ session: signUp.createdSessionId });
+      const result = await signUp.attemptEmailAddressVerification({ code });
+      if (result.status === 'complete' && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
         onEnter();
       } else {
         setError('Sign-up failed — please try again.');
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid code — try again');
+      const e = err as { errors?: Array<{ message?: string }> };
+      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Invalid code — try again'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handle2FA = async (e: React.FormEvent) => {
+    if (!signIn || !setActive) return;
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const result = await signIn.attemptSecondFactor({ strategy: secondFactorStrategy, code });
+      if (result.status === 'complete' && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        onEnter();
+      } else {
+        setError('Verification failed — please try again.');
+      }
+    } catch (err: unknown) {
+      const e = err as { errors?: Array<{ message?: string }> };
+      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Invalid code — try again'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleGoogle = async () => {
+    if (!signIn) return;
     setError('');
     try {
-      const { error: ssoErr } = await signIn.sso({
+      await signIn.authenticateWithRedirect({
         strategy: 'oauth_google',
-        redirectUrl: `${window.location.origin}/`,
-        redirectCallbackUrl: `${window.location.origin}/sso-callback`,
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}/`,
       });
-      if (ssoErr) setError(ssoErr.message ?? 'Google sign-in failed');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+      const e = err as { errors?: Array<{ message?: string }> };
+      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Google sign-in failed'));
     }
   };
 
@@ -3466,6 +3474,39 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
           <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
             <input
               autoFocus type="text" inputMode="numeric" maxLength={6}
+              value={code}
+              onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
+              placeholder="123456"
+              style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: s.codeFontSize, textAlign: 'center' }}
+            />
+            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
+              style={{ ...inputStyle, padding: s.btnPadding, background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: s.btnFontSize, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
+              {submitting ? 'Verifying…' : 'Verify →'}
+            </button>
+          </form>
+        </>
+      )}
+
+      {/* ── Two-factor auth ── */}
+      {step === '2fa' && (
+        <>
+          <button
+            onClick={() => { setStep(large ? 'start' : 'password'); setCode(''); setError(''); }}
+            className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
+          >
+            ← back
+          </button>
+          <div style={{ marginBottom: 4 }}>
+            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>Two-factor authentication</p>
+            <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>
+              {secondFactorStrategy === 'phone_code' ? `Enter the code sent to your phone` : `Enter the code sent to ${email}`}
+            </p>
+          </div>
+          <form onSubmit={handle2FA} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
+            <input
+              autoFocus type="text" inputMode="numeric" maxLength={secondFactorStrategy === 'backup_code' ? 20 : 6}
               value={code}
               onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
               placeholder="123456"
@@ -4016,9 +4057,22 @@ function MainMenu({
 
   const hasSavedProjects = !!(projects?.some(p => !!p.savedAt));
 
-  const displayProjects = (() => {
+  const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : 2;
+
+  const homeProjects = (() => {
     if (!projects) return undefined;
-    let list = activeNav === 'saved' ? projects.filter(p => !!p.savedAt) : [...projects];
+    let list = [...projects];
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p => p.name.toLowerCase().includes(q));
+    }
+    if (activeTab === 'recent') list = list.slice(0, 6);
+    return list;
+  })();
+
+  const savedProjects = (() => {
+    if (!projects) return undefined;
+    let list = projects.filter(p => !!p.savedAt);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(p => p.name.toLowerCase().includes(q));
@@ -4059,18 +4113,18 @@ function MainMenu({
       ),
     },
     {
-      key: 'explore',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
-        </svg>
-      ),
-    },
-    {
       key: 'saved',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 3H19V21L12 15.5L5 21Z" />
+        </svg>
+      ),
+    },
+    {
+      key: 'explore',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
         </svg>
       ),
     },
@@ -4108,16 +4162,14 @@ function MainMenu({
 
           {navItems.map(n => {
             const isActive = n.key === activeNav;
-            const isDisabled = n.key === 'explore' || (n.key === 'saved' && !hasSavedProjects);
             return (
               <button
                 key={n.key}
                 data-nav={n.key}
-                onClick={isDisabled ? undefined : (n.onClick ?? (() => setActiveNav(n.key)))}
-                title={isDisabled ? (n.key === 'saved' ? 'Save a project first' : 'Coming soon') : undefined}
+                onClick={n.onClick ?? (() => setActiveNav(n.key))}
                 style={{
                   border: 'none',
-                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
                   color: isActive ? 'var(--coral)' : 'var(--ink)',
                   padding: '10px 0',
@@ -4134,13 +4186,12 @@ function MainMenu({
                   textTransform: 'uppercase',
                   outline: isActive ? '1.5px solid rgba(232,97,77,0.28)' : '1.5px solid transparent',
                   transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
-                  opacity: isDisabled ? 0.35 : 1,
                 }}
                 onMouseEnter={e => {
-                  if (!isActive && !isDisabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
                 }}
                 onMouseLeave={e => {
-                  if (!isActive && !isDisabled) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 }}
               >
                 {n.icon}
@@ -4151,102 +4202,166 @@ function MainMenu({
         </aside>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="min-w-0 overflow-y-auto cozy-scroll" style={{ padding: '24px 40px 80px', position: 'relative' }}>
+        <div className="min-w-0" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
 
-          {/* Top bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, position: 'relative', zIndex: 10 }}>
-            <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
-              <InlineWordmark />
-            </div>
-            <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-              <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
-            </div>
-          </div>
-
-          {/* Title row */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
-            <div>
-              <h1
-                className="type-chonk"
-                style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, transition: 'opacity 200ms ease' }}
-              >
-                {activeNav === 'saved' ? 'Saved' : 'My Cuts'}
-              </h1>
-            </div>
-            <div style={{ flex: 1 }} />
-            {/* Search */}
-            <div style={{ position: 'relative', width: 248 }}>
-              <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                  <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
-                </svg>
-              </span>
-              <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="find a style..."
-                style={{
-                  width: '100%',
-                  padding: '10px 14px 10px 38px',
-                  border: '1.5px solid rgba(42,32,26,0.28)',
-                  borderRadius: 9999,
-                  background: 'rgba(42,32,26,0.05)',
-                  fontSize: 14,
-                  color: 'var(--ink)',
-                  fontFamily: 'var(--font-fraunces), Georgia, serif',
-                  fontStyle: 'italic',
-                  outline: 'none',
-                }}
-                onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.28)')}
-              />
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
-            {['all', 'recent'].map(t => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                style={{
-                  padding: '7px 17px',
-                  border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`,
-                  background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent',
-                  borderRadius: 9999,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-dmsans)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)',
-                  letterSpacing: '0.02em',
-                  transition: 'all 160ms ease',
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {/* Project grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
-            {activeNav !== 'saved' && (
-              <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
-            )}
-            {displayProjects?.map((p, i) => (
-              <div
-                key={p._id}
-                ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }}
-              >
-                <ProjectCard
-                  project={p}
-                  onClick={() => onOpenProject(p)}
-                  rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]}
-                  onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }}
-                  onSave={(cardRect) => handleSaveProject(p, cardRect)}
-                />
+          {/* Fixed top bar */}
+          <div style={{ flexShrink: 0, padding: '24px 40px 0', position: 'relative', zIndex: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
+                <InlineWordmark />
               </div>
-            ))}
+              <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
+                <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
+              </div>
+            </div>
+          </div>
+
+          {/* Floor slider viewport */}
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {/* 3-floor inner container */}
+            <div
+              style={{
+                height: '300%',
+                transform: `translateY(${floorIndex === 0 ? '0%' : floorIndex === 1 ? '-33.333%' : '-66.666%'})`,
+                transition: 'transform 420ms cubic-bezier(0.4, 0, 0.2, 1)',
+                willChange: 'transform',
+              }}
+            >
+
+              {/* Floor 0 — Home */}
+              <div className="cozy-scroll" style={{ height: '33.333%', overflowY: 'auto', padding: '0 40px 80px' }}>
+                {/* Title row */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
+                  <div>
+                    <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}>
+                      My Cuts
+                    </h1>
+                  </div>
+                  <div style={{ flex: 1 }} />
+                  <div style={{ position: 'relative', width: 248 }}>
+                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
+                      </svg>
+                    </span>
+                    <input
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="find a style..."
+                      style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(42,32,26,0.28)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }}
+                      onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
+                      onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.28)')}
+                    />
+                  </div>
+                </div>
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
+                  {['all', 'recent'].map(t => (
+                    <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {/* Project grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
+                  <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
+                  {homeProjects?.map((p, i) => (
+                    <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }}>
+                      <ProjectCard
+                        project={p}
+                        onClick={() => onOpenProject(p)}
+                        rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]}
+                        onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }}
+                        onSave={(cardRect) => handleSaveProject(p, cardRect)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* Scan CTA when empty */}
+                {showScanNow && !(projects && projects.length > 0) && (
+                  <div className="mt-8 flex justify-center scan-btn-pop">
+                    <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)' }}>
+                      ✂ Scan now
+                    </BouncyButton>
+                  </div>
+                )}
+              </div>
+
+              {/* Floor 1 — Saved */}
+              <div className="cozy-scroll" style={{ height: '33.333%', overflowY: 'auto', padding: '0 40px 80px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
+                  <div>
+                    <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}>
+                      Saved
+                    </h1>
+                  </div>
+                  <div style={{ flex: 1 }} />
+                  <div style={{ position: 'relative', width: 248 }}>
+                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
+                      </svg>
+                    </span>
+                    <input
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="find a style..."
+                      style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(42,32,26,0.28)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }}
+                      onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
+                      onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.28)')}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
+                  {['all', 'recent'].map(t => (
+                    <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {savedProjects && savedProjects.length === 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 180px)', color: 'rgba(42,32,26,0.45)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 18 }}>
+                    No saved projects yet!
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
+                    {savedProjects?.map((p, i) => (
+                      <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }}>
+                        <ProjectCard
+                          project={p}
+                          onClick={() => onOpenProject(p)}
+                          rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]}
+                          onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }}
+                          onSave={(cardRect) => handleSaveProject(p, cardRect)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Floor 2 — Explore */}
+              <div style={{ height: '33.333%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '0 40px' }}>
+                <svg
+                  width="64"
+                  height="64"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--ink)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ animation: 'cog-turn 2.8s ease-in-out infinite', opacity: 0.5 }}
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                <p style={{ margin: 0, fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 22, color: 'rgba(42,32,26,0.55)', textAlign: 'center' }}>
+                  Actively in Development
+                </p>
+              </div>
+
+            </div>
           </div>
 
           {flyingCard && (
@@ -4257,16 +4372,7 @@ function MainMenu({
               onDone={() => setFlyingCard(null)}
             />
           )}
-
-          {/* Scan CTA when empty */}
-          {showScanNow && !(projects && projects.length > 0) && (
-            <div className="mt-8 flex justify-center">
-              <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)' }}>
-                ✂ Scan now
-              </BouncyButton>
-            </div>
-          )}
-        </main>
+        </div>
 
       </div>
     </main>
@@ -4479,6 +4585,11 @@ export default function Home() {
   // Auto-enter dashboard when signed in (handles both OAuth redirect and in-popup sign-in)
   useEffect(() => {
     if (appState === 'landing' && isSignedIn) setAppState('home');
+  }, [isSignedIn, appState]);
+
+  // Return to landing page when signed out
+  useEffect(() => {
+    if (isSignedIn === false && appState !== 'landing') setAppState('landing');
   }, [isSignedIn, appState]);
 
   // Scan/hair state

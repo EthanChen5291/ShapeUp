@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm i:*)",
       "Bash(npm run *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const s = require\\('/Users/ethanchen/Documents/GitHub/ShapeUp/node_modules/@clerk/nextjs/package.json'\\); console.log\\(s.version\\)\")"
     ]
   }
 }

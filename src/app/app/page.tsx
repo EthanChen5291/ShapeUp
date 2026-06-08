@@ -1480,7 +1480,6 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
 
   const isFalling = animPhase === 'falling';
   const isImpact  = animPhase === 'impact';
-  const showText  = isEmpty && animPhase !== 'pre';
 
   return (
     <div
@@ -1526,41 +1525,6 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         </span>
       </BouncyButton>
 
-      {showText && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            pointerEvents: 'none',
-            zIndex: 10,
-            animation: isFalling
-              ? 'empty-text-drop 1.2s cubic-bezier(.4,0,.7,1) both'
-              : isImpact
-              ? 'empty-impact-shared 3.4s linear both'
-              : 'none',
-          }}
-        >
-          <span
-            style={{
-              fontSize: 19,
-              color: 'var(--cream)',
-              fontFamily: 'var(--font-sans)',
-              fontWeight: 700,
-              opacity: 0.9,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Start styling yourself in 3D
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -1664,8 +1628,8 @@ function MainMenu({
             ))}
           </div>
           {showScanNow && !(projects && projects.length > 0) && (
-            <div className="mt-8 flex justify-center">
-              <BouncyButton onClick={onScanNow} className="btn btn-cream" style={{ padding: '10px 22px', fontSize: 13 }}>
+            <div className="mt-8 flex justify-center scan-btn-pop">
+              <BouncyButton onClick={onScanNow} className="btn btn-tomato" style={{ padding: '10px 22px', fontSize: 13 }}>
                 ✂ Scan now
               </BouncyButton>
             </div>
@@ -1913,7 +1877,6 @@ export default function Home() {
 
   // UI state
   const [showScanPopup, setShowScanPopup]       = useState(false);
-  const [showScanNowPopup, setShowScanNowPopup] = useState(false);
   const [showScanResult, setShowScanResult]     = useState(false);
   const [hasScanEver, setHasScanEver]           = useState(false);
   const [selfieFlying, setSelfieFlying] = useState<{ url: string; fromRect: DOMRect; toRect: DOMRect } | null>(null);
@@ -1926,13 +1889,6 @@ export default function Home() {
     }
   }, [appState, needsUsername]);
 
-  // Show "Scan now!" popup each time user enters home — skip if username setup is pending
-  useEffect(() => {
-    if (appState === 'home' && !hasScanEver && isSignedIn && !needsUsername) {
-      const t = setTimeout(() => setShowScanNowPopup(true), 600);
-      return () => clearTimeout(t);
-    }
-  }, [appState, hasScanEver, isSignedIn, needsUsername]);
 
   // Auto-save project every 30s when in 3D studio
   useEffect(() => {
@@ -2066,14 +2022,6 @@ export default function Home() {
           onRescan={() => setShowScanPopup(true)}
           profilePillPulse={profilePillPulse}
         />
-
-        {/* Scan now popup — on first entry */}
-        {showScanNowPopup && (
-          <ScanNowPopup
-            onLetsDo={() => { setShowScanNowPopup(false); setShowScanPopup(true); }}
-            onDismiss={() => setShowScanNowPopup(false)}
-          />
-        )}
 
         {/* Camera scan popup */}
         {showScanPopup && (
