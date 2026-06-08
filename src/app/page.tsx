@@ -262,6 +262,7 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
   const [showPricing, setShowPricing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsOriginRect, setSettingsOriginRect] = useState<DOMRect | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -270,6 +271,17 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
     const t = setTimeout(() => setSwallowing(false), 700);
     return () => clearTimeout(t);
   }, [pulse]);
+
+  useEffect(() => {
+    const update = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.top, right: window.innerWidth - rect.right });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [isSignedIn]);
   const stableUserRef = useRef(userQuery);
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
@@ -284,7 +296,13 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
 
   const username = user?.username ?? clerkUser?.firstName ?? clerkUser?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ?? 'You';
 
-  const handleToggle = () => setOpen(o => !o);
+  const handleToggle = () => {
+    if (!open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.top, right: window.innerWidth - rect.right });
+    }
+    setOpen(o => !o);
+  };
 
   const handleOpenSettings = () => {
     if (containerRef.current) {
@@ -305,81 +323,83 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
       className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${swallowing ? 'profile-pill-swallow' : ''}`}
       style={{ width: 176, height: 36, flexShrink: 0 }}
     >
-      {/* Morphing layer — absolutely positioned so it never disturbs layout */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        width: open ? 380 : 176,
-        maxHeight: open ? '600px' : '36px',
-        background: 'var(--cream)',
-        border: '1px solid rgba(42,32,26,0.12)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: open ? 22 : 40,
-        boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
-        overflow: 'hidden',
-        zIndex: 50,
-        transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease',
-      }}>
-        {/* Pill header */}
-        <button
-          onClick={handleToggle}
-          className="flex items-center gap-2 w-full"
-          style={{ cursor: 'pointer', background: 'none', border: 'none', padding: '8px 14px', height: 36 }}
-        >
-          <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
-            {username}
-          </span>
-          <svg
-            width="10" height="10" viewBox="0 0 10 10" fill="none"
-            style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}
-          >
-            <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-
-        {/* Content — opacity only, width+height are handled by the parent */}
+      {menuPos && createPortal(
         <div style={{
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? 'auto' : 'none',
-          transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease',
+          position: 'fixed',
+          top: menuPos.top,
+          right: menuPos.right,
+          width: open ? 380 : 176,
+          maxHeight: open ? '600px' : '36px',
+          background: 'var(--cream)',
+          border: '1px solid rgba(42,32,26,0.12)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: open ? 22 : 40,
+          boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
+          overflow: 'hidden',
+          zIndex: 9999,
+          transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease',
         }}>
-          <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
-            <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[13px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
-                <span className="font-sans text-[22px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
-                  {user?.credits ?? 0}
-                </span>
-              </div>
-              <BouncyButton
-                onClick={() => setShowPricing(true)}
-                className="btn btn-cream w-full"
-                style={{ padding: '16px 20px', fontSize: 15, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
-              >
-                Get more!
-              </BouncyButton>
-            </div>
+          {/* Pill header */}
+          <button
+            onClick={handleToggle}
+            className="flex items-center gap-2 w-full"
+            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: '8px 14px', height: 36 }}
+          >
+            <span className="font-sans text-[14px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)' }}>
+              {username}
+            </span>
+            <svg
+              width="10" height="10" viewBox="0 0 10 10" fill="none"
+              style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}
+            >
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
 
-            <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
-              <BouncyButton
-                onClick={handleOpenSettings}
-                className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
-                style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
-              >
-                <span style={{ fontSize: 32, display: 'block', lineHeight: 1 }}>⚙</span>
-              </BouncyButton>
-              <BouncyButton
-                onClick={() => { setOpen(false); signOut(); }}
-                className="font-sans text-[15px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors"
-                style={{ background: 'none', border: 'none', paddingRight: 2 }}
-              >
-                Sign out
-              </BouncyButton>
+          {/* Content — opacity only, width+height are handled by the parent */}
+          <div style={{
+            opacity: open ? 1 : 0,
+            pointerEvents: open ? 'auto' : 'none',
+            transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease',
+          }}>
+            <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[13px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
+                  <span className="font-sans text-[22px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
+                    {user?.credits ?? 0}
+                  </span>
+                </div>
+                <BouncyButton
+                  onClick={() => setShowPricing(true)}
+                  className="btn btn-cream w-full"
+                  style={{ padding: '16px 20px', fontSize: 15, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
+                >
+                  Get more!
+                </BouncyButton>
+              </div>
+
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
+                <BouncyButton
+                  onClick={handleOpenSettings}
+                  className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
+                  style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
+                >
+                  <span style={{ fontSize: 32, display: 'block', lineHeight: 1 }}>⚙</span>
+                </BouncyButton>
+                <BouncyButton
+                  onClick={() => { setOpen(false); signOut(); }}
+                  className="font-sans text-[15px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors"
+                  style={{ background: 'none', border: 'none', paddingRight: 2 }}
+                >
+                  Sign out
+                </BouncyButton>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
 
       {showPricing && createPortal(<PricingPopup onDismiss={() => setShowPricing(false)} />, document.body)}
       {showSettings && settingsOriginRect && (
@@ -2577,7 +2597,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 }
 
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
-const FACE2_VIDS = ['/face2a.mov', '/face2b.mov', '/face2c.mov', '/face2d.mov'];
+const FACE2_VIDS = ['/landing_face2/face2a.mov', '/landing_face2/face2b.mov', '/landing_face2/face2c.mov', '/landing_face2/face2d.mov', '/landing_face2/face2e.mov', '/landing_face2/face2f.mov'];
 
 // Returns the speed multiplier for normalized video position t ∈ [0,1].
 // Sine bell across the middle 80% (t=0.10–0.90), peaks at 16×.
@@ -2592,6 +2612,8 @@ const FACE2_MESSAGES = [
   "two pigtails",
   "blonde highlights and perm",
   "messy high bun",
+  "wavy dirty blonde",
+  "blonde",
 ];
 
 function Face2VideoSwiper({
@@ -3818,7 +3840,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Scan</span>
               <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>30 seconds</span>
               <Image
-                src="/face2_selfie.png"
+                src="/landing_face2/face2_selfie.png"
                 alt="Scan your face"
                 width={600} height={600}
                 style={{ width: '70%', height: 'auto', borderRadius: 18 }}
@@ -4088,25 +4110,64 @@ function MainMenu({
 
   const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : 2;
 
-  const prevFloorRef = useRef(floorIndex);
-  const [darkWipeY, setDarkWipeY] = useState('100%');
-  const [darkWipeTx, setDarkWipeTx] = useState(false);
+  const floorSliderRef = useRef<HTMLDivElement>(null);
+  const sidebarDarkRef = useRef<HTMLDivElement>(null);
+  const topbarDarkRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
 
   useEffect(() => {
-    const prev = prevFloorRef.current;
-    const curr = floorIndex;
-    prevFloorRef.current = curr;
-    if (curr === 1) {
-      setDarkWipeTx(true);
-      setDarkWipeY('0%');
-    } else if (prev === 1) {
-      setDarkWipeTx(true);
-      setDarkWipeY(curr > 1 ? '-100%' : '100%');
-    } else {
-      setDarkWipeTx(false);
-      setDarkWipeY(curr === 0 ? '100%' : '-100%');
-    }
-  }, [floorIndex]);
+    if (!vpH) return;
+    const floorSlider = floorSliderRef.current;
+    const sidebarDark = sidebarDarkRef.current;
+    const topbarDark = topbarDarkRef.current;
+    if (!floorSlider || !sidebarDark || !topbarDark) return;
+
+    cancelAnimationFrame(rafRef.current);
+
+    const step1 = vpH + 320;       // translateY magnitude at saved floor
+    const step2 = 2 * vpH + 640;   // translateY magnitude at explore floor
+
+    let lastP = -1;
+    let stableFrames = 0;
+
+    const tick = () => {
+      const matrix = new DOMMatrix(window.getComputedStyle(floorSlider).transform);
+      const p = -matrix.m42; // positive: 0 at home, step1 at saved, step2 at explore
+
+      // charcoalAmount: 0 at home, 1 at saved, 0 at explore (triangle)
+      let charcoalAmount: number;
+      if (p <= step1) {
+        charcoalAmount = p / step1;
+      } else {
+        charcoalAmount = 1 - (p - step1) / (step2 - step1);
+      }
+      charcoalAmount = Math.max(0, Math.min(1, charcoalAmount));
+
+      // Sidebar: clip-path reveals dark overlay from the bottom upward, in sync with scroll
+      sidebarDark.style.clipPath = `inset(0 0 ${(1 - charcoalAmount) * 100}% 0)`;
+
+      // Topbar: only activates once the charcoal floor is nearly at the top of the viewport
+      topbarDark.style.opacity = charcoalAmount > 0.85 ? '1' : '0';
+
+      // Self-terminate once position stabilises (animation settled)
+      if (Math.abs(p - lastP) < 0.5) {
+        stableFrames++;
+        if (stableFrames > 4) {
+          const isAtSaved = floorIndex === 1;
+          sidebarDark.style.clipPath = `inset(0 0 ${isAtSaved ? 0 : 100}% 0)`;
+          topbarDark.style.opacity = isAtSaved ? '1' : '0';
+          return;
+        }
+      } else {
+        stableFrames = 0;
+      }
+      lastP = p;
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [floorIndex, vpH]);
 
   const homeProjects = (() => {
     if (!projects) return undefined;
@@ -4220,14 +4281,13 @@ function MainMenu({
             })}
           </div>
 
-          {/* Dark wipe overlay */}
-          <div style={{
+          {/* Dark wipe overlay — clipPath driven by RAF in sync with floor slider */}
+          <div ref={sidebarDarkRef} style={{
             position: 'absolute', inset: 0,
             background: '#181b17',
             borderRight: '2px solid rgba(252,245,228,0.1)',
             display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px',
-            transform: `translateY(${darkWipeY})`,
-            transition: darkWipeTx ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+            clipPath: 'inset(0 0 100% 0)',
             zIndex: 2,
           }}>
             <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.75 }}>
@@ -4265,12 +4325,12 @@ function MainMenu({
               </div>
             </div>
 
-            {/* Dark wipe overlay */}
-            <div style={{
+            {/* Dark overlay — opacity driven by RAF, only shows when charcoal floor reaches top */}
+            <div ref={topbarDarkRef} style={{
               position: 'absolute', inset: 0,
               background: '#181b17',
-              transform: `translateY(${darkWipeY})`,
-              transition: darkWipeTx ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+              opacity: 0,
+              transition: 'opacity 120ms ease',
               zIndex: 2,
               padding: '24px 40px 0',
             }}>
@@ -4289,6 +4349,7 @@ function MainMenu({
           <div ref={vpRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {/* 3-floor inner container — floors are vpH tall, gaps (320px) between them are only visible during transition */}
             <div
+              ref={floorSliderRef}
               style={{
                 transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)',
                 transition: vpH ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
@@ -4443,7 +4504,7 @@ function MainMenu({
                       <circle cx="12" cy="12" r="3" />
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
-                    <p style={{ margin: 0, fontFamily: 'var(--font-dmsans), system-ui, sans-serif', fontSize: 32, color: 'rgba(42,32,26,0.75)', textAlign: 'center', lineHeight: 1.2, fontWeight: 700 }}>
+                    <p style={{ margin: 0, fontFamily: 'var(--font-jetbrains), ui-monospace, monospace', fontSize: 32, color: 'rgba(42,32,26,0.75)', textAlign: 'center', lineHeight: 1.2, fontWeight: 700 }}>
                       Actively in<br />Development
                     </p>
                   </div>
@@ -4652,7 +4713,7 @@ export default function Home() {
       '/offwhitebg.png',
       '/blob.png',
       '/tape.png',
-      '/face2_selfie.png',
+      '/landing_face2/face2_selfie.png',
       '/1.png',
       '/2.png',
       '/3.png',
