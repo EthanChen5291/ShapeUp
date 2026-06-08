@@ -51,6 +51,21 @@ export const save = mutation({
   },
 });
 
+export const toggleSave = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.tokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Not found");
+    }
+    await ctx.db.patch(args.projectId, {
+      savedAt: project.savedAt ? undefined : Date.now(),
+    });
+  },
+});
+
 export const remove = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {

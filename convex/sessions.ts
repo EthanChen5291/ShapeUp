@@ -9,8 +9,12 @@ export const create = mutation({
     scanS3Key: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
     return await ctx.db.insert("sessions", {
       ...args,
+      userId: identity.tokenIdentifier,
       createdAt: Date.now(),
     });
   },
@@ -19,6 +23,9 @@ export const create = mutation({
 export const listRecent = query({
   args: {},
   handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
     return await ctx.db.query("sessions").order("desc").take(50);
   },
 });

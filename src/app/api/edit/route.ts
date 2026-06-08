@@ -10,16 +10,55 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { EDIT_LOOP_SYSTEM_PROMPT } from '@/lib/llmPrompt';
+import {
+  buildDelimitedEditMessage,
+  stripMarkdownJsonFences,
+  validateLLMEditResponse,
+  validatePromptLength,
+} from '@/lib/llmValidation';
+import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { requireSignedIn } from '@/lib/serverAuth';
 
 const GEMINI_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 export async function POST(req: NextRequest) {
-  const { system, message } = await req.json();
+  const authResult = await requireSignedIn();
+  if (authResult.response) return authResult.response;
 
-  if (!system || !message) {
-    return NextResponse.json({ error: 'Missing system or message' }, { status: 400 });
+  const ip = getClientIp(req);
+  const rateLimited = enforceRateLimits([
+    { ...RATE_LIMITS.editUser, key: authResult.session.userId },
+    { ...RATE_LIMITS.editIp, key: ip },
+  ], {
+    route: '/api/edit',
+    user: hashIdentifier(authResult.session.userId),
+    ip: hashIdentifier(ip),
+  });
+  if (rateLimited) return rateLimited;
+
+  let body: { instruction?: unknown; currentProfile?: unknown; message?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+
+  const instruction = body.instruction;
+  const promptError = validatePromptLength(instruction);
+  if (promptError) {
+    console.warn('[/api/edit] rejected prompt', {
+      reason: 'invalid_length',
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ error: promptError }, { status: 400 });
+  }
+  if (body.currentProfile == null) {
+    return NextResponse.json({ error: 'Missing currentProfile' }, { status: 400 });
+  }
+
+  const message = buildDelimitedEditMessage(instruction as string, body.currentProfile);
 
   try {
     const response = await fetch(GEMINI_API_URL, {
@@ -31,7 +70,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'gemini-2.5-flash-image',
         messages: [
-          { role: 'system', content: system },
+          { role: 'system', content: EDIT_LOOP_SYSTEM_PROMPT },
           { role: 'user', content: message },
         ],
         max_tokens: 512,
@@ -46,13 +85,38 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-    const text = data.choices[0].message.content as string;
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text !== 'string') {
+      console.warn('[/api/edit] rejected generation', {
+        reason: 'missing_text',
+        user: hashIdentifier(authResult.session.userId),
+      });
+      return NextResponse.json({ error: 'Malformed LLM response' }, { status: 422 });
+    }
 
     // Strip any accidental markdown fences the model might add
-    const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(jsonText);
+    const jsonText = stripMarkdownJsonFences(text);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      console.warn('[/api/edit] rejected generation', {
+        reason: 'parse_failed',
+        user: hashIdentifier(authResult.session.userId),
+      });
+      return NextResponse.json({ error: 'Malformed LLM response' }, { status: 422 });
+    }
 
-    return NextResponse.json(parsed);
+    const validated = validateLLMEditResponse(parsed);
+    if (!validated.ok) {
+      console.warn('[/api/edit] rejected generation', {
+        reason: validated.reason,
+        user: hashIdentifier(authResult.session.userId),
+      });
+      return NextResponse.json({ error: 'Malformed LLM response' }, { status: 422 });
+    }
+
+    return NextResponse.json(validated.data);
   } catch (err) {
     console.error('[/api/edit]', err);
     return NextResponse.json({ error: 'LLM request failed' }, { status: 500 });

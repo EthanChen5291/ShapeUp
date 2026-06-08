@@ -28,7 +28,6 @@ export function useDemoFacelift(originalImageUrl: string | null) {
     if (!originalImageUrl || startedRef.current) return;
     startedRef.current = true;
     run(originalImageUrl);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalImageUrl]);
 
   async function run(imageUrl: string) {

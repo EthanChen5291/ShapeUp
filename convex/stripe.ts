@@ -30,13 +30,14 @@ export const handleWebhook = internalAction({
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const clerkId = session.metadata?.clerkId;
+      const credits = Number(session.metadata?.credits);
       console.log("[stripe-webhook] checkout.session.completed — session.id=", session.id, "clerkId from metadata=", clerkId ?? "MISSING");
-      if (clerkId) {
-        console.log("[stripe-webhook] calling addCredits — clerkId=", clerkId, "amount=25");
-        await ctx.runMutation(internal.users.addCredits, { clerkId, amount: 25 });
-        console.log("[stripe-webhook] addCredits completed successfully");
+      if (clerkId && Number.isFinite(credits) && credits > 0) {
+        console.log("[stripe-webhook] calling addCreditsForStripeEvent — clerkId=", clerkId, "amount=", credits, "eventId=", event.id);
+        await ctx.runMutation(internal.users.addCreditsForStripeEvent, { eventId: event.id, clerkId, amount: credits });
+        console.log("[stripe-webhook] credit mutation completed successfully");
       } else {
-        console.error("[stripe-webhook] MISSING clerkId in session metadata — credits NOT added. session.metadata=", JSON.stringify(session.metadata));
+        console.error("[stripe-webhook] MISSING or invalid checkout metadata — credits NOT added. session.metadata=", JSON.stringify(session.metadata));
       }
     } else {
       console.log("[stripe-webhook] ignoring unhandled event type:", event.type);

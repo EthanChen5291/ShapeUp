@@ -6,6 +6,8 @@ import { auth } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { getSignedDownloadUrl, uploadToS3 } from '@/lib/s3';
+import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { requireSignedIn } from '@/lib/serverAuth';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -13,6 +15,7 @@ const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
 const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'shapeup', 'Accept': 'application/json' };
 
 const SH_C0 = 0.28209479177387814;
+const MAX_FACELIFT_IMAGE_BYTES = 6 * 1024 * 1024;
 
 // Maps PLY scalar type names → byte size.
 const PLY_SIZES: Record<string, number> = {
@@ -111,27 +114,70 @@ function plyToSplat(plyBuf: Buffer): Buffer {
   return out;
 }
 
+function parseImageDataUrl(value: unknown) {
+  if (typeof value !== 'string') return { error: 'Invalid imageDataUrl' };
+  const match = value.match(/^data:image\/(png|jpe?g|webp);base64,([a-zA-Z0-9+/=]+)$/);
+  if (!match) return { error: 'Invalid imageDataUrl' };
+  const base64 = match[2];
+  if (base64.length > Math.ceil(MAX_FACELIFT_IMAGE_BYTES * 4 / 3) + 128) return { error: 'Image is too large' };
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.length > MAX_FACELIFT_IMAGE_BYTES) return { error: 'Image is too large' };
+  return { buffer };
+}
+
 export async function POST(req: NextRequest) {
   if (!FACELIFT_URL) {
     console.error('[facelift] POST: FACELIFT_URL not configured');
     return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
   }
 
+  const authResult = await requireSignedIn();
+  if (authResult.response) return authResult.response;
+  const convexToken = await authResult.session.getToken({ template: 'convex' });
+  if (!convexToken) {
+    return NextResponse.json({ error: 'Convex auth token unavailable' }, { status: 401 });
+  }
+
+  const ip = getClientIp(req);
+  const rateLimited = enforceRateLimits([
+    { ...RATE_LIMITS.faceliftUser, key: authResult.session.userId },
+    { ...RATE_LIMITS.faceliftIp, key: ip },
+  ], {
+    route: '/api/facelift',
+    user: hashIdentifier(authResult.session.userId),
+    ip: hashIdentifier(ip),
+  });
+  if (rateLimited) return rateLimited;
+
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  convex.setAuth(convexToken);
+  const hasConsent = await convex.query(api.users.hasBiometricConsent, {});
+  if (!hasConsent) {
+    console.warn('[facelift] POST: rejected missing biometric consent', {
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ error: 'Biometric consent is required before FaceLift processing' }, { status: 403 });
+  }
+
+  let imageDataUrl: string | undefined;
+  let currentProfile: unknown;
+  try {
+    ({ imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown });
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const parsedImage = parseImageDataUrl(imageDataUrl);
+  if ('error' in parsedImage) {
+    console.warn('[facelift] POST: rejected image payload', {
+      reason: parsedImage.error,
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ error: parsedImage.error }, { status: 400 });
+  }
+
   // Credit gate: require Clerk auth and deduct 1 credit per facelift job
   if (process.env.DISABLE_PAYWALL !== '1') {
-    let authSession: Awaited<ReturnType<typeof auth>> | null = null;
-    try {
-      authSession = await auth();
-    } catch {
-      return NextResponse.json({ error: 'Auth unavailable' }, { status: 401 });
-    }
-    const { userId, getToken } = authSession;
-    if (!userId) {
-      return NextResponse.json({ error: 'Sign in to generate haircuts' }, { status: 401 });
-    }
-    const convexToken = await getToken({ template: 'convex' });
-    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-    convex.setAuth(convexToken!);
     try {
       await convex.mutation(api.users.deductCredit, {});
     } catch (err) {
@@ -141,13 +187,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown };
-  if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image')) {
-    return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
-  }
-
-  const base64 = imageDataUrl.split(',')[1];
-  const buffer = Buffer.from(base64, 'base64');
+  const { buffer } = parsedImage;
 
   const blob = new Blob([buffer], { type: 'image/jpeg' });
   const form = new FormData();
@@ -258,7 +298,7 @@ export async function GET(req: NextRequest) {
         const convexToken = await authSession.getToken({ template: 'convex' });
         const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
         convex.setAuth(convexToken!);
-        await convex.mutation(api.facelifts.recordResult, { userId, jobId, plyS3Key: plyKey, splatS3Key: splatKey });
+        await convex.mutation(api.facelifts.recordResult, { jobId, plyS3Key: plyKey, splatS3Key: splatKey });
         console.log(`[facelift] GET: recorded result in Convex for user=${userId}`);
       } catch (err) {
         console.error('[facelift] GET: failed to record in Convex (non-fatal):', err);

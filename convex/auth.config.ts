@@ -1,4 +1,4 @@
-export default {
+const authConfig = {
   providers: [
     {
       domain: "https://clerk.nomorebadhaircuts.com",
@@ -11,3 +11,5 @@ export default {
     },
   ],
 };
+
+export default authConfig;

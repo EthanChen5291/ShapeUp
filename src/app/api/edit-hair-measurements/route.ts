@@ -1,10 +1,21 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+const DELTA_KEYS = new Set(['backLength', 'crownHeight', 'sideWidth']);
+
+function isValidDeltas(value: unknown): value is Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).every(([key, delta]) => (
+    DELTA_KEYS.has(key) &&
+    typeof delta === 'number' &&
+    Number.isFinite(delta)
+  ));
+}
 
 function getPaths(plyOverride?: string) {
   const cwd = /*turbopackIgnore: true*/ process.cwd();
@@ -44,6 +55,9 @@ export async function POST(req: NextRequest) {
   if (!deltas || Object.keys(deltas).length === 0) {
     return NextResponse.json({ error: 'deltas is required and must be non-empty' }, { status: 400 });
   }
+  if (!isValidDeltas(deltas)) {
+    return NextResponse.json({ error: 'deltas must contain only numeric hair measurement values' }, { status: 400 });
+  }
 
   const { plyPath: resolvedPly, jsonPath, script } = getPaths(plyPath);
 
@@ -54,11 +68,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const deltasArg = JSON.stringify(deltas).replace(/"/g, '\\"');
-  const cmd = `python "${script}" --ply "${resolvedPly}" --out "${resolvedPly}" --json "${jsonPath}" --deltas "${deltasArg}"`;
-
   try {
-    const { stdout, stderr } = await execAsync(cmd, { timeout: 30_000 });
+    const { stdout, stderr } = await execFileAsync('python', [
+      script,
+      '--ply', resolvedPly,
+      '--out', resolvedPly,
+      '--json', jsonPath,
+      '--deltas', JSON.stringify(deltas),
+    ], { timeout: 30_000 });
     if (stderr) console.warn('[edit-hair-measurements] python stderr:', stderr);
 
     const measurements = JSON.parse(stdout.trim());

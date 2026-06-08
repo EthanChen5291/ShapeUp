@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/Montserrat-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
 /* ============================================================
    SHAPE UP — Modern Neighborhood Barbershop
    Warm + cozy, but fresh. Soft shadows, gentle wonk, clean shapes.
@@ -65,6 +72,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid #8FB800;
+  outline-offset: 3px;
+}
+
+:where(button, input, textarea, select):disabled {
+  cursor: not-allowed;
+}
+
 /* ── Typography ──────────────────────────────────────────── */
 .font-display {
   font-family: var(--font-fraunces), Georgia, serif;
@@ -103,7 +119,6 @@ body {
 .bg-tomato-shop {
   background: var(--tomato);
   color: var(--cream);
-  position: relative;
 }
 .bg-tomato-shop::before {
   content: "";
@@ -354,6 +369,101 @@ body {
 }
 .btn-denim:active:not(:disabled) { transform: translateY(0); }
 
+/* ── Tokens widget ───────────────────────────────────────── */
+.tokens-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(150deg, #fff4e0 0%, #ffe9b8 100%);
+  border: 1.5px solid rgba(199, 138, 76, 0.28);
+  border-radius: 14px;
+  padding: 12px 12px 13px;
+}
+.tokens-widget__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+.tokens-widget__label {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--caramel);
+}
+.tokens-widget__count {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 80, 'WONK' 1, 'opsz' 36;
+  font-size: 42px;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* ── Tokens CTA button ───────────────────────────────────── */
+.btn-tokens-cta {
+  display: block;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #e87456 0%, var(--tomato) 100%);
+  color: var(--cream);
+  border: none;
+  border-radius: 11px;
+  padding: 17px 16px 16px;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 20, 'WONK' 0, 'opsz' 14;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  /* Duolingo-style raised ledge */
+  box-shadow:
+    0 5px 0 0 var(--cherry),
+    0 8px 20px -4px rgba(169, 49, 31, 0.45),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+.btn-tokens-cta__shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.28) 50%, transparent 100%);
+  animation: tokens-shimmer 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.btn-tokens-cta__text {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+}
+@keyframes tokens-shimmer {
+  0%    { transform: translateX(-120%); }
+  35%, 100% { transform: translateX(260%); }
+}
+.btn-tokens-cta:hover:not(:disabled) {
+  background: linear-gradient(160deg, #ef8068 0%, #e05540 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 7px 0 0 var(--cherry),
+    0 14px 28px -6px rgba(169, 49, 31, 0.55),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.btn-tokens-cta:active:not(:disabled) {
+  transform: translateY(5px);
+  box-shadow:
+    0 0 0 0 var(--cherry),
+    0 3px 8px -2px rgba(169, 49, 31, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
 .btn-cream {
   background: var(--cream);
   color: var(--ink);
@@ -566,8 +676,14 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scissor-blade-left,
-  .scissor-blade-right { animation: none; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* Scrollbar */
@@ -599,22 +715,117 @@ input[type="range"].slider-warm::-moz-range-thumb {
   font-style: italic;
 }
 
+/* ── Pipeline progress bars ────────────────────────────── */
+.pipeline-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(42, 32, 26, 0.04);
+  border: 1px solid rgba(42, 32, 26, 0.09);
+  margin-top: 4px;
+}
+
+.pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pipeline-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Track */
+.progress-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(42, 32, 26, 0.08);
+  border: 1px solid rgba(42, 32, 26, 0.09);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(42, 32, 26, 0.07);
+}
+
+/* Fill — shared */
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+  transition: width 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+/* Blueprint bar — denim blue */
+.progress-fill-blueprint {
+  background: linear-gradient(90deg, #7ab0d0 0%, var(--denim) 55%, #254a6a 100%);
+}
+
+/* 3D model bar — tomato red */
+.progress-fill-3d {
+  background: linear-gradient(90deg, #e87a56 0%, var(--tomato) 60%, var(--cherry) 100%);
+}
+
+/* Shimmer sweep overlay */
+.progress-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 2s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes shimmer-sweep {
+  0%   { transform: translateX(-200%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Stage pip indicator */
+.stage-pip {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.stage-pip-idle {
+  background: rgba(42, 32, 26, 0.18);
+}
+.stage-pip-done {
+  background: #5a9e6a;
+  box-shadow: 0 0 0 2px rgba(90, 158, 106, 0.22);
+}
+.stage-pip-active {
+  animation: pip-pulse 1.6s ease-in-out infinite;
+}
+.stage-pip-blueprint {
+  background: var(--denim);
+}
+@keyframes pip-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(58, 107, 147, 0.18); }
+  50%       { box-shadow: 0 0 0 4px rgba(58, 107, 147, 0.36); }
+}
+.stage-pip-3d {
+  background: var(--tomato);
+  animation: pip-pulse-3d 1.6s ease-in-out infinite;
+}
+@keyframes pip-pulse-3d {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(217, 78, 58, 0.18); }
+  50%       { box-shadow: 0 0 0 4px rgba(217, 78, 58, 0.36); }
+}
+
 /* Barber pole (retained small accent) */
 @keyframes poleSpin {
   from { background-position: 0 0; }
   to   { background-position: 0 80px; }
-}
-@keyframes progressStripe {
-  from { background-position: 0 0; }
-  to   { background-position: 56px 56px; }
-}
-.progress-bar-fill {
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--tomato) 0 20px,
-    rgba(255, 250, 240, 0.18) 20px 40px
-  );
-  animation: progressStripe 1.6s linear infinite;
 }
 .barber-pole {
   background: repeating-linear-gradient(
@@ -681,6 +892,18 @@ input[type="range"].slider-warm::-moz-range-thumb {
   animation: dropdown-open 280ms cubic-bezier(.2,.85,.2,1) both;
 }
 
+/* ── Send button idle pulse ──────────────────────────────── */
+@keyframes send-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 2px 8px rgba(0,0,0,0.25), 0 0 0 2px rgba(245,241,234,0.25); }
+  50%      { transform: scale(1.12); box-shadow: 0 4px 16px rgba(0,0,0,0.35), 0 0 0 4px rgba(245,241,234,0.5); }
+}
+.send-btn-pulse {
+  animation: send-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border: 1.5px solid rgba(245,241,234,0.45) !important;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.send-btn-pulse:active { transform: scale(0.93) !important; animation-play-state: paused; }
+
 /* ── Button bounce ───────────────────────────────────────── */
 @keyframes btn-bounce {
   0%   { transform: scale(1); }
@@ -697,6 +920,16 @@ input[type="range"].slider-warm::-moz-range-thumb {
   to   { transform: scale(3.5);  opacity: 0; }
 }
 .project-zoom { animation: project-zoom 500ms cubic-bezier(.4,0,.6,1) both; }
+
+/* ── Project card hover wiggle ─────────────────────────────── */
+@keyframes card-wiggle {
+  0%   { transform: rotate(var(--card-rotate, 0deg)); }
+  20%  { transform: rotate(calc(var(--card-rotate, 0deg) + 1.8deg)); }
+  50%  { transform: rotate(calc(var(--card-rotate, 0deg) - 1.4deg)); }
+  75%  { transform: rotate(calc(var(--card-rotate, 0deg) + 0.8deg)); }
+  100% { transform: rotate(var(--card-rotate, 0deg)); }
+}
+.card-wiggle { animation: card-wiggle 320ms cubic-bezier(.36,.07,.19,.97) both; }
 
 /* ── Empty-state add-button physics sequence ──────────────── */
 @keyframes empty-text-drop {
@@ -748,6 +981,13 @@ input[type="range"].slider-warm::-moz-range-thumb {
   100% { transform: scale(1) rotate(0deg);    opacity: 1; }
 }
 .scan-pop-in { animation: scan-pop-in 600ms cubic-bezier(.34,1.56,.64,1) both; }
+
+@keyframes scan-btn-pop {
+  0%   { transform: scale(0.72); opacity: 0; }
+  65%  { transform: scale(1.1);  opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.scan-btn-pop { animation: scan-btn-pop 480ms cubic-bezier(.34,1.56,.64,1) 280ms both; }
 
 /* ── Wordmark inline (scissors left of "Shape Up") ──────── */
 .wordmark-inline {
@@ -849,4 +1089,62 @@ input[type="range"].slider-warm::-moz-range-thumb {
   );
   animation: get-more-shine 3.4s linear 1.8s infinite;
   pointer-events: none;
+}
+
+/* ── Phone frame (landing face swiper) ───────────────────── */
+.phone-frame-bg {
+  background: var(--tomato);
+  position: relative;
+  overflow: visible;
+}
+.phone-frame-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='pf'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.06  0 0 0 0 0.02  0 0 0 0 0.01  0 0 0 0.38 0'/></filter><rect width='100%' height='100%' filter='url(%23pf)' opacity='0.5'/></svg>");
+  background-size: 260px 260px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Explore floor cog animation ─────────────────────────── */
+@keyframes cog-turn {
+  0%   { transform: rotate(0deg); }
+  28%  { transform: rotate(90deg); animation-timing-function: ease-out; }
+  34%  { transform: rotate(97deg); }
+  41%  { transform: rotate(83deg); }
+  48%  { transform: rotate(90deg); }
+  100% { transform: rotate(90deg); }
+}
+
+/* ── Settings cog CCW spin ───────────────────────────────── */
+@keyframes cog-spin-ccw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* ── iMessage chat stack (landing face swiper) ───────────── */
+@keyframes imessage-dot {
+  0%, 55%, 100% { transform: translateY(0); opacity: 0.4; }
+  28%            { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes imessage-text-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* new bubble slides up from below */
+@keyframes msg-enter {
+  0%   { opacity: 0; transform: translateY(48px) scale(0.88); }
+  62%  { opacity: 1; transform: translateY(-4px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* message disintegrates upward with stagger */
+@keyframes msg-disintegrate {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  35%  { opacity: 0.6; transform: translateY(-10px) scale(0.91); }
+  100% { opacity: 0; transform: translateY(-28px) scale(0.72); }
 }

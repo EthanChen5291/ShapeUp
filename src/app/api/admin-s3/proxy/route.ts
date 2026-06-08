@@ -1,4 +1,5 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { requireAdmin } from '@/lib/serverAuth';
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION!,
@@ -11,6 +12,9 @@ const s3 = new S3Client({
 const BUCKET = process.env.AWS_S3_BUCKET_NAME!;
 
 export async function GET(req: Request) {
+  const authResult = await requireAdmin();
+  if (authResult.response) return authResult.response;
+
   const key = new URL(req.url).searchParams.get('key');
   if (!key) return new Response('missing key', { status: 400 });
 

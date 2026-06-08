@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { requireAdmin } from '@/lib/serverAuth';
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION!,
@@ -17,6 +18,9 @@ async function sign(key: string) {
 }
 
 export async function GET(req: Request) {
+  const authResult = await requireAdmin();
+  if (authResult.response) return authResult.response;
+
   const { searchParams } = new URL(req.url);
   const section = searchParams.get('section') ?? 'images';
   const search = (searchParams.get('search') ?? '').toLowerCase();

@@ -5,11 +5,11 @@
 'use client';
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
-import { useLLM } from '@/hooks/useLLM';
 
 interface EditPanelProps {
   profile: UserHeadProfile;
@@ -46,6 +46,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const originalImageUrlRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState('');
 
   const [agentActive, setAgentActive] = useState(false);
 
@@ -61,14 +62,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       const newHistory = [...history.slice(0, historyIndex + 1), next];
       setHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
+      setLiveStatus(`Hair parameters updated. Top length ${next.topLength.toFixed(1)}, side length ${next.sideLength.toFixed(1)}, back length ${next.backLength.toFixed(1)}, messiness ${next.messiness.toFixed(1)}, taper ${next.taper.toFixed(1)}.`);
       onParamsChange(next);
     },
     [history, historyIndex, onParamsChange]
   );
-
-  const handleSlider = (key: keyof HairParams, value: number) => {
-    pushParams({ ...currentParams, [key]: value });
-  };
 
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
@@ -124,6 +122,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       }
       const newImageUrl = geminiData.newImageUrl;
       onImageUpdated(newImageUrl);
+      setLiveStatus('Updated hairstyle image generated. Starting 3D render.');
       setPrompt('');
 
       setPhase('hairstep');
@@ -174,7 +173,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       }
 
       onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(splatUrl!)}`);
+      setLiveStatus('3D hairstyle render is ready.');
     } finally {
+      // Cancel intervals immediately — don't wait for the useEffect round-trip
+      if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
+      if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
       setPhase('idle');
       processingRef.current = false;
     }
@@ -207,15 +210,20 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       });
       const data = await res.json();
       setSummary(data.summary ?? data.error ?? 'Something went wrong');
+      setLiveStatus('Barber order summary updated.');
     } catch {
       setSummary('Failed to generate summary');
+      setLiveStatus('Barber order summary failed.');
     } finally {
       setSummaryLoading(false);
     }
   };
 
   const handleCopySummary = () => {
-    if (summary) navigator.clipboard.writeText(summary);
+    if (summary) {
+      navigator.clipboard.writeText(summary);
+      setLiveStatus('Barber order copied to clipboard.');
+    }
   };
 
   const isBusy = phase !== 'idle';
@@ -234,35 +242,39 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       if (geminiIntervalRef.current) clearInterval(geminiIntervalRef.current);
       setGeminiProgress(0);
       setHairstepProgress(0);
+      // 400ms ticks, 2% per tick → ~88% over ~17.6s with 1.4s CSS ease-out transition for silk-smooth animation
       geminiIntervalRef.current = setInterval(() => {
-        setGeminiProgress(p => p < 90 ? p + 0.55 : p);
-      }, 150);
+        setGeminiProgress(p => p < 88 ? p + 2 : p);
+      }, 400);
     } else if (phase === 'hairstep') {
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       setGeminiProgress(100);
       if (hairstepIntervalRef.current) clearInterval(hairstepIntervalRef.current);
       setHairstepProgress(0);
+      // 800ms ticks, 0.8% per tick → ~84% over ~84s; facelift typically 20–60s so bar is mid-range when done
       hairstepIntervalRef.current = setInterval(() => {
-        setHairstepProgress(p => p < 90 ? p + 0.15 : p);
-      }, 150);
+        setHairstepProgress(p => p < 84 ? p + 0.8 : p);
+      }, 800);
     } else if (phase === 'idle' && prev !== 'idle') {
+      // Intervals were already killed in the finally block; kill again defensively
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
       if (pipelineHadErrorRef.current) {
-        // Error: freeze bars at current position, then reset after a beat
-        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2000);
+        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2200);
         return () => clearTimeout(t);
       } else {
-        // Success: complete to 100%, then reset
+        // Both bars complete simultaneously when facelift output arrives
+        setGeminiProgress(100);
         setHairstepProgress(100);
-        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1000);
+        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1600);
         return () => clearTimeout(t);
       }
     }
   }, [phase]);
 
   return (
-    <div className="flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }}>
+    <aside className="flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }} aria-label="Hair editor controls">
+      <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
       {/* Header */}
       <div className="flex items-center gap-3">
         <span className="inline-block w-2 h-7 barber-pole" />
@@ -275,20 +287,27 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       {/* Prompt */}
       <form onSubmit={(e) => { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="pill pill-tomato">new request</span>
+          <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
           <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
         </div>
         <textarea
+          id="hair-edit-prompt"
+          aria-describedby="hair-edit-prompt-limit"
           className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
           style={{ fontStyle: 'italic' }}
           placeholder='"Messy taper fade, please."'
           value={prompt}
+          maxLength={MAX_PROMPT_LENGTH}
           onChange={(e) => setPrompt(e.target.value)}
         />
+        <div id="hair-edit-prompt-limit" className="font-mono text-[10px] text-[var(--smoke)]">
+          {prompt.length}/{MAX_PROMPT_LENGTH}
+        </div>
         <div className="flex gap-2">
           <button
             type="submit"
             disabled={isBusy}
+            aria-label="Apply hair edit request"
             className="btn btn-tomato flex-1"
             style={{ padding: '10px 16px', fontSize: 13 }}
           >
@@ -296,6 +315,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           </button>
           <button
             type="button"
+            aria-label={agentActive ? 'Stop voice hair edit assistant' : 'Start voice hair edit assistant'}
             onClick={() => {
               if (agentActive) { agent.stop(); setAgentActive(false); }
               else             { agent.start(); setAgentActive(true); }
@@ -306,25 +326,68 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             {agentActive ? '◼ Stop' : '🎙 Voice'}
           </button>
         </div>
-        {(geminiProgress > 0) && (
-          <div className="flex flex-col gap-1.5 pt-1">
-            <div className="flex items-center justify-between">
-              <span className="font-serif italic text-xs text-[var(--smoke)]">Drawing Blueprint…</span>
-              <span className="font-mono text-[10px] text-[var(--smoke)]">{Math.round(geminiProgress)}%</span>
+        {isBusy && (
+          <div className="pipeline-wrapper">
+            {/* Stage 1 — Blueprint (Gemini) */}
+            <div className="pipeline-stage">
+              <div className="pipeline-stage-header">
+                <div className="flex items-center gap-2">
+                  <span className={`stage-pip ${
+                    geminiProgress >= 100
+                      ? 'stage-pip-done'
+                      : phase === 'gemini'
+                        ? 'stage-pip-active stage-pip-blueprint'
+                        : 'stage-pip-idle'
+                  }`} />
+                  <span className={`font-serif italic text-xs ${phase === 'gemini' ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
+                    Drawing Blueprint
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] text-[var(--smoke)]">
+                  {geminiProgress >= 100 ? '✓' : geminiProgress < 1 ? '—' : `${Math.round(geminiProgress)}%`}
+                </span>
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill progress-fill-blueprint"
+                  style={{ width: `${geminiProgress}%` }}
+                >
+                  {geminiProgress > 0 && geminiProgress < 100 && (
+                    <div className="progress-shimmer" />
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.14)' }}>
-              <div className="progress-bar-fill h-full rounded-full transition-[width] duration-200" style={{ width: `${geminiProgress}%` }} />
-            </div>
-          </div>
-        )}
-        {(hairstepProgress > 0) && (
-          <div className="flex flex-col gap-1.5 pt-0.5">
-            <div className="flex items-center justify-between">
-              <span className="font-serif italic text-xs text-[var(--smoke)]">Generating 3D Model…</span>
-              <span className="font-mono text-[10px] text-[var(--smoke)]">{Math.round(hairstepProgress)}%</span>
-            </div>
-            <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.14)' }}>
-              <div className="progress-bar-fill h-full rounded-full transition-[width] duration-200" style={{ width: `${hairstepProgress}%` }} />
+
+            {/* Stage 2 — 3D Model (Facelift) */}
+            <div className="pipeline-stage">
+              <div className="pipeline-stage-header">
+                <div className="flex items-center gap-2">
+                  <span className={`stage-pip ${
+                    hairstepProgress >= 100
+                      ? 'stage-pip-done'
+                      : phase === 'hairstep'
+                        ? 'stage-pip-active stage-pip-3d'
+                        : 'stage-pip-idle'
+                  }`} />
+                  <span className={`font-serif italic text-xs ${phase === 'hairstep' || hairstepProgress > 0 ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
+                    Sculpting 3D Model
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] text-[var(--smoke)]">
+                  {hairstepProgress >= 100 ? '✓' : phase === 'gemini' ? '—' : hairstepProgress < 1 ? '…' : `${Math.round(hairstepProgress)}%`}
+                </span>
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill progress-fill-3d"
+                  style={{ width: `${hairstepProgress}%` }}
+                >
+                  {hairstepProgress > 0 && hairstepProgress < 100 && (
+                    <div className="progress-shimmer" />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -359,6 +422,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         <button
           onClick={handleGetSummary}
           disabled={summaryLoading}
+          aria-label="Generate barber order summary"
           className="btn btn-cream"
           style={{ padding: '10px 16px', fontSize: 13 }}
         >
@@ -369,6 +433,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             <div className="relative">
               <textarea
                 ref={summaryRef}
+                aria-label="Barber order summary"
                 readOnly
                 value={summary}
                 className="input-soft w-full rounded-xl p-4 pt-5 font-serif text-[13px] leading-snug resize-none h-40 focus:outline-none"
@@ -384,6 +449,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             </div>
             <button
               onClick={handleCopySummary}
+              aria-label="Copy barber order summary to clipboard"
               className="btn-ghost"
             >
               Copy to clipboard
@@ -392,6 +458,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         )}
       </div>
 
-    </div>
+    </aside>
   );
 }

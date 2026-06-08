@@ -26,3 +26,5 @@ haircut-classifier/src/data/
 npm-debug.log*
 .vercel
 .env*.local
+coverage/
+tsconfig.tsbuildinfo

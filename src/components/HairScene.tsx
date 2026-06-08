@@ -412,6 +412,20 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     new Set(disableDefaultHairLayers ? [] : ['hair_modified', 'top_hair'])
   );
+
+  // Clear default hair layers if the prop flips to true after mount (e.g. splat loads async)
+  useEffect(() => {
+    if (disableDefaultHairLayers) {
+      setVisibleLayers(prev => {
+        if (!prev.has('hair_modified') && !prev.has('top_hair')) return prev;
+        const next = new Set(prev);
+        next.delete('hair_modified');
+        next.delete('top_hair');
+        return next;
+      });
+    }
+  }, [disableDefaultHairLayers]);
+
   // Local FLAME data fetched from a test image
   const [localFlameData] = useState<FlameData | null>(null);
 

@@ -8,18 +8,23 @@ export default defineSchema({
     email: v.optional(v.string()),
     username: v.optional(v.string()),
     credits: v.number(),
+    biometricConsentAt: v.optional(v.number()),
+    biometricConsentVersion: v.optional(v.string()),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])
     .index("by_username", ["username"]),
 
   sessions: defineTable({
+    userId: v.optional(v.string()),
     sessionId: v.string(),
     createdAt: v.number(),
     currentProfile: v.optional(v.any()),
     imageUrl: v.optional(v.string()),
     scanS3Key: v.optional(v.string()),
-  }).index("by_session_id", ["sessionId"]),
+  })
+    .index("by_session_id", ["sessionId"])
+    .index("by_user_id", ["userId"]),
 
   facelifts: defineTable({
     userId: v.string(),
@@ -35,6 +40,23 @@ export default defineSchema({
     notifyOnRelease: v.boolean(),
     createdAt: v.number(),
   }).index("by_email", ["email"]),
+
+  stripeEvents: defineTable({
+    eventId: v.string(),
+    createdAt: v.number(),
+  }).index("by_event_id", ["eventId"]),
+
+  accountDeletionRequests: defineTable({
+    requestId: v.string(),
+    requestedAt: v.number(),
+    status: v.union(v.literal("processing"), v.literal("completed"), v.literal("failed")),
+  }).index("by_request_id", ["requestId"]),
+
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
 
   projects: defineTable({
     tokenIdentifier: v.string(),

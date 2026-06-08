@@ -13,8 +13,8 @@
 
 import { useState, useCallback } from 'react';
 import { UserHeadProfile, LLMEditResponse, HairParams } from '@/types';
-import { EDIT_LOOP_SYSTEM_PROMPT } from '@/lib/llmPrompt';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import { MAX_PROMPT_LENGTH, buildDelimitedEditMessage, validatePromptLength } from '@/lib/llmValidation';
 
 interface UseLLMReturn {
   editHair: (prompt: string) => Promise<LLMEditResponse | null>;
@@ -33,18 +33,21 @@ export function useLLM(profile: UserHeadProfile): UseLLMReturn {
 
       // Attach current profile as context so the LLM can do relative edits
       const currentProfilePayload = buildCurrentProfilePayload(profile);
-      const userMessage = `
-${prompt}
-
-CURRENT_PROFILE: ${JSON.stringify(currentProfilePayload, null, 2)}
-      `.trim();
+      const promptError = validatePromptLength(prompt);
+      if (promptError) {
+        setLoading(false);
+        setError(promptError);
+        return null;
+      }
+      const userMessage = buildDelimitedEditMessage(prompt, currentProfilePayload);
 
       try {
         const res = await fetch('/api/edit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            system: EDIT_LOOP_SYSTEM_PROMPT,
+            instruction: prompt.slice(0, MAX_PROMPT_LENGTH),
+            currentProfile: currentProfilePayload,
             message: userMessage,
           }),
         });
