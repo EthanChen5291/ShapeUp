@@ -252,7 +252,7 @@ function LoadingScreen({ onDone, ready }: { onDone: () => void; ready: boolean }
 }
 
 /* ─────────────── Profile Menu ─────────────── */
-function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => void; onSignIn: () => void; pulse?: boolean }) {
+function ProfileMenu({ onRescan, onSignIn, pulse = false, celebratePurchase = false }: { onRescan: () => void; onSignIn: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const userQuery = useQuery(api.users.getMe);
@@ -264,6 +264,8 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
   const [settingsOriginRect, setSettingsOriginRect] = useState<DOMRect | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [displayCredits, setDisplayCredits] = useState<number | null>(null);
+  const animatingRef = useRef(false);
 
   useEffect(() => {
     if (!pulse) return;
@@ -285,6 +287,34 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
   const stableUserRef = useRef(userQuery);
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
+
+  // Auto-open and animate counter after successful purchase
+  useEffect(() => {
+    if (!celebratePurchase) return;
+    setTimeout(() => setOpen(true), 300);
+    animatingRef.current = true;
+    setDisplayCredits(0);
+  }, [celebratePurchase]);
+
+  useEffect(() => {
+    if (!animatingRef.current || user?.credits == null) return;
+    animatingRef.current = false;
+    const target = user.credits;
+    const duration = 1400;
+    const steps = 48;
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      const eased = 1 - Math.pow(1 - step / steps, 3);
+      setDisplayCredits(Math.round(eased * target));
+      if (step >= steps) {
+        clearInterval(interval);
+        setDisplayCredits(target);
+        setTimeout(() => { setOpen(false); setDisplayCredits(null); }, 1800);
+      }
+    }, duration / steps);
+    return () => clearInterval(interval);
+  }, [celebratePurchase, user?.credits]);
 
   if (!isSignedIn) {
     return (
@@ -320,7 +350,7 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
     <div
       id="profile-menu-pill"
       ref={containerRef}
-      className={`relative z-50 ${bouncing ? 'profile-pill-bounce' : ''} ${swallowing ? 'profile-pill-swallow' : ''}`}
+      className={`relative ${bouncing ? 'profile-pill-bounce' : ''} ${swallowing ? 'profile-pill-swallow' : ''}`}
       style={{ width: 176, height: 36, flexShrink: 0 }}
     >
       {menuPos && createPortal(
@@ -336,7 +366,8 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
           borderRadius: open ? 22 : 40,
           boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
           overflow: 'hidden',
-          zIndex: 9999,
+          zIndex: showPricing ? 10 : 9999,
+          pointerEvents: showPricing ? 'none' : 'auto',
           transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease',
         }}>
           {/* Pill header */}
@@ -364,19 +395,19 @@ function ProfileMenu({ onRescan, onSignIn, pulse = false }: { onRescan: () => vo
           }}>
             <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
               <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[13px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
-                  <span className="font-sans text-[22px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
-                    {user?.credits ?? 0}
-                  </span>
+                <div className="tokens-widget">
+                  <div className="tokens-widget__row">
+                    <span className="tokens-widget__label">Tokens</span>
+                    <span className="tokens-widget__count">{displayCredits !== null ? displayCredits : (user?.credits ?? 0)}</span>
+                  </div>
+                  <BouncyButton
+                    onClick={() => { setShowPricing(true); setOpen(false); }}
+                    className="btn-tokens-cta w-full"
+                  >
+                    <span className="btn-tokens-cta__shimmer" />
+                    <span className="btn-tokens-cta__text">Get more tokens</span>
+                  </BouncyButton>
                 </div>
-                <BouncyButton
-                  onClick={() => setShowPricing(true)}
-                  className="btn btn-cream w-full"
-                  style={{ padding: '16px 20px', fontSize: 15, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none', border: '1px solid rgba(42,32,26,0.12)' }}
-                >
-                  Get more!
-                </BouncyButton>
               </div>
 
               <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
@@ -982,7 +1013,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
               className="font-sans text-[var(--smoke)] mt-1"
               style={{ fontSize: containerExpanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}
             >
-              You&rsquo;re out of tokens. Pick a plan to keep styling.
+              Stack tokens and keep the fresh cuts coming.
             </p>
           </div>
 
@@ -4036,6 +4067,7 @@ function MainMenu({
   onRescan,
   onSignIn,
   profilePillPulse = false,
+  celebratePurchase = false,
 }: {
   onAdd: () => void;
   onOpenProject: (project: ProjectDoc) => void;
@@ -4044,6 +4076,7 @@ function MainMenu({
   onRescan: () => void;
   onSignIn: () => void;
   profilePillPulse?: boolean;
+  celebratePurchase?: boolean;
 }) {
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
@@ -4331,7 +4364,7 @@ function MainMenu({
                   <InlineWordmark />
                 </div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
+                  <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
                 </div>
               </div>
             </div>
@@ -4350,7 +4383,7 @@ function MainMenu({
                   <InlineWordmark cream />
                 </div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
+                  <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
                 </div>
               </div>
             </div>
@@ -4708,6 +4741,17 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      setPaymentSuccess(true);
+      const clean = window.location.pathname;
+      window.history.replaceState({}, '', clean);
+    }
+  }, []);
+
   useEffect(() => {
     if (isSignedIn) {
       getOrCreate().catch((err) => console.error('[Home] getOrCreate FAILED:', err));
@@ -4946,6 +4990,7 @@ export default function Home() {
           onRescan={() => setShowScanPopup(true)}
           onSignIn={() => setShowSignInPopup(true)}
           profilePillPulse={profilePillPulse}
+          celebratePurchase={paymentSuccess}
         />
 
         {/* Sign-in popup */}

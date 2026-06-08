@@ -322,20 +322,21 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
       }}>
         <div className="px-4 pb-4 flex flex-col gap-3" style={{ borderTop: '1px solid rgba(42,32,26,0.08)', paddingTop: 12 }}>
 
+          {/* TEST */}
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'red' }} />
+
           {/* Tokens */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[12px] uppercase tracking-wider text-[var(--smoke)]">Tokens</span>
-              <span className="font-sans text-[17px] text-[var(--ink)]" style={{ fontWeight: 700 }}>
-                {user?.credits ?? 0}
-              </span>
+          <div className="tokens-widget">
+            <div className="tokens-widget__row">
+              <span className="tokens-widget__label">✦ Tokens</span>
+              <span className="tokens-widget__count">{user?.credits ?? 0}</span>
             </div>
             <BouncyButton
               onClick={() => setShowPricing(true)}
-              className="btn btn-tokens-cta w-full"
-              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700 }}
+              className="btn-tokens-cta w-full"
             >
-              Get more!
+              <span className="btn-tokens-cta__shimmer" />
+              <span className="btn-tokens-cta__text">⚡ Get more tokens →</span>
             </BouncyButton>
           </div>
 

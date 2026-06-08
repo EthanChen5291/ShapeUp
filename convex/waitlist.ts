@@ -1,18 +1,9 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { hasProfanity } from "./lib/contentFilter";
 
 const EMAIL_RE =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
-
-const PROFANITY = [
-  "fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy",
-  "nigger", "nigga", "faggot", "fag", "asshole", "bastard",
-];
-
-function hasProfanity(local: string): boolean {
-  const clean = local.toLowerCase().replace(/[^a-z]/g, "");
-  return PROFANITY.some((w) => clean.includes(w));
-}
 
 export const joinWaitlist = mutation({
   args: {

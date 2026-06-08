@@ -14,6 +14,7 @@ export const create = mutation({
 
     return await ctx.db.insert("sessions", {
       ...args,
+      userId: identity.tokenIdentifier,
       createdAt: Date.now(),
     });
   },

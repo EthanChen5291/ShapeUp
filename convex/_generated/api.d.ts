@@ -10,6 +10,7 @@
 
 import type * as facelifts from "../facelifts.js";
 import type * as http from "../http.js";
+import type * as lib_contentFilter from "../lib/contentFilter.js";
 import type * as projects from "../projects.js";
 import type * as sessions from "../sessions.js";
 import type * as stripe from "../stripe.js";
@@ -25,6 +26,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   facelifts: typeof facelifts;
   http: typeof http;
+  "lib/contentFilter": typeof lib_contentFilter;
   projects: typeof projects;
   sessions: typeof sessions;
   stripe: typeof stripe;

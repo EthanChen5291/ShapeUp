@@ -3,10 +3,37 @@ import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { uploadToS3, getSignedDownloadUrl } from '@/lib/s3';
 import { requireSignedIn } from '@/lib/serverAuth';
+import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+
+const MAX_SCAN_IMAGE_BYTES = 6 * 1024 * 1024;
+
+function parseImageDataUrl(value: unknown) {
+  if (typeof value !== 'string') return { error: 'imageDataUrl is required' };
+  const match = value.match(/^data:image\/(png|jpe?g|webp);base64,([a-zA-Z0-9+/=]+)$/);
+  if (!match) return { error: 'imageDataUrl must be a base64 PNG, JPEG, or WebP data URL' };
+  const base64 = match[2];
+  if (base64.length > Math.ceil(MAX_SCAN_IMAGE_BYTES * 4 / 3) + 128) {
+    return { error: 'Image is too large' };
+  }
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.length > MAX_SCAN_IMAGE_BYTES) return { error: 'Image is too large' };
+  return { buffer };
+}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireSignedIn();
   if (authResult.response) return authResult.response;
+
+  const ip = getClientIp(req);
+  const rateLimited = enforceRateLimits([
+    { ...RATE_LIMITS.saveScanUser, key: authResult.session.userId },
+    { ...RATE_LIMITS.saveScanIp, key: ip },
+  ], {
+    route: '/api/save-scan',
+    user: hashIdentifier(authResult.session.userId),
+    ip: hashIdentifier(ip),
+  });
+  if (rateLimited) return rateLimited;
 
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
   const convexToken = await authResult.session.getToken({ template: 'convex' });
@@ -14,9 +41,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Convex auth token unavailable' }, { status: 401 });
   }
   convex.setAuth(convexToken);
+  const hasConsent = await convex.query(api.users.hasBiometricConsent, {});
+  if (!hasConsent) {
+    console.warn('[save-scan] rejected missing biometric consent', {
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ ok: false, error: 'Biometric consent is required before scan upload' }, { status: 403 });
+  }
   console.log('[save-scan] POST received');
 
-  let imageDataUrl: string;
+  let imageDataUrl: unknown;
   let currentProfile: unknown = null;
   try {
     const body = await req.json();
@@ -28,13 +62,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'invalid JSON body', detail: String(err) }, { status: 400 });
   }
 
-  if (!imageDataUrl) {
-    console.error('[save-scan] imageDataUrl missing from body');
-    return NextResponse.json({ ok: false, error: 'imageDataUrl is required' }, { status: 400 });
+  const parsedImage = parseImageDataUrl(imageDataUrl);
+  if ('error' in parsedImage) {
+    console.warn('[save-scan] rejected image payload', {
+      reason: parsedImage.error,
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ ok: false, error: parsedImage.error }, { status: 400 });
   }
-
-  const base64 = imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
-  const buffer = Buffer.from(base64, 'base64');
+  const { buffer } = parsedImage;
   console.log('[save-scan] buffer size:', buffer.length, 'bytes');
 
   const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
