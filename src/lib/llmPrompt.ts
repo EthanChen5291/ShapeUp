@@ -4,7 +4,7 @@
 // Drop this string into the `system` field of any LLM API call
 // (Claude, Gemini, GPT-4o-mini, etc.) that handles hair edits.
 //
-// ETHAN: import EDIT_LOOP_SYSTEM_PROMPT in your useLLM hook.
+// Server-side system prompt for /api/edit.
 // ============================================================
 
 export const EDIT_LOOP_SYSTEM_PROMPT = `

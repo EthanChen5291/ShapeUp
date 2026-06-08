@@ -13,6 +13,7 @@ import { Id } from '@convex/_generated/dataModel';
 import EditPanel from '@/components/EditPanel';
 import { WaitlistPage } from '@/components/WaitlistPage';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
@@ -524,16 +525,13 @@ function ScanNowPopup({
 
 /* ─────────────── Scan Popup — organic loading steps ─────── */
 // Each step is either a fill animation {to, ms} or a stall {hold}.
-// Bars run in parallel from their startDelay. Timeline:
-//   Bar 1 finishes ~7.5 s  (delay 0)
-//   Bar 2 finishes ~16.5 s (delay 1800)
-//   Bar 3 finishes ~26 s   (delay 5000)
-//   Bar 4 hits 88% ~29 s   (delay 9000) then holds until facelift returns
+// Bars run sequentially: each bar starts only after the previous one finishes.
+// Bar 4 (holdAt88) stops at 88% and waits until facelift returns, then all bars complete.
 type BarSegment = { to: number; ms: number } | { hold: number };
 
-const SCAN_STEPS: { label: string; delay: number; holdAt88: boolean; segments: BarSegment[] }[] = [
+const SCAN_STEPS: { label: string; holdAt88: boolean; segments: BarSegment[] }[] = [
   {
-    label: 'Scanning geometry', delay: 0, holdAt88: false,
+    label: 'Scanning geometry', holdAt88: false,
     segments: [
       { to: 28, ms: 820 },  { hold: 1100 },
       { to: 64, ms: 1050 }, { hold: 750 },
@@ -541,7 +539,7 @@ const SCAN_STEPS: { label: string; delay: number; holdAt88: boolean; segments: B
     ],
   },
   {
-    label: 'Mapping features', delay: 1600, holdAt88: false,
+    label: 'Mapping features', holdAt88: false,
     segments: [
       { to: 16, ms: 900 },  { hold: 2300 },
       { to: 44, ms: 1450 }, { hold: 1500 },
@@ -550,7 +548,7 @@ const SCAN_STEPS: { label: string; delay: number; holdAt88: boolean; segments: B
     ],
   },
   {
-    label: 'Generating mesh', delay: 4500, holdAt88: false,
+    label: 'Generating mesh', holdAt88: false,
     segments: [
       { to: 11, ms: 950 },  { hold: 2900 },
       { to: 34, ms: 1650 }, { hold: 1900 },
@@ -560,7 +558,7 @@ const SCAN_STEPS: { label: string; delay: number; holdAt88: boolean; segments: B
     ],
   },
   {
-    label: 'Building model', delay: 8000, holdAt88: true,
+    label: 'Building model', holdAt88: true,
     segments: [
       { to: 19, ms: 1150 }, { hold: 3600 },
       { to: 47, ms: 2050 }, { hold: 2700 },
@@ -574,26 +572,28 @@ function easeOut(t: number) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complete = false }: {
-  label: string; startDelay?: number; segments: BarSegment[]; holdAt88?: boolean; complete?: boolean;
+function OrganicBar({ label, active = false, segments, holdAt88 = false, complete = false, onComplete }: {
+  label: string; active?: boolean; segments: BarSegment[]; holdAt88?: boolean; complete?: boolean; onComplete?: () => void;
 }) {
-  const [visible, setVisible]       = useState(startDelay === 0);
+  const [visible, setVisible]       = useState(false);
   const [fillPct, setFillPct]       = useState(0);
   const [completing, setCompleting] = useState(false);
-  const rafRef      = useRef<number>(0);
-  const holdRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stepRef     = useRef(0);
+  const rafRef       = useRef<number>(0);
+  const holdRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepRef      = useRef(0);
   const stepStartRef = useRef(0);
-  const fromPctRef  = useRef(0);
+  const fromPctRef   = useRef(0);
+  const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
-    if (startDelay === 0) return;
-    const t = setTimeout(() => setVisible(true), startDelay);
-    return () => clearTimeout(t);
-  }, [startDelay]);
+    if (active) setVisible(true);
+  }, [active]);
 
   useEffect(() => {
-    if (!visible) return;
+    // Skip animation if already completed (e.g. facelift finished before this bar started)
+    if (!visible || completedRef.current) return;
     stepRef.current = 0;
     stepStartRef.current = performance.now();
     fromPctRef.current = 0;
@@ -603,7 +603,6 @@ function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complet
       if (!seg) return;
 
       if ('hold' in seg) {
-        // Use a timeout for the hold so we don't burn RAF frames doing nothing
         holdRef.current = setTimeout(() => {
           stepRef.current++;
           stepStartRef.current = performance.now();
@@ -623,6 +622,10 @@ function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complet
         stepStartRef.current = now;
         if (stepRef.current < segments.length) {
           rafRef.current = requestAnimationFrame(advance);
+        } else if (!holdAt88 && !completedRef.current) {
+          // Natural completion for non-holding bars — trigger next bar
+          completedRef.current = true;
+          onCompleteRef.current?.();
         }
       } else {
         rafRef.current = requestAnimationFrame(advance);
@@ -638,12 +641,16 @@ function OrganicBar({ label, startDelay = 0, segments, holdAt88 = false, complet
   }, [visible]);
 
   useEffect(() => {
-    if (!complete || !holdAt88) return;
+    if (!complete) return;
+    // Facelift returned — cancel any in-progress animation and jump to 100%
     cancelAnimationFrame(rafRef.current);
     if (holdRef.current) clearTimeout(holdRef.current);
+    completedRef.current = true;
+    setVisible(true);
     setCompleting(true);
     setFillPct(100);
-  }, [complete, holdAt88]);
+    onCompleteRef.current?.();
+  }, [complete]);
 
   return (
     <div style={{
@@ -1064,20 +1071,59 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
             </div>
           )}
 
-          {/* Perks animation area — blank placeholder, revealed on expand */}
+          {/* Perks banner — revealed on expand */}
           <div
             style={{
               width: '100%',
               overflow: 'hidden',
-              maxHeight: containerExpanded ? 200 : 0,
+              maxHeight: containerExpanded ? 320 : 0,
               opacity: containerExpanded ? 1 : 0,
               borderRadius: 16,
-              background: 'rgba(42,32,26,0.04)',
-              border: '1px solid rgba(42,32,26,0.08)',
               transition: `max-height 700ms ${ease} 150ms, opacity 500ms ${ease} 300ms`,
             }}
           >
-            <div style={{ height: 180 }} />
+            <div
+              style={{
+                height: 288,
+                display: 'flex',
+                alignItems: 'center',
+                backgroundImage: 'url(/dark_charcoal.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                borderRadius: 16,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Face image — left */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/3face.png"
+                alt=""
+                style={{
+                  height: '100%',
+                  width: 'auto',
+                  objectFit: 'contain',
+                  flexShrink: 0,
+                  display: 'block',
+                }}
+              />
+              {/* Tagline — right */}
+              <span
+                style={{
+                  fontFamily: 'Montserrat, sans-serif',
+                  color: '#ffffff',
+                  fontSize: 52,
+                  fontWeight: 800,
+                  lineHeight: 1.05,
+                  letterSpacing: '-0.04em',
+                  paddingLeft: 28,
+                  paddingRight: 32,
+                  flexShrink: 1,
+                }}
+              >
+                Level Up Now.
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1237,6 +1283,7 @@ function ScanPopup({
   const [paywallDisabled, setPaywallDisabled] = useState(false);
   const [faceliftStatus, setFaceliftStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
   const [faceliftError, setFaceliftError] = useState<string | null>(null);
+  const [activeBarIndex, setActiveBarIndex] = useState(0);
   const faceliftAbortRef = useRef<AbortController | null>(null);
   const isDismissing = useRef(false);
 
@@ -1312,6 +1359,7 @@ function ScanPopup({
     setPhase('processing');
     setFaceliftStatus('processing');
     setFaceliftError(null);
+    setActiveBarIndex(0);
 
     const abort = new AbortController();
     faceliftAbortRef.current = abort;
@@ -1496,14 +1544,15 @@ function ScanPopup({
                 }}>
                   {faceliftStatus === 'error' ? 'Something went wrong' : 'Analyzing your look...'}
                 </p>
-                {SCAN_STEPS.map((s) => (
+                {SCAN_STEPS.map((s, i) => (
                   <OrganicBar
                     key={s.label}
                     label={s.label}
-                    startDelay={s.delay}
+                    active={i <= activeBarIndex}
                     segments={s.segments}
                     holdAt88={s.holdAt88}
-                    complete={s.holdAt88 ? faceliftStatus === 'done' : undefined}
+                    complete={faceliftStatus === 'done'}
+                    onComplete={() => setActiveBarIndex(prev => Math.max(prev, i + 1))}
                   />
                 ))}
                 {faceliftStatus === 'processing' && (
@@ -3702,7 +3751,10 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
           </button>
 
           <p className="font-mono" style={{ fontSize: s.noteFontSize, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
-            Free to start · No credit card
+            Free to start · No credit card · By continuing, you agree to the{' '}
+            <Link href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</Link>
+            {' '}and{' '}
+            <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</Link>
           </p>
         </>
       )}
@@ -4019,8 +4071,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </div>
             <div style={{ textAlign: 'center', marginTop: 20 }}>
               {[
-                { label: 'Privacy', href: '#' },
-                { label: 'Delete my data', href: '#' },
+                { label: 'Privacy', href: '/privacy' },
+                { label: 'Terms', href: '/terms' },
+                { label: 'Biometric notice', href: '/biometric-notice' },
+                { label: 'Delete my data', href: '/delete-my-data' },
                 { label: 'Contact', href: 'mailto:shapeup.ai@gmail.com' },
               ].map(({ label, href }, i) => (
                 <span key={label}>
@@ -4033,7 +4087,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   >
                     {label}
                   </a>
-                  {i < 2 && <span className="font-mono" style={{ fontSize: 10, color: 'rgba(255,248,234,0.15)', margin: '0 14px' }}>·</span>}
+                  {i < 4 && <span className="font-mono" style={{ fontSize: 10, color: 'rgba(255,248,234,0.15)', margin: '0 14px' }}>·</span>}
                 </span>
               ))}
             </div>
@@ -4163,7 +4217,7 @@ function MainMenu({
 
     // Home↔Explore direct jump — neither endpoint is saved, keep overlays fully hidden
     if (floorIndex !== 1 && prevFloor !== 1) {
-      sidebarDark.style.clipPath = 'inset(0 0 100% 0)';
+      sidebarDark.style.clipPath = 'inset(100% 0 0 0)';
       topbarDark.style.opacity = '0';
       return;
     }
@@ -4188,7 +4242,7 @@ function MainMenu({
       charcoalAmount = Math.max(0, Math.min(1, charcoalAmount));
 
       // Sidebar: clip-path reveals dark overlay from the bottom upward, in sync with scroll
-      sidebarDark.style.clipPath = `inset(0 0 ${(1 - charcoalAmount) * 100}% 0)`;
+      sidebarDark.style.clipPath = `inset(${(1 - charcoalAmount) * 100}% 0 0 0)`;
 
       // Topbar: only activates once the charcoal floor is nearly at the top of the viewport
       topbarDark.style.opacity = charcoalAmount > 0.85 ? '1' : '0';
@@ -4198,7 +4252,7 @@ function MainMenu({
         stableFrames++;
         if (stableFrames > 4) {
           const isAtSaved = floorIndex === 1;
-          sidebarDark.style.clipPath = `inset(0 0 ${isAtSaved ? 0 : 100}% 0)`;
+          sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`;
           topbarDark.style.opacity = isAtSaved ? '1' : '0';
           return;
         }
@@ -4396,7 +4450,7 @@ function MainMenu({
               ref={floorSliderRef}
               style={{
                 transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)',
-                transition: vpH ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+                transition: vpH ? 'transform 540ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none',
                 willChange: 'transform',
               }}
             >

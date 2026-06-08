@@ -53,10 +53,10 @@ export async function POST(req: NextRequest) {
   let imageDataUrl: unknown;
   let currentProfile: unknown = null;
   try {
-    const body = await req.json();
+    const body = await req.json() as { imageDataUrl?: unknown; currentProfile?: unknown };
     imageDataUrl = body.imageDataUrl;
     currentProfile = body.currentProfile ?? null;
-    console.log('[save-scan] body parsed, imageDataUrl length:', imageDataUrl?.length ?? 'missing');
+    console.log('[save-scan] body parsed, imageDataUrl length:', typeof imageDataUrl === 'string' ? imageDataUrl.length : 'missing');
   } catch (err) {
     console.error('[save-scan] failed to parse request body:', err);
     return NextResponse.json({ ok: false, error: 'invalid JSON body', detail: String(err) }, { status: 400 });

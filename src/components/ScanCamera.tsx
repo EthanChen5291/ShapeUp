@@ -1,10 +1,11 @@
 'use client';
 
 import { useClerk, useUser } from '@clerk/nextjs';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 
 import { UserHeadProfile } from '@/types';
 
@@ -87,9 +88,13 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
   const { isSignedIn } = useUser();
   const { openSignIn } = useClerk();
   const convexUser = useQuery(api.users.getMe);
+  const recordBiometricConsent = useMutation(api.users.recordBiometricConsent);
 
   const [phase, setPhase]     = useState<Phase>('loading');
   const [errorMsg, setErrorMsg] = useState('');
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const hasBiometricConsent = Boolean(convexUser?.biometricConsentAt);
 
   const drawFrame = useCallback(() => {
     if (!activeRef.current) return;
@@ -219,6 +224,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
       openSignIn();
       return;
     }
+    if (!(await ensureBiometricConsent())) return;
     if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
       onNoTokens?.();
       return;
@@ -259,6 +265,10 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!(await ensureBiometricConsent())) {
+      e.target.value = '';
+      return;
+    }
 
     activeRef.current = false;
     if (animFrameId.current) cancelAnimationFrame(animFrameId.current);
@@ -284,6 +294,35 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
       console.error('[ScanCamera] upload failed:', err);
     }
   }
+
+  async function ensureBiometricConsent() {
+    if (hasBiometricConsent) return true;
+    if (!isSignedIn) {
+      openSignIn();
+      return false;
+    }
+    if (!consentChecked) {
+      setPhase('error');
+      setErrorMsg('Please consent to biometric processing before scanning or uploading.');
+      return false;
+    }
+    try {
+      setConsentSaving(true);
+      await recordBiometricConsent({ noticeVersion: 'biometric-notice-2026-06-08' });
+      return true;
+    } catch (err) {
+      console.error('[ScanCamera] consent save failed:', err);
+      setPhase('error');
+      setErrorMsg('Could not save consent. Please try again.');
+      return false;
+    } finally {
+      setConsentSaving(false);
+    }
+  }
+
+  const handleUploadClick = async () => {
+    if (await ensureBiometricConsent()) fileInputRef.current?.click();
+  };
 
   const instruction =
     phase === 'loading'  ? 'Preparing the chair…' :
@@ -364,20 +403,41 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
           {phase === 'ready' && (
             <button
               onClick={capturePhoto}
+              disabled={consentSaving || (!hasBiometricConsent && !consentChecked)}
               className="btn btn-tomato"
-              style={{ padding: '12px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'none' }}
+              style={{ padding: '12px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'none', opacity: consentSaving || (!hasBiometricConsent && !consentChecked) ? 0.55 : 1 }}
             >
-              Take Picture
+              {consentSaving ? 'Saving consent...' : 'Take Picture'}
             </button>
           )}
 
           {(phase === 'loading' || phase === 'ready') && (
             <button
-              onClick={() => fileInputRef.current?.click()}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 13, color: 'var(--char)', letterSpacing: '-0.01em', opacity: 0.7, marginTop: 2 }}
+              onClick={handleUploadClick}
+              disabled={consentSaving || (!hasBiometricConsent && !consentChecked)}
+              style={{ background: 'none', border: 'none', cursor: consentSaving || (!hasBiometricConsent && !consentChecked) ? 'not-allowed' : 'pointer', padding: 0, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 13, color: 'var(--char)', letterSpacing: '-0.01em', opacity: consentSaving || (!hasBiometricConsent && !consentChecked) ? 0.38 : 0.7, marginTop: 2 }}
             >
               Upload a photo
             </button>
+          )}
+
+          {!hasBiometricConsent && (
+            <label className="mt-1 flex max-w-[360px] items-start gap-2 text-left font-sans text-[12px] leading-5 text-[var(--char)]">
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={(event) => {
+                  setConsentChecked(event.target.checked);
+                  if (phase === 'error' && errorMsg.includes('consent')) setPhase('ready');
+                }}
+                className="mt-1"
+              />
+              <span>
+                I consent to ShapeUp processing my face photo and derived 3D mesh for haircut visualization. I have read
+                the <Link href="/biometric-notice" className="underline"> Biometric Notice</Link> and
+                <Link href="/privacy" className="underline"> Privacy Policy</Link>.
+              </span>
+            </label>
           )}
         </div>
 

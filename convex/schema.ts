@@ -47,11 +47,16 @@ export default defineSchema({
   }).index("by_event_id", ["eventId"]),
 
   accountDeletionRequests: defineTable({
-    clerkId: v.string(),
-    tokenIdentifier: v.string(),
+    requestId: v.string(),
     requestedAt: v.number(),
     status: v.union(v.literal("processing"), v.literal("completed"), v.literal("failed")),
-  }).index("by_clerk_id", ["clerkId"]),
+  }).index("by_request_id", ["requestId"]),
+
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
 
   projects: defineTable({
     tokenIdentifier: v.string(),

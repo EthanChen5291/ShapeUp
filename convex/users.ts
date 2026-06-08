@@ -1,8 +1,11 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { validateUsernameBusinessRules } from "./lib/contentFilter";
+import { enforceMutationRateLimit } from "./lib/rateLimit";
 
 const BIOMETRIC_CONSENT_VERSION = "biometric-notice-2026-06-08";
+const USERNAME_CHANGE_LIMIT = 5;
+const USERNAME_CHANGE_WINDOW_MS = 60 * 60 * 1000;
 
 export const getMe = query({
   args: {},
@@ -121,6 +124,13 @@ export const setUsername = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthenticated");
 
+    await enforceMutationRateLimit(
+      ctx,
+      `users:setUsername:${identity.tokenIdentifier}`,
+      USERNAME_CHANGE_LIMIT,
+      USERNAME_CHANGE_WINDOW_MS,
+    );
+
     const trimmed = args.username.trim();
     if (trimmed.length < 2 || trimmed.length > 20) throw new Error("Username must be 2–20 characters");
     if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) throw new Error("Username can only contain letters, numbers, and underscores");
@@ -164,8 +174,7 @@ export const deleteCurrentUserData = mutation({
     if (!user) throw new Error("User not found");
 
     await ctx.db.insert("accountDeletionRequests", {
-      clerkId: user.clerkId,
-      tokenIdentifier: identity.tokenIdentifier,
+      requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       requestedAt: Date.now(),
       status: "processing",
     });

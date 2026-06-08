@@ -65,6 +65,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid #8FB800;
+  outline-offset: 3px;
+}
+
+:where(button, input, textarea, select):disabled {
+  cursor: not-allowed;
+}
+
 /* ── Typography ──────────────────────────────────────────── */
 .font-display {
   font-family: var(--font-fraunces), Georgia, serif;
@@ -660,8 +669,14 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scissor-blade-left,
-  .scissor-blade-right { animation: none; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* Scrollbar */
@@ -693,22 +708,117 @@ input[type="range"].slider-warm::-moz-range-thumb {
   font-style: italic;
 }
 
+/* ── Pipeline progress bars ────────────────────────────── */
+.pipeline-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(42, 32, 26, 0.04);
+  border: 1px solid rgba(42, 32, 26, 0.09);
+  margin-top: 4px;
+}
+
+.pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pipeline-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Track */
+.progress-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(42, 32, 26, 0.08);
+  border: 1px solid rgba(42, 32, 26, 0.09);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(42, 32, 26, 0.07);
+}
+
+/* Fill — shared */
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+  transition: width 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+/* Blueprint bar — denim blue */
+.progress-fill-blueprint {
+  background: linear-gradient(90deg, #7ab0d0 0%, var(--denim) 55%, #254a6a 100%);
+}
+
+/* 3D model bar — tomato red */
+.progress-fill-3d {
+  background: linear-gradient(90deg, #e87a56 0%, var(--tomato) 60%, var(--cherry) 100%);
+}
+
+/* Shimmer sweep overlay */
+.progress-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 2s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes shimmer-sweep {
+  0%   { transform: translateX(-200%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Stage pip indicator */
+.stage-pip {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.stage-pip-idle {
+  background: rgba(42, 32, 26, 0.18);
+}
+.stage-pip-done {
+  background: #5a9e6a;
+  box-shadow: 0 0 0 2px rgba(90, 158, 106, 0.22);
+}
+.stage-pip-active {
+  animation: pip-pulse 1.6s ease-in-out infinite;
+}
+.stage-pip-blueprint {
+  background: var(--denim);
+}
+@keyframes pip-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(58, 107, 147, 0.18); }
+  50%       { box-shadow: 0 0 0 4px rgba(58, 107, 147, 0.36); }
+}
+.stage-pip-3d {
+  background: var(--tomato);
+  animation: pip-pulse-3d 1.6s ease-in-out infinite;
+}
+@keyframes pip-pulse-3d {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(217, 78, 58, 0.18); }
+  50%       { box-shadow: 0 0 0 4px rgba(217, 78, 58, 0.36); }
+}
+
 /* Barber pole (retained small accent) */
 @keyframes poleSpin {
   from { background-position: 0 0; }
   to   { background-position: 0 80px; }
-}
-@keyframes progressStripe {
-  from { background-position: 0 0; }
-  to   { background-position: 56px 56px; }
-}
-.progress-bar-fill {
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--tomato) 0 20px,
-    rgba(255, 250, 240, 0.18) 20px 40px
-  );
-  animation: progressStripe 1.6s linear infinite;
 }
 .barber-pole {
   background: repeating-linear-gradient(

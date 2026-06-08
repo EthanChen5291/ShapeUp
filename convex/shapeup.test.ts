@@ -4,6 +4,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, test, vi } from 'vitest';
 import { api } from './_generated/api';
+import { hasProfanity, isReservedUsername } from './lib/contentFilter';
 import schema from './schema';
 
 const modules = import.meta.glob('./**/*.ts');
@@ -37,6 +38,34 @@ describe('users and credits', () => {
     await t.mutation(api.users.getOrCreate, {});
 
     await expect(t.mutation(api.users.deductCredit, {})).rejects.toThrow(/No credits remaining/);
+  });
+
+  test('setUsername rejects profane and reserved usernames', async () => {
+    const t = authed();
+    await t.mutation(api.users.getOrCreate, {});
+
+    await expect(t.mutation(api.users.setUsername, { username: 'admin' })).rejects.toThrow(/reserved/);
+    await expect(t.mutation(api.users.setUsername, { username: 'fuck_user' })).rejects.toThrow(/not allowed/);
+  });
+
+  test('setUsername rate-limits repeated account mutations', async () => {
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const t = authed();
+    await t.mutation(api.users.getOrCreate, {});
+
+    for (let i = 0; i < 5; i += 1) {
+      await expect(t.mutation(api.users.setUsername, { username: `user_${i}` })).resolves.toBe(`user_${i}`);
+    }
+
+    await expect(t.mutation(api.users.setUsername, { username: 'user_5' })).rejects.toThrow(/Too many changes/);
+  });
+});
+
+describe('content filtering', () => {
+  test('detects profanity and reserved impersonation names', () => {
+    expect(hasProfanity('f.u.c.k')).toBe(true);
+    expect(isReservedUsername('Shape_Up')).toBe(true);
+    expect(isReservedUsername('shapeupfan')).toBe(false);
   });
 });
 

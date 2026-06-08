@@ -146,6 +146,7 @@ describe('scan and generation APIs', () => {
       ConvexHttpClient: vi.fn(function ConvexHttpClient() {
         return {
           setAuth: vi.fn(),
+          query: vi.fn().mockResolvedValue(true),
           mutation: deductCredit,
         };
       }),
@@ -253,5 +254,73 @@ describe('local file editing API', () => {
 
     expect(res.status).toBe(400);
     expect(execFileMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('LLM API hardening', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test');
+    vi.doMock('@/lib/serverAuth', () => ({
+      requireSignedIn: vi.fn().mockResolvedValue({
+        response: null,
+        session: { userId: 'user_123' },
+      }),
+    }));
+  });
+
+  test('/api/edit rejects oversized prompts before calling Gemini', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { POST } = await import('./edit/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        instruction: 'x'.repeat(501),
+        currentProfile: { currentStyle: { params: {} } },
+      }),
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('/api/edit rejects malformed Gemini outputs instead of returning raw model data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ preset: 'buzz', params: { topLength: 99 } }) } }],
+    }), { status: 200 })));
+
+    const { POST } = await import('./edit/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        instruction: 'shorter sides',
+        currentProfile: { currentStyle: { params: { topLength: 1, sideLength: 1, backLength: 1, messiness: 0, taper: 0 } } },
+      }),
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    expect(res.status).toBe(422);
+  });
+
+  test('/api/summary rejects oversized payloads before calling Gemini', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { POST } = await import('./summary/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/summary', {
+      method: 'POST',
+      body: JSON.stringify({
+        profile: { currentStyle: { hairType: 'straight', preset: 'classic' }, filler: 'x'.repeat(13000) },
+        params: { topLength: 1, sideLength: 1, backLength: 1, messiness: 0, taper: 0 },
+      }),
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
