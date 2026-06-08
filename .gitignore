@@ -22,6 +22,12 @@ pnpm.lockyaml
 # Haircut classifier (generated / local data)
 haircut-classifier/src/data/
 
+# Large binary assets (runtime-generated, should live in S3)
+public/*.ply
+public/*.splat
+public/**/*.ply
+public/**/*.splat
+
 # Debug
 npm-debug.log*
 .vercel
