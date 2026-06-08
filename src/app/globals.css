@@ -353,6 +353,18 @@ body {
 }
 .btn-denim:active:not(:disabled) { transform: translateY(0); }
 
+.btn-tokens-cta {
+  background: linear-gradient(135deg, var(--mustard) 0%, var(--caramel) 100%);
+  color: var(--ink);
+  box-shadow: 0 4px 14px -4px rgba(199, 138, 76, 0.55), inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -2px 0 rgba(0,0,0,0.1);
+}
+.btn-tokens-cta:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--honey) 0%, var(--mustard) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px -6px rgba(199, 138, 76, 0.6), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -2px 0 rgba(0,0,0,0.1);
+}
+.btn-tokens-cta:active:not(:disabled) { transform: translateY(0); }
+
 .btn-cream {
   background: var(--cream);
   color: var(--ink);

@@ -2610,9 +2610,9 @@ function face2PlaybackRate(t: number): number {
 const FACE2_MESSAGES = [
   "6 inches shorter",
   "two pigtails",
-  "blonde highlights and perm",
-  "messy high bun",
   "wavy dirty blonde",
+  "messy high bun",
+  "blonde highlights and perm",
   "blonde",
 ];
 
@@ -4114,6 +4114,7 @@ function MainMenu({
   const sidebarDarkRef = useRef<HTMLDivElement>(null);
   const topbarDarkRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
+  const prevFloorRef = useRef(floorIndex);
 
   useEffect(() => {
     if (!vpH) return;
@@ -4123,6 +4124,16 @@ function MainMenu({
     if (!floorSlider || !sidebarDark || !topbarDark) return;
 
     cancelAnimationFrame(rafRef.current);
+
+    const prevFloor = prevFloorRef.current;
+    prevFloorRef.current = floorIndex;
+
+    // Home↔Explore direct jump — neither endpoint is saved, keep overlays fully hidden
+    if (floorIndex !== 1 && prevFloor !== 1) {
+      sidebarDark.style.clipPath = 'inset(0 0 100% 0)';
+      topbarDark.style.opacity = '0';
+      return;
+    }
 
     const step1 = vpH + 320;       // translateY magnitude at saved floor
     const step2 = 2 * vpH + 640;   // translateY magnitude at explore floor
@@ -4504,7 +4515,7 @@ function MainMenu({
                       <circle cx="12" cy="12" r="3" />
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
-                    <p style={{ margin: 0, fontFamily: 'var(--font-jetbrains), ui-monospace, monospace', fontSize: 32, color: 'rgba(42,32,26,0.75)', textAlign: 'center', lineHeight: 1.2, fontWeight: 700 }}>
+                    <p style={{ margin: 0, fontFamily: 'var(--font-jetbrains), ui-monospace, monospace', fontSize: 26, color: 'rgba(42,32,26,0.75)', textAlign: 'center', lineHeight: 1.2, fontWeight: 700, transform: 'translateY(8px)' }}>
                       Actively in<br />Development
                     </p>
                   </div>

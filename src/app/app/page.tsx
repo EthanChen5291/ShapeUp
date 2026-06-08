@@ -332,8 +332,8 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
             </div>
             <BouncyButton
               onClick={() => setShowPricing(true)}
-              className="btn btn-denim w-full"
-              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, boxShadow: 'none' }}
+              className="btn btn-tokens-cta w-full"
+              style={{ padding: '9px 16px', fontSize: 12, letterSpacing: '0.06em', fontWeight: 700 }}
             >
               Get more!
             </BouncyButton>
