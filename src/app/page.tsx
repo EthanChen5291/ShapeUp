@@ -3127,6 +3127,7 @@ function GlimpseSection() {
         >
           <div
             style={{
+              position: 'relative',
               width: '100%',
               height: '100%',
               background: 'linear-gradient(145deg, var(--peach) 0%, var(--butter) 55%, var(--biscuit) 100%)',
@@ -3138,6 +3139,23 @@ function GlimpseSection() {
             <div style={{ width: 80, opacity: 0.18, transform: 'rotate(186deg)' }}>
               <BarberMascot isStatic />
             </div>
+            <img
+              src="/face1_selfie.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                top: 22,
+                left: 22,
+                right: 22,
+                bottom: 22,
+                width: 'calc(100% - 44px)',
+                height: 'calc(100% - 44px)',
+                objectFit: 'cover',
+                objectPosition: 'center 12%',
+                borderRadius: 14,
+                boxShadow: '0 6px 24px -6px rgba(0,0,0,0.28)',
+              }}
+            />
           </div>
         </div>
 
@@ -4023,6 +4041,17 @@ function MainMenu({
   const cardWrapRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevFlipPositions = useRef<Map<string, { top: number; left: number }>>(new Map());
   const pendingFlip = useRef(false);
+  const vpRef = useRef<HTMLDivElement>(null);
+  const [vpH, setVpH] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = vpRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setVpH(entry.contentRect.height));
+    ro.observe(el);
+    setVpH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
 
   const snapshotForFlip = () => {
     prevFlipPositions.current = new Map();
@@ -4058,6 +4087,26 @@ function MainMenu({
   const hasSavedProjects = !!(projects?.some(p => !!p.savedAt));
 
   const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : 2;
+
+  const prevFloorRef = useRef(floorIndex);
+  const [darkWipeY, setDarkWipeY] = useState('100%');
+  const [darkWipeTx, setDarkWipeTx] = useState(false);
+
+  useEffect(() => {
+    const prev = prevFloorRef.current;
+    const curr = floorIndex;
+    prevFloorRef.current = curr;
+    if (curr === 1) {
+      setDarkWipeTx(true);
+      setDarkWipeY('0%');
+    } else if (prev === 1) {
+      setDarkWipeTx(true);
+      setDarkWipeY(curr > 1 ? '-100%' : '100%');
+    } else {
+      setDarkWipeTx(false);
+      setDarkWipeY(curr === 0 ? '100%' : '-100%');
+    }
+  }, [floorIndex]);
 
   const homeProjects = (() => {
     if (!projects) return undefined;
@@ -4147,89 +4196,108 @@ function MainMenu({
           style={{
             borderRight: '2px solid rgba(42,32,26,0.22)',
             background: 'var(--biscuit)',
-            padding: '24px 10px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            alignItems: 'center',
             zIndex: 2,
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          {/* Scissor mascot wordmark */}
-          <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.85 }}>
-            <BarberMascot isStatic color="var(--ink)" />
+          {/* Light layer */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', height: '100%', position: 'relative', zIndex: 1 }}>
+            <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.85 }}>
+              <BarberMascot isStatic color="var(--ink)" />
+            </div>
+            {navItems.map(n => {
+              const isActive = n.key === activeNav;
+              return (
+                <button key={n.key} data-nav={n.key} onClick={n.onClick ?? (() => setActiveNav(n.key))}
+                  style={{ border: 'none', cursor: 'pointer', background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent', color: isActive ? 'var(--coral)' : 'var(--ink)', padding: '10px 0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, width: 66, fontSize: 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: isActive ? '1.5px solid rgba(232,97,77,0.28)' : '1.5px solid transparent', transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)'; }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  {n.icon}<span>{n.key}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {navItems.map(n => {
-            const isActive = n.key === activeNav;
-            return (
-              <button
-                key={n.key}
-                data-nav={n.key}
-                onClick={n.onClick ?? (() => setActiveNav(n.key))}
-                style={{
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: isActive ? 'rgba(232,97,77,0.1)' : 'transparent',
-                  color: isActive ? 'var(--coral)' : 'var(--ink)',
-                  padding: '10px 0',
-                  borderRadius: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 5,
-                  width: 66,
-                  fontSize: 9.5,
-                  fontFamily: 'var(--font-dmsans)',
-                  fontWeight: 600,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  outline: isActive ? '1.5px solid rgba(232,97,77,0.28)' : '1.5px solid transparent',
-                  transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease',
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(42,32,26,0.05)';
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                }}
-              >
-                {n.icon}
-                <span>{n.key}</span>
-              </button>
-            );
-          })}
+          {/* Dark wipe overlay */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: '#181b17',
+            borderRight: '2px solid rgba(252,245,228,0.1)',
+            display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px',
+            transform: `translateY(${darkWipeY})`,
+            transition: darkWipeTx ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+            zIndex: 2,
+          }}>
+            <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.75 }}>
+              <BarberMascot isStatic color="#fcf5e4" />
+            </div>
+            {navItems.map(n => {
+              const isActive = n.key === activeNav;
+              return (
+                <button key={n.key} data-nav={n.key} onClick={n.onClick ?? (() => setActiveNav(n.key))}
+                  style={{ border: 'none', cursor: 'pointer', background: isActive ? 'rgba(232,97,77,0.18)' : 'transparent', color: isActive ? 'var(--coral)' : 'rgba(252,245,228,0.7)', padding: '10px 0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, width: 66, fontSize: 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: isActive ? '1.5px solid rgba(232,97,77,0.35)' : '1.5px solid transparent', transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(252,245,228,0.07)'; }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  {n.icon}<span>{n.key}</span>
+                </button>
+              );
+            })}
+          </div>
         </aside>
 
         {/* ── MAIN CONTENT ── */}
         <div className="min-w-0" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
 
           {/* Fixed top bar */}
-          <div style={{ flexShrink: 0, padding: '24px 40px 0', position: 'relative', zIndex: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
-                <InlineWordmark />
+          <div style={{ flexShrink: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+            {/* Light layer */}
+            <div style={{ padding: '24px 40px 0', position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
+                  <InlineWordmark />
+                </div>
+                <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
+                  <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
+                </div>
               </div>
-              <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
+            </div>
+
+            {/* Dark wipe overlay */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: '#181b17',
+              transform: `translateY(${darkWipeY})`,
+              transition: darkWipeTx ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+              zIndex: 2,
+              padding: '24px 40px 0',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}>
+                  <InlineWordmark cream />
+                </div>
+                <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
+                  <ProfileMenu onRescan={onRescan} onSignIn={onSignIn} pulse={profilePillPulse} />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Floor slider viewport */}
-          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-            {/* 3-floor inner container */}
+          <div ref={vpRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {/* 3-floor inner container — floors are vpH tall, gaps (320px) between them are only visible during transition */}
             <div
               style={{
-                height: '300%',
-                transform: `translateY(${floorIndex === 0 ? '0%' : floorIndex === 1 ? '-33.333%' : '-66.666%'})`,
-                transition: 'transform 420ms cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)',
+                transition: vpH ? 'transform 540ms cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
                 willChange: 'transform',
               }}
             >
 
               {/* Floor 0 — Home */}
-              <div className="cozy-scroll" style={{ height: '33.333%', overflowY: 'auto', padding: '0 40px 80px' }}>
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '0 40px 80px' }}>
                 {/* Title row */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <div>
@@ -4287,17 +4355,25 @@ function MainMenu({
                 )}
               </div>
 
-              {/* Floor 1 — Saved */}
-              <div className="cozy-scroll" style={{ height: '33.333%', overflowY: 'auto', padding: '0 40px 80px' }}>
+              {/* ── Gap band: Home → Saved ── only visible during transition */}
+              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
+                <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
+                  <rect width="1440" height="320" fill="#fcf5e4" />
+                  <path d="M0,320 L0,180 C240,70 480,290 720,180 C960,70 1200,290 1440,180 L1440,320 Z" fill="#2b2e27" />
+                </svg>
+              </div>
+
+              {/* Floor 1 — Saved (full charcoal) */}
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: '24px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <div>
-                    <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}>
+                    <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: '#fcf5e4', lineHeight: 0.88 }}>
                       Saved
                     </h1>
                   </div>
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248 }}>
-                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}>
+                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(252,245,228,0.55)', fontSize: 14, pointerEvents: 'none' }}>
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                         <circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" />
                       </svg>
@@ -4306,21 +4382,21 @@ function MainMenu({
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       placeholder="find a style..."
-                      style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(42,32,26,0.28)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }}
-                      onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')}
-                      onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.28)')}
+                      style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(252,245,228,0.28)', borderRadius: 9999, background: 'rgba(252,245,228,0.08)', fontSize: 14, color: '#fcf5e4', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }}
+                      onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.6)')}
+                      onBlur={e => (e.target.style.borderColor = 'rgba(252,245,228,0.28)')}
                     />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
                   {['all', 'recent'].map(t => (
-                    <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>
+                    <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.6)' : 'rgba(252,245,228,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.15)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(252,245,228,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>
                       {t}
                     </button>
                   ))}
                 </div>
                 {savedProjects && savedProjects.length === 0 ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100% - 180px)', color: 'rgba(42,32,26,0.45)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 80, color: 'rgba(252,245,228,0.4)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 18 }}>
                     No saved projects yet!
                   </div>
                 ) : (
@@ -4340,25 +4416,38 @@ function MainMenu({
                 )}
               </div>
 
-              {/* Floor 2 — Explore */}
-              <div style={{ height: '33.333%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '0 40px' }}>
-                <svg
-                  width="64"
-                  height="64"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--ink)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ animation: 'cog-turn 2.8s ease-in-out infinite', opacity: 0.5 }}
-                >
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              {/* ── Gap band: Saved → Explore ── only visible during transition */}
+              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
+                <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
+                  <rect width="1440" height="320" fill="#2b2e27" />
+                  <path d="M0,320 L0,180 C240,70 480,290 720,180 C960,70 1200,290 1440,180 L1440,320 Z" fill="#fcf5e4" />
                 </svg>
-                <p style={{ margin: 0, fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 22, color: 'rgba(42,32,26,0.55)', textAlign: 'center' }}>
-                  Actively in Development
-                </p>
+              </div>
+
+              {/* Floor 2 — Explore */}
+              <div style={{ height: vpH || '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px' }}>
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Image src="/stickynote.png" alt="" width={462} height={462} style={{ objectFit: 'contain', display: 'block' }} />
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                    <svg
+                      width="62"
+                      height="62"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="var(--ink)"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ animation: 'cog-turn 2.8s ease-in-out infinite', opacity: 0.6 }}
+                    >
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    <p style={{ margin: 0, fontFamily: 'var(--font-dmsans), system-ui, sans-serif', fontSize: 32, color: 'rgba(42,32,26,0.75)', textAlign: 'center', lineHeight: 1.2, fontWeight: 700 }}>
+                      Actively in<br />Development
+                    </p>
+                  </div>
+                </div>
               </div>
 
             </div>

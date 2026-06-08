@@ -345,7 +345,7 @@ function ProfileMenu({ onRescan, pulse = false }: { onRescan: () => void; pulse?
               className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
               style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
             >
-              <span style={{ fontSize: 28, display: 'block', lineHeight: 1 }}>⚙</span>
+              <span style={{ fontSize: 28, display: 'block', lineHeight: 1, animation: 'cog-spin-ccw 3s linear infinite' }}>⚙</span>
             </BouncyButton>
             <BouncyButton
               onClick={() => { setOpen(false); signOut(); }}
@@ -1907,7 +1907,10 @@ export default function Home() {
   }, [appState, activeProjectId, params, profile, imageUrl, saveProject]);
 
   const smirk = useSmirk(undefined);
-  const { splatSrc, status: demoStatus } = useDemoFacelift(imageUrl);
+  // Skip re-building if we already have a persisted splat from a saved project
+  const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
+  // Prefer the saved splat from the project; fall back to freshly-built one
+  const effectiveSplatUrl = persistedSplatUrl ?? splatSrc;
 
   // Persist the splat URL once facelift finishes so we can restore it on re-open
   useEffect(() => {
@@ -2059,9 +2062,9 @@ export default function Home() {
 
   // ─────────────── HAIR EDIT LOOP ───────────────
   if (appState === 'hairEditLoop' && imageUrl) {
-    const faceliftReady = splatSrc != null;
+    const faceliftReady = effectiveSplatUrl != null;
     return (
-      <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
+      <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
         <div className="absolute top-5 left-6 z-20">
           <InlineWordmark cream small />
         </div>
@@ -2072,7 +2075,7 @@ export default function Home() {
               params={params}
               colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
               profile={profile ?? mockUserHeadProfile}
-              splatSrcOverride={splatSrc}
+              splatSrcOverride={effectiveSplatUrl}
               disableDefaultHairLayers
             />
           ) : (
@@ -2124,7 +2127,7 @@ export default function Home() {
 
   // ─────────────── 3D STUDIO ───────────────
   return (
-    <main className="flex h-screen relative overflow-hidden bg-tomato-shop">
+    <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
       <div className="absolute top-5 left-6 z-20">
         <InlineWordmark cream small />
       </div>
@@ -2170,8 +2173,8 @@ export default function Home() {
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
-            splatSrcOverride={editSplatSrc ?? splatSrc ?? undefined}
-            disableDefaultHairLayers={!!(editSplatSrc ?? splatSrc)}
+            splatSrcOverride={editSplatSrc ?? effectiveSplatUrl ?? undefined}
+            disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
             flameData={

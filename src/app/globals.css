@@ -103,7 +103,6 @@ body {
 .bg-tomato-shop {
   background: var(--tomato);
   color: var(--cream);
-  position: relative;
 }
 .bg-tomato-shop::before {
   content: "";
@@ -905,6 +904,12 @@ input[type="range"].slider-warm::-moz-range-thumb {
   41%  { transform: rotate(83deg); }
   48%  { transform: rotate(90deg); }
   100% { transform: rotate(90deg); }
+}
+
+/* ── Settings cog CCW spin ───────────────────────────────── */
+@keyframes cog-spin-ccw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
 }
 
 /* ── iMessage chat stack (landing face swiper) ───────────── */
