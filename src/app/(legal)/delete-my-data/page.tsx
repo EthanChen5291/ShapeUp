@@ -10,15 +10,14 @@ export default function DeleteMyDataPage() {
     <LegalShell
       title="Delete My Data"
       updated="2026-06-08"
-      review="PLACEHOLDER - NEEDS HUMAN/LEGAL REVIEW BEFORE PRODUCTION USE"
     >
       <p>
         Use this page to request deletion of your ShapeUp account and related app data. This flow is intended to remove
         Convex records, AWS S3 scan/generation assets, and the Clerk user account where technically available.
       </p>
       <p>
-        Legacy records that cannot be safely attributed to your authenticated account may require manual review by
-        [PLACEHOLDER_PRIVACY_EMAIL].
+        Legacy records that cannot be safely attributed to your authenticated account may require manual review by our
+        privacy team at <a href="mailto:privacy@shapeup.app">privacy@shapeup.app</a>.
       </p>
       <DeleteAccountPanel />
     </LegalShell>

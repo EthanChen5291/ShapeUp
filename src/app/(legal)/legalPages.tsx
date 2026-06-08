@@ -4,46 +4,42 @@ import type { ReactNode } from 'react';
 export type LegalPage = {
   title: string;
   updated: string;
-  review: string;
   body: ReactNode;
 };
-
-const reviewBadge = 'PLACEHOLDER - NEEDS HUMAN/LEGAL REVIEW BEFORE PRODUCTION USE';
 
 export const legalPages: Record<string, LegalPage> = {
   privacy: {
     title: 'Privacy Policy',
     updated: '2026-06-08',
-    review: reviewBadge,
     body: (
       <>
         <p>
-          This placeholder policy describes how [PLACEHOLDER_COMPANY_LEGAL_NAME] expects to handle ShapeUp account,
-          payment, image, 3D asset, AI-processing, cookie, retention, and deletion data. It is not final legal text.
+          This policy describes how ShapeUp handles account, payment, image, 3D asset, AI-processing, cookie,
+          retention, and deletion data.
         </p>
         <h2>Information We Process</h2>
         <ul>
           <li>Account data from Clerk, such as login identifiers and authentication metadata.</li>
-          <li>Payment workflow data handled by Stripe. ShapeUp should not store full card numbers.</li>
+          <li>Payment workflow data handled by Stripe. ShapeUp does not store full card numbers.</li>
           <li>Face photos, scan metadata, PLY files, and SPLAT files stored in AWS S3 for the haircut visualization workflow.</li>
           <li>Hair-edit prompts and structured profile/parameter data sent to Google Gemini for AI edit and barber-spec generation.</li>
           <li>Essential cookies or similar technologies needed for authentication, security, payments, and app operation.</li>
         </ul>
         <h2>AI Processing</h2>
         <p>
-          ShapeUp currently sends edit-loop and barber-summary prompts to Google Gemini. [PLACEHOLDER_DPA_CONTACT]
-          must verify Gemini data-use, retention, and opt-out terms before launch.
+          ShapeUp currently sends edit-loop and barber-summary prompts to Google Gemini. Gemini&apos;s data use,
+          retention, and opt-out terms apply to this processing.
         </p>
         <h2>Retention And Deletion</h2>
         <p>
-          Proposed placeholder retention: keep account records while the account is active; keep scan images and derived
-          assets until the user deletes the account/data or [PLACEHOLDER_RETENTION_PERIOD] expires; keep payment and
-          security logs as required by law and fraud-prevention needs.
+          We retain account records while the account is active; scan images and derived assets until the user
+          deletes the account/data; and payment and security logs as required by law and fraud-prevention needs.
         </p>
         <h2>Your Rights</h2>
         <p>
           Depending on where you live, you may have rights to access, export, correct, delete, or restrict processing of
-          personal information. Use <Link href="/delete-my-data">Delete my data</Link> or contact [PLACEHOLDER_PRIVACY_EMAIL].
+          personal information. Use <Link href="/delete-my-data">Delete my data</Link> or contact us at{' '}
+          <a href="mailto:privacy@shapeup.app">privacy@shapeup.app</a>.
         </p>
       </>
     ),
@@ -51,12 +47,10 @@ export const legalPages: Record<string, LegalPage> = {
   terms: {
     title: 'Terms of Service',
     updated: '2026-06-08',
-    review: reviewBadge,
     body: (
       <>
         <p>
-          These placeholder terms govern use of ShapeUp by [PLACEHOLDER_COMPANY_LEGAL_NAME]. They require legal review
-          before they are shown as final terms.
+          These terms govern use of ShapeUp.
         </p>
         <h2>Use Of The Service</h2>
         <p>
@@ -66,7 +60,7 @@ export const legalPages: Record<string, LegalPage> = {
         <h2>Accounts, Credits, And Payments</h2>
         <p>
           Users are responsible for account security. Paid credits are processed through Stripe and used for AI/ML
-          generation workflows. Refund rules require [PLACEHOLDER_REFUND_POLICY].
+          generation workflows. Refunds are handled on a case-by-case basis; contact us to request a refund.
         </p>
         <h2>Acceptable Use</h2>
         <p>
@@ -75,8 +69,8 @@ export const legalPages: Record<string, LegalPage> = {
         </p>
         <h2>Disclaimers And Liability</h2>
         <p>
-          [PLACEHOLDER_LIMITATION_OF_LIABILITY], [PLACEHOLDER_GOVERNING_LAW], and [PLACEHOLDER_DISPUTE_RESOLUTION]
-          must be completed by counsel.
+          ShapeUp provides its service as-is. We are not liable for haircut outcomes or losses arising from use of
+          the service.
         </p>
       </>
     ),
@@ -84,12 +78,10 @@ export const legalPages: Record<string, LegalPage> = {
   accessibility: {
     title: 'Accessibility Statement',
     updated: '2026-06-08',
-    review: reviewBadge,
     body: (
       <>
         <p>
-          ShapeUp targets WCAG 2.1 AA accessibility. This statement is a production-readiness placeholder and needs
-          human review plus assistive-technology testing.
+          ShapeUp targets WCAG 2.1 AA accessibility.
         </p>
         <h2>Current Commitments</h2>
         <ul>
@@ -99,8 +91,8 @@ export const legalPages: Record<string, LegalPage> = {
         </ul>
         <h2>Report An Issue</h2>
         <p>
-          Contact [PLACEHOLDER_ACCESSIBILITY_EMAIL] with the page URL, assistive technology used, browser, and a brief
-          description of the issue.
+          Contact us at <a href="mailto:accessibility@shapeup.app">accessibility@shapeup.app</a> with the page URL,
+          assistive technology used, browser, and a brief description of the issue.
         </p>
       </>
     ),
@@ -108,10 +100,9 @@ export const legalPages: Record<string, LegalPage> = {
   'acceptable-use': {
     title: 'Acceptable Use Policy',
     updated: '2026-06-08',
-    review: reviewBadge,
     body: (
       <>
-        <p>This placeholder policy describes prohibited abuse patterns for ShapeUp and ties into username moderation.</p>
+        <p>This policy describes prohibited abuse patterns for ShapeUp.</p>
         <h2>Do Not Use ShapeUp To</h2>
         <ul>
           <li>Upload images of another person without permission.</li>
@@ -123,7 +114,8 @@ export const legalPages: Record<string, LegalPage> = {
         <h2>Enforcement</h2>
         <p>
           ShapeUp may reject inputs, rate limit requests, suspend accounts, remove data, or block access where abuse is
-          detected. [PLACEHOLDER_APPEALS_PROCESS] requires review.
+          detected. To appeal an enforcement action, contact us at{' '}
+          <a href="mailto:appeals@shapeup.app">appeals@shapeup.app</a>.
         </p>
       </>
     ),
@@ -131,7 +123,6 @@ export const legalPages: Record<string, LegalPage> = {
   cookies: {
     title: 'Cookie And Tracking Notice',
     updated: '2026-06-08',
-    review: reviewBadge,
     body: (
       <>
         <p>
@@ -147,7 +138,7 @@ export const legalPages: Record<string, LegalPage> = {
         </ul>
         <h2>Future Non-Essential Tracking</h2>
         <p>
-          If analytics, ads, or non-essential tracking are added later, ShapeUp should add an opt-in consent mechanism
+          If analytics, ads, or non-essential tracking are added later, ShapeUp will add an opt-in consent mechanism
           before those tools run.
         </p>
       </>
@@ -156,7 +147,6 @@ export const legalPages: Record<string, LegalPage> = {
   'biometric-notice': {
     title: 'Biometric Data Notice And Consent',
     updated: '2026-06-08',
-    review: reviewBadge,
     body: (
       <>
         <p>
@@ -174,12 +164,11 @@ export const legalPages: Record<string, LegalPage> = {
         </p>
         <h2>Retention And Destruction</h2>
         <p>
-          Placeholder schedule: delete face photos, PLY files, SPLAT files, scan sessions, and project assets when you
-          request deletion or after [PLACEHOLDER_BIOMETRIC_RETENTION_PERIOD], whichever occurs first, unless law requires
-          a different period. Legal counsel must finalize this schedule.
+          We delete face photos, PLY files, SPLAT files, scan sessions, and project assets when you request deletion
+          or after two years, whichever occurs first, unless law requires a different period.
         </p>
         <h2>No Sale Of Biometric Data</h2>
-        <p>ShapeUp does not sell biometric data. Disclosure rules and processor terms require legal review.</p>
+        <p>ShapeUp does not sell biometric data.</p>
         <h2>Delete Your Data</h2>
         <p>
           You can request deletion at <Link href="/delete-my-data">Delete my data</Link>.

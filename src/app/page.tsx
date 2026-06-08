@@ -1085,8 +1085,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
             <div
               style={{
                 height: 288,
-                display: 'flex',
-                alignItems: 'center',
+                position: 'relative',
                 backgroundImage: 'url(/dark_charcoal.png)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
@@ -1094,31 +1093,39 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
                 overflow: 'hidden',
               }}
             >
-              {/* Face image — left */}
+              {/* Darkening overlay — 10% darker */}
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.10)', zIndex: 0 }} />
+              {/* Face — left-anchored, 60% larger (160% height), 40% opacity */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/3face.png"
                 alt=""
                 style={{
-                  height: '100%',
+                  position: 'absolute',
+                  top: '50%',
+                  left: 32,
+                  transform: 'translateY(-50%)',
+                  height: '173%',
                   width: 'auto',
-                  objectFit: 'contain',
-                  flexShrink: 0,
-                  display: 'block',
+                  opacity: 0.4,
+                  zIndex: 1,
                 }}
               />
-              {/* Tagline — right */}
+              {/* Tagline — one line, vertically centered, right side */}
               <span
                 style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 1,
                   fontFamily: 'Montserrat, sans-serif',
                   color: '#ffffff',
-                  fontSize: 52,
+                  fontSize: 104,
                   fontWeight: 800,
-                  lineHeight: 1.05,
+                  lineHeight: 1,
                   letterSpacing: '-0.04em',
-                  paddingLeft: 28,
-                  paddingRight: 32,
-                  flexShrink: 1,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 Level Up Now.

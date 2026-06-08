@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/Montserrat-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
 /* ============================================================
    SHAPE UP — Modern Neighborhood Barbershop
    Warm + cozy, but fresh. Soft shadows, gentle wonk, clean shapes.

@@ -17,7 +17,7 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
   const page = legalPages[slug];
   if (!page) notFound();
   return (
-    <LegalShell title={page.title} updated={page.updated} review={page.review}>
+    <LegalShell title={page.title} updated={page.updated}>
       {page.body}
     </LegalShell>
   );
