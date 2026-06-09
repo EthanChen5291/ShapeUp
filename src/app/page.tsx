@@ -2463,7 +2463,12 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     if (newIdx === activeRef.current) return;
     const cur  = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
-    if (next && cur) next.currentTime = cur.currentTime;
+    if (cur) cur.pause();
+    if (next) {
+      if (cur) next.currentTime = cur.currentTime;
+      next.playbackRate = 1.3;
+      next.play().catch(() => {});
+    }
     activeRef.current = newIdx;
     setActiveIdx(newIdx);
     onActiveChangeRef.current?.(newIdx);
@@ -2476,26 +2481,13 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     if (scrollRef) scrollRef.current = { goNext, goPrev };
   }, [scrollRef, goNext, goPrev]);
 
-  // RAF-driven manual currentTime advancement — constant 1.2× speed.
-  // Keeps decode load at 60fps regardless of playback speed.
+  // Start native playback at 1.3× on mount — hardware-decoded, no currentTime scrubbing.
   useEffect(() => {
-    let raf: number;
-    let lastTs: number | null = null;
-    const tick = (now: number) => {
-      if (lastTs !== null) {
-        const dt = Math.min((now - lastTs) / 1000, 0.1);
-        const vid = videoRefs.current[activeRef.current];
-        if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
-          let next = vid.currentTime + dt * 1.3;
-          if (next >= vid.duration) next %= vid.duration;
-          vid.currentTime = next;
-        }
-      }
-      lastTs = now;
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const vid = videoRefs.current[0];
+    if (vid) {
+      vid.playbackRate = 1.3;
+      vid.play().catch(() => {});
+    }
   }, []);
 
   // Native wheel listener with { passive: false } so we can preventDefault
@@ -2559,6 +2551,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
               src={src}
               muted
               playsInline
+              loop
               preload="auto"
               style={{
                 position: 'absolute',
@@ -2726,8 +2719,12 @@ function Face2VideoSwiper({
   const switchTo = useCallback((newIdx: number) => {
     const cur = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
-    if (cur && next) {
-      next.currentTime = cur.currentTime; // RAF manages advancement; no play() needed
+    if (cur) cur.pause();
+    if (next) {
+      if (cur) next.currentTime = cur.currentTime;
+      const t = next.currentTime / (next.duration || 1);
+      next.playbackRate = Math.min(face2PlaybackRate(t), 16);
+      next.play().catch(() => {});
     }
     activeRef.current = newIdx;
     setActiveIdx(newIdx);
@@ -2778,21 +2775,24 @@ function Face2VideoSwiper({
     else if (delta < -40) goPrev();
   }, [disableInteraction, goNext, goPrev]);
 
+  // Start native playback on mount, then update playbackRate each frame based on position.
+  // Setting playbackRate is cheap (hint to decoder); setting currentTime is an expensive seek.
+  useEffect(() => {
+    const vid = videoRefs.current[0];
+    if (vid) {
+      vid.playbackRate = 1;
+      vid.play().catch(() => {});
+    }
+  }, []);
+
   useEffect(() => {
     let raf: number;
-    let lastTs: number | null = null;
-    const tick = (now: number) => {
-      if (lastTs !== null) {
-        const dt = Math.min((now - lastTs) / 1000, 0.1); // cap to avoid jumps after tab-switch
-        const vid = videoRefs.current[activeRef.current];
-        if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
-          const t = vid.currentTime / vid.duration;
-          let next = vid.currentTime + dt * face2PlaybackRate(t);
-          if (next >= vid.duration) next %= vid.duration;
-          vid.currentTime = next;
-        }
+    const tick = () => {
+      const vid = videoRefs.current[activeRef.current];
+      if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
+        const t = vid.currentTime / vid.duration;
+        vid.playbackRate = Math.min(face2PlaybackRate(t), 16);
       }
-      lastTs = now;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -2823,7 +2823,7 @@ function Face2VideoSwiper({
               key={src}
               ref={el => { videoRefs.current[i] = el; }}
               src={src}
-              muted playsInline preload="auto"
+              muted playsInline loop preload="auto"
               style={{
                 position: 'absolute', top: 0, left: 0,
                 width: '100%', height: '100%',
