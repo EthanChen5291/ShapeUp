@@ -1,8 +1,8 @@
 # ShapeUp
 
-AI haircut visualization app built with Next.js, Convex, Clerk, S3, Stripe, and a separate ML service.
+AI haircut visualization app built with Next.js, Convex, Clerk, S3, Stripe, and our ML generation pipeline.
 
-Users scan or upload a face image, generate haircut looks through the facelift pipeline, view the result as a 3D Gaussian Splat, and save projects to their account.
+Users scan or upload a face image, generate haircut looks through the diffusion pipeline, view the result as a 3D Gaussian Splat, and save projects to their account.
 
 ## Run Locally
 
