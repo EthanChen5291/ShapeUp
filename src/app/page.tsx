@@ -3825,21 +3825,51 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
       <div style={{
         borderRadius: 36,
         backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center',
-        border: '1px solid rgba(255,248,234,0.07)',
-        boxShadow: '0 40px 100px -28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,248,234,0.04)',
+        border: '1px solid rgba(255,248,234,0.18)',
+        boxShadow: '0 40px 100px -28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,248,234,0.08)',
         overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '52px 56px 44px', borderBottom: '1px solid rgba(255,248,234,0.07)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10 }}>
+        <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
           <h2 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
             pricing
           </h2>
-          <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 17, color: 'rgba(255,248,234,0.55)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 20, color: 'rgba(255,248,234,0.72)', margin: 0, maxWidth: 460, lineHeight: 1.3 }}>
             See yourself in the cut before you sit in the chair.
           </p>
-          <p style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.28)', margin: '6px 0 0' }}>
-            1 token = 1 AI haircut rendered on your 3D scan · avg cut costs $45 · avg token costs 8¢
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
+            <div style={{
+              background: 'linear-gradient(140deg, rgba(255,248,234,0.16) 0%, rgba(255,248,234,0.06) 100%)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,248,234,0.26)',
+              borderRadius: 18, padding: '16px 32px', textAlign: 'center',
+            }}>
+              <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,248,234,0.62)', marginBottom: 8 }}>
+                avg barber visit
+              </div>
+              <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                $45
+              </div>
+            </div>
+
+            <div style={{ color: 'rgba(255,248,234,0.35)', fontSize: 22, lineHeight: 1 }}>→</div>
+
+            <div style={{
+              background: 'linear-gradient(140deg, rgba(82,202,120,0.22) 0%, rgba(82,202,120,0.07) 100%)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(82,202,120,0.42)',
+              borderRadius: 18, padding: '16px 32px', textAlign: 'center',
+            }}>
+              <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(82,202,120,0.9)', marginBottom: 8 }}>
+                1 AI look
+              </div>
+              <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: '#52ca78', lineHeight: 1, letterSpacing: '-0.03em' }}>
+                8¢
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Plan cards */}
@@ -3853,7 +3883,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                 style={{
                   padding: '32px 28px 36px',
                   display: 'flex', flexDirection: 'column',
-                  borderRight: !isLast ? '1px solid rgba(255,248,234,0.07)' : 'none',
+                  borderRight: !isLast ? '1px solid rgba(255,248,234,0.13)' : 'none',
                   background: isFeatured ? 'rgba(255,248,234,0.08)' : 'transparent',
                   position: 'relative',
                 }}
@@ -3865,7 +3895,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                 <div style={{
                   fontFamily: 'var(--font-jetbrains), monospace',
                   fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', fontWeight: 600,
-                  color: isFeatured ? 'var(--tomato)' : 'rgba(255,248,234,0.4)',
+                  color: isFeatured ? 'var(--tomato)' : 'rgba(255,248,234,0.58)',
                   marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   {plan.label}
@@ -3889,12 +3919,12 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                 <div style={{
                   fontFamily: 'var(--font-jetbrains), monospace',
                   fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
-                  color: 'rgba(255,248,234,0.3)', marginBottom: 20,
+                  color: 'rgba(255,248,234,0.48)', marginBottom: 20,
                 }}>
                   {plan.perToken ? `${plan.perToken} / token` : plan.sub}
                 </div>
 
-                <div style={{ borderTop: '1px solid rgba(255,248,234,0.07)', marginBottom: 18 }} />
+                <div style={{ borderTop: '1px solid rgba(255,248,234,0.13)', marginBottom: 18 }} />
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <div style={{
@@ -3903,7 +3933,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <div style={{ width: 13, transform: 'rotate(186deg)' }}>
-                      <BarberMascot isStatic color={plan.freeOnly ? 'rgba(255,248,234,0.4)' : 'var(--tomato)'} />
+                      <BarberMascot isStatic color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'var(--tomato)'} />
                     </div>
                   </div>
                   <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
@@ -3913,7 +3943,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
 
                 <p style={{
                   fontFamily: 'var(--font-dmsans), sans-serif',
-                  fontSize: 13, color: 'rgba(255,248,234,0.42)', lineHeight: 1.55,
+                  fontSize: 13, color: 'rgba(255,248,234,0.64)', lineHeight: 1.55,
                   margin: '0 0 24px', flex: 1,
                 }}>
                   {plan.line}
@@ -3944,9 +3974,9 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
         </div>
 
         {/* Footer note inside the box */}
-        <div style={{ padding: '20px 56px 24px', borderTop: '1px solid rgba(255,248,234,0.06)', textAlign: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.22)' }}>
-            looks never expire · a bad cut lasts weeks — a look costs cents · secured by stripe
+        <div style={{ padding: '20px 56px 24px', borderTop: '1px solid rgba(255,248,234,0.13)', textAlign: 'center' }}>
+          <span style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.42)' }}>
+            one-time purchase · no subscription · secured by stripe
           </span>
         </div>
       </div>
@@ -4092,6 +4122,79 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               />
             </div>
           </div>
+        </div>
+
+        {/* ── Problem section ── */}
+        <div className="anim-fade-up" style={{ margin: '80px 0 0', padding: '72px 0 80px', borderTop: '1.5px solid rgba(42,32,26,0.08)' }}>
+          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--tomato)', textAlign: 'center', marginBottom: 22 }}>
+            sound familiar?
+          </p>
+          <h2
+            className="type-chonk"
+            style={{ fontSize: 'clamp(1.9rem, 3.2vw, 2.8rem)', color: 'var(--ink)', textAlign: 'center', lineHeight: 1.05, marginBottom: 18 }}
+          >
+            You describe it.
+            <br />
+            <em style={{ color: 'var(--tomato)' }}>They hear something different.</em>
+          </h2>
+          <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', textAlign: 'center', opacity: 0.62, maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.6 }}>
+            Most people walk out of the barber having settled — not because the barber was bad,
+            but because there was no way to show exactly what they meant.
+          </p>
+
+          {/* Stat cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 52 }}>
+            {[
+              {
+                stat: '~6 weeks',
+                label: 'to grow back a bad cut',
+                desc: 'Hair grows about half an inch a month. A cut you didn\'t want just… stays.',
+              },
+              {
+                stat: '$45+ a visit',
+                label: 'no preview, full commitment',
+                desc: 'You\'re all-in before you see anything. No refunds, no take-backs.',
+              },
+              {
+                stat: '1 in 3',
+                label: 'leave wishing they\'d said more',
+                desc: 'Most people stay quiet in the chair. The cut is fine. But it\'s not what they pictured.',
+              },
+            ].map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  background: 'var(--biscuit)',
+                  border: '1.5px solid rgba(42,32,26,0.1)',
+                  borderRadius: 18,
+                  padding: '28px 26px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                }}
+              >
+                <div
+                  className="font-display"
+                  style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: 'var(--tomato)', lineHeight: 1 }}
+                >
+                  {item.stat}
+                </div>
+                <div className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)', marginBottom: 4 }}>
+                  {item.label}
+                </div>
+                <div className="font-sans" style={{ fontSize: 14, color: 'var(--char)', lineHeight: 1.6, opacity: 0.7 }}>
+                  {item.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Bridge line */}
+          <p className="font-serif italic" style={{ fontSize: 19, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.5, maxWidth: 520, margin: '0 auto' }}>
+            The cut you want is stuck in your head.{' '}
+            <span style={{ color: 'var(--tomato)' }}>Shape Up puts it on your actual face</span>
+            {' '}— before you ever sit in the chair.
+          </p>
         </div>
 
         {/* ── Value props bar ── */}

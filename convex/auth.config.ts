@@ -1,7 +1,7 @@
 const authConfig = {
   providers: [
     {
-      domain: "https://clerk.nomorebadhaircuts.com",
+      domain: "https://clerk.tryshapeup.cc",
       applicationID: "convex",
     },
     // Dev instance — used when running locally against the dev Convex deployment
