@@ -2287,7 +2287,7 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─────────────── Face Video Swiper ─────────────── */
-const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mov`);
+const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mp4`);
 
 const FACE_MESSAGES = [
   "Original Haircut (Swipe me!)",
@@ -2684,7 +2684,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 }
 
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
-const FACE2_VIDS = ['/landing_face2/face2a.mov', '/landing_face2/face2b.mov', '/landing_face2/face2c.mov', '/landing_face2/face2d.mov', '/landing_face2/face2e.mov', '/landing_face2/face2f.mov'];
+const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4'];
 
 // Returns the speed multiplier for normalized video position t ∈ [0,1].
 // Sine bell across the middle 80% (t=0.10–0.90), peaks at 16×.
