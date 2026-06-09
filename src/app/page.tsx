@@ -2679,14 +2679,6 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
 const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4'];
 
-// Returns the speed multiplier for normalized video position t ∈ [0,1].
-// Sine bell across the middle 80% (t=0.10–0.90), peaks at 16×.
-// Used to advance currentTime manually — never set as playbackRate.
-function face2PlaybackRate(t: number): number {
-  // Sine bell across the full video (t=0→1), peaks at 16× at t=0.5.
-  // Outer 10% zones ramp gradually (1× → ~5.6× → 16×) instead of being flat 1×.
-  return 1 + 15 * Math.sin(Math.PI * t);
-}
 const FACE2_MESSAGES = [
   "6 inches shorter",
   "two pigtails",
@@ -2722,8 +2714,6 @@ function Face2VideoSwiper({
     if (cur) cur.pause();
     if (next) {
       if (cur) next.currentTime = cur.currentTime;
-      const t = next.currentTime / (next.duration || 1);
-      next.playbackRate = Math.min(face2PlaybackRate(t), 16);
       next.play().catch(() => {});
     }
     activeRef.current = newIdx;
@@ -2775,28 +2765,9 @@ function Face2VideoSwiper({
     else if (delta < -40) goPrev();
   }, [disableInteraction, goNext, goPrev]);
 
-  // Start native playback on mount, then update playbackRate each frame based on position.
-  // Setting playbackRate is cheap (hint to decoder); setting currentTime is an expensive seek.
+  // Speed curve is baked into the video — just play at 1×.
   useEffect(() => {
-    const vid = videoRefs.current[0];
-    if (vid) {
-      vid.playbackRate = 1;
-      vid.play().catch(() => {});
-    }
-  }, []);
-
-  useEffect(() => {
-    let raf: number;
-    const tick = () => {
-      const vid = videoRefs.current[activeRef.current];
-      if (vid && vid.duration && isFinite(vid.duration) && vid.duration > 0) {
-        const t = vid.currentTime / vid.duration;
-        vid.playbackRate = Math.min(face2PlaybackRate(t), 16);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    videoRefs.current[0]?.play().catch(() => {});
   }, []);
 
   return (
@@ -3095,7 +3066,7 @@ function ShowBarberDemo({ activeIdx }: { activeIdx?: number }) {
 
 /* ─────────────── Glimpse / Orbit Section ─────────────── */
 const GLIMPSE_SATELLITE_COUNT = 6;
-const GLIMPSE_FINAL_RADIUS = 490;
+const GLIMPSE_FINAL_RADIUS = 343;
 const GLIMPSE_ERUPTION_DURATION = 1900;
 const GLIMPSE_ORBIT_SPEED = 0.00022; // radians per ms, CCW
 
@@ -3187,11 +3158,11 @@ function GlimpseSection() {
   ];
 
   return (
-    <section style={{ padding: '140px 0 180px', textAlign: 'center', position: 'relative' }}>
+    <section style={{ padding: '100px 0 120px', textAlign: 'center', position: 'relative' }}>
       {/* Headline */}
       <h2
         className="font-serif"
-        style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--cream)', marginBottom: 100, lineHeight: 1.25, letterSpacing: '-0.01em' }}
+        style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--cream)', marginBottom: 50, lineHeight: 1.25, letterSpacing: '-0.01em' }}
       >
         Get a glimpse of all{' '}
         <em
@@ -3212,7 +3183,7 @@ function GlimpseSection() {
       {/* Orbit stage */}
       <div
         ref={sectionRef}
-        style={{ position: 'relative', height: 1360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         {/* Center image */}
         <div
@@ -3220,10 +3191,10 @@ function GlimpseSection() {
             position: 'absolute',
             left: '50%',
             top: '50%',
-            width: 400,
-            height: 400,
-            marginLeft: -200,
-            marginTop: -200,
+            width: 280,
+            height: 280,
+            marginLeft: -140,
+            marginTop: -140,
             borderRadius: 28,
             overflow: 'hidden',
             background: 'var(--biscuit)',
@@ -3284,8 +3255,8 @@ function GlimpseSection() {
               position: 'absolute',
               left: '50%',
               top: '50%',
-              width: 200,
-              height: 260,
+              width: 182,
+              height: 237,
               transform: 'translate(-50%, -50%) scale(0)',
               opacity: 0,
               borderRadius: 20,
@@ -3771,18 +3742,229 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
 }
 
 /* ─────────────── Landing Page ─────────────── */
+/* ─────────────── Landing Pricing Section ─────────────── */
+/* ─────────────── Landing Pricing Cards ─────────────── */
+const PRICING_PLANS = [
+  {
+    id: 'free',
+    label: 'Free',
+    price: 'Free',
+    sub: 'forever',
+    tokens: null as number | null,
+    perToken: null as string | null,
+    tokenLabel: 'Prebaked styles',
+    line: 'Browse 30+ expert-curated styles rendered on your 3D scan — no generation needed, no cost ever.',
+    cta: 'Start free',
+    featured: false,
+    freeOnly: true,
+  },
+  {
+    id: 'starter',
+    label: 'Starter',
+    price: '$1.99',
+    sub: 'one-time',
+    tokens: 20,
+    perToken: '10¢',
+    tokenLabel: '20 AI looks',
+    line: '20 custom renders. Enough to test a fade, a crop, and a taper before your next appointment.',
+    cta: 'Try 20 looks',
+    featured: false,
+    freeOnly: false,
+  },
+  {
+    id: 'popular',
+    label: 'Popular',
+    price: '$4.99',
+    sub: 'one-time',
+    tokens: 60,
+    perToken: '8¢',
+    tokenLabel: '60 AI looks',
+    line: '60 looks to explore. Find what works for your face shape, then walk in with a reference photo.',
+    cta: 'Get 60 looks',
+    featured: true,
+    freeOnly: false,
+  },
+  {
+    id: 'lifetime',
+    label: 'Pro',
+    price: '$14.99',
+    sub: 'one-time',
+    tokens: 500,
+    perToken: '3¢',
+    tokenLabel: '500 AI looks',
+    line: 'Serious about your hair. 500 looks at 3¢ each — experiment until you find a signature style.',
+    cta: 'Get 500 looks',
+    featured: false,
+    freeOnly: false,
+  },
+] as const;
+
+function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
+  const { isSignedIn } = useUser();
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleClick = async (planId: string) => {
+    if (planId === 'free') { onEnter(); return; }
+    if (!isSignedIn) { onEnter(); return; }
+    if (loading) return;
+    setLoading(planId);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId }),
+      });
+      const data = await res.json() as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } finally { setLoading(null); }
+  };
+
+  return (
+    <div id="pricing" style={{ padding: '0 0 72px' }}>
+      {/* Curved outer box — identical to standalone pricing page */}
+      <div style={{
+        borderRadius: 36,
+        backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center',
+        border: '1px solid rgba(255,248,234,0.07)',
+        boxShadow: '0 40px 100px -28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,248,234,0.04)',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{ padding: '52px 56px 44px', borderBottom: '1px solid rgba(255,248,234,0.07)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10 }}>
+          <h2 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
+            pricing
+          </h2>
+          <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 17, color: 'rgba(255,248,234,0.55)', margin: 0 }}>
+            See yourself in the cut before you sit in the chair.
+          </p>
+          <p style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.28)', margin: '6px 0 0' }}>
+            1 token = 1 AI haircut rendered on your 3D scan · avg cut costs $45 · avg token costs 8¢
+          </p>
+        </div>
+
+        {/* Plan cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
+          {PRICING_PLANS.map((plan, i) => {
+            const isLast = i === PRICING_PLANS.length - 1;
+            const isFeatured = plan.featured;
+            return (
+              <div
+                key={plan.id}
+                style={{
+                  padding: '32px 28px 36px',
+                  display: 'flex', flexDirection: 'column',
+                  borderRight: !isLast ? '1px solid rgba(255,248,234,0.07)' : 'none',
+                  background: isFeatured ? 'rgba(255,248,234,0.08)' : 'transparent',
+                  position: 'relative',
+                }}
+              >
+                {isFeatured && (
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--tomato)' }} />
+                )}
+
+                <div style={{
+                  fontFamily: 'var(--font-jetbrains), monospace',
+                  fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', fontWeight: 600,
+                  color: isFeatured ? 'var(--tomato)' : 'rgba(255,248,234,0.4)',
+                  marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  {plan.label}
+                  {isFeatured && (
+                    <span style={{ background: 'rgba(217,78,58,0.2)', color: 'var(--tomato)', borderRadius: 9999, padding: '2px 8px', fontSize: 9 }}>
+                      popular
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: 4 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-fraunces), Georgia, serif',
+                    fontSize: 'clamp(2rem, 3vw, 2.8rem)', fontWeight: 900,
+                    color: 'var(--cream)', lineHeight: 1, letterSpacing: '-0.03em',
+                  }}>
+                    {plan.price}
+                  </span>
+                </div>
+
+                <div style={{
+                  fontFamily: 'var(--font-jetbrains), monospace',
+                  fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+                  color: 'rgba(255,248,234,0.3)', marginBottom: 20,
+                }}>
+                  {plan.perToken ? `${plan.perToken} / token` : plan.sub}
+                </div>
+
+                <div style={{ borderTop: '1px solid rgba(255,248,234,0.07)', marginBottom: 18 }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                    background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(217,78,58,0.18)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <div style={{ width: 13, transform: 'rotate(186deg)' }}>
+                      <BarberMascot isStatic color={plan.freeOnly ? 'rgba(255,248,234,0.4)' : 'var(--tomato)'} />
+                    </div>
+                  </div>
+                  <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
+                    {plan.tokenLabel}
+                  </span>
+                </div>
+
+                <p style={{
+                  fontFamily: 'var(--font-dmsans), sans-serif',
+                  fontSize: 13, color: 'rgba(255,248,234,0.42)', lineHeight: 1.55,
+                  margin: '0 0 24px', flex: 1,
+                }}>
+                  {plan.line}
+                </p>
+
+                <button
+                  onClick={() => handleClick(plan.id)}
+                  disabled={loading === plan.id}
+                  className={isFeatured ? 'btn-tomato' : ''}
+                  style={{
+                    width: '100%', padding: '13px 16px',
+                    fontFamily: 'var(--font-dmsans), sans-serif',
+                    fontSize: 13, fontWeight: 700, borderRadius: 12, cursor: 'pointer',
+                    border: isFeatured ? 'none' : '1px solid rgba(255,248,234,0.18)',
+                    background: isFeatured ? undefined : 'rgba(255,248,234,0.07)',
+                    color: isFeatured ? undefined : 'var(--cream)',
+                    transition: 'background 140ms ease',
+                    opacity: loading === plan.id ? 0.6 : 1,
+                  }}
+                  onMouseEnter={e => { if (!isFeatured) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,248,234,0.12)'; }}
+                  onMouseLeave={e => { if (!isFeatured) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,248,234,0.07)'; }}
+                >
+                  {loading === plan.id ? '…' : plan.cta}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer note inside the box */}
+        <div style={{ padding: '20px 56px 24px', borderTop: '1px solid rgba(255,248,234,0.06)', textAlign: 'center' }}>
+          <span style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.22)' }}>
+            looks never expire · a bad cut lasts weeks — a look costs cents · secured by stripe
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LandingPage({ onEnter }: { onEnter: () => void }) {
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
 
-  const scrollToHowItWorks = () => {
-    const el = document.getElementById('how-it-works');
+  const smoothScrollTo = (id: string) => {
+    const el = document.getElementById(id);
     if (!el) return;
     const start = window.scrollY;
     const end = el.getBoundingClientRect().top + window.scrollY;
     const dist = end - start;
     const duration = 1100;
-    // ease-in-out quart: very slow start, rapid acceleration, gentle stop
     const ease = (t: number) => t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
     let t0: number | null = null;
     const tick = (now: number) => {
@@ -3793,6 +3975,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     };
     requestAnimationFrame(tick);
   };
+
+  const scrollToHowItWorks = () => smoothScrollTo('how-it-works');
+  const scrollToPricing = () => smoothScrollTo('pricing');
+
   const [describeActiveIdx, setDescribeActiveIdx] = useState<number | undefined>(undefined);
 
   return (
@@ -3820,15 +4006,26 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </div>
-          <button
-            onClick={scrollToHowItWorks}
-            className="font-serif italic"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.75, transition: 'opacity 140ms ease' }}
-            onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
-            onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.75')}
-          >
-            how it works
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
+            <button
+              onClick={scrollToHowItWorks}
+              className="font-serif italic"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease' }}
+              onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
+            >
+              how it works
+            </button>
+            <button
+              onClick={scrollToPricing}
+              className="font-serif italic"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease' }}
+              onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
+            >
+              pricing
+            </button>
+          </div>
           <BouncyButton
             onClick={onEnter}
             className="btn-tomato"
@@ -3995,6 +4192,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* ── Glimpse orbit section ── */}
           <GlimpseSection />
+
+          {/* ── Pricing ── */}
+          <LandingPricingCards onEnter={onEnter} />
 
           {/* ── Orbit CTA ── */}
           <div style={{ textAlign: 'center', padding: '0 0 72px' }}>
