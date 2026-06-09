@@ -2,11 +2,11 @@
 
 ## Reporting A Vulnerability
 
-Please report suspected security issues to [PLACEHOLDER_SECURITY_EMAIL].
+Please report suspected security issues to chen.ethan529@gmail.com.
 
 Do not include personal data, biometric data, secrets, or exploit payloads beyond what is necessary to reproduce the issue.
 
-We aim to acknowledge valid reports within [PLACEHOLDER_SECURITY_ACK_SLA] and provide updates until the issue is resolved.
+We aim to acknowledge valid reports within 72 hours and provide updates until the issue is resolved.
 
 ## Scope
 
