@@ -101,6 +101,58 @@ function BouncyButton({
   );
 }
 
+/* ─────────────── Scroll Reveal ───────────────
+   The one entrance gesture for everything below the fold.
+   Fires once when ~15% visible; honors prefers-reduced-motion.
+   `wonk` lets cards settle in from a slight tilt — same hand
+   as the polaroids. Always a wrapper: hover styles live inside. */
+function Reveal({
+  children,
+  delay = 0,
+  wonk = 0,
+  className = '',
+  style,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  wonk?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setShown(true);
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -8% 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={`reveal ${shown ? 'is-revealed' : ''} ${className}`}
+      style={{ '--reveal-delay': `${delay}ms`, '--reveal-wonk': `${wonk}deg`, ...style } as React.CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ─────────────── Loading Screen ─────────────── */
 const LD_W = 600, LD_H = 440, LD_R = 32, LD_M = 24;
 const LD_SVG_W = LD_W + LD_M * 2, LD_SVG_H = LD_H + LD_M * 2;
@@ -690,7 +742,7 @@ function LetterFade({ text, startDelay = 0, charDelay = 26 }: {
             animationDelay: `${startDelay + i * charDelay}ms`,
           }}
         >
-          {char === ' ' ? ' ' : char}
+          {char === ' ' ? ' ' : char}
         </span>
       ))}
     </>
@@ -2707,12 +2759,22 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4'];
 
 const FACE2_MESSAGES = [
-  "6 inches shorter",
-  "two pigtails",
-  "wavy dirty blonde",
-  "messy high bun",
-  "blonde highlights and perm",
-  "blonde",
+  "Take 6 inches off",
+  "Two pigtails, please",
+  "Wavy dirty blonde",
+  "Messy high bun",
+  "Blonde highlights + a perm",
+  "Go full blonde",
+];
+
+/* Barber replies — one per request, same index. Short, confident, points to step 3. */
+const FACE2_REPLIES = [
+  "✂ Snip snip — check step 3 →",
+  "Pigtails, rendered →",
+  "Color's mixed. Look right →",
+  "Pinned it up for you →",
+  "Foils in, curls set →",
+  "Full blonde. Bold. →",
 ];
 
 function Face2VideoSwiper({
@@ -2892,29 +2954,37 @@ const PHONE_TOMATO = '#D94E3A';
 const PHONE_CREAM  = '#F5F1EA';
 const PHONE_INK    = '#2a201a';
 
-type DescribeChatMsg = { id: number; text: string; isNew: boolean; disintegrating?: boolean; disintegrateDelay?: number };
+type DescribeChatMsg = { id: number; text: string; isNew: boolean; from?: 'user' | 'barber'; disintegrating?: boolean; disintegrateDelay?: number };
 
 function DescribeMsgBubble({ msg }: { msg: DescribeChatMsg }) {
+  const isBarber = msg.from === 'barber';
   const [showText, setShowText] = useState(!msg.isNew);
 
   useEffect(() => {
     if (!msg.isNew) return;
-    const t = setTimeout(() => setShowText(true), 300);
+    // The barber "thinks" a beat longer than the user types
+    const t = setTimeout(() => setShowText(true), isBarber ? 720 : 300);
     return () => clearTimeout(t);
-  }, [msg.isNew]);
+  }, [msg.isNew, isBarber]);
+
+  const bg = isBarber ? PHONE_INK : PHONE_CREAM;
+  const fg = isBarber ? PHONE_CREAM : PHONE_INK;
 
   return (
     <div
       style={{
         position: 'relative',
-        background: PHONE_CREAM,
-        color: PHONE_INK,
-        borderRadius: showText ? '18px 18px 4px 18px' : '18px',
+        alignSelf: isBarber ? 'flex-start' : 'flex-end',
+        maxWidth: '86%',
+        background: bg,
+        color: fg,
+        borderRadius: showText
+          ? (isBarber ? '18px 18px 18px 4px' : '18px 18px 4px 18px')
+          : '18px',
         padding: showText ? '8px 12px' : '8px 13px',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
         fontSize: 14, fontWeight: 400, lineHeight: 1.35, letterSpacing: '-0.01em',
-        maxWidth: '100%',
-        boxShadow: '0 2px 10px rgba(80,20,10,0.14)',
+        boxShadow: isBarber ? '0 2px 10px rgba(40,12,6,0.32)' : '0 2px 10px rgba(80,20,10,0.14)',
         transition: 'border-radius 0.18s ease',
         animationName: msg.disintegrating ? 'msg-disintegrate' : msg.isNew ? 'msg-enter' : undefined,
         animationDuration: msg.disintegrating ? '0.5s' : '0.4s',
@@ -2928,7 +2998,7 @@ function DescribeMsgBubble({ msg }: { msg: DescribeChatMsg }) {
           {[0, 1, 2].map(i => (
             <div key={i} style={{
               width: 6, height: 6, borderRadius: '50%',
-              background: PHONE_INK, opacity: 0.45,
+              background: fg, opacity: 0.45,
               animationName: 'imessage-dot',
               animationDuration: '1s',
               animationTimingFunction: 'ease-in-out',
@@ -2943,8 +3013,14 @@ function DescribeMsgBubble({ msg }: { msg: DescribeChatMsg }) {
         </span>
       )}
       {showText && (
-        <svg style={{ position: 'absolute', bottom: 0, right: -8, display: 'block' }} width="12" height="11" viewBox="0 0 12 11">
-          <path d="M 0 0 Q 4 0 7 3 Q 10 6 12 11 Q 5 9 2 5 Q 0 3 0 0 Z" fill={PHONE_CREAM} />
+        <svg
+          style={{
+            position: 'absolute', bottom: 0, display: 'block',
+            ...(isBarber ? { left: -8, transform: 'scaleX(-1)' } : { right: -8 }),
+          }}
+          width="12" height="11" viewBox="0 0 12 11"
+        >
+          <path d="M 0 0 Q 4 0 7 3 Q 10 6 12 11 Q 5 9 2 5 Q 0 3 0 0 Z" fill={bg} />
         </svg>
       )}
     </div>
@@ -2964,6 +3040,7 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
   const msgListRef = useRef<HTMLDivElement>(null);
   const lerpActiveRef = useRef(false);
   const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearPending = useCallback(() => {
     pendingTimers.current.forEach(clearTimeout);
@@ -3012,8 +3089,21 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     setCurIdx(next);
     onSendRef.current?.(idx);
 
+    // The barber replies a beat later — only the latest send gets a reply
+    const scheduleReply = () => {
+      if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+      replyTimerRef.current = setTimeout(() => {
+        replyTimerRef.current = null;
+        setMsgs(prev => [
+          { id: idRef.current++, text: FACE2_REPLIES[idx], isNew: true, from: 'barber' as const },
+          ...prev.map(m => ({ ...m, isNew: false })),
+        ]);
+      }, 600);
+    };
+
     if (idx === 0 && idRef.current > 0) {
-      // Cycling back: disintegrate existing messages upward, then add the new first message
+      // Cycling back: cancel any pending reply, disintegrate existing messages upward, then restart
+      if (replyTimerRef.current) { clearTimeout(replyTimerRef.current); replyTimerRef.current = null; }
       setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
       const t = setTimeout(() => {
         clearPending();
@@ -3024,13 +3114,20 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
         }
         idRef.current = 0;
         setMsgs([{ id: idRef.current++, text, isNew: true }]);
+        scheduleReply();
       }, 600);
       pendingTimers.current.push(t);
     } else {
       const newMsg: DescribeChatMsg = { id: idRef.current++, text, isNew: true };
       setMsgs(prev => [newMsg, ...prev.map(m => ({ ...m, isNew: false }))]);
+      scheduleReply();
     }
   }, [clearPending]);
+
+  // Clear the pending barber reply if the demo unmounts mid-conversation
+  useEffect(() => () => {
+    if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+  }, []);
 
   const [sendHovered, setSendHovered] = useState(false);
   const nextMsg = FACE2_MESSAGES[curIdx];
@@ -3046,11 +3143,33 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
         position: 'relative',
         boxShadow: '0 16px 48px -10px rgba(217,78,58,0.45)',
       }}>
+        {/* Chat header — who you're texting */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 38,
+          background: 'rgba(0,0,0,0.22)',
+          display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
+          zIndex: 1,
+        }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: PHONE_CREAM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 12, transform: 'rotate(186deg)' }}>
+              <BarberMascot isStatic color={PHONE_TOMATO} />
+            </div>
+          </div>
+          <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 11.5, fontWeight: 700, color: PHONE_CREAM, letterSpacing: '0.02em' }}>
+            ShapeUp
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#52ca78', boxShadow: '0 0 0 2px rgba(82,202,120,0.28)', flexShrink: 0 }} />
+            <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 9, fontWeight: 600, color: 'rgba(255,248,234,0.75)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              online
+            </span>
+          </span>
+        </div>
         {/* Chat scroll area */}
         <div
           ref={chatAreaRef}
           style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 76,
+            position: 'absolute', top: 38, left: 0, right: 0, bottom: 76,
             overflow: 'hidden',
           }}
         >
@@ -3080,25 +3199,70 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
             lineHeight: 1.35,
             boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}>
-            {nextMsg}
+            {nextMsg}<span className="type-caret" />
           </div>
           <button
             onClick={handleSend}
             onMouseEnter={() => setSendHovered(true)}
             onMouseLeave={() => setSendHovered(false)}
-            className="send-btn-pulse"
+            className={sendHovered ? undefined : 'send-btn-pulse'}
             style={{
               width: 44, height: 44, borderRadius: '50%',
               background: PHONE_CREAM, border: 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', flexShrink: 0,
               boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
-              transform: sendHovered ? 'scale(1.18)' : 'scale(1)',
-              transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              position: 'relative',
+              overflow: 'hidden',
+              transform: sendHovered ? 'scale(1.28) rotate(-14deg)' : undefined,
+              transition: 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
-            <svg width="17" height="17" viewBox="0 0 12 12" fill="none">
-              <path d="M6 10.5V1.5M6 1.5L2.5 5M6 1.5L9.5 5" stroke={PHONE_TOMATO} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+            {/* Tomato fill circle — grows from center on hover */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              borderRadius: '50%',
+              background: PHONE_TOMATO,
+              transform: sendHovered ? 'scale(1)' : 'scale(0)',
+              transition: 'transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              transformOrigin: 'center',
+              pointerEvents: 'none',
+            }} />
+            {/* CW tracing ring — starts at 12 o'clock, traces clockwise */}
+            <svg
+              style={{
+                position: 'absolute', inset: 0, width: '100%', height: '100%',
+                transform: 'rotate(-90deg)',
+                transformOrigin: 'center',
+                pointerEvents: 'none',
+              }}
+              viewBox="0 0 44 44"
+            >
+              <circle
+                cx="22" cy="22" r="19.5"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 19.5}`}
+                style={{
+                  stroke: 'rgba(255,255,255,0.82)',
+                  strokeWidth: '2.5',
+                  strokeDashoffset: sendHovered ? 0 : 2 * Math.PI * 19.5,
+                  transition: sendHovered
+                    ? 'stroke-dashoffset 440ms cubic-bezier(0.4, 0, 0.2, 1) 20ms'
+                    : 'stroke-dashoffset 320ms cubic-bezier(0.6, 0, 0.8, 0)',
+                }}
+              />
+            </svg>
+            {/* Arrow — white on hover */}
+            <svg width="17" height="17" viewBox="0 0 12 12" fill="none" style={{ position: 'relative', zIndex: 1 }}>
+              <path
+                d="M6 10.5V1.5M6 1.5L2.5 5M6 1.5L9.5 5"
+                stroke={sendHovered ? 'rgba(255,255,255,0.95)' : PHONE_TOMATO}
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ transition: 'stroke 180ms ease' }}
+              />
             </svg>
           </button>
         </div>
@@ -3113,6 +3277,25 @@ function ShowBarberDemo({ activeIdx }: { activeIdx?: number }) {
     <div style={{ position: 'relative', width: '100%' }}>
       <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
       <Face2VideoSwiper externalIdx={activeIdx} disableInteraction />
+      {/* Live request pill — names what's rendering, re-pops on every send */}
+      <div style={{ position: 'absolute', bottom: '5%', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none' }}>
+        <span
+          key={activeIdx ?? -1}
+          className="popup-in"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'var(--ink)', color: 'var(--cream)',
+            borderRadius: 9999, padding: '7px 15px',
+            boxShadow: '0 10px 26px -6px rgba(0,0,0,0.45)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span className="dot-open" style={{ width: 7, height: 7 }} />
+          <span className="font-display" style={{ fontStyle: 'italic', fontWeight: 500, fontSize: 13, lineHeight: 1 }}>
+            {activeIdx !== undefined ? `\u201C${FACE2_MESSAGES[activeIdx]}\u201D` : 'your current cut'}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -3213,6 +3396,7 @@ function GlimpseSection() {
   return (
     <section style={{ padding: '100px 0 120px', textAlign: 'center', position: 'relative' }}>
       {/* Headline */}
+      <Reveal>
       <h2
         className="font-serif"
         style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--cream)', marginBottom: 50, lineHeight: 1.25, letterSpacing: '-0.01em' }}
@@ -3232,6 +3416,7 @@ function GlimpseSection() {
         </em>{' '}
         could be.
       </h2>
+      </Reveal>
 
       {/* Orbit stage */}
       <div
@@ -3874,6 +4059,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div id="pricing" style={{ padding: '0 0 72px' }}>
+      <Reveal>
       {/* Curved outer box — identical to standalone pricing page */}
       <div className="pricing-led-border" style={{
         borderRadius: 36,
@@ -4051,6 +4237,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
           </span>
         </div>
       </div>
+      </Reveal>
     </div>
   );
 }
@@ -4154,7 +4341,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     const el = document.getElementById(id);
     if (!el) return;
     const start = window.scrollY;
-    const end = el.getBoundingClientRect().top + window.scrollY;
+    const end = el.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.35;
     const dist = end - start;
     const duration = 1100;
     const ease = (t: number) => t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
@@ -4172,6 +4359,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const scrollToPricing = () => smoothScrollTo('pricing');
 
   const [describeActiveIdx, setDescribeActiveIdx] = useState<number | undefined>(undefined);
+  const [logoHover, setLogoHover] = useState(false);
 
   return (
     <main className="relative min-h-screen overflow-x-hidden">
@@ -4188,12 +4376,16 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         }}
       />
 
-      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 56px 56px' }}>
+      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '16px 56px 56px' }}>
 
         {/* ── Nav ── */}
-        <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 28 }}><BarberMascot isStatic color="#2a201a" /></div>
+        <nav className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}
+            onMouseEnter={() => setLogoHover(true)}
+            onMouseLeave={() => setLogoHover(false)}
+          >
+            <div style={{ width: 28 }}><BarberMascot isStatic={!logoHover} snap={logoHover} color="#2a201a" /></div>
             <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)' }}>
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
@@ -4201,8 +4393,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
             <button
               onClick={scrollToHowItWorks}
-              className="font-serif italic"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease' }}
+              className="font-serif italic nav-link-squiggle"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -4210,8 +4402,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </button>
             <button
               onClick={scrollToPricing}
-              className="font-serif italic"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease' }}
+              className="font-serif italic nav-link-squiggle"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -4234,33 +4426,33 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             gridTemplateColumns: '1.1fr 1fr',
             gap: 56,
             alignItems: 'center',
-            marginTop: 52,
+            marginTop: 36,
             position: 'relative',
           }}
         >
           {/* Left */}
-          <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }} className="anim-fade-up">
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '5px 14px', marginTop: 8 }}>
-              <span style={{ color: 'var(--tomato)', fontSize: 10 }}>✦</span>
+          <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
+            <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '5px 14px', marginTop: 8 }}>
+              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10 }}>✦</span>
               <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8 }}>Free to try · No credit card · 3D preview in ~60 sec</span>
             </div>
             <div
               className="type-chonk"
               style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05 }}
             >
-              <div>see it first.</div>
-              <div>love it more.</div>
+              <div className="hero-rise delay-100">see it first.</div>
+              <div className="hero-rise delay-200"><em style={{ color: 'var(--tomato)' }}>love</em> it more.</div>
             </div>
 
             <p
-              className="font-serif italic"
-              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, marginTop: 22, lineHeight: 1.5 }}
+              className="font-serif italic hero-rise delay-300"
+              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '22px auto 0', lineHeight: 1.5 }}
             >
               Take one selfie. See 10+ haircuts on your actual 3D face.
               <br />Walk into the barber knowing exactly what you want.
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 34 }}>
+            <div className="hero-rise delay-400" style={{ display: 'flex', justifyContent: 'center', marginTop: 34 }}>
               <SignUpWidget onEnter={onEnter} />
             </div>
           </div>
@@ -4268,7 +4460,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           {/* Right — blob visual */}
           <div
             style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
-            className="anim-fade-in delay-200"
+            className="hero-blob-in"
           >
             <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
@@ -4290,114 +4482,104 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%' }} />
 
-      <div style={{ backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div style={{ backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center', paddingBottom: 80 }}>
       <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
 
         {/* ── Problem section ── */}
-        <div className="anim-fade-up" style={{ padding: '72px 0 0' }}>
-          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--tomato)', textAlign: 'center', marginBottom: 22 }}>
-            sound familiar?
-          </p>
-          <h2
-            className="type-chonk"
-            style={{ fontSize: 'clamp(1.9rem, 3.2vw, 2.8rem)', color: 'var(--ink)', textAlign: 'center', lineHeight: 1.05, marginBottom: 18 }}
-          >
-            You describe it.
-            <br />
-            <em style={{ color: 'var(--tomato)' }}>They hear something different.</em>
-          </h2>
-          <p className="font-serif italic" style={{ fontSize: 18, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.6 }}>
-            Most people walk out of the barber having settled — not because the barber was bad,
-            but because there was no way to show exactly what they meant.
-          </p>
+        <div style={{ padding: '58px 0 0' }}>
+          <Reveal>
+            <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--tomato)', textAlign: 'center', marginBottom: 22 }}>
+              sound familiar?
+            </p>
+          </Reveal>
+          <Reveal delay={80}>
+            <h2
+              className="type-chonk"
+              style={{ fontSize: 'clamp(1.9rem, 3.2vw, 2.8rem)', color: 'var(--ink)', textAlign: 'center', lineHeight: 1.05, marginBottom: 18 }}
+            >
+              You describe it.
+              <br />
+              <em style={{ color: 'var(--tomato)' }}>They hear something different.</em>
+            </h2>
+          </Reveal>
+          <Reveal delay={160}>
+            <p className="font-serif italic" style={{ fontSize: 18, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.6 }}>
+              You walk out of the barber having settled — not because your barber was bad,
+              but because there was no way to show exactly what you meant.
+            </p>
+          </Reveal>
 
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 39 }}>
             {[
               {
                 stat: '~6 weeks',
                 label: 'to grow back a bad cut',
-                desc: 'Hair grows about half an inch a month. A cut you didn\'t want takes time to go away.',
+                desc: 'Hair grows about half an inch a month.',
               },
               {
                 stat: '$45+ a visit',
                 label: 'no preview, full commitment',
-                desc: 'You bind yourself to paying before you see anything. No refunds or take-backs.',
+                desc: 'You bind yourself to paying before you see anything. No refunds.',
               },
               {
                 stat: '1 in 3',
                 label: 'leave wishing they\'d said more',
-                desc: 'Most people stay quiet in the chair. The cut is fine. But it\'s not what they pictured.',
+                desc: 'Most people stay quiet in the chair. Yet, the cut isn\'t what they pictured.',
               },
             ].map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  background: 'var(--biscuit)',
-                  border: '1.5px solid rgba(42,32,26,0.1)',
-                  borderRadius: 18,
-                  padding: '28px 26px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                }}
-              >
+              <Reveal key={i} delay={i * 110} wonk={[-0.7, 0.5, -0.5][i]}>
                 <div
-                  className="font-display"
-                  style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: 'var(--tomato)', lineHeight: 1 }}
+                  className="stat-card"
+                  style={{ '--card-wonk': `${[-0.6, 0.6, -0.4][i]}deg` } as React.CSSProperties}
                 >
-                  {item.stat}
+                  <div
+                    className="font-display"
+                    style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: 'var(--tomato)', lineHeight: 1 }}
+                  >
+                    {item.stat}
+                  </div>
+                  <div className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.62)', marginBottom: 4 }}>
+                    {item.label}
+                  </div>
+                  <div className="font-sans" style={{ fontSize: 15, color: 'var(--char)', lineHeight: 1.6 }}>
+                    {item.desc}
+                  </div>
                 </div>
-                <div className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.62)', marginBottom: 4 }}>
-                  {item.label}
-                </div>
-                <div className="font-sans" style={{ fontSize: 15, color: 'var(--char)', lineHeight: 1.6 }}>
-                  {item.desc}
-                </div>
-              </div>
+              </Reveal>
             ))}
           </div>
 
           {/* Bridge line */}
-          <p className="font-serif italic" style={{ fontSize: 19, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.5, maxWidth: 560, margin: '0 auto' }}>
-            The cut you want is stuck in your head.{' '}
-            <span style={{ color: 'var(--tomato)' }}>ShapeUp puts it on your actual face — and tells you the exact barber instructions</span>
-            {' '}— before you ever sit in the chair.
-          </p>
+          <Reveal delay={120}>
+            <p className="font-serif italic" style={{ fontSize: 19, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.5, maxWidth: 560, margin: '0 auto' }}>
+              The cut you want is stuck in your head.{' '}
+              <span style={{ color: 'var(--tomato)' }}>ShapeUp visualizes it on your face and gives you instructions for your barber.</span>
+            </p>
+          </Reveal>
         </div>
 
         {/* ── Value props bar ── */}
-        <div style={{ margin: '44px 0 0', position: 'relative', overflow: 'hidden', borderRadius: 18 }}>
-          {/* Base texture */}
-          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 0 }} />
-          {/* Darkening */}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,6,4,0.58)', zIndex: 1 }} />
-          {/* Large face — shifted left, mask fades out rightward before small face starts */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/3face_blur.png" alt="" style={{
-            position: 'absolute', top: '50%', left: '-10%',
-            transform: 'translateY(-50%)',
-            width: '62%', height: 'auto',
-            opacity: 0.44, zIndex: 2, pointerEvents: 'none',
-            WebkitMaskImage: 'linear-gradient(to right, black 48%, transparent 72%)',
-            maskImage: 'linear-gradient(to right, black 48%, transparent 72%)',
-          }} />
-          {/* Small face — right side, higher zIndex so it wins at any remaining intersection */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/3face_blur.png" alt="" style={{
-            position: 'absolute', top: '50%', right: '-8%',
-            transform: 'translateY(-50%)',
-            width: '46%', height: 'auto',
-            opacity: 0.40, zIndex: 3, pointerEvents: 'none',
-          }} />
-          {/* Cards */}
-          <div style={{ position: 'relative', zIndex: 4, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, padding: 16 }}>
-            {([
-              { stat: '~60 sec', label: 'scan to 3D preview', desc: 'From selfie to full 3D model in under a minute. See the cut before you sit in the chair.', delay: 0, duration: 2100 },
-              { stat: '$2', label: 'to get started', desc: 'Less than a coffee to see yourself in 20 different cuts. Help us secure the best cut for you.', delay: 180, duration: 2450 },
-              { stat: '1 selfie', label: 'all you need', desc: 'One photo is all it takes to see yourself with a different cut — no scanner, no download.', delay: 80, duration: 2750 },
-            ]).map((item, i) => (
-              <BorderAnimCard key={i} delay={item.delay} duration={item.duration} style={{ borderRadius: 18 }}>
+        <div style={{ margin: '62px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          {([
+            { stat: '~60 sec', label: 'scan to 3D preview', desc: 'From selfie to full 3D model.', bgPos: '0%', delay: 420, duration: 2100 },
+            { stat: '$2', label: 'to get started', desc: 'Less than a coffee to see yourself in 20 different cuts. Help us secure the best cut for you.', bgPos: '50%', delay: 560, duration: 2450 },
+            { stat: '1 selfie', label: 'all you need', desc: 'One photo is all it takes to see yourself with a different cut.', bgPos: '100%', delay: 700, duration: 2750 },
+          ]).map((item, i) => (
+            <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
+              <BorderAnimCard
+                delay={item.delay}
+                duration={item.duration}
+                style={{
+                  borderRadius: 18,
+                  overflow: 'hidden',
+                  height: '100%',
+                  backgroundImage: `linear-gradient(rgba(10,6,4,0.60) 0%, rgba(10,6,4,0.60) 100%), url(/3face_blur.png), url(/dark_charcoal.png)`,
+                  backgroundSize: `100% 100%, 300% auto, cover`,
+                  backgroundPosition: `0 0, ${item.bgPos} center, center`,
+                  backgroundRepeat: `no-repeat, no-repeat, no-repeat`,
+                }}
+              >
                 <div style={{ position: 'relative', zIndex: 2, padding: '28px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
                     {item.stat}
@@ -4405,34 +4587,44 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>
                     {item.label}
                   </div>
-                  <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+                  <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
                     {item.desc}
                   </div>
                 </div>
               </BorderAnimCard>
-            ))}
-          </div>
+            </Reveal>
+          ))}
         </div>
       </div>
       </div>
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%', marginTop: 32, transform: 'scaleY(-1)' }} />
+      <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%', transform: 'scaleY(-1)' }} />
 
       <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px 80px' }}>
 
         {/* ── Steps ── */}
-        <div id="how-it-works" style={{ marginTop: 80, paddingTop: 8 }}>
-          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--smoke)', textAlign: 'center', marginBottom: 56 }}>
-            how it works
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch' }}>
+        <div id="how-it-works" style={{ marginTop: 48, paddingTop: 8 }}>
+          <Reveal delay={80}>
+            <h2
+              className="type-chonk"
+              style={{ fontSize: 'clamp(1.9rem, 3.2vw, 2.8rem)', color: 'var(--ink)', textAlign: 'center', lineHeight: 1.05, marginBottom: 14 }}
+            >
+              how it <em style={{ color: 'var(--tomato)' }}>works</em>.
+            </h2>
+          </Reveal>
+          <Reveal delay={160}>
+            <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', textAlign: 'center', maxWidth: 460, margin: '0 auto 52px', lineHeight: 1.55 }}>
+              This demo is live — what you send in step 2 renders in step 3.
+            </p>
+          </Reveal>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative' }}>
 
             {/* Step 1: Scan */}
-            <div className="anim-fade-up delay-100" style={{
-              display: 'flex', flexDirection: 'column',
+            <Reveal wonk={-0.5} style={{ display: 'flex' }}>
+            <div className="step-card" style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
               borderRadius: 24, overflow: 'hidden',
-              boxShadow: '0 24px 64px -16px rgba(42,32,26,0.22), 0 4px 16px -6px rgba(42,32,26,0.09)',
               border: '1.5px solid rgba(42,32,26,0.08)',
             }}>
               {/* Dark header */}
@@ -4442,28 +4634,40 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 display: 'flex', alignItems: 'center', gap: 13,
                 borderBottom: '3px solid var(--tomato)',
               }}>
-                <Image src="/1.png" alt="Step 1" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain', flexShrink: 0 }} />
+                <span className="step-num">
+                  <Image src="/1.png" alt="Step 1" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
+                </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="font-sans" style={{ fontSize: 22, fontWeight: 700, color: '#F5F1EA', letterSpacing: '0.03em', textTransform: 'uppercase', lineHeight: 1 }}>Scan</span>
                   <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>30 seconds</span>
                 </div>
               </div>
-              {/* Body */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '28px 22px 24px' }}>
-                <Image
-                  src="/landing_face2/face2_selfie.png"
-                  alt="Scan your face"
-                  width={600} height={600}
-                  style={{ width: '82%', height: 'auto', borderRadius: 16 }}
-                />
+              {/* Body — one selfie, polaroid treatment */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '30px 22px 26px' }}>
+                <div className="polaroid wonky-sm-l" style={{ width: '78%', padding: '10px 10px 40px' }}>
+                  <div className="tape tape-tl" />
+                  <div className="tape tape-tr" />
+                  <Image
+                    src="/landing_face2/face2_selfie.png"
+                    alt="Scan your face"
+                    width={600} height={600}
+                    style={{ width: '100%', height: 'auto', borderRadius: 2, display: 'block' }}
+                  />
+                  <div style={{ position: 'absolute', bottom: 9, left: 0, right: 0, textAlign: 'center' }}>
+                    <span className="font-display" style={{ fontStyle: 'italic', fontWeight: 500, fontSize: 15, color: 'var(--char)' }}>
+                      just one selfie ✂
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
+            </Reveal>
 
             {/* Step 2: Describe */}
-            <div className="anim-fade-up delay-200" style={{
-              display: 'flex', flexDirection: 'column',
+            <Reveal delay={120} wonk={0.4} style={{ display: 'flex' }}>
+            <div className="step-card" style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
               borderRadius: 24, overflow: 'hidden',
-              boxShadow: '0 24px 64px -16px rgba(42,32,26,0.22), 0 4px 16px -6px rgba(42,32,26,0.09)',
               border: '1.5px solid rgba(42,32,26,0.08)',
             }}>
               {/* Dark header */}
@@ -4473,24 +4677,27 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 display: 'flex', alignItems: 'center', gap: 13,
                 borderBottom: '3px solid var(--tomato)',
               }}>
-                <Image src="/2.png" alt="Step 2" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain', flexShrink: 0 }} />
+                <span className="step-num">
+                  <Image src="/2.png" alt="Step 2" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
+                </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="font-sans" style={{ fontSize: 22, fontWeight: 700, color: '#F5F1EA', letterSpacing: '0.03em', textTransform: 'uppercase', lineHeight: 1 }}>Describe</span>
-                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>just type or tap</span>
+                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>text it like a friend</span>
                 </div>
               </div>
               {/* Body */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '24px 16px 20px', gap: 10 }}>
                 <DescribePhoneDemo onSend={setDescribeActiveIdx} />
-                <span className="font-mono" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(42,32,26,0.35)' }}>↑ tap send to try it</span>
+                <span className="font-mono" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(42,32,26,0.35)' }}>↑ tap send — step 3 updates live</span>
               </div>
             </div>
+            </Reveal>
 
             {/* Step 3: Show your barber */}
-            <div className="anim-fade-up delay-300" style={{
-              display: 'flex', flexDirection: 'column',
+            <Reveal delay={240} wonk={-0.4} style={{ display: 'flex' }}>
+            <div className="step-card" style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
               borderRadius: 24, overflow: 'hidden',
-              boxShadow: '0 24px 64px -16px rgba(42,32,26,0.22), 0 4px 16px -6px rgba(42,32,26,0.09)',
               border: '1.5px solid rgba(42,32,26,0.08)',
             }}>
               {/* Dark header */}
@@ -4500,10 +4707,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 display: 'flex', alignItems: 'center', gap: 13,
                 borderBottom: '3px solid var(--tomato)',
               }}>
-                <Image src="/3.png" alt="Step 3" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain', flexShrink: 0 }} />
+                <span className="step-num">
+                  <Image src="/3.png" alt="Step 3" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
+                </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span className="font-sans" style={{ fontSize: 22, fontWeight: 700, color: '#F5F1EA', letterSpacing: '0.03em', textTransform: 'uppercase', lineHeight: 1 }}>Show your barber</span>
-                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>share your 3D preview</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>your 3D preview, live</span>
                 </div>
               </div>
               {/* Body */}
@@ -4511,11 +4720,44 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 <ShowBarberDemo activeIdx={describeActiveIdx} />
               </div>
             </div>
+            </Reveal>
+
+            {/* ── Connector badges — the pipeline, made visible ── */}
+            {/* 1 → 2: quiet, sequence only */}
+            <Reveal delay={460} style={{ position: 'absolute', left: 'calc(33.333% - 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5 }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%',
+                background: 'var(--cream)', border: '1.5px solid rgba(42,32,26,0.18)',
+                boxShadow: '0 6px 18px -4px rgba(42,32,26,0.28)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--ink)', fontWeight: 900, fontSize: 15,
+                transform: 'rotate(-6deg)',
+              }}>
+                →
+              </div>
+            </Reveal>
+            {/* 2 → 3: tomato, re-pops on every send — this link is live */}
+            <Reveal delay={560} style={{ position: 'absolute', left: 'calc(66.667% + 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5 }}>
+              <div
+                key={describeActiveIdx ?? -1}
+                className={describeActiveIdx !== undefined ? 'popup-in' : ''}
+                style={{
+                  width: 34, height: 34, borderRadius: '50%',
+                  background: 'var(--tomato)',
+                  boxShadow: '0 6px 20px -4px rgba(217,78,58,0.6)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--cream)', fontWeight: 900, fontSize: 15,
+                }}
+              >
+                →
+              </div>
+            </Reveal>
 
           </div>
         </div>
 
         {/* ── Mid-page CTA ── */}
+        <Reveal>
         <div style={{ textAlign: 'center', padding: '72px 0 16px' }}>
           <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', opacity: 0.6, margin: '0 0 20px' }}>
             Ready to see your next cut?
@@ -4540,6 +4782,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             takes about 60 seconds · no account required
           </p>
         </div>
+        </Reveal>
 
       </div>
       </div>
@@ -4559,6 +4802,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <LandingPricingCards onEnter={onEnter} />
 
           {/* ── Orbit CTA ── */}
+          <Reveal>
           <div style={{ textAlign: 'center', padding: '0 0 72px' }}>
             <p className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 'clamp(1.1rem, 1.8vw, 1.4rem)', color: 'rgba(255,248,234,0.6)', margin: '0 0 20px' }}>
               Pick your style.
@@ -4583,6 +4827,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               takes about 60 seconds
             </p>
           </div>
+          </Reveal>
 
           {/* ── Trust Strip ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: '0 0 64px' }}>
@@ -4591,10 +4836,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               { title: 'AI trained on real cuts', body: '3D facial mesh and strand-level simulation built from real barbershop styles.' },
               { title: 'Free to try, no risk', body: 'Your first previews are completely free. Pay only if you love the results.' },
             ].map((item, i) => (
-              <div key={i} style={{ background: 'rgba(255,248,234,0.05)', border: '1px solid rgba(255,248,234,0.1)', borderRadius: 16, padding: '24px 22px' }}>
-                <div className="font-sans" style={{ fontSize: 15, fontWeight: 600, color: 'var(--cream)', marginBottom: 8 }}>{item.title}</div>
-                <div className="font-sans" style={{ fontSize: 13, color: 'rgba(255,248,234,0.5)', lineHeight: 1.6 }}>{item.body}</div>
-              </div>
+              <Reveal key={i} delay={i * 100}>
+                <div className="trust-card">
+                  <div className="font-sans" style={{ fontSize: 15, fontWeight: 600, color: 'var(--cream)', marginBottom: 8 }}>{item.title}</div>
+                  <div className="font-sans" style={{ fontSize: 13, color: 'rgba(255,248,234,0.5)', lineHeight: 1.6 }}>{item.body}</div>
+                </div>
+              </Reveal>
             ))}
           </div>
 

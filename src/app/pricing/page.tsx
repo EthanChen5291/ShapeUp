@@ -218,8 +218,8 @@ export default function PricingPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px' }}>
           {PLANS.map((plan, idx) => {
             const isFeatured = plan.featured;
-            const flickerDelays  = ['-1.2s', '-8.4s', '-17.6s', '-5.2s'] as const;
-            const flickerDurations = ['22s', '28s', '32s', '38s'] as const;
+            const flickerDelays  = ['-3.1s', '-18.4s', '-41.2s', '-12.7s'] as const;
+            const flickerDurations = ['55s', '70s', '80s', '95s'] as const;
 
             return (
               <div
