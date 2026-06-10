@@ -949,6 +949,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   const [loading, setLoading] = useState<string | null>(null);
   // 0 = compact, 1 = compact fading + container expanding, 2 = expanded cards growing in
   const [expandPhase, setExpandPhase] = useState<0 | 1 | 2>(0);
+  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
 
   const dismiss = () => {
     setClosing(true);
@@ -956,10 +957,11 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   };
 
   useEffect(() => {
+    if (pendingPlanId) return;
     const t1 = setTimeout(() => setExpandPhase(1), 480);
     const t2 = setTimeout(() => setExpandPhase(2), 700);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  }, [pendingPlanId]);
 
   const PLANS = [
     { id: 'starter',  label: '20 haircut generations',       price: '$1.99',  featured: false },
@@ -967,9 +969,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
     { id: 'lifetime', label: '500 haircut generations',      price: '$14.99', featured: false },
   ] as const;
 
-  const handleBuy = async (planId: string) => {
-    if (!isSignedIn) return;
-    if (loading) return;
+  const runCheckout = async (planId: string) => {
     setLoading(planId);
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -980,6 +980,12 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
       const data = await res.json() as { url?: string };
       if (data.url) window.location.href = data.url;
     } finally { setLoading(null); }
+  };
+
+  const handleBuy = (planId: string) => {
+    if (!isSignedIn) { setPendingPlanId(planId); return; }
+    if (loading) return;
+    runCheckout(planId);
   };
 
   const ease = 'cubic-bezier(0.4, 0, 0.2, 1)';
@@ -1024,114 +1030,135 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
             </p>
           </div>
 
-          {/* Compact stacked cards — fade out on expansion */}
-          {expandPhase < 2 && (
-            <div
-              className="flex flex-col gap-3 w-full"
-              style={{
-                opacity: expandPhase === 0 ? 1 : 0,
-                transition: 'opacity 200ms ease',
-                pointerEvents: expandPhase === 0 ? 'auto' : 'none',
-              }}
-            >
-              {PLANS.map(plan => (
-                <BouncyButton
-                  key={plan.id}
-                  onClick={() => handleBuy(plan.id)}
-                  disabled={loading === plan.id}
-                  className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`}
-                  style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}
-                >
-                  <div className="text-left">
-                    <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
-                    {plan.featured && (
-                      <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>
-                    )}
-                  </div>
-                  <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>
-                    {loading === plan.id ? '…' : plan.price}
-                  </div>
-                </BouncyButton>
-              ))}
-            </div>
-          )}
-
-          {/* Expanded side-by-side cards — each grows from scale(0) to scale(1) with stagger */}
-          {expandPhase === 2 && (
-            <div className="flex flex-row w-full" style={{ gap: 12 }}>
-              {PLANS.map((plan, i) => (
-                <ExpandedPlanCard
-                  key={plan.id}
-                  plan={plan}
-                  loading={loading}
-                  onBuy={handleBuy}
-                  staggerDelay={i * 90}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Perks banner — revealed on expand */}
-          <div
-            style={{
-              width: '100%',
-              overflow: 'hidden',
-              maxHeight: containerExpanded ? 320 : 0,
-              opacity: containerExpanded ? 1 : 0,
-              borderRadius: 16,
-              transition: `max-height 700ms ${ease} 150ms, opacity 500ms ${ease} 300ms`,
-            }}
-          >
-            <div
-              style={{
-                height: 288,
-                position: 'relative',
-                backgroundImage: 'url(/dark_charcoal.png)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                borderRadius: 16,
-                overflow: 'hidden',
-              }}
-            >
-              {/* Darkening overlay — 10% darker */}
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.10)', zIndex: 0 }} />
-              {/* Face — left-anchored, 60% larger (160% height), 40% opacity */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/3face.png"
-                alt=""
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: 32,
-                  transform: 'translateY(-50%)',
-                  height: '173%',
-                  width: 'auto',
-                  opacity: 0.4,
-                  zIndex: 1,
+          {/* Sign-in gate — shown when unauthenticated user clicks a plan */}
+          {pendingPlanId ? (
+            <div className="w-full flex flex-col gap-3">
+              <button
+                onClick={() => setPendingPlanId(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', alignSelf: 'flex-start' }}
+                className="font-sans text-sm text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
+              >
+                ← back to plans
+              </button>
+              <p className="font-sans text-sm text-[var(--smoke)] m-0">Sign in to complete your purchase</p>
+              <SignUpWidget
+                onEnter={() => {
+                  const plan = pendingPlanId;
+                  setPendingPlanId(null);
+                  runCheckout(plan);
                 }}
+                large
               />
-              {/* Tagline — one line, vertically centered, right side */}
-              <span
+            </div>
+          ) : (
+            <>
+              {/* Compact stacked cards — fade out on expansion */}
+              {expandPhase < 2 && (
+                <div
+                  className="flex flex-col gap-3 w-full"
+                  style={{
+                    opacity: expandPhase === 0 ? 1 : 0,
+                    transition: 'opacity 200ms ease',
+                    pointerEvents: expandPhase === 0 ? 'auto' : 'none',
+                  }}
+                >
+                  {PLANS.map(plan => (
+                    <BouncyButton
+                      key={plan.id}
+                      onClick={() => handleBuy(plan.id)}
+                      disabled={loading === plan.id}
+                      className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`}
+                      style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}
+                    >
+                      <div className="text-left">
+                        <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
+                        {plan.featured && (
+                          <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>
+                        )}
+                      </div>
+                      <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>
+                        {loading === plan.id ? '…' : plan.price}
+                      </div>
+                    </BouncyButton>
+                  ))}
+                </div>
+              )}
+
+              {/* Expanded side-by-side cards — each grows from scale(0) to scale(1) with stagger */}
+              {expandPhase === 2 && (
+                <div className="flex flex-row w-full" style={{ gap: 12 }}>
+                  {PLANS.map((plan, i) => (
+                    <ExpandedPlanCard
+                      key={plan.id}
+                      plan={plan}
+                      loading={loading}
+                      onBuy={handleBuy}
+                      staggerDelay={i * 90}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Perks banner — revealed on expand */}
+              <div
                 style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 1,
-                  fontFamily: 'Montserrat, sans-serif',
-                  color: '#ffffff',
-                  fontSize: 104,
-                  fontWeight: 800,
-                  lineHeight: 1,
-                  letterSpacing: '-0.04em',
-                  whiteSpace: 'nowrap',
+                  width: '100%',
+                  overflow: 'hidden',
+                  maxHeight: containerExpanded ? 320 : 0,
+                  opacity: containerExpanded ? 1 : 0,
+                  borderRadius: 16,
+                  transition: `max-height 700ms ${ease} 150ms, opacity 500ms ${ease} 300ms`,
                 }}
               >
-                Level Up Now.
-              </span>
-            </div>
-          </div>
+                <div
+                  style={{
+                    height: 288,
+                    position: 'relative',
+                    backgroundImage: 'url(/dark_charcoal.png)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.10)', zIndex: 0 }} />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/3face.png"
+                    alt=""
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: 32,
+                      transform: 'translateY(-50%)',
+                      height: '173%',
+                      width: 'auto',
+                      opacity: 0.4,
+                      zIndex: 1,
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 1,
+                      fontFamily: 'Montserrat, sans-serif',
+                      color: '#ffffff',
+                      fontSize: 104,
+                      fontWeight: 800,
+                      lineHeight: 1,
+                      letterSpacing: '-0.04em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Level Up Now.
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -2703,6 +2730,7 @@ function Face2VideoSwiper({
   const activeRef = useRef(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const bounceDivRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef(0);
   const wheelLock = useRef(false);
   const onActiveChangeRef = useRef(onActiveChange);
@@ -2713,12 +2741,28 @@ function Face2VideoSwiper({
     const next = videoRefs.current[newIdx];
     if (cur) cur.pause();
     if (next) {
-      if (cur) next.currentTime = cur.currentTime;
+      if (cur) {
+        const t = cur.currentTime;
+        // Only sync timestamp if target video has buffered that position;
+        // otherwise setting currentTime silently snaps to 0.
+        let canSync = false;
+        for (let i = 0; i < next.buffered.length; i++) {
+          if (next.buffered.start(i) <= t && t <= next.buffered.end(i)) { canSync = true; break; }
+        }
+        if (canSync) next.currentTime = t;
+      }
       next.play().catch(() => {});
     }
     activeRef.current = newIdx;
     setActiveIdx(newIdx);
     onActiveChangeRef.current?.(newIdx);
+
+    const el = bounceDivRef.current;
+    if (el) {
+      el.style.animation = 'none';
+      void el.offsetHeight; // force reflow to restart animation
+      el.style.animation = 'face2-bounce 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both';
+    }
   }, []);
 
   const goNext = useCallback(() => switchTo((activeRef.current + 1) % FACE2_VIDS.length), [switchTo]);
@@ -2788,7 +2832,7 @@ function Face2VideoSwiper({
         maskRepeat: 'no-repeat',
         pointerEvents: 'none',
       } as React.CSSProperties}>
-        <div style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+        <div ref={bounceDivRef} style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
           {FACE2_VIDS.map((src, i) => (
             <video
               key={src}
@@ -2939,7 +2983,8 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
       requestAnimationFrame(() => {
         const outerH = outer.clientHeight;
         const innerH = inner.offsetHeight;
-        const offset = Math.max(0, outerH - innerH - 6);
+        const topPad = 16;
+        const offset = Math.max(0, outerH - topPad - innerH - 6);
 
         inner.style.transition = 'none';
         inner.style.transform = `translateY(${offset}px)`;
@@ -2987,30 +3032,32 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     }
   }, [clearPending]);
 
+  const [sendHovered, setSendHovered] = useState(false);
   const nextMsg = FACE2_MESSAGES[curIdx];
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
       <div style={{
-        width: '70%',
+        width: '88%',
         aspectRatio: '966 / 1326',
         borderRadius: 18,
         background: PHONE_TOMATO,
         overflow: 'hidden',
         position: 'relative',
+        boxShadow: '0 16px 48px -10px rgba(217,78,58,0.45)',
       }}>
         {/* Chat scroll area */}
         <div
           ref={chatAreaRef}
           style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 68,
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 76,
             overflow: 'hidden',
           }}
         >
           <div
             ref={msgListRef}
             style={{
-              position: 'absolute', top: 6, left: 0, right: 0,
+              position: 'absolute', top: 16, left: 0, right: 0,
               display: 'flex', flexDirection: 'column', gap: 7,
               padding: '0 12px',
             }}
@@ -3020,32 +3067,38 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
         </div>
         {/* Typing bar */}
         <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 68,
-          background: 'rgba(0,0,0,0.18)',
-          display: 'flex', alignItems: 'center', padding: '0 12px', gap: 9,
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 76,
+          background: 'rgba(0,0,0,0.22)',
+          display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10,
         }}>
           <div style={{
-            flex: 1, background: PHONE_CREAM, borderRadius: 22,
-            padding: '8px 14px',
+            flex: 1, background: PHONE_CREAM, borderRadius: 24,
+            padding: '9px 16px',
             fontSize: 13.5, color: PHONE_INK,
             fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             lineHeight: 1.35,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}>
             {nextMsg}
           </div>
           <button
             onClick={handleSend}
+            onMouseEnter={() => setSendHovered(true)}
+            onMouseLeave={() => setSendHovered(false)}
             className="send-btn-pulse"
             style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: PHONE_INK, border: 'none',
+              width: 44, height: 44, borderRadius: '50%',
+              background: PHONE_CREAM, border: 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', flexShrink: 0,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
+              transform: sendHovered ? 'scale(1.18)' : 'scale(1)',
+              transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
-              <path d="M6 10.5V1.5M6 1.5L2.5 5M6 1.5L9.5 5" stroke={PHONE_CREAM} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="17" height="17" viewBox="0 0 12 12" fill="none">
+              <path d="M6 10.5V1.5M6 1.5L2.5 5M6 1.5L9.5 5" stroke={PHONE_TOMATO} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
         </div>
@@ -3822,11 +3875,9 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
   return (
     <div id="pricing" style={{ padding: '0 0 72px' }}>
       {/* Curved outer box — identical to standalone pricing page */}
-      <div style={{
+      <div className="pricing-led-border" style={{
         borderRadius: 36,
-        backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center',
-        border: '1px solid rgba(255,248,234,0.18)',
-        boxShadow: '0 40px 100px -28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,248,234,0.08)',
+        backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: '768px auto', backgroundRepeat: 'repeat', backgroundPosition: 'top left',
         overflow: 'hidden',
       }}>
         {/* Header */}
@@ -3873,23 +3924,32 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
         </div>
 
         {/* Plan cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
-          {PRICING_PLANS.map((plan, i) => {
-            const isLast = i === PRICING_PLANS.length - 1;
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px' }}>
+          {PRICING_PLANS.map((plan) => {
             const isFeatured = plan.featured;
             return (
               <div
                 key={plan.id}
                 style={{
-                  padding: '32px 28px 36px',
+                  padding: '28px 24px 32px',
                   display: 'flex', flexDirection: 'column',
-                  borderRight: !isLast ? '1px solid rgba(255,248,234,0.13)' : 'none',
-                  background: isFeatured ? 'rgba(255,248,234,0.08)' : 'transparent',
+                  borderRadius: 16,
+                  border: isFeatured
+                    ? '1px solid rgba(217,78,58,0.55)'
+                    : '1px solid rgba(255,248,234,0.14)',
+                  background: isFeatured
+                    ? 'linear-gradient(160deg, rgba(255,248,234,0.1) 0%, rgba(255,248,234,0.05) 100%)'
+                    : 'rgba(255,248,234,0.04)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  boxShadow: isFeatured
+                    ? '0 8px 40px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13)'
+                    : 'inset 0 1px 0 rgba(255,248,234,0.09)',
                   position: 'relative',
                 }}
               >
                 {isFeatured && (
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--tomato)' }} />
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--tomato)', borderRadius: '16px 16px 0 0' }} />
                 )}
 
                 <div style={{
@@ -3960,11 +4020,22 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                     border: isFeatured ? 'none' : '1px solid rgba(255,248,234,0.18)',
                     background: isFeatured ? undefined : 'rgba(255,248,234,0.07)',
                     color: isFeatured ? undefined : 'var(--cream)',
-                    transition: 'background 140ms ease',
+                    boxShadow: isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none',
+                    transition: 'background 160ms cubic-bezier(0.16,1,0.3,1), transform 240ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 240ms cubic-bezier(0.16,1,0.3,1)',
                     opacity: loading === plan.id ? 0.6 : 1,
                   }}
-                  onMouseEnter={e => { if (!isFeatured) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,248,234,0.12)'; }}
-                  onMouseLeave={e => { if (!isFeatured) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,248,234,0.07)'; }}
+                  onMouseEnter={e => {
+                    const btn = e.currentTarget as HTMLButtonElement;
+                    if (!isFeatured) btn.style.background = 'rgba(255,248,234,0.12)';
+                    btn.style.transform = 'translateY(-3px) scale(1.03)';
+                    btn.style.boxShadow = isFeatured ? '0 10px 36px rgba(217,78,58,0.55)' : '0 6px 22px rgba(255,248,234,0.14)';
+                  }}
+                  onMouseLeave={e => {
+                    const btn = e.currentTarget as HTMLButtonElement;
+                    if (!isFeatured) btn.style.background = 'rgba(255,248,234,0.07)';
+                    btn.style.transform = 'translateY(0) scale(1)';
+                    btn.style.boxShadow = isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none';
+                  }}
                 >
                   {loading === plan.id ? '…' : plan.cta}
                 </button>
@@ -3980,6 +4051,97 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────── Animated border card ─────────────── */
+function BorderAnimCard({
+  children,
+  style,
+  delay = 0,
+  duration = 2200,
+}: {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  delay?: number;
+  duration?: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const hasPlayedRef = useRef(false);
+  const animIdRef = useRef(`ba-${Math.random().toString(36).slice(2, 8)}`);
+  const animId = animIdRef.current;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (containerRef.current) {
+        setDims({ w: containerRef.current.offsetWidth, h: containerRef.current.offsetHeight });
+      }
+    });
+    ro.observe(el);
+    setDims({ w: el.offsetWidth, h: el.offsetHeight });
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasPlayedRef.current) {
+          hasPlayedRef.current = true;
+          setTimeout(() => setPlaying(true), delay);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [delay]);
+
+  const R = 18;
+  const SW = 1.5;
+  const perim = dims ? 2 * ((dims.w - 2 * R) + (dims.h - 2 * R)) + 2 * Math.PI * R : 0;
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', ...style }}>
+      {children}
+      {dims && perim > 0 && (
+        <>
+          <style>{`
+            @keyframes ${animId} {
+              0%   { stroke-dashoffset: ${perim.toFixed(1)}; opacity: 0; }
+              4%   { stroke-dashoffset: ${(perim * 0.93).toFixed(1)}; opacity: 1; }
+              28%  { stroke-dashoffset: ${(perim * 0.43).toFixed(1)}; }
+              68%  { stroke-dashoffset: ${(perim * 0.09).toFixed(1)}; }
+              88%  { stroke-dashoffset: 0; opacity: 1; }
+              100% { stroke-dashoffset: 0; opacity: 0; }
+            }
+          `}</style>
+          <svg
+            style={{ position: 'absolute', inset: 0, width: dims.w, height: dims.h, pointerEvents: 'none' }}
+            viewBox={`0 0 ${dims.w} ${dims.h}`}
+          >
+            <rect
+              x={SW / 2} y={SW / 2}
+              width={dims.w - SW} height={dims.h - SW}
+              rx={R - SW / 2} ry={R - SW / 2}
+              fill="none"
+              stroke="rgba(255,255,255,0.82)"
+              strokeWidth={SW}
+              strokeDasharray={perim}
+              style={playing
+                ? { animation: `${animId} ${duration}ms linear forwards` }
+                : { strokeDashoffset: perim, opacity: 0 }
+              }
+            />
+          </svg>
+        </>
+      )}
     </div>
   );
 }
@@ -4026,7 +4188,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         }}
       />
 
-      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 56px 80px' }}>
+      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 56px 56px' }}>
 
         {/* ── Nav ── */}
         <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
@@ -4123,9 +4285,16 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%' }} />
+
+      <div style={{ backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
 
         {/* ── Problem section ── */}
-        <div className="anim-fade-up" style={{ margin: '80px 0 0', padding: '72px 0 80px', borderTop: '1.5px solid rgba(42,32,26,0.08)' }}>
+        <div className="anim-fade-up" style={{ padding: '72px 0 0' }}>
           <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--tomato)', textAlign: 'center', marginBottom: 22 }}>
             sound familiar?
           </p>
@@ -4137,23 +4306,23 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <br />
             <em style={{ color: 'var(--tomato)' }}>They hear something different.</em>
           </h2>
-          <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', textAlign: 'center', opacity: 0.62, maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.6 }}>
+          <p className="font-serif italic" style={{ fontSize: 18, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.6 }}>
             Most people walk out of the barber having settled — not because the barber was bad,
             but because there was no way to show exactly what they meant.
           </p>
 
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 52 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
             {[
               {
                 stat: '~6 weeks',
                 label: 'to grow back a bad cut',
-                desc: 'Hair grows about half an inch a month. A cut you didn\'t want just… stays.',
+                desc: 'Hair grows about half an inch a month. A cut you didn\'t want takes time to go away.',
               },
               {
                 stat: '$45+ a visit',
                 label: 'no preview, full commitment',
-                desc: 'You\'re all-in before you see anything. No refunds, no take-backs.',
+                desc: 'You bind yourself to paying before you see anything. No refunds or take-backs.',
               },
               {
                 stat: '1 in 3',
@@ -4179,10 +4348,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 >
                   {item.stat}
                 </div>
-                <div className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)', marginBottom: 4 }}>
+                <div className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.62)', marginBottom: 4 }}>
                   {item.label}
                 </div>
-                <div className="font-sans" style={{ fontSize: 14, color: 'var(--char)', lineHeight: 1.6, opacity: 0.7 }}>
+                <div className="font-sans" style={{ fontSize: 15, color: 'var(--char)', lineHeight: 1.6 }}>
                   {item.desc}
                 </div>
               </div>
@@ -4190,67 +4359,157 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </div>
 
           {/* Bridge line */}
-          <p className="font-serif italic" style={{ fontSize: 19, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.5, maxWidth: 520, margin: '0 auto' }}>
+          <p className="font-serif italic" style={{ fontSize: 19, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.5, maxWidth: 560, margin: '0 auto' }}>
             The cut you want is stuck in your head.{' '}
-            <span style={{ color: 'var(--tomato)' }}>Shape Up puts it on your actual face</span>
+            <span style={{ color: 'var(--tomato)' }}>ShapeUp puts it on your actual face — and tells you the exact barber instructions</span>
             {' '}— before you ever sit in the chair.
           </p>
         </div>
 
         {/* ── Value props bar ── */}
-        <div style={{ borderTop: '1.5px solid rgba(42,32,26,0.18)', borderBottom: '1.5px solid rgba(42,32,26,0.18)', margin: '56px 0 0', padding: '65px 0', backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            {[
-              { stat: '1 selfie', label: 'all you need to start' },
-              { stat: '~60 sec', label: 'scan to first 3D preview' },
-              { stat: 'free to start', label: 'no card required' },
-            ].map((item, i) => (
-              <div key={i} style={{ textAlign: 'center', padding: '8px 0', borderRight: i < 2 ? '1.5px solid rgba(42,32,26,0.18)' : 'none' }}>
-                <div className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.3rem, 2vw, 1.7rem)', color: 'var(--tomato)', lineHeight: 1.1 }}>
-                  {item.stat}
+        <div style={{ margin: '44px 0 0', position: 'relative', overflow: 'hidden', borderRadius: 18 }}>
+          {/* Base texture */}
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 0 }} />
+          {/* Darkening */}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,6,4,0.58)', zIndex: 1 }} />
+          {/* Large face — shifted left, mask fades out rightward before small face starts */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/3face_blur.png" alt="" style={{
+            position: 'absolute', top: '50%', left: '-10%',
+            transform: 'translateY(-50%)',
+            width: '62%', height: 'auto',
+            opacity: 0.44, zIndex: 2, pointerEvents: 'none',
+            WebkitMaskImage: 'linear-gradient(to right, black 48%, transparent 72%)',
+            maskImage: 'linear-gradient(to right, black 48%, transparent 72%)',
+          }} />
+          {/* Small face — right side, higher zIndex so it wins at any remaining intersection */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/3face_blur.png" alt="" style={{
+            position: 'absolute', top: '50%', right: '-8%',
+            transform: 'translateY(-50%)',
+            width: '46%', height: 'auto',
+            opacity: 0.40, zIndex: 3, pointerEvents: 'none',
+          }} />
+          {/* Cards */}
+          <div style={{ position: 'relative', zIndex: 4, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, padding: 16 }}>
+            {([
+              { stat: '~60 sec', label: 'scan to 3D preview', desc: 'From selfie to full 3D model in under a minute. See the cut before you sit in the chair.', delay: 0, duration: 2100 },
+              { stat: '$2', label: 'to get started', desc: 'Less than a coffee to see yourself in 20 different cuts. Help us secure the best cut for you.', delay: 180, duration: 2450 },
+              { stat: '1 selfie', label: 'all you need', desc: 'One photo is all it takes to see yourself with a different cut — no scanner, no download.', delay: 80, duration: 2750 },
+            ]).map((item, i) => (
+              <BorderAnimCard key={i} delay={item.delay} duration={item.duration} style={{ borderRadius: 18 }}>
+                <div style={{ position: 'relative', zIndex: 2, padding: '28px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
+                    {item.stat}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>
+                    {item.label}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+                    {item.desc}
+                  </div>
                 </div>
-                <div className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)', marginTop: 5 }}>
-                  {item.label}
-                </div>
-              </div>
+              </BorderAnimCard>
             ))}
           </div>
         </div>
+      </div>
+      </div>
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%', marginTop: 32, transform: 'scaleY(-1)' }} />
+
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px 80px' }}>
 
         {/* ── Steps ── */}
         <div id="how-it-works" style={{ marginTop: 80, paddingTop: 8 }}>
           <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--smoke)', textAlign: 'center', marginBottom: 56 }}>
             how it works
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 40, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch' }}>
 
             {/* Step 1: Scan */}
-            <div className="anim-fade-up delay-100" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
-              <Image src="/1.png" alt="Step 1" width={52} height={52} style={{ width: 52, height: 52, objectFit: 'contain' }} />
-              <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Scan</span>
-              <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>30 seconds</span>
-              <Image
-                src="/landing_face2/face2_selfie.png"
-                alt="Scan your face"
-                width={600} height={600}
-                style={{ width: '70%', height: 'auto', borderRadius: 18 }}
-              />
+            <div className="anim-fade-up delay-100" style={{
+              display: 'flex', flexDirection: 'column',
+              borderRadius: 24, overflow: 'hidden',
+              boxShadow: '0 24px 64px -16px rgba(42,32,26,0.22), 0 4px 16px -6px rgba(42,32,26,0.09)',
+              border: '1.5px solid rgba(42,32,26,0.08)',
+            }}>
+              {/* Dark header */}
+              <div style={{
+                background: '#2a201a',
+                padding: '20px 22px 18px',
+                display: 'flex', alignItems: 'center', gap: 13,
+                borderBottom: '3px solid var(--tomato)',
+              }}>
+                <Image src="/1.png" alt="Step 1" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain', flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span className="font-sans" style={{ fontSize: 22, fontWeight: 700, color: '#F5F1EA', letterSpacing: '0.03em', textTransform: 'uppercase', lineHeight: 1 }}>Scan</span>
+                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>30 seconds</span>
+                </div>
+              </div>
+              {/* Body */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '28px 22px 24px' }}>
+                <Image
+                  src="/landing_face2/face2_selfie.png"
+                  alt="Scan your face"
+                  width={600} height={600}
+                  style={{ width: '82%', height: 'auto', borderRadius: 16 }}
+                />
+              </div>
             </div>
 
             {/* Step 2: Describe */}
-            <div className="anim-fade-up delay-200" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
-              <Image src="/2.png" alt="Step 2" width={52} height={52} style={{ width: 52, height: 52, objectFit: 'contain' }} />
-              <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Describe</span>
-              <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>just type or tap</span>
-              <DescribePhoneDemo onSend={setDescribeActiveIdx} />
+            <div className="anim-fade-up delay-200" style={{
+              display: 'flex', flexDirection: 'column',
+              borderRadius: 24, overflow: 'hidden',
+              boxShadow: '0 24px 64px -16px rgba(42,32,26,0.22), 0 4px 16px -6px rgba(42,32,26,0.09)',
+              border: '1.5px solid rgba(42,32,26,0.08)',
+            }}>
+              {/* Dark header */}
+              <div style={{
+                background: '#2a201a',
+                padding: '20px 22px 18px',
+                display: 'flex', alignItems: 'center', gap: 13,
+                borderBottom: '3px solid var(--tomato)',
+              }}>
+                <Image src="/2.png" alt="Step 2" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain', flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span className="font-sans" style={{ fontSize: 22, fontWeight: 700, color: '#F5F1EA', letterSpacing: '0.03em', textTransform: 'uppercase', lineHeight: 1 }}>Describe</span>
+                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>just type or tap</span>
+                </div>
+              </div>
+              {/* Body */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '24px 16px 20px', gap: 10 }}>
+                <DescribePhoneDemo onSend={setDescribeActiveIdx} />
+                <span className="font-mono" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(42,32,26,0.35)' }}>↑ tap send to try it</span>
+              </div>
             </div>
 
             {/* Step 3: Show your barber */}
-            <div className="anim-fade-up delay-300" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
-              <Image src="/3.png" alt="Step 3" width={52} height={52} style={{ width: 52, height: 52, objectFit: 'contain' }} />
-              <span className="font-sans" style={{ fontSize: 26, fontWeight: 700, color: 'var(--char)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>Show your barber</span>
-              <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.45)' }}>share your 3D preview</span>
-              <ShowBarberDemo activeIdx={describeActiveIdx} />
+            <div className="anim-fade-up delay-300" style={{
+              display: 'flex', flexDirection: 'column',
+              borderRadius: 24, overflow: 'hidden',
+              boxShadow: '0 24px 64px -16px rgba(42,32,26,0.22), 0 4px 16px -6px rgba(42,32,26,0.09)',
+              border: '1.5px solid rgba(42,32,26,0.08)',
+            }}>
+              {/* Dark header */}
+              <div style={{
+                background: '#2a201a',
+                padding: '20px 22px 18px',
+                display: 'flex', alignItems: 'center', gap: 13,
+                borderBottom: '3px solid var(--tomato)',
+              }}>
+                <Image src="/3.png" alt="Step 3" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain', flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span className="font-sans" style={{ fontSize: 22, fontWeight: 700, color: '#F5F1EA', letterSpacing: '0.03em', textTransform: 'uppercase', lineHeight: 1 }}>Show your barber</span>
+                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>share your 3D preview</span>
+                </div>
+              </div>
+              {/* Body */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '28px 22px 24px' }}>
+                <ShowBarberDemo activeIdx={describeActiveIdx} />
+              </div>
             </div>
 
           </div>
@@ -4290,7 +4549,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       <img src="/transition.png" alt="" style={{ display: 'block', width: '100%' }} />
 
       {/* ── Dark charcoal section ── */}
-      <div style={{ backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }}>
+      <div style={{ backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: '768px auto', backgroundRepeat: 'repeat', backgroundPosition: 'top left' }}>
         <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
 
           {/* ── Glimpse orbit section ── */}
@@ -4760,7 +5019,7 @@ function MainMenu({
               ref={floorSliderRef}
               style={{
                 transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)',
-                transition: vpH ? 'transform 540ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none',
+                transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none',
                 willChange: 'transform',
               }}
             >

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useState, useEffect } from 'react';
+import { useUser, useClerk } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -77,13 +77,12 @@ const PLANS = [
 
 export default function PricingPage() {
   const { isSignedIn } = useUser();
+  const { openSignIn } = useClerk();
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
+  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
 
-  const handleBuy = async (planId: string) => {
-    if (planId === 'free') { router.push('/'); return; }
-    if (!isSignedIn) { router.push('/'); return; }
-    if (loading) return;
+  const runCheckout = async (planId: string) => {
     setLoading(planId);
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -96,8 +95,53 @@ export default function PricingPage() {
     } finally { setLoading(null); }
   };
 
+  // After sign-in completes, execute the plan the user originally clicked
+  useEffect(() => {
+    if (!isSignedIn || !pendingPlanId) return;
+    const plan = pendingPlanId;
+    setPendingPlanId(null);
+    if (plan === 'free') { router.push('/'); return; }
+    runCheckout(plan);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, pendingPlanId]);
+
+  const handleBuy = async (planId: string) => {
+    if (planId === 'free') {
+      if (!isSignedIn) { setPendingPlanId('free'); openSignIn(); return; }
+      router.push('/');
+      return;
+    }
+    if (!isSignedIn) {
+      setPendingPlanId(planId);
+      openSignIn();
+      return;
+    }
+    if (loading) return;
+    await runCheckout(planId);
+  };
+
   return (
     <div style={{ background: 'var(--biscuit)', minHeight: '100vh', padding: '28px 40px 72px', fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
+      <style>{`
+        @keyframes led-flicker-cyan {
+          0%    { box-shadow: 0 0 0 1px rgba(0,207,255,0.5), 0 0 12px 3px rgba(0,207,255,0.42), 0 0 30px 8px rgba(0,207,255,0.15), inset 0 1px 0 rgba(255,248,234,0.09); }
+          88%   { box-shadow: 0 0 0 1px rgba(0,207,255,0.5), 0 0 12px 3px rgba(0,207,255,0.42), 0 0 30px 8px rgba(0,207,255,0.15), inset 0 1px 0 rgba(255,248,234,0.09); }
+          88.3% { box-shadow: 0 0 0 1px rgba(0,207,255,0.1), 0 0 3px 1px rgba(0,207,255,0.07), 0 0 6px 2px rgba(0,207,255,0.03), inset 0 1px 0 rgba(255,248,234,0.09); }
+          89%   { box-shadow: 0 0 0 1px rgba(0,207,255,0.5), 0 0 12px 3px rgba(0,207,255,0.42), 0 0 30px 8px rgba(0,207,255,0.15), inset 0 1px 0 rgba(255,248,234,0.09); }
+          89.4% { box-shadow: 0 0 0 1px rgba(0,207,255,0.1), 0 0 3px 1px rgba(0,207,255,0.07), 0 0 6px 2px rgba(0,207,255,0.03), inset 0 1px 0 rgba(255,248,234,0.09); }
+          90%   { box-shadow: 0 0 0 1px rgba(0,207,255,0.5), 0 0 12px 3px rgba(0,207,255,0.42), 0 0 30px 8px rgba(0,207,255,0.15), inset 0 1px 0 rgba(255,248,234,0.09); }
+          100%  { box-shadow: 0 0 0 1px rgba(0,207,255,0.5), 0 0 12px 3px rgba(0,207,255,0.42), 0 0 30px 8px rgba(0,207,255,0.15), inset 0 1px 0 rgba(255,248,234,0.09); }
+        }
+        @keyframes led-flicker-tomato {
+          0%    { box-shadow: 0 8px 40px rgba(217,78,58,0.22), 0 0 0 1px rgba(217,78,58,0.72), 0 0 14px 4px rgba(217,78,58,0.52), 0 0 36px 10px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13); }
+          85%   { box-shadow: 0 8px 40px rgba(217,78,58,0.22), 0 0 0 1px rgba(217,78,58,0.72), 0 0 14px 4px rgba(217,78,58,0.52), 0 0 36px 10px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13); }
+          85.4% { box-shadow: 0 8px 40px rgba(217,78,58,0.12), 0 0 0 1px rgba(217,78,58,0.24), 0 0 5px 1px rgba(217,78,58,0.16), 0 0 12px 3px rgba(217,78,58,0.07), inset 0 1px 0 rgba(255,248,234,0.13); }
+          86.1% { box-shadow: 0 8px 40px rgba(217,78,58,0.22), 0 0 0 1px rgba(217,78,58,0.72), 0 0 14px 4px rgba(217,78,58,0.52), 0 0 36px 10px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13); }
+          86.6% { box-shadow: 0 8px 40px rgba(217,78,58,0.12), 0 0 0 1px rgba(217,78,58,0.24), 0 0 5px 1px rgba(217,78,58,0.16), 0 0 12px 3px rgba(217,78,58,0.07), inset 0 1px 0 rgba(255,248,234,0.13); }
+          87.5% { box-shadow: 0 8px 40px rgba(217,78,58,0.22), 0 0 0 1px rgba(217,78,58,0.72), 0 0 14px 4px rgba(217,78,58,0.52), 0 0 36px 10px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13); }
+          100%  { box-shadow: 0 8px 40px rgba(217,78,58,0.22), 0 0 0 1px rgba(217,78,58,0.72), 0 0 14px 4px rgba(217,78,58,0.52), 0 0 36px 10px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13); }
+        }
+      `}</style>
 
       {/* ── Nav ── */}
       <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1160, margin: '0 auto 52px' }}>
@@ -171,21 +215,35 @@ export default function PricingPage() {
         </div>
 
         {/* ── Plan cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
-          {PLANS.map((plan, i) => {
-            const isLast = i === PLANS.length - 1;
-            const borderRight = !isLast ? '1px solid rgba(255,248,234,0.07)' : 'none';
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px' }}>
+          {PLANS.map((plan, idx) => {
             const isFeatured = plan.featured;
+            const flickerDelays  = ['-1.2s', '-8.4s', '-17.6s', '-5.2s'] as const;
+            const flickerDurations = ['22s', '28s', '32s', '38s'] as const;
 
             return (
               <div
                 key={plan.id}
                 style={{
-                  padding: '32px 28px 36px',
+                  padding: '28px 24px 32px',
                   display: 'flex', flexDirection: 'column',
-                  borderRight: !isLast ? '1px solid rgba(255,248,234,0.13)' : 'none',
-                  background: isFeatured ? 'rgba(255,248,234,0.08)' : 'transparent',
+                  borderRadius: 16,
+                  border: isFeatured
+                    ? '1px solid rgba(217,78,58,0.55)'
+                    : '1px solid rgba(0,207,255,0.38)',
+                  background: isFeatured
+                    ? 'linear-gradient(160deg, rgba(255,248,234,0.1) 0%, rgba(255,248,234,0.05) 100%)'
+                    : 'rgba(255,248,234,0.04)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
                   position: 'relative',
+                  overflow: 'hidden',
+                  animationName: isFeatured ? 'led-flicker-tomato' : 'led-flicker-cyan',
+                  animationDuration: flickerDurations[idx],
+                  animationTimingFunction: 'ease-in-out',
+                  animationIterationCount: 'infinite',
+                  animationDelay: flickerDelays[idx],
+                  animationFillMode: 'both',
                 }}
               >
                 {isFeatured && (
@@ -279,11 +337,22 @@ export default function PricingPage() {
                     border: isFeatured ? 'none' : '1px solid rgba(255,248,234,0.18)',
                     background: isFeatured ? undefined : 'rgba(255,248,234,0.07)',
                     color: isFeatured ? undefined : 'var(--cream)',
-                    transition: 'opacity 140ms ease, transform 120ms ease',
+                    boxShadow: isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none',
+                    transition: 'background 160ms cubic-bezier(0.16,1,0.3,1), transform 240ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 240ms cubic-bezier(0.16,1,0.3,1)',
                     opacity: loading === plan.id ? 0.6 : 1,
                   }}
-                  onMouseEnter={e => { if (!isFeatured) (e.currentTarget as HTMLElement).style.background = 'rgba(255,248,234,0.12)'; }}
-                  onMouseLeave={e => { if (!isFeatured) (e.currentTarget as HTMLElement).style.background = 'rgba(255,248,234,0.07)'; }}
+                  onMouseEnter={e => {
+                    const btn = e.currentTarget as HTMLButtonElement;
+                    if (!isFeatured) btn.style.background = 'rgba(255,248,234,0.12)';
+                    btn.style.transform = 'translateY(-3px) scale(1.03)';
+                    btn.style.boxShadow = isFeatured ? '0 10px 36px rgba(217,78,58,0.55)' : '0 6px 22px rgba(255,248,234,0.14)';
+                  }}
+                  onMouseLeave={e => {
+                    const btn = e.currentTarget as HTMLButtonElement;
+                    if (!isFeatured) btn.style.background = 'rgba(255,248,234,0.07)';
+                    btn.style.transform = 'translateY(0) scale(1)';
+                    btn.style.boxShadow = isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none';
+                  }}
                 >
                   {loading === plan.id ? '…' : plan.cta}
                 </button>
