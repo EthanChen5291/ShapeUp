@@ -78,3 +78,14 @@ export const remove = mutation({
     await ctx.db.delete(args.projectId);
   },
 });
+
+export const get = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.tokenIdentifier !== identity.tokenIdentifier) return null;
+    return project;
+  },
+});

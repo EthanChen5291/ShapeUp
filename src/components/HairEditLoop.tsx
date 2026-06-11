@@ -3,10 +3,15 @@
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { HairParams, UserHeadProfile } from '@/types';
 import { useEffect, useRef, useState } from 'react';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '@convex/_generated/api';
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
 import { DemoFaceliftStatus } from '@/hooks/useDemoFacelift';
 import HairScene from '@/components/HairScene';
+import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import Image from 'next/image';
+
+const BIOMETRIC_CONSENT_VERSION = 'biometric-notice-2026-06-08';
 
 const DEMO_STATUS_LABEL: Record<string, string> = {
   idle:       'Setting up...',
@@ -95,6 +100,21 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   const [isBaldifying, setIsBaldifying] = useState(false);
   const [faceliftStatus, setFaceliftStatus] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState(0);
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const pendingRenderAfterConsentRef = useRef(false);
+
+  const hasConsent = useQuery(api.users.hasBiometricConsent);
+  const recordConsent = useMutation(api.users.recordBiometricConsent);
+
+  // After consent is recorded, the useQuery result updates asynchronously.
+  // We watch hasConsent here and fire the deferred render once it becomes true.
+  useEffect(() => {
+    if (hasConsent && pendingRenderAfterConsentRef.current) {
+      pendingRenderAfterConsentRef.current = false;
+      handleRenderIn3D();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasConsent]);
 
   const processingRef = useRef(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
@@ -225,7 +245,15 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
   };
 
   const handleRenderIn3D = async () => {
+    console.log('[HairEditLoop] handleRenderIn3D: hasConsent=', hasConsent);
     if (isBusy) return;
+
+    if (!hasConsent) {
+      pendingRenderAfterConsentRef.current = true;
+      setShowConsentDialog(true);
+      return;
+    }
+
     const shuffled = [...RENDER_LABELS].sort(() => Math.random() - 0.5);
     renderJobDoneRef.current = false;
     setRenderSteps(shuffled);
@@ -278,6 +306,19 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
     } finally {
       setIsBaldifying(false);
     }
+  };
+
+  const handleConsentAccept = async () => {
+    console.log('[HairEditLoop] consent accepted, waiting for hasConsent to update');
+    // Keep pendingRenderAfterConsentRef true so the useEffect fires once
+    // hasConsent updates from the Convex query — avoids the stale-closure race.
+    await recordConsent({ noticeVersion: BIOMETRIC_CONSENT_VERSION });
+    setShowConsentDialog(false);
+  };
+
+  const handleConsentCancel = () => {
+    pendingRenderAfterConsentRef.current = false;
+    setShowConsentDialog(false);
   };
 
   const chatter = BARBER_CHATTER[Math.floor(Date.now() / 1600) % BARBER_CHATTER.length];
@@ -626,6 +667,13 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
           </div>
         </div>
       </section>
+
+      {showConsentDialog && (
+        <BiometricConsentDialog
+          onAccept={handleConsentAccept}
+          onCancel={handleConsentCancel}
+        />
+      )}
     </main>
   );
 }

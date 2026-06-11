@@ -183,7 +183,9 @@ export default function LiveScanCamera({
     const eng = engineRef.current;
 
     if (eng === 'mediapipe' && landmarkerRef.current) {
-      const res = landmarkerRef.current.detectForVideo(v, now);
+      let res: { faceLandmarks?: Array<Array<{ x: number; y: number }>> };
+      try { res = landmarkerRef.current.detectForVideo(v, now); }
+      catch { return null; }
       const faces = res.faceLandmarks ?? [];
       if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, count: 0 };
       const pts = faces[0];

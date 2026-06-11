@@ -145,6 +145,7 @@ export async function POST(req: NextRequest) {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
   convex.setAuth(convexToken);
   const hasConsent = await convex.query(api.users.hasBiometricConsent, {});
+  console.log('[facelift] POST: biometric consent check result:', hasConsent, { user: hashIdentifier(authResult.session.userId) });
   if (!hasConsent) {
     console.warn('[facelift] POST: rejected missing biometric consent', {
       user: hashIdentifier(authResult.session.userId),
