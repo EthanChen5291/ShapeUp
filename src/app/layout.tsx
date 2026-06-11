@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
-import { Fraunces, DM_Sans, JetBrains_Mono } from 'next/font/google';
+import { Fraunces, DM_Sans, JetBrains_Mono, Montserrat } from 'next/font/google';
 import { ConvexClerkProvider } from '@/components/ConvexClerkProvider';
 import './globals.css';
 
@@ -26,6 +26,13 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  variable: '--font-montserrat',
+  weight: ['700', '800'],
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: 'ShapeUp · The 3D Barber',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
@@ -34,7 +41,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrains.variable}`}>
+      <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrains.variable} ${montserrat.variable}`}>
         <body style={{ fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
           <style>{`
             .font-display { font-family: var(--font-fraunces), Georgia, serif !important; font-variation-settings: 'SOFT' 50, 'WONK' 1, 'opsz' 144; }
