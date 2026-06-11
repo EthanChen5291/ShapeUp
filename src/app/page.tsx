@@ -3118,10 +3118,10 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
       // Cycling back: cancel all pending timers, disintegrate existing messages upward, then restart
       clearPending();
       setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
+      // Start lerping back to y=0 immediately so the scroll is near 0 by the time messages clear
+      scrollRef.current.yTarget = 0;
       const t = setTimeout(() => {
         lerpActiveRef.current = false;
-        scrollRef.current.y = 0;
-        scrollRef.current.yTarget = 0;
         idRef.current = 0;
         setMsgs([{ id: idRef.current++, text, isNew: true }]);
         scheduleReply();
@@ -4046,6 +4046,344 @@ const PRICING_PLANS = [
   },
 ] as const;
 
+/* ─────────────── Pricing CTA Button ─────────────── */
+const PLAN_BUBBLES = [
+  { color: '#FFD700', size: 7,  x: 20, y: 58, tx: -14, ty: -28, delay: 0   },
+  { color: '#FF69B4', size: 5,  x: 76, y: 42, tx:  15, ty: -32, delay: 80  },
+  { color: '#5096FF', size: 8,  x: 52, y: 74, tx:  -7, ty: -38, delay: 40  },
+  { color: '#FFD700', size: 6,  x: 79, y: 66, tx:  19, ty: -20, delay: 120 },
+  { color: '#FF69B4', size: 7,  x: 25, y: 34, tx: -17, ty: -26, delay: 60  },
+  { color: '#5096FF', size: 5,  x: 63, y: 22, tx:  11, ty: -22, delay: 100 },
+  { color: '#FFD700', size: 4,  x: 42, y: 52, tx: -20, ty: -16, delay: 30  },
+] as const;
+
+const POPULAR_RING_POS = [
+  { x: 28, y: 30, delay: 30  },
+  { x: 70, y: 68, delay: 110 },
+  { x: 78, y: 26, delay: 0   },
+  { x: 38, y: 74, delay: 80  },
+] as const;
+
+function PricingCTAButton({
+  variant,
+  children,
+  onClick,
+  disabled = false,
+}: {
+  variant: 'free' | 'starter' | 'popular' | 'lifetime';
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [animKey, setAnimKey] = useState(0);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+  const [traceState, setTraceState] = useState<0 | 1 | 2>(0); // 0=idle, 1=tracing-in, 2=tracing-out
+  const traceResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useLayoutEffect(() => {
+    if (!btnRef.current || variant !== 'lifetime') return;
+    const update = () => {
+      if (!btnRef.current) return;
+      const r = btnRef.current.getBoundingClientRect();
+      setDims({ w: r.width, h: r.height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(btnRef.current);
+    return () => ro.disconnect();
+  }, [variant]);
+
+  const onEnterBtn = () => {
+    setHovered(true);
+    setAnimKey(k => k + 1);
+    if (variant === 'lifetime') {
+      if (traceResetRef.current) clearTimeout(traceResetRef.current);
+      setTraceState(1);
+    }
+  };
+  const onLeaveBtn = () => {
+    setHovered(false);
+    if (variant === 'lifetime') {
+      setTraceState(2);
+      if (traceResetRef.current) clearTimeout(traceResetRef.current);
+      traceResetRef.current = setTimeout(() => setTraceState(0), 700);
+    }
+  };
+  useEffect(() => () => { if (traceResetRef.current) clearTimeout(traceResetRef.current); }, []);
+
+  const fillColor =
+    variant === 'lifetime' ? 'rgb(240,70,130)' :
+    variant === 'popular'  ? 'rgb(80,150,255)'  :
+    'rgba(255,248,234,0.92)';
+  const hoverText = (variant === 'popular' || variant === 'lifetime') ? '#ffffff' : 'rgba(42,32,26,0.9)';
+  const baseStyle: React.CSSProperties =
+    variant === 'popular'  ? { border: '1px solid rgba(55,110,210,0.5)',  background: 'rgba(55,110,210,0.22)', color: 'rgba(255,248,234,0.78)', boxShadow: '0 4px 22px rgba(55,110,210,0.18)' } :
+    variant === 'lifetime' ? { border: '1px solid rgba(220,70,120,0.28)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
+                             { border: '1px solid rgba(255,248,234,0.18)', background: 'rgba(255,248,234,0.07)', color: 'var(--cream)' };
+
+  // Lifetime SVG trace geometry
+  const LT_BR = 12, LT_INS = 3;
+  const ltRx = Math.max(2, LT_BR - LT_INS);
+  const ltRw = Math.max(0, dims.w - LT_INS * 2);
+  const ltRh = Math.max(0, dims.h - LT_INS * 2);
+  const ltPerim = dims.w > 0 ? 2 * ((ltRw - 2 * ltRx) + (ltRh - 2 * ltRx)) + 2 * Math.PI * ltRx : 0;
+
+  return (
+    <button
+      ref={btnRef}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        position: 'relative', overflow: 'hidden',
+        width: '100%', padding: '13px 16px',
+        fontFamily: 'var(--font-dmsans), sans-serif',
+        fontSize: 13, fontWeight: 700, borderRadius: LT_BR,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+        ...(variant === 'lifetime' ? {
+          animation: hovered ? 'pro-btn-sync 1100ms linear forwards' : undefined,
+          transform: hovered ? undefined : 'scale(1)',
+          transition: hovered ? 'none' : 'transform 400ms cubic-bezier(0.4,0,0.2,1), box-shadow 280ms ease',
+        } : {
+          transition: 'transform 340ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 280ms ease',
+          transform: hovered ? 'scale(1.04)' : 'scale(1)',
+          boxShadow: hovered && (variant === 'free' || variant === 'starter')
+            ? '0 8px 28px -4px rgba(255,248,234,0.32), 0 0 14px rgba(255,248,234,0.12)'
+            : undefined,
+        }),
+        ...baseStyle,
+      }}
+      onMouseEnter={onEnterBtn}
+      onMouseLeave={onLeaveBtn}
+    >
+      {/* Main fill — inset rect matching button shape */}
+      <span aria-hidden style={{
+        position: 'absolute', inset: 0,
+        background: fillColor,
+        clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50% round ${LT_BR - 1}px)`,
+        transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      {/* Lifetime: blue fill trailing 130ms */}
+      {variant === 'lifetime' && (
+        <span aria-hidden style={{
+          position: 'absolute', inset: 0,
+          background: 'rgb(80,150,255)',
+          clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50% round ${LT_BR - 1}px)`,
+          transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1) 130ms',
+          pointerEvents: 'none', zIndex: 1,
+        }} />
+      )}
+
+      {/* Lifetime: third pink fill trailing 270ms */}
+      {variant === 'lifetime' && (
+        <span aria-hidden style={{
+          position: 'absolute', inset: 0,
+          background: 'rgb(250,90,160)',
+          clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50% round ${LT_BR - 1}px)`,
+          transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1) 270ms',
+          pointerEvents: 'none', zIndex: 2,
+        }} />
+      )}
+
+      {/* Starter: expanding ring */}
+      {variant === 'starter' && hovered && (
+        <span key={`ring-${animKey}`} aria-hidden style={{
+          position: 'absolute', left: '50%', top: '50%',
+          width: 2, height: 2, borderRadius: '50%',
+          transform: 'translate(-50%,-50%)',
+          pointerEvents: 'none', zIndex: 1,
+          animation: 'starter-ring-grow 720ms cubic-bezier(0.16,1,0.3,1) forwards',
+        }} />
+      )}
+
+      {/* Popular: four expanding circle rings */}
+      {variant === 'popular' && hovered && POPULAR_RING_POS.map((p, i) => (
+        <span key={`pcircle-${animKey}-${i}`} aria-hidden style={{
+          position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+          width: 2, height: 2, borderRadius: '50%',
+          transform: 'translate(-50%,-50%)',
+          pointerEvents: 'none', zIndex: 1,
+          animation: `popular-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
+        }} />
+      ))}
+
+      {/* Lifetime: floating colour bubbles */}
+      {variant === 'lifetime' && hovered && PLAN_BUBBLES.map((b, i) => (
+        <span key={`bubble-${animKey}-${i}`} aria-hidden style={{
+          position: 'absolute', left: `${b.x}%`, top: `${b.y}%`,
+          width: b.size, height: b.size, borderRadius: '50%',
+          background: b.color, transform: 'translate(-50%,-50%)',
+          pointerEvents: 'none', zIndex: 3,
+          animation: `bubble-float 1100ms ${b.delay}ms ease-out forwards`,
+          ...({ '--bx': `${b.tx}px`, '--by': `${b.ty}px` } as React.CSSProperties),
+        }} />
+      ))}
+
+      {/* Lifetime: thick offwhite SVG border trace — CW in, CCW out */}
+      {variant === 'lifetime' && ltPerim > 0 && (
+        <svg aria-hidden viewBox={`0 0 ${dims.w} ${dims.h}`} style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          pointerEvents: 'none', zIndex: 4,
+        }}>
+          <rect
+            x={LT_INS} y={LT_INS} width={ltRw} height={ltRh} rx={ltRx} ry={ltRx}
+            fill="none"
+            stroke="rgba(255,248,234,0.88)"
+            strokeWidth="2.5"
+            strokeDasharray={ltPerim}
+            strokeDashoffset={traceState === 1 ? 0 : traceState === 2 ? -ltPerim : ltPerim}
+            opacity={traceState === 0 ? 0 : 1}
+            style={{
+              transition: traceState === 0 ? 'none' :
+                traceState === 1 ? 'stroke-dashoffset 350ms cubic-bezier(0.16,1,0.3,1), opacity 30ms' :
+                                   'stroke-dashoffset 252ms cubic-bezier(0.8,0,0.84,1), opacity 30ms 222ms',
+            }}
+          />
+        </svg>
+      )}
+
+      {/* Text — sits above all fills */}
+      <span style={{
+        position: 'relative', zIndex: 5, display: 'block', textAlign: 'center',
+        color: hovered ? hoverText : undefined,
+        transition: 'color 200ms ease',
+      }}>
+        {variant === 'lifetime' ? (
+          <span
+            key={hovered ? animKey : 'idle'}
+            style={{
+              display: 'block',
+              transformOrigin: 'center center',
+              animation: hovered ? 'pro-text-spin-grow 1100ms linear forwards' : undefined,
+              transition: !hovered ? 'transform 400ms cubic-bezier(0.4,0,0.2,1)' : undefined,
+              transform: !hovered ? 'scale(1) rotate(0deg)' : undefined,
+            }}
+          >
+            {children}
+          </span>
+        ) : children}
+      </span>
+    </button>
+  );
+}
+
+/* ─────────────── Trace-Border CTA ─────────────── */
+function TraceBorderCta({
+  onClick,
+  children,
+  variant,
+  style,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  variant: 'blue' | 'tomato';
+  style?: React.CSSProperties;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+
+  useLayoutEffect(() => {
+    if (!btnRef.current) return;
+    const update = () => {
+      if (!btnRef.current) return;
+      const r = btnRef.current.getBoundingClientRect();
+      setDims({ w: r.width, h: r.height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(btnRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const isBlue     = variant === 'blue';
+  const TRACE_INSET = isBlue ? 3 : 2;
+  const STROKE_W    = isBlue ? 1.5 : 3.75;
+  const BR = 18;
+  const rx = Math.max(2, BR - TRACE_INSET);
+  const rw = Math.max(0, dims.w - TRACE_INSET * 2);
+  const rh = Math.max(0, dims.h - TRACE_INSET * 2);
+  const perimeter = dims.w > 0
+    ? 2 * ((rw - 2 * rx) + (rh - 2 * rx)) + 2 * Math.PI * rx
+    : 0;
+
+  const fillClr    = isBlue ? 'rgb(80,150,255)' : 'var(--tomato)';
+  const traceClr   = isBlue ? 'white' : 'rgba(255,210,40,0.92)';
+  const defaultBg  = isBlue ? "url('/dark_charcoal.png') center/cover no-repeat" : 'rgba(255,248,234,0.97)';
+  const defaultClr = isBlue ? 'var(--cream)' : 'var(--tomato)';
+  const hoverClr   = isBlue ? '#ffffff' : 'var(--cream)';
+
+  return (
+    <button
+      ref={btnRef}
+      onClick={onClick}
+      style={{
+        position: 'relative', overflow: 'hidden',
+        borderRadius: BR,
+        border: 'none',
+        background: defaultBg,
+        color: defaultClr,
+        cursor: 'pointer',
+        transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
+        transform: hovered ? 'scale(1.04)' : 'scale(1)',
+        ...style,
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Fill — inset rect, invisible at rest */}
+      <span aria-hidden style={{
+        position: 'absolute', inset: 0,
+        background: fillClr,
+        clipPath: hovered
+          ? (isBlue ? `inset(${TRACE_INSET}px round ${rx}px)` : `inset(0% round ${BR}px)`)
+          : `inset(50% round ${rx}px)`,
+        transition: 'clip-path 330ms cubic-bezier(0.16,1,0.3,1)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      {/* SVG border trace — draws CW from top-left on hover */}
+      {perimeter > 0 && (
+        <svg
+          aria-hidden
+          viewBox={`0 0 ${dims.w} ${dims.h}`}
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            pointerEvents: 'none', zIndex: 1,
+          }}
+        >
+          <rect
+            x={TRACE_INSET} y={TRACE_INSET}
+            width={rw} height={rh}
+            rx={rx} ry={rx}
+            fill="none"
+            stroke={traceClr}
+            strokeWidth={STROKE_W}
+            strokeDasharray={perimeter}
+            strokeDashoffset={hovered ? 0 : perimeter}
+            style={{ transition: `stroke-dashoffset ${hovered ? '415ms' : '106ms'} cubic-bezier(0.16,1,0.3,1)` }}
+          />
+        </svg>
+      )}
+
+      {/* Text */}
+      <span style={{
+        position: 'relative', zIndex: 2,
+        color: hovered ? hoverClr : undefined,
+        transition: 'color 200ms ease',
+      }}>
+        {children}
+      </span>
+    </button>
+  );
+}
+
 function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
   const { isSignedIn } = useUser();
   const [loading, setLoading] = useState<string | null>(null);
@@ -4232,45 +4570,13 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                   {plan.line}
                 </p>
 
-                <button
+                <PricingCTAButton
+                  variant={plan.id}
                   onClick={() => handleClick(plan.id)}
                   disabled={loading === plan.id}
-                  style={{
-                    width: '100%', padding: '13px 16px',
-                    fontFamily: 'var(--font-dmsans), sans-serif',
-                    fontSize: 13, fontWeight: 700, borderRadius: 12, cursor: 'pointer',
-                    border: isFeatured ? 'none' : '1px solid rgba(255,248,234,0.18)',
-                    background: isFeatured ? '#7ab3d4' : 'rgba(255,248,234,0.07)',
-                    color: isFeatured ? '#fff' : 'var(--cream)',
-                    boxShadow: isFeatured ? '0 4px 22px rgba(100,180,220,0.45)' : 'none',
-                    transition: 'background 160ms cubic-bezier(0.16,1,0.3,1), transform 240ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 240ms cubic-bezier(0.16,1,0.3,1)',
-                    opacity: loading === plan.id ? 0.6 : 1,
-                  }}
-                  onMouseEnter={e => {
-                    const btn = e.currentTarget as HTMLButtonElement;
-                    if (isFeatured) {
-                      btn.style.background = '#8ec5e0';
-                      btn.style.boxShadow = '0 10px 40px rgba(100,190,230,0.7)';
-                    } else {
-                      btn.style.background = 'rgba(255,248,234,0.12)';
-                      btn.style.boxShadow = '0 6px 22px rgba(255,248,234,0.14)';
-                    }
-                    btn.style.transform = 'translateY(-3px) scale(1.03)';
-                  }}
-                  onMouseLeave={e => {
-                    const btn = e.currentTarget as HTMLButtonElement;
-                    if (isFeatured) {
-                      btn.style.background = '#7ab3d4';
-                      btn.style.boxShadow = '0 4px 22px rgba(100,180,220,0.45)';
-                    } else {
-                      btn.style.background = 'rgba(255,248,234,0.07)';
-                      btn.style.boxShadow = 'none';
-                    }
-                    btn.style.transform = 'translateY(0) scale(1)';
-                  }}
                 >
                   {loading === plan.id ? '…' : plan.cta}
-                </button>
+                </PricingCTAButton>
               </div>
             );
           })}
@@ -4498,6 +4804,62 @@ function BorderAnimCard({
   );
 }
 
+function NeonCornersOverlay({ color, seed }: { color: string; seed: number }) {
+  const SW = 3;
+  const o = SW / 2;
+  const eff = 20; // arc radius (card has borderRadius:18, slight inset)
+  const ar = eff - o;
+
+  // [active, armH, armV] per corner: TL, TR, BR, BL
+  // Not all corners active; arms are long and intentionally asymmetric
+  const CONFIGS: [boolean, number, number][][] = [
+    // seed 0 (green): TL + BR — diagonal highlight
+    [[true, 34, 16], [false, 0, 0], [true, 18, 40], [false, 0, 0]],
+    // seed 1 (blue): TR + BL — opposite diagonal
+    [[false, 0, 0], [true, 24, 42], [false, 0, 0], [true, 38, 20]],
+    // seed 2 (violet): TL + TR + BL — three corners, asymmetric
+    [[true, 20, 40], [true, 36, 18], [false, 0, 0], [true, 16, 32]],
+  ];
+
+  const corners = CONFIGS[seed % CONFIGS.length];
+  const glow = `drop-shadow(0 0 4px ${color}) drop-shadow(0 0 9px ${color})`;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
+      {corners.map(([active, armH, armV], idx) => {
+        if (!active) return null;
+        const w = eff + armH + o;
+        const h = eff + armV + o;
+        let d: string;
+        let pos: React.CSSProperties;
+        switch (idx) {
+          case 0: // TL: left arm down → arc → top arm right
+            d = `M ${o} ${eff + armV} L ${o} ${eff} A ${ar} ${ar} 0 0 1 ${eff} ${o} L ${eff + armH} ${o}`;
+            pos = { top: 0, left: 0 };
+            break;
+          case 1: // TR: top arm left → arc → right arm down
+            d = `M ${o} ${o} L ${w - eff} ${o} A ${ar} ${ar} 0 0 1 ${w - o} ${eff} L ${w - o} ${eff + armV}`;
+            pos = { top: 0, right: 0 };
+            break;
+          case 2: // BR: right arm up → arc → bottom arm left
+            d = `M ${w - o} ${o} L ${w - o} ${h - eff} A ${ar} ${ar} 0 0 1 ${w - eff} ${h - o} L ${o} ${h - o}`;
+            pos = { bottom: 0, right: 0 };
+            break;
+          default: // BL: left arm down → arc → bottom arm right
+            d = `M ${o} ${o} L ${o} ${h - eff} A ${ar} ${ar} 0 0 0 ${eff} ${h - o} L ${eff + armH} ${h - o}`;
+            pos = { bottom: 0, left: 0 };
+        }
+        return (
+          <svg key={idx} width={w} height={h} viewBox={`0 0 ${w} ${h}`}
+            style={{ position: 'absolute', ...pos, filter: glow, opacity: 0.9, pointerEvents: 'none' }}>
+            <path d={d} fill="none" stroke={color} strokeWidth={SW} strokeLinecap="round" />
+          </svg>
+        );
+      })}
+    </div>
+  );
+}
+
 function LandingPage({ onEnter }: { onEnter: () => void }) {
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
@@ -4521,10 +4883,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   };
 
   const scrollToHowItWorks = () => smoothScrollTo('how-it-works');
-  const scrollToPricing = () => {
-    const el = document.getElementById('pricing');
-    smoothScrollTo('pricing', el ? el.offsetHeight * 0.4 : 0);
-  };
+  const scrollToPricing = () => smoothScrollTo('pricing');
 
   const [describeActiveIdx, setDescribeActiveIdx] = useState<number | undefined>(undefined);
   const [logoHover, setLogoHover] = useState(false);
@@ -4730,9 +5089,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         {/* ── Value props bar ── */}
         <div style={{ margin: '62px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {([
-            { stat: '', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%', delay: 420, duration: 2100 },
-            { stat: '$2', label: 'TO GET STARTED', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '50%', delay: 560, duration: 2450 },
-            { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '100%', delay: 700, duration: 2750 },
+            { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%', delay: 420, duration: 2100, neonColor: '#4ade80' },
+            { stat: '$2', label: 'TO GET STARTED', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '50%', delay: 560, duration: 2450, neonColor: '#38bdf8' },
+            { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '100%', delay: 700, duration: 2750, neonColor: '#a78bfa' },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
               <BorderAnimCard
@@ -4748,6 +5107,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   backgroundRepeat: `no-repeat, no-repeat, no-repeat`,
                 }}
               >
+                <NeonCornersOverlay color={item.neonColor} seed={i} />
                 <div style={{ position: 'relative', zIndex: 2, padding: '28px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
                     {item.stat}
@@ -4930,9 +5290,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', opacity: 0.6, margin: '0 0 20px' }}>
             Ready to see your next cut?
           </p>
-          <BouncyButton
+          <TraceBorderCta
             onClick={onEnter}
-            className="btn-tomato"
+            variant="tomato"
             style={{
               padding: '18px 44px',
               fontSize: 20,
@@ -4940,12 +5300,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
               fontWeight: 900,
               letterSpacing: '-0.01em',
-              borderRadius: 18,
-              boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
             }}
           >
             Preview My Cut — It&apos;s Free →
-          </BouncyButton>
+          </TraceBorderCta>
           <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.38)', marginTop: 14 }}>
             takes about 60 seconds · no account required
           </p>
@@ -4975,9 +5333,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <p className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 'clamp(1.1rem, 1.8vw, 1.4rem)', color: 'rgba(255,248,234,0.6)', margin: '0 0 20px' }}>
               Pick your style.
             </p>
-            <BouncyButton
+            <TraceBorderCta
               onClick={onEnter}
-              className="btn"
+              variant="blue"
               style={{
                 padding: '18px 44px',
                 fontSize: 20,
@@ -4985,14 +5343,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
                 fontWeight: 900,
                 letterSpacing: '-0.01em',
-                borderRadius: 18,
-                background: 'rgb(80, 150, 255)',
-                color: 'var(--cream)',
-                boxShadow: '0 8px 28px -6px rgba(80,150,255,0.5)',
               }}
             >
               Try It Free — No Card Needed →
-            </BouncyButton>
+            </TraceBorderCta>
             <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.3)', marginTop: 14 }}>
               takes about 60 seconds
             </p>
