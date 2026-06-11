@@ -59,6 +59,7 @@ image = (
         "git", "wget", "ffmpeg",
         "libgl1-mesa-glx", "libglib2.0-0",
         "libsm6", "libxext6", "libxrender-dev",
+        "build-essential", "cmake", "ninja-build",
     ])
     .pip_install("packaging==24.2", "typing-extensions==4.14.0")
     .pip_install(
@@ -96,8 +97,10 @@ image = (
     )
     .run_commands(
         "pip install facenet-pytorch --no-deps",
+        "pip install ninja",  # speeds up CUDA extension compilation
         f"git clone https://github.com/weijielyu/FaceLift {FACELIFT_DIR}",
-        "pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization",
+        # build for A10G (8.6), A100 (8.0), L40S (8.9) — avoids recompiling per GPU
+        "TORCH_CUDA_ARCH_LIST='8.0;8.6;8.9' pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization",
     )
     .env({
         "FACELIFT_DIR":       FACELIFT_DIR,
