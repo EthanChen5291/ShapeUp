@@ -1279,11 +1279,21 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
       } catch (rawErr: unknown) {
         const err = rawErr as { errors?: Array<{ code?: string; message?: string }> };
         const firstErr = err?.errors?.[0];
-        const isNotFound = firstErr?.code === 'form_identifier_not_found'
+        const code = firstErr?.code ?? '';
+        const isNotFound = code === 'form_identifier_not_found'
           || (firstErr?.message ?? '').toLowerCase().includes('find');
         if (!isNotFound) {
-          const msg = firstErr?.message ?? 'Something went wrong';
-          setError(msg.toLowerCase().includes('password') ? 'Wrong password — try again.' : msg);
+          const friendlyMsg: Record<string, string> = {
+            form_password_incorrect:          'Wrong password — try again.',
+            form_password_pwned:              'This password was found in a data breach. Please choose a different one.',
+            strategy_for_user_invalid:        'This account was created with Google. Use "Continue with Google" to sign in.',
+            not_allowed_access:               'Your account has been suspended. Contact support for help.',
+            too_many_requests:                'Too many attempts — please wait a moment and try again.',
+            session_exists:                   'You\'re already signed in.',
+            form_param_missing:               'Please enter both your email and password.',
+            form_identifier_not_found:        'No account found with that email.',
+          };
+          setError(friendlyMsg[code] ?? (firstErr?.message ?? 'Something went wrong'));
           return;
         }
         signInResult = null;
@@ -1330,8 +1340,16 @@ function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?:
         setError('Sign-up failed — please try again.');
       }
     } catch (err: unknown) {
-      const e = err as { errors?: Array<{ message?: string }> };
-      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Something went wrong'));
+      const e = err as { errors?: Array<{ code?: string; message?: string }> };
+      const clerkCode = e?.errors?.[0]?.code ?? '';
+      const outerFriendly: Record<string, string> = {
+        form_password_not_strong_enough: 'Password is too weak — use at least 8 characters with a mix of letters and numbers.',
+        form_identifier_exists:          'An account with this email already exists. Try signing in instead.',
+        strategy_for_user_invalid:       'This account was created with Google. Use "Continue with Google" to sign in.',
+        not_allowed_access:              'Your account has been suspended. Contact support for help.',
+        too_many_requests:               'Too many attempts — please wait a moment and try again.',
+      };
+      setError(outerFriendly[clerkCode] ?? (e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Something went wrong')));
     } finally {
       setSubmitting(false);
     }
@@ -1711,6 +1729,17 @@ function PricingCTAButton({
   const [hovered, setHovered] = useState(false);
   const [animKey, setAnimKey] = useState(0);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const [btnSize, setBtnSize] = useState({ w: 260, h: 46 });
+
+  useLayoutEffect(() => {
+    if (!btnRef.current) return;
+    const ro = new ResizeObserver(() => {
+      if (!btnRef.current) return;
+      setBtnSize({ w: btnRef.current.offsetWidth, h: btnRef.current.offsetHeight });
+    });
+    ro.observe(btnRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   const onEnterBtn = () => { setHovered(true); setAnimKey(k => k + 1); };
   const onLeaveBtn = () => { setHovered(false); };
@@ -1728,90 +1757,130 @@ function PricingCTAButton({
                              { border: '1px solid rgba(255,248,234,0.18)', background: 'rgba(255,248,234,0.07)', color: 'var(--cream)' };
 
   const LT_BR = 12;
+  const ringColor =
+    variant === 'starter'  ? 'rgba(255,238,148,0.88)' :
+    variant === 'lifetime' ? 'rgba(255,190,218,0.88)' :
+    'rgba(255,255,255,0.85)';
+  const hoverScale = variant === 'lifetime' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)';
+  const hoverShadow =
+    variant === 'popular'  ? '0 8px 48px -2px rgba(80,150,255,0.95), 0 0 56px rgba(80,150,255,0.65), 0 0 100px rgba(80,150,255,0.28)' :
+    variant === 'lifetime' ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)' :
+    variant === 'starter'  ? '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)' :
+                             '0 8px 28px -4px rgba(255,248,234,0.32), 0 0 14px rgba(255,248,234,0.12)';
 
   return (
-    <button
-      ref={btnRef}
-      onClick={onClick}
-      disabled={disabled}
+    <div
       style={{
-        position: 'relative', overflow: 'hidden',
-        width: '100%', padding: variant === 'lifetime' ? '12px 15px' : '13px 16px',
-        fontFamily: 'var(--font-dmsans), sans-serif',
-        fontSize: variant === 'lifetime' ? 12 : 13, fontWeight: 700, borderRadius: LT_BR,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-        ...({
-          transition: 'transform 340ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 280ms ease',
-          transform: hovered
-            ? (variant === 'lifetime' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)')
-            : 'scale(1)',
-          boxShadow: hovered && variant === 'popular'
-            ? '0 8px 48px -2px rgba(80,150,255,0.95), 0 0 56px rgba(80,150,255,0.65), 0 0 100px rgba(80,150,255,0.28)'
-            : hovered && variant === 'lifetime'
-            ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)'
-            : hovered && variant === 'starter'
-            ? '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)'
-            : hovered && variant === 'free'
-              ? '0 8px 28px -4px rgba(255,248,234,0.32), 0 0 14px rgba(255,248,234,0.12)'
-              : undefined,
-        }),
-        ...baseStyle,
+        position: 'relative',
+        transition: 'transform 340ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 280ms ease',
+        transform: hovered ? hoverScale : 'scale(1)',
+        boxShadow: hovered ? hoverShadow : undefined,
+        borderRadius: LT_BR,
       }}
       onMouseEnter={onEnterBtn}
       onMouseLeave={onLeaveBtn}
     >
-      {/* Main fill — inset rect matching button shape */}
-      <span aria-hidden style={{
-        position: 'absolute', inset: 0,
-        background: fillColor,
-        clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50% round ${LT_BR - 1}px)`,
-        transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-
-      {/* Starter: expanding ring */}
-      {variant === 'starter' && hovered && (
-        <span key={`ring-${animKey}`} aria-hidden style={{
-          position: 'absolute', left: '50%', top: '50%',
-          width: 2, height: 2, borderRadius: '50%',
-          transform: 'translate(-50%,-50%)',
-          pointerEvents: 'none', zIndex: 1,
-          animation: 'starter-ring-grow 720ms cubic-bezier(0.16,1,0.3,1) forwards',
+      <button
+        ref={btnRef}
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          position: 'relative', overflow: 'hidden',
+          width: '100%', padding: variant === 'lifetime' ? '12px 15px' : '13px 16px',
+          fontFamily: 'var(--font-dmsans), sans-serif',
+          fontSize: variant === 'lifetime' ? 12 : 13, fontWeight: 700, borderRadius: LT_BR,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.6 : 1,
+          display: 'block',
+          ...baseStyle,
+        }}
+      >
+        {/* Main fill — inset rect matching button shape */}
+        <span aria-hidden style={{
+          position: 'absolute', inset: 0,
+          background: fillColor,
+          clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50%)`,
+          transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1)',
+          pointerEvents: 'none', zIndex: 0,
         }} />
+
+        {/* Starter: expanding ring */}
+        {variant === 'starter' && hovered && (
+          <span key={`ring-${animKey}`} aria-hidden style={{
+            position: 'absolute', left: '50%', top: '50%',
+            width: 2, height: 2, borderRadius: '50%',
+            transform: 'translate(-50%,-50%)',
+            pointerEvents: 'none', zIndex: 1,
+            animation: 'starter-ring-grow 720ms cubic-bezier(0.16,1,0.3,1) forwards',
+          }} />
+        )}
+
+        {/* Popular: four expanding circle rings */}
+        {variant === 'popular' && hovered && POPULAR_RING_POS.map((p, i) => (
+          <span key={`pcircle-${animKey}-${i}`} aria-hidden style={{
+            position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+            width: 2, height: 2, borderRadius: '50%',
+            transform: 'translate(-50%,-50%)',
+            pointerEvents: 'none', zIndex: 1,
+            animation: `popular-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
+          }} />
+        ))}
+
+        {/* Lifetime: four expanding pink circle rings */}
+        {variant === 'lifetime' && hovered && POPULAR_RING_POS.map((p, i) => (
+          <span key={`ltcircle-${animKey}-${i}`} aria-hidden style={{
+            position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+            width: 2, height: 2, borderRadius: '50%',
+            transform: 'translate(-50%,-50%)',
+            pointerEvents: 'none', zIndex: 1,
+            animation: `lifetime-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
+          }} />
+        ))}
+
+        {/* Text — sits above all fills */}
+        <span style={{
+          position: 'relative', zIndex: 5, display: 'block', textAlign: 'center',
+          color: hovered ? hoverText : undefined,
+          transition: 'color 200ms ease',
+        }}>
+          {children}
+        </span>
+      </button>
+
+      {/* CW tracing ring — outside overflow:hidden so it hugs the actual button border */}
+      {variant !== 'free' && (
+        <svg
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: -1, left: -1,
+            width: btnSize.w + 2, height: btnSize.h + 2,
+            pointerEvents: 'none', zIndex: 2, overflow: 'visible',
+            opacity: hovered ? 1 : 0,
+            transition: hovered ? 'opacity 40ms ease 10ms' : 'opacity 100ms ease',
+          }}
+        >
+          <rect
+            x={1}
+            y={1}
+            width={btnSize.w}
+            height={btnSize.h}
+            rx={LT_BR}
+            fill="none"
+            stroke={ringColor}
+            strokeWidth="2"
+            pathLength={1000}
+            strokeDasharray={1000}
+            strokeDashoffset={hovered ? 0 : 1000}
+            style={{
+              transition: hovered
+                ? 'stroke-dashoffset 360ms cubic-bezier(0.4, 0, 0.2, 1) 20ms'
+                : 'stroke-dashoffset 195ms cubic-bezier(0.6, 0, 0.8, 0)',
+            }}
+          />
+        </svg>
       )}
-
-      {/* Popular: four expanding circle rings */}
-      {variant === 'popular' && hovered && POPULAR_RING_POS.map((p, i) => (
-        <span key={`pcircle-${animKey}-${i}`} aria-hidden style={{
-          position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
-          width: 2, height: 2, borderRadius: '50%',
-          transform: 'translate(-50%,-50%)',
-          pointerEvents: 'none', zIndex: 1,
-          animation: `popular-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
-        }} />
-      ))}
-
-      {/* Lifetime: four expanding pink circle rings */}
-      {variant === 'lifetime' && hovered && POPULAR_RING_POS.map((p, i) => (
-        <span key={`ltcircle-${animKey}-${i}`} aria-hidden style={{
-          position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
-          width: 2, height: 2, borderRadius: '50%',
-          transform: 'translate(-50%,-50%)',
-          pointerEvents: 'none', zIndex: 1,
-          animation: `lifetime-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
-        }} />
-      ))}
-
-      {/* Text — sits above all fills */}
-      <span style={{
-        position: 'relative', zIndex: 5, display: 'block', textAlign: 'center',
-        color: hovered ? hoverText : undefined,
-        transition: 'color 200ms ease',
-      }}>
-        {children}
-      </span>
-    </button>
+    </div>
   );
 }
 
@@ -1994,55 +2063,8 @@ function TraceBorderCta({
   );
 }
 
-function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
-  const { isSignedIn } = useUser();
-  const [loading, setLoading] = useState<string | null>(null);
-  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
-  const [authVisible, setAuthVisible] = useState(false);
-  const [authClosing, setAuthClosing] = useState(false);
-
-  useEffect(() => {
-    if (pendingPlanId) {
-      requestAnimationFrame(() => requestAnimationFrame(() => setAuthVisible(true)));
-    }
-  }, [pendingPlanId]);
-
-  const dismissAuth = () => {
-    setAuthClosing(true);
-    setTimeout(() => { setPendingPlanId(null); setAuthVisible(false); setAuthClosing(false); }, 320);
-  };
-
-  const runCheckout = async (planId: string) => {
-    setLoading(planId);
-    try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
-    } finally { setLoading(null); }
-  };
-
-  const handleClick = (planId: string) => {
-    if (!isSignedIn) { setPendingPlanId(planId); return; }
-    if (planId === 'free') { onEnter(); return; }
-    if (loading) return;
-    runCheckout(planId);
-  };
-
-  const handleAuthDone = () => {
-    const planId = pendingPlanId;
-    setPendingPlanId(null);
-    setAuthVisible(false);
-    setAuthClosing(false);
-    if (!planId || planId === 'free') { onEnter(); return; }
-    runCheckout(planId);
-  };
-
+function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingClick: (planId: string) => void; checkoutLoading: string | null }) {
   return (
-    <>
     <div id="pricing" style={{ padding: '0 0 72px' }}>
       <Reveal>
       {/* Curved outer box — identical to standalone pricing page */}
@@ -2182,10 +2204,10 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
 
                 <PricingCTAButton
                   variant={plan.id}
-                  onClick={() => handleClick(plan.id)}
-                  disabled={loading === plan.id}
+                  onClick={() => onPricingClick(plan.id)}
+                  disabled={checkoutLoading === plan.id}
                 >
-                  {loading === plan.id ? '…' : plan.cta}
+                  {checkoutLoading === plan.id ? '…' : plan.cta}
                 </PricingCTAButton>
               </div>
             );
@@ -2201,59 +2223,6 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
       </div>
       </Reveal>
     </div>
-
-    {pendingPlanId && createPortal(
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 60,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          background: authVisible && !authClosing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
-          transition: 'background 320ms ease',
-        }}
-        onClick={dismissAuth}
-      >
-        <button
-          onClick={dismissAuth}
-          style={{
-            position: 'absolute', top: 24, right: 24,
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
-            color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background 160ms ease, color 160ms ease',
-          }}
-        >✕</button>
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28,
-            transform: authVisible && !authClosing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
-            opacity: authVisible && !authClosing ? 1 : 0,
-            transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <p style={{
-              fontFamily: 'var(--font-jetbrains), monospace',
-              fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.16em',
-              color: 'rgba(255,248,234,0.45)', margin: '0 0 10px',
-            }}>
-              {pendingPlanId === 'free' ? 'create your account' : 'sign in to purchase'}
-            </p>
-            <h2 style={{
-              fontFamily: 'var(--font-fraunces), Georgia, serif',
-              fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
-              color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,
-            }}>
-              {pendingPlanId === 'free' ? 'Start exploring.' : 'One step away.'}
-            </h2>
-          </div>
-          <SignUpWidget onEnter={handleAuthDone} large />
-        </div>
-      </div>,
-      document.body
-    )}
-    </>
   );
 }
 
@@ -2445,11 +2414,62 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
 
+  const { isSignedIn } = useUser();
+  const [pendingAction, setPendingAction] = useState<null | { type: 'free' } | { type: 'paid'; planId: string }>(null);
+  const [authVisible, setAuthVisible] = useState(false);
+  const [authClosing, setAuthClosing] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingAction) {
+      requestAnimationFrame(() => requestAnimationFrame(() => setAuthVisible(true)));
+    }
+  }, [pendingAction]);
+
+  const dismissAuth = () => {
+    setAuthClosing(true);
+    setTimeout(() => { setPendingAction(null); setAuthVisible(false); setAuthClosing(false); }, 320);
+  };
+
+  const runCheckout = async (planId: string) => {
+    setCheckoutLoading(planId);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId }),
+      });
+      const data = await res.json() as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } finally { setCheckoutLoading(null); }
+  };
+
+  const handleFreeTry = () => {
+    if (isSignedIn) { onEnter(); return; }
+    setPendingAction({ type: 'free' });
+  };
+
+  const handlePricingClick = (planId: string) => {
+    if (!isSignedIn) { setPendingAction({ type: 'paid', planId }); return; }
+    if (planId === 'free') { onEnter(); return; }
+    if (checkoutLoading) return;
+    runCheckout(planId);
+  };
+
+  const handleAuthDone = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    setAuthVisible(false);
+    setAuthClosing(false);
+    if (!action || action.type === 'free') { onEnter(); return; }
+    runCheckout(action.planId);
+  };
+
   const smoothScrollTo = (id: string, extraOffset = 0) => {
     const el = document.getElementById(id);
     if (!el) return;
     const start = window.scrollY;
-    const end = el.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.35 + extraOffset;
+    const end = el.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.1 + extraOffset;
     const dist = end - start;
     const duration = 1100;
     const ease = (t: number) => t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
@@ -2519,7 +2539,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </button>
           </div>
           <BouncyButton
-            onClick={onEnter}
+            onClick={handleFreeTry}
             className="btn-tomato"
             style={{ padding: '11px 22px', fontSize: 13, borderRadius: 10 }}
           >
@@ -2670,26 +2690,24 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         {/* ── Value props bar ── */}
         <div style={{ margin: '62px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {([
-            { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%', delay: 420, duration: 2100, neonColor: '#4ade80' },
-            { stat: '$2', label: 'TO GET STARTED', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '50%', delay: 560, duration: 2450, neonColor: '#38bdf8' },
-            { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '100%', delay: 700, duration: 2750, neonColor: '#a78bfa' },
+            { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%' },
+            { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '50%' },
+            { stat: '$2', label: 'FOR 20 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '100%' },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
-              <BorderAnimCard
-                delay={item.delay}
-                duration={item.duration}
+              <div
                 style={{
                   borderRadius: 18,
                   overflow: 'hidden',
                   height: '100%',
+                  border: '1.5px solid rgb(156,163,175)',
                   backgroundImage: `linear-gradient(rgba(10,6,4,0.60) 0%, rgba(10,6,4,0.60) 100%), url(/3face_blur.png), url(/dark_charcoal.png)`,
                   backgroundSize: `100% 100%, 300% auto, cover`,
                   backgroundPosition: `0 0, ${item.bgPos} center, center`,
                   backgroundRepeat: `no-repeat, no-repeat, no-repeat`,
                 }}
               >
-                <NeonCornersOverlay color={item.neonColor} seed={i} />
-                <div style={{ position: 'relative', zIndex: 2, padding: '28px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ padding: '38px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
                     {item.stat}
                   </div>
@@ -2700,7 +2718,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                     {item.desc}
                   </div>
                 </div>
-              </BorderAnimCard>
+              </div>
             </Reveal>
           ))}
         </div>
@@ -2872,7 +2890,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             Ready to see your next cut?
           </p>
           <TraceBorderCta
-            onClick={onEnter}
+            onClick={handleFreeTry}
             variant="tomato"
             style={{
               padding: '18px 44px',
@@ -2906,7 +2924,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <GlimpseSection />
 
           {/* ── Pricing ── */}
-          <LandingPricingCards onEnter={onEnter} />
+          <LandingPricingCards onPricingClick={handlePricingClick} checkoutLoading={checkoutLoading} />
 
           {/* ── Orbit CTA ── */}
           <Reveal>
@@ -2915,7 +2933,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               Pick your style.
             </p>
             <TraceBorderCta
-              onClick={onEnter}
+              onClick={handleFreeTry}
               variant="blue"
               style={{
                 padding: '18px 44px',
@@ -3016,6 +3034,58 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
         </div>
       </div>
+
+      {pendingAction && createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: authVisible && !authClosing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
+            transition: 'background 320ms ease',
+          }}
+          onClick={dismissAuth}
+        >
+          <button
+            onClick={dismissAuth}
+            style={{
+              position: 'absolute', top: 24, right: 24,
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
+              color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 160ms ease, color 160ms ease',
+            }}
+          >✕</button>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28,
+              transform: authVisible && !authClosing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
+              opacity: authVisible && !authClosing ? 1 : 0,
+              transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <p style={{
+                fontFamily: 'var(--font-jetbrains), monospace',
+                fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.16em',
+                color: 'rgba(255,248,234,0.45)', margin: '0 0 10px',
+              }}>
+                {pendingAction.type === 'free' ? 'create your account' : 'sign in to purchase'}
+              </p>
+              <h2 style={{
+                fontFamily: 'var(--font-fraunces), Georgia, serif',
+                fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
+                color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,
+              }}>
+                {pendingAction.type === 'free' ? 'Start exploring.' : 'One step away.'}
+              </h2>
+            </div>
+            <SignUpWidget onEnter={handleAuthDone} large />
+          </div>
+        </div>,
+        document.body
+      )}
     </main>
   );
 }

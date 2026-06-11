@@ -59,7 +59,7 @@ image = (
         "git", "wget", "ffmpeg",
         "libgl1-mesa-glx", "libglib2.0-0",
         "libsm6", "libxext6", "libxrender-dev",
-        "build-essential", "cmake", "ninja-build",
+        "build-essential", "cmake", "ninja-build", "clang",
     ])
     .pip_install("packaging==24.2", "typing-extensions==4.14.0")
     .pip_install(
@@ -97,10 +97,10 @@ image = (
     )
     .run_commands(
         "pip install facenet-pytorch --no-deps",
-        "pip install ninja",  # speeds up CUDA extension compilation
+        "pip install ninja wheel",  # wheel needed for bdist_wheel; ninja speeds CUDA compile
         f"git clone https://github.com/weijielyu/FaceLift {FACELIFT_DIR}",
         # build for A10G (8.6), A100 (8.0), L40S (8.9) — avoids recompiling per GPU
-        "TORCH_CUDA_ARCH_LIST='8.0;8.6;8.9' pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization",
+        "TORCH_CUDA_ARCH_LIST='8.0;8.6;8.9' pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization --no-build-isolation",
     )
     .env({
         "FACELIFT_DIR":       FACELIFT_DIR,
@@ -114,7 +114,7 @@ app = modal.App(APP_NAME, image=image)
 
 
 @app.cls(
-    gpu="A10G",
+    gpu="L40S",
     scaledown_window=30,
     enable_memory_snapshot=True,
     experimental_options={"enable_gpu_snapshot": True},
