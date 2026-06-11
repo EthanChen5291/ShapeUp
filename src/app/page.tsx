@@ -2640,7 +2640,8 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
                 objectFit: 'cover',
                 opacity: i === activeIdx ? 1 : 0,
                 transition: 'opacity 60ms ease',
-                transform: i === 0 ? 'scale(1.02)' : i === 1 ? 'scale(0.95)' : i === 2 ? 'scale(0.96)' : i === 3 ? 'scale(0.97)' : i === 4 ? 'scale(0.96)' : undefined,
+                transform: i === 0 ? 'scale(0.99)' : i === 1 ? 'scale(0.87) translateY(4%)' : i === 2 ? 'scale(0.88) translateY(4%)' : i === 3 ? 'scale(0.97)' : i === 4 ? 'scale(0.96)' : undefined,
+                clipPath: (i === 1 || i === 2 || i === 3) ? 'inset(0 0 2% 0)' : undefined,
               }}
             />
           ))}
@@ -3040,48 +3041,61 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
   const msgListRef = useRef<HTMLDivElement>(null);
   const lerpActiveRef = useRef(false);
   const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scrollRef = useRef({ y: 0, yTarget: 0 });
 
   const clearPending = useCallback(() => {
     pendingTimers.current.forEach(clearTimeout);
     pendingTimers.current = [];
   }, []);
 
-  // On first message of each cycle: snap to bottom, then lerp to top after 200ms
+  // rAF lerp: smoothly scrolls msgListRef to follow new messages at the bottom
+  useEffect(() => {
+    const s = scrollRef.current;
+    let rafId: number;
+    const loop = () => {
+      s.y += (s.yTarget - s.y) * 0.075;
+      if (msgListRef.current) {
+        msgListRef.current.style.transform = `translateY(${s.y.toFixed(2)}px)`;
+      }
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  // On first message of each cycle: snap to near-bottom so it enters from below
   useEffect(() => {
     if (msgs.length !== 1 || lerpActiveRef.current) return;
     lerpActiveRef.current = true;
-
-    const outer = chatAreaRef.current;
-    const inner = msgListRef.current;
-    if (!outer || !inner) return;
-
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const outerH = outer.clientHeight;
-        const innerH = inner.offsetHeight;
-        const topPad = 16;
-        const offset = Math.max(0, outerH - topPad - innerH - 6);
-
-        inner.style.transition = 'none';
-        inner.style.transform = `translateY(${offset}px)`;
-
-        const t1 = setTimeout(() => {
-          inner.style.transition = 'transform 600ms cubic-bezier(0.32, 0.72, 0, 1)';
-          inner.style.transform = 'translateY(0px)';
-
-          const t2 = setTimeout(() => {
-            inner.style.transition = '';
-            inner.style.transform = '';
-          }, 600);
-          pendingTimers.current.push(t2);
-        }, 200);
-        pendingTimers.current.push(t1);
+        if (!chatAreaRef.current || !msgListRef.current) return;
+        const outerH = chatAreaRef.current.clientHeight;
+        const innerH = msgListRef.current.offsetHeight;
+        const offset = Math.max(0, outerH - 16 - innerH - 6);
+        scrollRef.current.y = offset;
+        scrollRef.current.yTarget = 0;
       });
     });
   }, [msgs]);
 
+  // Keep scroll target updated so newest messages stay visible at the bottom
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (!chatAreaRef.current || !msgListRef.current) return;
+      const outerH = chatAreaRef.current.clientHeight;
+      const innerH = msgListRef.current.offsetHeight;
+      const overflow = innerH + 16 - outerH;
+      scrollRef.current.yTarget = overflow > 0 ? -overflow : scrollRef.current.yTarget;
+    });
+  }, [msgs]);
+
   const handleSend = useCallback(() => {
+    setSendBouncing(false);
+    requestAnimationFrame(() => setSendBouncing(true));
+    setTimeout(() => setSendBouncing(false), 500);
+
     const idx = curIdxRef.current;
     const text = FACE2_MESSAGES[idx];
     const next = (idx + 1) % FACE2_MESSAGES.length;
@@ -3089,29 +3103,25 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     setCurIdx(next);
     onSendRef.current?.(idx);
 
-    // The barber replies a beat later — only the latest send gets a reply
+    // The barber replies a beat later — every sent message gets its own reply
     const scheduleReply = () => {
-      if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
-      replyTimerRef.current = setTimeout(() => {
-        replyTimerRef.current = null;
+      const t = setTimeout(() => {
         setMsgs(prev => [
           { id: idRef.current++, text: FACE2_REPLIES[idx], isNew: true, from: 'barber' as const },
           ...prev.map(m => ({ ...m, isNew: false })),
         ]);
       }, 600);
+      pendingTimers.current.push(t);
     };
 
     if (idx === 0 && idRef.current > 0) {
-      // Cycling back: cancel any pending reply, disintegrate existing messages upward, then restart
-      if (replyTimerRef.current) { clearTimeout(replyTimerRef.current); replyTimerRef.current = null; }
+      // Cycling back: cancel all pending timers, disintegrate existing messages upward, then restart
+      clearPending();
       setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
       const t = setTimeout(() => {
-        clearPending();
         lerpActiveRef.current = false;
-        if (msgListRef.current) {
-          msgListRef.current.style.transition = 'none';
-          msgListRef.current.style.transform = '';
-        }
+        scrollRef.current.y = 0;
+        scrollRef.current.yTarget = 0;
         idRef.current = 0;
         setMsgs([{ id: idRef.current++, text, isNew: true }]);
         scheduleReply();
@@ -3124,11 +3134,10 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     }
   }, [clearPending]);
 
-  // Clear the pending barber reply if the demo unmounts mid-conversation
-  useEffect(() => () => {
-    if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
-  }, []);
+  // Clear all pending timers if the demo unmounts mid-conversation
+  useEffect(() => () => { clearPending(); }, [clearPending]);
 
+  const [sendBouncing, setSendBouncing] = useState(false);
   const [sendHovered, setSendHovered] = useState(false);
   const nextMsg = FACE2_MESSAGES[curIdx];
 
@@ -3205,7 +3214,7 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
             onClick={handleSend}
             onMouseEnter={() => setSendHovered(true)}
             onMouseLeave={() => setSendHovered(false)}
-            className={sendHovered ? undefined : 'send-btn-pulse'}
+            className={sendBouncing ? 'send-btn-bounce' : sendHovered ? undefined : 'send-btn-pulse'}
             style={{
               width: 44, height: 44, borderRadius: '50%',
               background: PHONE_CREAM, border: 'none',
@@ -3214,8 +3223,8 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
               boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
               position: 'relative',
               overflow: 'hidden',
-              transform: sendHovered ? 'scale(1.28) rotate(-14deg)' : undefined,
-              transition: 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              transform: sendBouncing ? undefined : sendHovered ? 'scale(1.28) rotate(-14deg)' : undefined,
+              transition: sendBouncing ? undefined : 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
             {/* Tomato fill circle — grows from center on hover */}
@@ -3494,7 +3503,7 @@ function GlimpseSection() {
               left: '50%',
               top: '50%',
               width: 182,
-              height: 237,
+              height: 261,
               transform: 'translate(-50%, -50%) scale(0)',
               opacity: 0,
               borderRadius: 20,
@@ -4011,7 +4020,7 @@ const PRICING_PLANS = [
   },
   {
     id: 'popular',
-    label: 'Popular',
+    label: 'Explorer',
     price: '$4.99',
     sub: 'one-time',
     tokens: 60,
@@ -4040,11 +4049,22 @@ const PRICING_PLANS = [
 function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
   const { isSignedIn } = useUser();
   const [loading, setLoading] = useState<string | null>(null);
+  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
+  const [authVisible, setAuthVisible] = useState(false);
+  const [authClosing, setAuthClosing] = useState(false);
 
-  const handleClick = async (planId: string) => {
-    if (planId === 'free') { onEnter(); return; }
-    if (!isSignedIn) { onEnter(); return; }
-    if (loading) return;
+  useEffect(() => {
+    if (pendingPlanId) {
+      requestAnimationFrame(() => requestAnimationFrame(() => setAuthVisible(true)));
+    }
+  }, [pendingPlanId]);
+
+  const dismissAuth = () => {
+    setAuthClosing(true);
+    setTimeout(() => { setPendingPlanId(null); setAuthVisible(false); setAuthClosing(false); }, 320);
+  };
+
+  const runCheckout = async (planId: string) => {
     setLoading(planId);
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -4057,7 +4077,24 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
     } finally { setLoading(null); }
   };
 
+  const handleClick = (planId: string) => {
+    if (!isSignedIn) { setPendingPlanId(planId); return; }
+    if (planId === 'free') { onEnter(); return; }
+    if (loading) return;
+    runCheckout(planId);
+  };
+
+  const handleAuthDone = () => {
+    const planId = pendingPlanId;
+    setPendingPlanId(null);
+    setAuthVisible(false);
+    setAuthClosing(false);
+    if (!planId || planId === 'free') { onEnter(); return; }
+    runCheckout(planId);
+  };
+
   return (
+    <>
     <div id="pricing" style={{ padding: '0 0 72px' }}>
       <Reveal>
       {/* Curved outer box — identical to standalone pricing page */}
@@ -4121,7 +4158,7 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                   display: 'flex', flexDirection: 'column',
                   borderRadius: 16,
                   border: isFeatured
-                    ? '1px solid rgba(217,78,58,0.55)'
+                    ? '1px solid rgba(80,150,255,0.55)'
                     : '1px solid rgba(255,248,234,0.14)',
                   background: isFeatured
                     ? 'linear-gradient(160deg, rgba(255,248,234,0.1) 0%, rgba(255,248,234,0.05) 100%)'
@@ -4129,24 +4166,24 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                   backdropFilter: 'blur(10px)',
                   WebkitBackdropFilter: 'blur(10px)',
                   boxShadow: isFeatured
-                    ? '0 8px 40px rgba(217,78,58,0.18), inset 0 1px 0 rgba(255,248,234,0.13)'
+                    ? '0 8px 40px rgba(80,150,255,0.18), inset 0 1px 0 rgba(255,248,234,0.13)'
                     : 'inset 0 1px 0 rgba(255,248,234,0.09)',
                   position: 'relative',
                 }}
               >
                 {isFeatured && (
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--tomato)', borderRadius: '16px 16px 0 0' }} />
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'rgba(80,150,255,0.9)', borderRadius: '16px 16px 0 0' }} />
                 )}
 
                 <div style={{
                   fontFamily: 'var(--font-jetbrains), monospace',
                   fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', fontWeight: 600,
-                  color: isFeatured ? 'var(--tomato)' : 'rgba(255,248,234,0.58)',
+                  color: isFeatured ? 'rgba(80,150,255,0.9)' : 'rgba(255,248,234,0.58)',
                   marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   {plan.label}
                   {isFeatured && (
-                    <span style={{ background: 'rgba(217,78,58,0.2)', color: 'var(--tomato)', borderRadius: 9999, padding: '2px 8px', fontSize: 9 }}>
+                    <span style={{ background: 'rgba(80,150,255,0.2)', color: 'rgba(80,150,255,0.9)', borderRadius: 9999, padding: '2px 8px', fontSize: 9 }}>
                       popular
                     </span>
                   )}
@@ -4175,11 +4212,11 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <div style={{
                     width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                    background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(217,78,58,0.18)',
+                    background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <div style={{ width: 13, transform: 'rotate(186deg)' }}>
-                      <BarberMascot isStatic color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'var(--tomato)'} />
+                      <BarberMascot isStatic color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'rgba(80,150,255,0.9)'} />
                     </div>
                   </div>
                   <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
@@ -4198,29 +4235,38 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
                 <button
                   onClick={() => handleClick(plan.id)}
                   disabled={loading === plan.id}
-                  className={isFeatured ? 'btn-tomato' : ''}
                   style={{
                     width: '100%', padding: '13px 16px',
                     fontFamily: 'var(--font-dmsans), sans-serif',
                     fontSize: 13, fontWeight: 700, borderRadius: 12, cursor: 'pointer',
                     border: isFeatured ? 'none' : '1px solid rgba(255,248,234,0.18)',
-                    background: isFeatured ? undefined : 'rgba(255,248,234,0.07)',
-                    color: isFeatured ? undefined : 'var(--cream)',
-                    boxShadow: isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none',
+                    background: isFeatured ? '#7ab3d4' : 'rgba(255,248,234,0.07)',
+                    color: isFeatured ? '#fff' : 'var(--cream)',
+                    boxShadow: isFeatured ? '0 4px 22px rgba(100,180,220,0.45)' : 'none',
                     transition: 'background 160ms cubic-bezier(0.16,1,0.3,1), transform 240ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 240ms cubic-bezier(0.16,1,0.3,1)',
                     opacity: loading === plan.id ? 0.6 : 1,
                   }}
                   onMouseEnter={e => {
                     const btn = e.currentTarget as HTMLButtonElement;
-                    if (!isFeatured) btn.style.background = 'rgba(255,248,234,0.12)';
+                    if (isFeatured) {
+                      btn.style.background = '#8ec5e0';
+                      btn.style.boxShadow = '0 10px 40px rgba(100,190,230,0.7)';
+                    } else {
+                      btn.style.background = 'rgba(255,248,234,0.12)';
+                      btn.style.boxShadow = '0 6px 22px rgba(255,248,234,0.14)';
+                    }
                     btn.style.transform = 'translateY(-3px) scale(1.03)';
-                    btn.style.boxShadow = isFeatured ? '0 10px 36px rgba(217,78,58,0.55)' : '0 6px 22px rgba(255,248,234,0.14)';
                   }}
                   onMouseLeave={e => {
                     const btn = e.currentTarget as HTMLButtonElement;
-                    if (!isFeatured) btn.style.background = 'rgba(255,248,234,0.07)';
+                    if (isFeatured) {
+                      btn.style.background = '#7ab3d4';
+                      btn.style.boxShadow = '0 4px 22px rgba(100,180,220,0.45)';
+                    } else {
+                      btn.style.background = 'rgba(255,248,234,0.07)';
+                      btn.style.boxShadow = 'none';
+                    }
                     btn.style.transform = 'translateY(0) scale(1)';
-                    btn.style.boxShadow = isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none';
                   }}
                 >
                   {loading === plan.id ? '…' : plan.cta}
@@ -4239,6 +4285,59 @@ function LandingPricingCards({ onEnter }: { onEnter: () => void }) {
       </div>
       </Reveal>
     </div>
+
+    {pendingPlanId && createPortal(
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 60,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: authVisible && !authClosing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
+          transition: 'background 320ms ease',
+        }}
+        onClick={dismissAuth}
+      >
+        <button
+          onClick={dismissAuth}
+          style={{
+            position: 'absolute', top: 24, right: 24,
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
+            color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 160ms ease, color 160ms ease',
+          }}
+        >✕</button>
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28,
+            transform: authVisible && !authClosing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
+            opacity: authVisible && !authClosing ? 1 : 0,
+            transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <p style={{
+              fontFamily: 'var(--font-jetbrains), monospace',
+              fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.16em',
+              color: 'rgba(255,248,234,0.45)', margin: '0 0 10px',
+            }}>
+              {pendingPlanId === 'free' ? 'create your account' : 'sign in to purchase'}
+            </p>
+            <h2 style={{
+              fontFamily: 'var(--font-fraunces), Georgia, serif',
+              fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
+              color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,
+            }}>
+              {pendingPlanId === 'free' ? 'Start exploring.' : 'One step away.'}
+            </h2>
+          </div>
+          <SignUpWidget onEnter={handleAuthDone} large />
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
 
@@ -4291,39 +4390,105 @@ function BorderAnimCard({
   }, [delay]);
 
   const R = 18;
-  const SW = 1.5;
+  const SW = 3;
   const perim = dims ? 2 * ((dims.w - 2 * R) + (dims.h - 2 * R)) + 2 * Math.PI * R : 0;
 
+  // Corner-aware keyframes: SVG <rect> stroke starts at top-left, goes CW.
+  // Corners get 2.5x time-cost so the tip visibly eases through turns.
+  const cssText =
+    dims && perim > 0
+      ? (() => {
+          const { w, h } = dims;
+          const arc = Math.PI * R / 2;
+          const CORNER_FACTOR = 2.5;
+          const segs: [number, boolean][] = [
+            [w - 2 * R, false],
+            [arc, true],
+            [h - 2 * R, false],
+            [arc, true],
+            [w - 2 * R, false],
+            [arc, true],
+            [h - 2 * R, false],
+            [arc, true],
+          ];
+          const adjTotal = segs.reduce((s, [len, isC]) => s + len * (isC ? CORNER_FACTOR : 1), 0);
+          const DRAW_START = 4,
+            DRAW_END = 88,
+            DRAW_RANGE = DRAW_END - DRAW_START;
+          const lines = [
+            `  0%   { stroke-dashoffset: ${perim.toFixed(1)}; opacity: 0; }`,
+            `  4%   { stroke-dashoffset: ${(perim * 0.97).toFixed(1)}; opacity: 1; }`,
+          ];
+          let pos = 0,
+            adjSoFar = 0;
+          for (const [len, isC] of segs) {
+            pos += len;
+            adjSoFar += len * (isC ? CORNER_FACTOR : 1);
+            const pct = DRAW_START + (adjSoFar / adjTotal) * DRAW_RANGE;
+            const dashoffset = Math.max(0, perim - pos);
+            if (pct > 4.5 && pct < 87.5) {
+              lines.push(`  ${pct.toFixed(1)}% { stroke-dashoffset: ${dashoffset.toFixed(1)}; }`);
+            }
+          }
+          lines.push(`  88%  { stroke-dashoffset: 0; opacity: 1; }`);
+          lines.push(`  100% { stroke-dashoffset: 0; opacity: 0; }`);
+          return [
+            `@keyframes ${animId} {\n${lines.join("\n")}\n}`,
+            `@keyframes ${animId}-shine { from { transform: translateX(-130%) skewX(-15deg); } to { transform: translateX(300%) skewX(-15deg); } }`,
+          ].join("\n");
+        })()
+      : "";
+
   return (
-    <div ref={containerRef} style={{ position: 'relative', ...style }}>
+    <div ref={containerRef} style={{ position: "relative", ...style }}>
       {children}
       {dims && perim > 0 && (
         <>
-          <style>{`
-            @keyframes ${animId} {
-              0%   { stroke-dashoffset: ${perim.toFixed(1)}; opacity: 0; }
-              4%   { stroke-dashoffset: ${(perim * 0.93).toFixed(1)}; opacity: 1; }
-              28%  { stroke-dashoffset: ${(perim * 0.43).toFixed(1)}; }
-              68%  { stroke-dashoffset: ${(perim * 0.09).toFixed(1)}; }
-              88%  { stroke-dashoffset: 0; opacity: 1; }
-              100% { stroke-dashoffset: 0; opacity: 0; }
-            }
-          `}</style>
+          <style>{cssText}</style>
+          {/* Shine fires at delay+380ms so the 3 cards flash left-right in sequence */}
+          <div
+            style={{
+              position: "absolute",
+              top: "-10%",
+              left: 0,
+              width: "55%",
+              height: "120%",
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.13) 50%, transparent 100%)",
+              transform: "translateX(-130%) skewX(-15deg)",
+              animation: playing
+                ? `${animId}-shine 600ms cubic-bezier(0.2,0,0.4,1) 380ms forwards`
+                : "none",
+              pointerEvents: "none",
+              zIndex: 3,
+            }}
+          />
           <svg
-            style={{ position: 'absolute', inset: 0, width: dims.w, height: dims.h, pointerEvents: 'none' }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: dims.w,
+              height: dims.h,
+              pointerEvents: "none",
+              zIndex: 4,
+            }}
             viewBox={`0 0 ${dims.w} ${dims.h}`}
           >
             <rect
-              x={SW / 2} y={SW / 2}
-              width={dims.w - SW} height={dims.h - SW}
-              rx={R - SW / 2} ry={R - SW / 2}
+              x={SW / 2}
+              y={SW / 2}
+              width={dims.w - SW}
+              height={dims.h - SW}
+              rx={R - SW / 2}
+              ry={R - SW / 2}
               fill="none"
-              stroke="rgba(255,255,255,0.82)"
+              stroke="#4ade80"
               strokeWidth={SW}
               strokeDasharray={perim}
-              style={playing
-                ? { animation: `${animId} ${duration}ms linear forwards` }
-                : { strokeDashoffset: perim, opacity: 0 }
+              style={
+                playing
+                  ? { animation: `${animId} ${duration}ms linear forwards` }
+                  : { strokeDashoffset: perim, opacity: 0 }
               }
             />
           </svg>
@@ -4337,11 +4502,11 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
 
-  const smoothScrollTo = (id: string) => {
+  const smoothScrollTo = (id: string, extraOffset = 0) => {
     const el = document.getElementById(id);
     if (!el) return;
     const start = window.scrollY;
-    const end = el.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.35;
+    const end = el.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.35 + extraOffset;
     const dist = end - start;
     const duration = 1100;
     const ease = (t: number) => t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
@@ -4356,7 +4521,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   };
 
   const scrollToHowItWorks = () => smoothScrollTo('how-it-works');
-  const scrollToPricing = () => smoothScrollTo('pricing');
+  const scrollToPricing = () => {
+    const el = document.getElementById('pricing');
+    smoothScrollTo('pricing', el ? el.offsetHeight * 0.4 : 0);
+  };
 
   const [describeActiveIdx, setDescribeActiveIdx] = useState<number | undefined>(undefined);
   const [logoHover, setLogoHover] = useState(false);
@@ -4503,7 +4671,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </h2>
           </Reveal>
           <Reveal delay={160}>
-            <p className="font-serif italic" style={{ fontSize: 18, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.6 }}>
+            <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 17, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.65 }}>
               You walk out of the barber having settled — not because your barber was bad,
               but because there was no way to show exactly what you meant.
             </p>
@@ -4552,7 +4720,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* Bridge line */}
           <Reveal delay={120}>
-            <p className="font-serif italic" style={{ fontSize: 19, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.5, maxWidth: 560, margin: '0 auto' }}>
+            <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 18, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.6, maxWidth: 560, margin: '0 auto' }}>
               The cut you want is stuck in your head.{' '}
               <span style={{ color: 'var(--tomato)' }}>ShapeUp visualizes it on your face and gives you instructions for your barber.</span>
             </p>
@@ -4562,9 +4730,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         {/* ── Value props bar ── */}
         <div style={{ margin: '62px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {([
-            { stat: '~60 sec', label: 'scan to 3D preview', desc: 'From selfie to full 3D model.', bgPos: '0%', delay: 420, duration: 2100 },
-            { stat: '$2', label: 'to get started', desc: 'Less than a coffee to see yourself in 20 different cuts. Help us secure the best cut for you.', bgPos: '50%', delay: 560, duration: 2450 },
-            { stat: '1 selfie', label: 'all you need', desc: 'One photo is all it takes to see yourself with a different cut.', bgPos: '100%', delay: 700, duration: 2750 },
+            { stat: '', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%', delay: 420, duration: 2100 },
+            { stat: '$2', label: 'TO GET STARTED', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '50%', delay: 560, duration: 2450 },
+            { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '100%', delay: 700, duration: 2750 },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
               <BorderAnimCard
@@ -4809,7 +4977,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </p>
             <BouncyButton
               onClick={onEnter}
-              className="btn-tomato"
+              className="btn"
               style={{
                 padding: '18px 44px',
                 fontSize: 20,
@@ -4818,7 +4986,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 fontWeight: 900,
                 letterSpacing: '-0.01em',
                 borderRadius: 18,
-                boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
+                background: 'rgb(80, 150, 255)',
+                color: 'var(--cream)',
+                boxShadow: '0 8px 28px -6px rgba(80,150,255,0.5)',
               }}
             >
               Try It Free — No Card Needed →
