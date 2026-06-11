@@ -1,8 +1,8 @@
-// POST { imageDataUrl: string } → { jobId: string }
-// GET  ?jobId=<id>              → single status check; on success uploads PLY+splat to S3
+// POST { imageDataUrl, outputName? } → { jobId, splatUrl, plyUrl, videoUrl }
+// Modal runs inference synchronously; this handler waits for the result,
+// converts PLY → splat, uploads both (+ video) to S3, and returns signed URLs.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { getSignedDownloadUrl, uploadToS3 } from '@/lib/s3';
@@ -12,12 +12,10 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
-const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'shapeup', 'Accept': 'application/json' };
 
 const SH_C0 = 0.28209479177387814;
 const MAX_FACELIFT_IMAGE_BYTES = 6 * 1024 * 1024;
 
-// Maps PLY scalar type names → byte size.
 const PLY_SIZES: Record<string, number> = {
   float: 4, float32: 4, double: 8, float64: 8,
   char: 1, uchar: 1, int8: 1, uint8: 1,
@@ -36,7 +34,6 @@ function plyToSplat(plyBuf: Buffer): Buffer {
   if (!vcountMatch) throw new Error('No vertex count in PLY');
   const vcount = parseInt(vcountMatch[1]);
 
-  // Build property map: name → byte offset within one vertex record
   const propLines = [...header.matchAll(/^property (\S+) (\S+)$/gm)];
   const propOffset: Record<string, number> = {};
   let stride = 0;
@@ -48,7 +45,6 @@ function plyToSplat(plyBuf: Buffer): Buffer {
   const f = (i: number, name: string) =>
     plyBuf.readFloatLE(dataOffset + i * stride + propOffset[name]);
 
-  // Decode all splats
   const x   = new Float32Array(vcount);
   const y   = new Float32Array(vcount);
   const z   = new Float32Array(vcount);
@@ -85,11 +81,8 @@ function plyToSplat(plyBuf: Buffer): Buffer {
     q[3][i] = q3 / qlen;
   }
 
-  // Sort by opacity descending (improves alpha blending quality)
   const order = Array.from({ length: vcount }, (_, i) => i).sort((a2, b2) => a[b2] - a[a2]);
 
-  // Pack into .splat binary: 32 bytes/splat
-  // [x y z f32×3] [sx sy sz f32×3] [r g b a u8×4] [q0..q3 u8×4]
   const out = Buffer.allocUnsafe(vcount * 32);
   for (let i = 0; i < vcount; i++) {
     const j = order[i];
@@ -160,9 +153,12 @@ export async function POST(req: NextRequest) {
   }
 
   let imageDataUrl: string | undefined;
-  let currentProfile: unknown;
+  let outputName = 'edit-output';
   try {
-    ({ imageDataUrl, currentProfile } = await req.json() as { imageDataUrl?: string; currentProfile?: unknown });
+    ({ imageDataUrl, outputName = 'edit-output' } = await req.json() as {
+      imageDataUrl?: string;
+      outputName?: string;
+    });
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -176,7 +172,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsedImage.error }, { status: 400 });
   }
 
-  // Credit gate: require Clerk auth and deduct 1 credit per facelift job
   if (process.env.DISABLE_PAYWALL !== '1') {
     try {
       await convex.mutation(api.users.deductCredit, {});
@@ -188,136 +183,69 @@ export async function POST(req: NextRequest) {
   }
 
   const { buffer } = parsedImage;
-
-  const blob = new Blob([buffer], { type: 'image/jpeg' });
   const form = new FormData();
-  form.append('image', blob, 'face.jpg');
-  if (currentProfile != null) {
-    form.append('current_profile_json', JSON.stringify(currentProfile));
-  }
+  form.append('image', new Blob([buffer], { type: 'image/jpeg' }), 'face.jpg');
 
+  console.log(`[facelift] POST: sending to Modal — ${buffer.length} bytes`);
   let upstream: Response;
   try {
     upstream = await fetch(`${FACELIFT_URL}/process_image`, {
-      method:  'POST',
-      headers: { 'ngrok-skip-browser-warning': 'true' },
-      body:    form,
+      method: 'POST',
+      body:   form,
+      signal: AbortSignal.timeout(120_000),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[facelift] POST: network error reaching FaceLift server: ${msg}`);
+    console.error(`[facelift] POST: network error reaching Modal: ${msg}`);
     return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
   }
 
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '');
-    console.error(`[facelift] POST: server error ${upstream.status}: ${text}`);
+    console.error(`[facelift] POST: Modal returned ${upstream.status}: ${text}`);
     return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
   }
 
-  const data = await upstream.json();
-  console.log(`[facelift] POST: job queued, jobId=${data.job_id}`);
-  return NextResponse.json({ jobId: data.job_id });
-}
+  const modalData = await upstream.json() as { ply_b64: string; video_b64?: string | null };
+  const plyBuffer   = Buffer.from(modalData.ply_b64, 'base64');
+  const splatBuffer = plyToSplat(plyBuffer);
+  const videoBuffer = modalData.video_b64 ? Buffer.from(modalData.video_b64, 'base64') : null;
 
-// Single status check — client is responsible for polling.
-export async function GET(req: NextRequest) {
-  if (!FACELIFT_URL) {
-    return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
-  }
+  const jobId    = crypto.randomUUID();
+  const plyKey   = `facelifts/${jobId}/output.ply`;
+  const splatKey = `facelifts/${jobId}/output.splat`;
+  const videoKey = `facelifts/${jobId}/turntable.mp4`;
 
-  const jobId = req.nextUrl.searchParams.get('jobId');
-  if (!jobId) {
-    return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
-  }
-  const outputName = req.nextUrl.searchParams.get('outputName') ?? 'edit-output';
+  await Promise.all([
+    uploadToS3(plyKey,   plyBuffer,   'application/octet-stream'),
+    uploadToS3(splatKey, splatBuffer, 'application/octet-stream'),
+    ...(videoBuffer ? [uploadToS3(videoKey, videoBuffer, 'video/mp4')] : []),
+  ]);
+  console.log(`[facelift] POST: uploaded to S3 — ply=${plyBuffer.length}B splat=${splatBuffer.length}B`);
 
-  let authSession: Awaited<ReturnType<typeof auth>> | null = null;
-  try { authSession = await auth(); } catch { /* unauthenticated poll is fine */ }
-  const userId = authSession?.userId ?? null;
-
-  console.log(`[facelift] GET: checking status for jobId=${jobId}`);
-  let statusRes: Response;
   try {
-    statusRes = await fetch(`${FACELIFT_URL}/status/${jobId}`, { headers: NGROK_HEADERS });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[facelift] GET: network error reaching FaceLift server: ${msg}`);
-    return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
-  }
-  if (!statusRes.ok) {
-    const text = await statusRes.text().catch(() => '');
-    console.error(`[facelift] GET: status endpoint returned ${statusRes.status}: ${text}`);
-    return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
-  }
-
-  const status = await statusRes.json();
-  console.log(`[facelift] GET: jobId=${jobId} status=${status.status}`, status.error ? `error=${status.error}` : '');
-
-  if (status.status === 'success') {
-    console.log(`[facelift] GET: job succeeded, downloading from ${FACELIFT_URL}/download/${jobId}`);
-    let dlRes: Response;
-    try {
-      dlRes = await fetch(`${FACELIFT_URL}/download/${jobId}/ply`, { headers: NGROK_HEADERS });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[facelift] GET: network error downloading PLY: ${msg}`);
-      return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
-    }
-    if (!dlRes.ok) {
-      const text = await dlRes.text().catch(() => '');
-      console.error(`[facelift] GET: download failed ${dlRes.status}: ${text}`);
-      return NextResponse.json({ error: 'Download failed' }, { status: 502 });
-    }
-    const plyBuffer = Buffer.from(await dlRes.arrayBuffer());
-    console.log(`[facelift] GET: downloaded PLY (${plyBuffer.length} bytes), converting to splat`);
-    const splatBuffer = plyToSplat(plyBuffer);
-
-    const plyKey   = `facelifts/${jobId}/output.ply`;
-    const splatKey = `facelifts/${jobId}/output.splat`;
+    const publicDir = path.join(process.cwd(), 'public');
     await Promise.all([
-      uploadToS3(plyKey,   plyBuffer,   'application/octet-stream'),
-      uploadToS3(splatKey, splatBuffer, 'application/octet-stream'),
+      fs.writeFile(path.join(publicDir, `${outputName}.ply`),   plyBuffer),
+      fs.writeFile(path.join(publicDir, `${outputName}.splat`), splatBuffer),
     ]);
-    console.log(`[facelift] GET: uploaded to S3 — ply=${plyBuffer.length}B splat=${splatBuffer.length}B`);
-
-    // Mirror to public/ so local files stay in sync with the latest job
-    try {
-      const publicDir = path.join(process.cwd(), 'public');
-      await Promise.all([
-        fs.writeFile(path.join(publicDir, `${outputName}.ply`),   plyBuffer),
-        fs.writeFile(path.join(publicDir, `${outputName}.splat`), splatBuffer),
-      ]);
-      console.log(`[facelift] GET: mirrored to public/${outputName}.{ply,splat}`);
-    } catch (err) {
-      console.warn('[facelift] GET: could not write local public/ files (non-fatal):', err);
-    }
-
-    if (userId && authSession) {
-      try {
-        const convexToken = await authSession.getToken({ template: 'convex' });
-        const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-        convex.setAuth(convexToken!);
-        await convex.mutation(api.facelifts.recordResult, { jobId, plyS3Key: plyKey, splatS3Key: splatKey });
-        console.log(`[facelift] GET: recorded result in Convex for user=${userId}`);
-      } catch (err) {
-        console.error('[facelift] GET: failed to record in Convex (non-fatal):', err);
-      }
-    }
-
-    const [plyUrl, splatUrl] = await Promise.all([
-      getSignedDownloadUrl(plyKey),
-      getSignedDownloadUrl(splatKey),
-    ]);
-    return NextResponse.json({ status: 'success', plyUrl, splatUrl });
+  } catch (err) {
+    console.warn('[facelift] POST: could not write local public/ files (non-fatal):', err);
   }
 
-  if (status.status === 'error') {
-    const errMsg = status.error || status.message || status.detail || JSON.stringify(status);
-    console.error(`[facelift] GET: job failed —`, errMsg);
-    return NextResponse.json({ status: 'error', error: errMsg || 'Unknown error' });
+  try {
+    await convex.mutation(api.facelifts.recordResult, { jobId, plyS3Key: plyKey, splatS3Key: splatKey });
+    console.log(`[facelift] POST: recorded in Convex jobId=${jobId}`);
+  } catch (err) {
+    console.error('[facelift] POST: failed to record in Convex (non-fatal):', err);
   }
 
-  console.log(`[facelift] GET: job still running, status=${status.status ?? 'processing'}`);
-  return NextResponse.json({ status: status.status ?? 'processing' });
+  const [plyUrl, splatUrl, videoUrl] = await Promise.all([
+    getSignedDownloadUrl(plyKey),
+    getSignedDownloadUrl(splatKey),
+    videoBuffer ? getSignedDownloadUrl(videoKey) : Promise.resolve(null),
+  ]);
+
+  console.log(`[facelift] POST: done jobId=${jobId}`);
+  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl });
 }

@@ -4132,16 +4132,6 @@ const PRICING_PLANS = [
 ] as const;
 
 /* ─────────────── Pricing CTA Button ─────────────── */
-const PLAN_BUBBLES = [
-  { color: '#FFD700', size: 7,  x: 20, y: 58, tx: -14, ty: -28, delay: 0   },
-  { color: '#FF69B4', size: 5,  x: 76, y: 42, tx:  15, ty: -32, delay: 80  },
-  { color: '#5096FF', size: 8,  x: 52, y: 74, tx:  -7, ty: -38, delay: 40  },
-  { color: '#FFD700', size: 6,  x: 79, y: 66, tx:  19, ty: -20, delay: 120 },
-  { color: '#FF69B4', size: 7,  x: 25, y: 34, tx: -17, ty: -26, delay: 60  },
-  { color: '#5096FF', size: 5,  x: 63, y: 22, tx:  11, ty: -22, delay: 100 },
-  { color: '#FFD700', size: 4,  x: 42, y: 52, tx: -20, ty: -16, delay: 30  },
-] as const;
-
 const POPULAR_RING_POS = [
   { x: 28, y: 30, delay: 30  },
   { x: 70, y: 68, delay: 110 },
@@ -4163,57 +4153,23 @@ function PricingCTAButton({
   const [hovered, setHovered] = useState(false);
   const [animKey, setAnimKey] = useState(0);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [dims, setDims] = useState({ w: 0, h: 0 });
-  const [traceState, setTraceState] = useState<0 | 1 | 2>(0); // 0=idle, 1=tracing-in, 2=tracing-out
-  const traceResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useLayoutEffect(() => {
-    if (!btnRef.current || variant !== 'lifetime') return;
-    const update = () => {
-      if (!btnRef.current) return;
-      const r = btnRef.current.getBoundingClientRect();
-      setDims({ w: r.width, h: r.height });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(btnRef.current);
-    return () => ro.disconnect();
-  }, [variant]);
-
-  const onEnterBtn = () => {
-    setHovered(true);
-    setAnimKey(k => k + 1);
-    if (variant === 'lifetime') {
-      if (traceResetRef.current) clearTimeout(traceResetRef.current);
-      setTraceState(1);
-    }
-  };
-  const onLeaveBtn = () => {
-    setHovered(false);
-    if (variant === 'lifetime') {
-      setTraceState(2);
-      if (traceResetRef.current) clearTimeout(traceResetRef.current);
-      traceResetRef.current = setTimeout(() => setTraceState(0), 700);
-    }
-  };
-  useEffect(() => () => { if (traceResetRef.current) clearTimeout(traceResetRef.current); }, []);
+  const onEnterBtn = () => { setHovered(true); setAnimKey(k => k + 1); };
+  const onLeaveBtn = () => { setHovered(false); };
 
   const fillColor =
     variant === 'lifetime' ? 'rgb(240,70,130)' :
     variant === 'popular'  ? 'rgb(80,150,255)'  :
+    variant === 'starter'  ? 'rgb(248,200,24)'  :
     'rgba(255,248,234,0.92)';
   const hoverText = (variant === 'popular' || variant === 'lifetime') ? '#ffffff' : 'rgba(42,32,26,0.9)';
   const baseStyle: React.CSSProperties =
     variant === 'popular'  ? { border: '1px solid rgba(55,110,210,0.5)',  background: 'rgba(55,110,210,0.22)', color: 'rgba(255,248,234,0.78)', boxShadow: '0 4px 22px rgba(55,110,210,0.18)' } :
     variant === 'lifetime' ? { border: '1px solid rgba(220,70,120,0.28)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
+    variant === 'starter'  ? { border: '1px solid rgba(248,200,24,0.22)', background: 'rgba(248,200,24,0.06)', color: 'var(--cream)' } :
                              { border: '1px solid rgba(255,248,234,0.18)', background: 'rgba(255,248,234,0.07)', color: 'var(--cream)' };
 
-  // Lifetime SVG trace geometry
-  const LT_BR = 12, LT_INS = 3;
-  const ltRx = Math.max(2, LT_BR - LT_INS);
-  const ltRw = Math.max(0, dims.w - LT_INS * 2);
-  const ltRh = Math.max(0, dims.h - LT_INS * 2);
-  const ltPerim = dims.w > 0 ? 2 * ((ltRw - 2 * ltRx) + (ltRh - 2 * ltRx)) + 2 * Math.PI * ltRx : 0;
+  const LT_BR = 12;
 
   return (
     <button
@@ -4222,19 +4178,23 @@ function PricingCTAButton({
       disabled={disabled}
       style={{
         position: 'relative', overflow: 'hidden',
-        width: '100%', padding: '13px 16px',
+        width: '100%', padding: variant === 'lifetime' ? '12px 15px' : '13px 16px',
         fontFamily: 'var(--font-dmsans), sans-serif',
-        fontSize: 13, fontWeight: 700, borderRadius: LT_BR,
+        fontSize: variant === 'lifetime' ? 12 : 13, fontWeight: 700, borderRadius: LT_BR,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.6 : 1,
-        ...(variant === 'lifetime' ? {
-          animation: hovered ? 'pro-btn-sync 1100ms linear forwards' : undefined,
-          transform: hovered ? undefined : 'scale(1)',
-          transition: hovered ? 'none' : 'transform 400ms cubic-bezier(0.4,0,0.2,1), box-shadow 280ms ease',
-        } : {
+        ...({
           transition: 'transform 340ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 280ms ease',
-          transform: hovered ? 'scale(1.04)' : 'scale(1)',
-          boxShadow: hovered && (variant === 'free' || variant === 'starter')
+          transform: hovered
+            ? (variant === 'lifetime' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)')
+            : 'scale(1)',
+          boxShadow: hovered && variant === 'popular'
+            ? '0 8px 48px -2px rgba(80,150,255,0.95), 0 0 56px rgba(80,150,255,0.65), 0 0 100px rgba(80,150,255,0.28)'
+            : hovered && variant === 'lifetime'
+            ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)'
+            : hovered && variant === 'starter'
+            ? '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)'
+            : hovered && variant === 'free'
             ? '0 8px 28px -4px rgba(255,248,234,0.32), 0 0 14px rgba(255,248,234,0.12)'
             : undefined,
         }),
@@ -4251,28 +4211,6 @@ function PricingCTAButton({
         transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1)',
         pointerEvents: 'none', zIndex: 0,
       }} />
-
-      {/* Lifetime: blue fill trailing 130ms */}
-      {variant === 'lifetime' && (
-        <span aria-hidden style={{
-          position: 'absolute', inset: 0,
-          background: 'rgb(80,150,255)',
-          clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50% round ${LT_BR - 1}px)`,
-          transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1) 130ms',
-          pointerEvents: 'none', zIndex: 1,
-        }} />
-      )}
-
-      {/* Lifetime: third pink fill trailing 270ms */}
-      {variant === 'lifetime' && (
-        <span aria-hidden style={{
-          position: 'absolute', inset: 0,
-          background: 'rgb(250,90,160)',
-          clipPath: hovered ? `inset(0% round ${LT_BR - 1}px)` : `inset(50% round ${LT_BR - 1}px)`,
-          transition: 'clip-path 240ms cubic-bezier(0.16,1,0.3,1) 270ms',
-          pointerEvents: 'none', zIndex: 2,
-        }} />
-      )}
 
       {/* Starter: expanding ring */}
       {variant === 'starter' && hovered && (
@@ -4296,41 +4234,16 @@ function PricingCTAButton({
         }} />
       ))}
 
-      {/* Lifetime: floating colour bubbles */}
-      {variant === 'lifetime' && hovered && PLAN_BUBBLES.map((b, i) => (
-        <span key={`bubble-${animKey}-${i}`} aria-hidden style={{
-          position: 'absolute', left: `${b.x}%`, top: `${b.y}%`,
-          width: b.size, height: b.size, borderRadius: '50%',
-          background: b.color, transform: 'translate(-50%,-50%)',
-          pointerEvents: 'none', zIndex: 3,
-          animation: `bubble-float 1100ms ${b.delay}ms ease-out forwards`,
-          ...({ '--bx': `${b.tx}px`, '--by': `${b.ty}px` } as React.CSSProperties),
+      {/* Lifetime: four expanding pink circle rings */}
+      {variant === 'lifetime' && hovered && POPULAR_RING_POS.map((p, i) => (
+        <span key={`ltcircle-${animKey}-${i}`} aria-hidden style={{
+          position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+          width: 2, height: 2, borderRadius: '50%',
+          transform: 'translate(-50%,-50%)',
+          pointerEvents: 'none', zIndex: 1,
+          animation: `lifetime-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
         }} />
       ))}
-
-      {/* Lifetime: thick offwhite SVG border trace — CW in, CCW out */}
-      {variant === 'lifetime' && ltPerim > 0 && (
-        <svg aria-hidden viewBox={`0 0 ${dims.w} ${dims.h}`} style={{
-          position: 'absolute', inset: 0,
-          width: '100%', height: '100%',
-          pointerEvents: 'none', zIndex: 4,
-        }}>
-          <rect
-            x={LT_INS} y={LT_INS} width={ltRw} height={ltRh} rx={ltRx} ry={ltRx}
-            fill="none"
-            stroke="rgba(255,248,234,0.88)"
-            strokeWidth="2.5"
-            strokeDasharray={ltPerim}
-            strokeDashoffset={traceState === 1 ? 0 : traceState === 2 ? -ltPerim : ltPerim}
-            opacity={traceState === 0 ? 0 : 1}
-            style={{
-              transition: traceState === 0 ? 'none' :
-                traceState === 1 ? 'stroke-dashoffset 350ms cubic-bezier(0.16,1,0.3,1), opacity 30ms' :
-                                   'stroke-dashoffset 252ms cubic-bezier(0.8,0,0.84,1), opacity 30ms 222ms',
-            }}
-          />
-        </svg>
-      )}
 
       {/* Text — sits above all fills */}
       <span style={{
@@ -4338,20 +4251,7 @@ function PricingCTAButton({
         color: hovered ? hoverText : undefined,
         transition: 'color 200ms ease',
       }}>
-        {variant === 'lifetime' ? (
-          <span
-            key={hovered ? animKey : 'idle'}
-            style={{
-              display: 'block',
-              transformOrigin: 'center center',
-              animation: hovered ? 'pro-text-spin-grow 1100ms linear forwards' : undefined,
-              transition: !hovered ? 'transform 400ms cubic-bezier(0.4,0,0.2,1)' : undefined,
-              transform: !hovered ? 'scale(1) rotate(0deg)' : undefined,
-            }}
-          >
-            {children}
-          </span>
-        ) : children}
+        {children}
       </span>
     </button>
   );
@@ -4397,12 +4297,76 @@ function TraceBorderCta({
     ? 2 * ((rw - 2 * rx) + (rh - 2 * rx)) + 2 * Math.PI * rx
     : 0;
 
-  const fillClr    = isBlue ? 'rgb(80,150,255)' : 'var(--tomato)';
-  const traceClr   = isBlue ? 'white' : 'rgba(255,210,40,0.92)';
-  const defaultBg  = isBlue ? "url('/dark_charcoal.png') center/cover no-repeat" : 'rgba(255,248,234,0.97)';
-  const defaultClr = isBlue ? 'var(--cream)' : 'var(--tomato)';
-  const hoverClr   = isBlue ? '#ffffff' : 'var(--cream)';
+  if (isBlue) {
+    return (
+      <button
+        ref={btnRef}
+        onClick={onClick}
+        style={{
+          position: 'relative', overflow: 'hidden',
+          borderRadius: BR,
+          border: 'none',
+          background: "url('/dark_charcoal.png') center/cover no-repeat",
+          cursor: 'pointer',
+          transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
+          transform: hovered ? 'scale(1.07)' : 'scale(1)',
+          ...style,
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {/* Blue fill — always visible at rest */}
+        <span aria-hidden style={{
+          position: 'absolute', inset: 0,
+          background: 'rgb(80,150,255)',
+          clipPath: `inset(${TRACE_INSET}px round ${rx}px)`,
+          pointerEvents: 'none', zIndex: 0,
+        }} />
 
+        {/* White fill — grows in on hover */}
+        <span aria-hidden style={{
+          position: 'absolute', inset: 0,
+          background: 'white',
+          clipPath: hovered ? `inset(0% round ${BR}px)` : `inset(50% round ${rx}px)`,
+          transition: 'clip-path 330ms cubic-bezier(0.16,1,0.3,1)',
+          pointerEvents: 'none', zIndex: 1,
+        }} />
+
+        {/* White SVG outline — always drawn */}
+        {perimeter > 0 && (
+          <svg
+            aria-hidden
+            viewBox={`0 0 ${dims.w} ${dims.h}`}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              pointerEvents: 'none', zIndex: 2,
+            }}
+          >
+            <rect
+              x={TRACE_INSET} y={TRACE_INSET}
+              width={rw} height={rh}
+              rx={rx} ry={rx}
+              fill="none"
+              stroke="white"
+              strokeWidth={STROKE_W}
+            />
+          </svg>
+        )}
+
+        {/* Text */}
+        <span style={{
+          position: 'relative', zIndex: 3,
+          color: hovered ? 'var(--char)' : 'var(--cream)',
+          transition: 'color 200ms ease',
+        }}>
+          {children}
+        </span>
+      </button>
+    );
+  }
+
+  // Tomato variant
   return (
     <button
       ref={btnRef}
@@ -4411,28 +4375,27 @@ function TraceBorderCta({
         position: 'relative', overflow: 'hidden',
         borderRadius: BR,
         border: 'none',
-        background: defaultBg,
-        color: defaultClr,
+        background: 'rgba(255,248,234,0.97)',
+        color: 'var(--tomato)',
         cursor: 'pointer',
-        transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
+        transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 250ms ease',
         transform: hovered ? 'scale(1.04)' : 'scale(1)',
+        boxShadow: hovered ? '0 0 0 1.5px rgba(90,72,55,0)' : '0 0 0 1.5px rgba(90,72,55,0.40)',
         ...style,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Fill — inset rect, invisible at rest */}
+      {/* Tomato fill — expands on hover */}
       <span aria-hidden style={{
         position: 'absolute', inset: 0,
-        background: fillClr,
-        clipPath: hovered
-          ? (isBlue ? `inset(${TRACE_INSET}px round ${rx}px)` : `inset(0% round ${BR}px)`)
-          : `inset(50% round ${rx}px)`,
+        background: 'var(--tomato)',
+        clipPath: hovered ? `inset(0% round ${BR}px)` : `inset(50% round ${rx}px)`,
         transition: 'clip-path 330ms cubic-bezier(0.16,1,0.3,1)',
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* SVG border trace — draws CW from top-left on hover */}
+      {/* Golden SVG trace — draws on hover */}
       {perimeter > 0 && (
         <svg
           aria-hidden
@@ -4441,7 +4404,7 @@ function TraceBorderCta({
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',
             pointerEvents: 'none', zIndex: 1,
-            filter: !isBlue && hovered
+            filter: hovered
               ? 'drop-shadow(0 0 5px rgba(255,210,40,0.85)) drop-shadow(0 0 12px rgba(255,180,0,0.55))'
               : undefined,
             transition: 'filter 200ms ease',
@@ -4452,7 +4415,7 @@ function TraceBorderCta({
             width={rw} height={rh}
             rx={rx} ry={rx}
             fill="none"
-            stroke={traceClr}
+            stroke="rgba(255,210,40,0.92)"
             strokeWidth={STROKE_W}
             strokeDasharray={perimeter}
             strokeDashoffset={hovered ? 0 : perimeter}
@@ -4464,7 +4427,7 @@ function TraceBorderCta({
       {/* Text */}
       <span style={{
         position: 'relative', zIndex: 2,
-        color: hovered ? hoverClr : undefined,
+        color: hovered ? 'var(--cream)' : undefined,
         transition: 'color 200ms ease',
       }}>
         {children}

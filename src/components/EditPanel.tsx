@@ -137,42 +137,27 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         reader.readAsDataURL(editBlob);
       });
 
-      // Submit to facelift
-      const faceliftSubmitRes = await fetch('/api/facelift', {
+      // Submit to facelift and wait for synchronous result
+      const faceliftRes = await fetch('/api/facelift', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imageDataUrl: editDataUrl }),
+        body:    JSON.stringify({ imageDataUrl: editDataUrl, outputName: 'edit-output' }),
       });
-      const faceliftSubmitRaw = await faceliftSubmitRes.text();
-      let faceliftSubmit: { jobId?: string; error?: string };
-      try { faceliftSubmit = JSON.parse(faceliftSubmitRaw); }
+      const faceliftRaw = await faceliftRes.text();
+      let faceliftData: { splatUrl?: string; error?: string };
+      try { faceliftData = JSON.parse(faceliftRaw); }
       catch {
         pipelineHadErrorRef.current = true;
-        setPipelineError('Facelift submit returned non-JSON (HTTP ' + faceliftSubmitRes.status + ').');
+        setPipelineError('Facelift returned non-JSON (HTTP ' + faceliftRes.status + ').');
         return;
       }
-      if (!faceliftSubmit.jobId) {
+      if (!faceliftData.splatUrl) {
         pipelineHadErrorRef.current = true;
-        setPipelineError('Facelift failed to start: ' + (faceliftSubmit.error ?? 'unknown'));
+        setPipelineError('Facelift failed: ' + (faceliftData.error ?? 'unknown'));
         return;
       }
 
-      // Poll until done
-      const jobId = faceliftSubmit.jobId;
-      let splatUrl: string | null = null;
-      while (true) {
-        await new Promise(r => setTimeout(r, 5000));
-        const pollRes  = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=edit-output`);
-        const pollData = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
-        if (pollData.status === 'success') { splatUrl = pollData.splatUrl!; break; }
-        if (pollData.status === 'error') {
-          pipelineHadErrorRef.current = true;
-          setPipelineError('Facelift render failed: ' + (pollData.error ?? 'unknown'));
-          return;
-        }
-      }
-
-      onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(splatUrl!)}`);
+      onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`);
       setLiveStatus('3D hairstyle render is ready.');
     } finally {
       // Cancel intervals immediately — don't wait for the useEffect round-trip

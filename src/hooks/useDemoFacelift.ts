@@ -4,20 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 
 export type DemoFaceliftStatus = 'idle' | 'processing' | 'done' | 'error';
 
-async function pollFacelift(jobId: string, outputName: string): Promise<string> {
-  while (true) {
-    await new Promise(r => setTimeout(r, 5000));
-    const res  = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=${encodeURIComponent(outputName)}`);
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(`Facelift poll failed (${res.status}): ${body || 'empty response'}`);
-    }
-    const data = await res.json() as { status: string; splatUrl?: string; error?: string };
-    if (data.status === 'success') return data.splatUrl!;
-    if (data.status === 'error') throw new Error(data.error ?? 'Facelift failed');
-  }
-}
-
 export function useDemoFacelift(originalImageUrl: string | null) {
   const [splatSrc, setSplatSrc] = useState<string | null>(null);
   const [status,   setStatus]   = useState<DemoFaceliftStatus>('idle');
@@ -43,24 +29,26 @@ export function useDemoFacelift(originalImageUrl: string | null) {
         reader.readAsDataURL(blob);
       });
 
-      const submitRes = await fetch('/api/facelift', {
+      const res = await fetch('/api/facelift', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imageDataUrl }),
+        body:    JSON.stringify({ imageDataUrl, outputName: 'original-output' }),
       });
-      if (submitRes.status === 402 || submitRes.status === 401) {
+
+      if (res.status === 402 || res.status === 401) {
         const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
         const { url } = await checkout.json() as { url?: string };
         if (url) { window.location.href = url; return; }
       }
-      if (!submitRes.ok) {
-        const body = await submitRes.text().catch(() => '');
-        throw new Error(`Facelift submit failed (${submitRes.status}): ${body || 'empty response'}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Facelift failed (${res.status}): ${body || 'empty response'}`);
       }
-      const { jobId } = await submitRes.json() as { jobId?: string };
-      if (!jobId) throw new Error('No jobId from facelift');
 
-      const splatUrl = await pollFacelift(jobId, 'original-output');
+      const { splatUrl, error: serverError } = await res.json() as { splatUrl?: string; error?: string };
+      if (serverError) throw new Error(serverError);
+      if (!splatUrl) throw new Error('No splatUrl in response');
+
       setSplatSrc(splatUrl);
       setStatus('done');
     } catch (err) {

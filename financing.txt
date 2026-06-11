@@ -1,0 +1,295 @@
+<aside>
+🎯
+
+**TL;DR**
+
+- **Invest in GPU memory snapshots** → realistic cold start ~**10–15s** (alpha; budget ~20s as fallback). Sub-15s is achievable, sub-5s is not for your weight footprint.
+- **Idle window is a cost dial, not a latency fix.** A warm GPU bills at full rate. Use a **~30–45s `scaledown_window`** + fast cold starts. Pin `min_containers=1` only for demos.
+    - **Serve on Modal**, scale-to-zero, GPU = **A10G** (closest cloud match to your RTX 3090). Use a stable Modal web endpoint and retire ngrok.
+- **Per Gemini generation cost ≈ $0.05** (Gemini 2.5 Flash Image ~$0.039 + GPU ~$0.01). The image model you pick is the single biggest cost lever — see the model section.
+- **Your free tier is Gemini-free** (prebaked hair `.ply` overlays on one GPU render). This **eliminates the free-tier cost trap** — compute now scales with payers, not signups. Smart design.
+- **All four tiers are profitable** at ~50–62% gross margin on Gemini 2.5 Flash. **Do not run Nano Banana Pro ($0.13/img) on every generation** — it breaks $4.99 and $14.99. Reserve Pro for limited HD exports.
+- **Heads up on credits (bootstrapped reality):** your pack has no Google, and as a self-funded startup you don't qualify for **Modal's or Google's big credit programs** — both require VC funding. Modal GPU is cheap enough to pay cash; the Gemini image cost is the one to hedge — A/B test **OpenAI gpt-image-1 / Azure OpenAI** image editing (which your credits *do* cover) against Gemini.
+</aside>
+
+## Key refinements to the model
+
+<aside>
+✅
+
+**Your tier design is sound.** By keeping the free tier Gemini-free (prebaked `.ply` overlays) and only spending Gemini on paid generations, you've already avoided the free-tier funnel trap that would otherwise sink post-credit margins. Compute cost is now tightly coupled to revenue.
+
+Two things to watch: (1) the **image model choice** drives most of your marginal cost — Gemini 2.5 Flash keeps tiers healthy, Nano Banana Pro on every gen does not; (2) **Stripe's $0.30 fixed fee** is ~18% of the $2 tier, so treat $2 as a low-margin acquisition tier, not your profit center.
+
+</aside>
+
+---
+
+## 1. Model serving setup
+
+### GPU selection
+
+You're on an RTX 3090 (24GB) locally. No cloud offers consumer 3090s, so the closest match is the **A10G** (24GB, same Ampere generation). Your 3-model pipeline (face detector + MVDiffusion + GS-LRM, ~7–9GB weights) fits comfortably in 24GB.
+
+| GPU (Modal) | VRAM | ~Price/hr | Fit for you |
+| --- | --- | --- | --- |
+| **A10G** ✅ | 24GB | ~$1.10 | Recommended. Closest to 3090; expect ~15–20s/job (vs ~15s on 3090). |
+| L4 | 24GB | ~$0.80 | Cheaper but slower memory bandwidth; diffusion likely slower. |
+| A100 40GB | 40GB | ~$2.10 | Faster than 3090, but overkill/pricey for ~15s jobs. |
+| T4 | 16GB | ~$0.59 | Cheapest, but 16GB is tight for 3 models + diffusion. Risky. |
+
+### Architecture
+
+- Wrap your GPU server in a **Modal `Cls`**: load the 3 models once per container, expose a web endpoint.
+- **Drop the jobId/polling queue and threading lock.** At ~10–20s jobs with low concurrency, a synchronous HTTP call is simpler. Modal isolates each request in its own container with its own GPU, so the lock is unnecessary.
+- **Keep your Next.js proxy + rate limiting** (`src/app/api/facelift/route.ts`, 5 jobs/10min/user) exactly as-is; just point `FACELIFT_URL` at the Modal endpoint.
+- **Store outputs (`.ply` + turntable `.mp4`) in S3** — this is what your YC **AWS credits** are good for (they don't apply to Modal). Keeps the GPU container stateless.
+- Protect the endpoint with a shared secret header (Modal `Secret`) so only your backend can call it.
+- The Gemini hairstyle step stays in your app code untouched (cloud API, no GPU).
+
+### Cold-start optimizations (the "investment")
+
+It's mostly configuration plus structuring model loading correctly:
+
+1. **Weights in a Modal Volume** — download `wlyu/OpenFaceLift` once; never re-pull from HuggingFace at boot.
+2. **`enable_memory_snapshot=True`** — CPU memory snapshot (GA), skips repeated init work (e.g. the ~20k file reads to import torch).
+3. **`experimental_options={"enable_gpu_snapshot": True}`** — GPU memory snapshot (alpha). Snapshots the GPU memory state after models are loaded, so restore skips re-reading 8GB from disk.
+4. **Load all 3 models onto the GPU inside the snapshotted init** so the snapshot captures populated GPU memory + CUDA context.
+5. **Deploy** (`modal deploy`) — the snapshot only materializes after ~3–5 cold boots, so don't judge timing from the first run.
+
+```python
+import modal
+
+app = modal.App("facelift")
+image = (modal.Image.debian_slim(python_version="3.11")
+         .apt_install("ffmpeg", "libgl1")
+         .pip_install("torch", "diffusers", "transformers", "huggingface_hub",
+                      "opencv-python-headless", "numpy", "fastapi[standard]"))
+weights = modal.Volume.from_name("facelift-weights", create_if_missing=True)
+
+@app.cls(
+    gpu="A10G",
+    image=image,
+    volumes={"/weights": weights},
+    enable_memory_snapshot=True,
+    experimental_options={"enable_gpu_snapshot": True},
+    scaledown_window=45,      # idle seconds before scale-to-zero (cost dial)
+    min_containers=0,         # on-demand; set to 1 only for demos
+)
+class FaceLift:
+    @modal.enter(snap=True)
+    def load(self):
+        self.models = load_all_models("/weights")  # onto GPU
+
+    @modal.fastapi_endpoint(method="POST")
+    def process_image(self, item: dict):
+        ply, video = run_pipeline(self.models, item["image"])
+        # upload ply/video to S3, return URLs
+        return {"ply_url": ..., "video_url": ...}
+```
+
+---
+
+## 2. Cold start analysis
+
+### Expected cold-start times
+
+| Setup | Cold start | Notes |
+| --- | --- | --- |
+| No snapshot | ~60–120s | Weights → disk → GPU + init each boot. |
+| CPU memory snapshot | ~20–40s | GA. 3–10× faster init. |
+| **GPU memory snapshot** | ~10–15s | Alpha. Modal saw ~118s → ~12s (≈10×) on a 3B model. |
+
+<aside>
+❓
+
+**Is 5–15s realistic?** ~10–15s yes, with caveats: GPU snapshots are alpha, and your 3-model pipeline is messier than a single vLLM server, so results vary. **Plan for ~20s, treat sub-15s as upside, sub-5s as unrealistic** for an 8GB footprint.
+
+</aside>
+
+---
+
+## 3. Scale-to-idle economics & user scenarios
+
+<aside>
+💸
+
+**A warm GPU bills at the full per-second rate** whether it's running inference or sitting idle. There is no idle discount. So `scaledown_window` (how long a container stays alive after the last request) is literally "how many idle GPU-seconds am I willing to buy to avoid a cold start."
+
+</aside>
+
+### Per-generation GPU cost components (A10G @ $0.000306/s)
+
+| Component | Cost |
+| --- | --- |
+| GPU active (~18s) | ~$0.0055 |
+| Cold start (~12s, isolated only) | ~$0.0037 |
+| Idle tail @ 90s window | ~$0.0275 |
+| Idle tail @ 30s window | ~$0.0092 |
+
+### User scenarios (GPU cost only — add Gemini separately)
+
+- **Bursty / session (likely):** a user fires several edits, then views results. One cold start + one idle tail amortized across many gens → GPU ≈ **~$0.01/gen**.
+- **Isolated (worst case):** every generation stands alone, each eats a full idle tail → GPU ≈ **$0.037/gen @ 90s**, **~$0.019/gen @ 30s**.
+
+<aside>
+🎛️
+
+**Recommendation: 30–45s window + fast cold starts.** Your jobs already take ~15–20s, so a ~12s cold start on an isolated return is barely noticeable. This captures rapid back-to-back edits (warm) while scaling down during multi-minute viewing gaps — cutting worst-case GPU idle cost ~3×. Flip `min_containers=1` only on demo days.
+
+</aside>
+
+---
+
+## 4. Unit economics
+
+### True marginal cost per generation
+
+| Cost component | Per generation | Note |
+| --- | --- | --- |
+| **Gemini 2.5 Flash Image** | **~$0.039** | 1290 tokens/image, fixed. ~$0.04–0.07 at higher res. **Dominant cost.** |
+| GPU (active + amortized idle) | ~$0.010–0.017 | A10G @ 30–45s window. |
+| **All-in (realistic, bursty)** | **~$0.05** | Use this for planning. |
+| All-in (worst case, isolated) | ~$0.06–0.076 | ~$0.06 @ 30–45s window; ~$0.076 @ 90s. |
+
+<aside>
+✅
+
+**Free-tier cost trap: avoided by design.** Your free tier runs one GPU-only render with prebaked hair `.ply` overlays and **never calls Gemini**, so free explorers cost ~$0.01 each (GPU only) instead of ~$0.05. At 5% conversion that's only ~$0.20 of free-user compute per payer — negligible. Compute now scales with paying usage, not raw signups. This is the single most important thing you got right.
+
+</aside>
+
+### Per-tier unit economics (Gemini 2.5 Flash @ ~$0.05/gen, fully used, on cash)
+
+| Tier | Gemini gens | Revenue | Stripe | Compute (max use) | Contribution | Margin | Rev/gen |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Free | 0 (1 GPU-only) | $0 | $0 | ~$0.01 | — | — | — |
+| **$2** | 10 | $2.00 | $0.36 | $0.51 | **$1.13** | 57% | $0.20 |
+| **$4.99** | 30 | $4.99 | $0.44 | $1.51 | **$3.04** | 61% | $0.166 |
+| **$14.99** | 100 | $14.99 | $0.73 | $5.01 | **$9.25** | 62% | $0.15 |
+
+- **Worst case** (every gen isolated, full idle tail @ 30–45s window, ~$0.06/gen): margins compress only slightly — $2 → ~51%, $4.99 → ~55%, $14.99 → ~55%. Even maxed out, all paid tiers stay comfortably profitable.
+- **Stripe is the $2 tier's main drag:** the $0.30 fixed fee is ~18% of revenue. Fine as an entry/acquisition tier, but your margin dollars come from $4.99 and $14.99.
+- **All tiers clear the ~$0.05 cost floor** with 3–4× headroom on Gemini 2.5 Flash. That headroom is what pays for an occasional premium model (next section).
+
+---
+
+## 5. Gemini image-edit model options
+
+The hair edit is your quality-defining step, and the model choice is also your biggest cost lever. Current Google options (mid-2026):
+
+| Model | ~Cost/image | Best for |
+| --- | --- | --- |
+| **Gemini 2.5 Flash Image** ("Nano Banana") | $0.039 (≤1024px) | **Default.** Fast, strong identity preservation + edit quality. Run all exploration gens here. |
+| Gemini 3.1 Flash Image | ~$0.07 | Newer fast model; quality/reasoning lift. A/B test vs 2.5 at your output resolution. |
+| **Gemini 3 Pro Image** ("Nano Banana Pro") | $0.134 (1K/2K), $0.24 (4K) | **Premium final / HD export only.** Best fidelity, detail, legible text. Too costly per-gen for exploration. |
+| Imagen + mask inpainting (Vertex) | ~$0.04 | Pixel-locks the face: edits only the masked hair region. Strongest identity guarantee. |
+
+### Which to use for good-looking renders
+
+- **Conversational models (Gemini Flash/Pro)** take image + prompt and regenerate the whole image. Excellent realistic hair and good identity, but can subtly drift the face/skin across edits.
+- **Mask-based inpainting (Imagen)** edits only the masked hair/scalp pixels and leaves the face untouched — the strongest guarantee the face doesn't change between styles. You already run a face detector + SMIRK/FLAME alignment, so you can derive a hair mask and feed it in. More integration work, maximum fidelity.
+
+**Recommended setup:**
+
+- **Default:** Gemini 2.5 Flash Image ($0.039) for every exploration generation — keeps all tiers at 55–62% margin.
+- **Quality test:** A/B Gemini 3.1 Flash Image (~$0.07). At that cost the $14.99/100 tier compute rises to ~$7 (~46% margin) and $2/10 to ~$0.70 — still viable, so adopt broadly only if the quality lift is visible.
+- **Premium "money shot":** offer Nano Banana Pro for the single final HD render the user takes to the barber — reserved to $14.99 or sold as a small HD add-on.
+- **If testers report face drift:** pilot Imagen mask-inpainting using your existing hair mask.
+- **Batch API (50% off, async 12–24h):** not for realtime, but halves cost for offline jobs like pre-baking your free-tier hair `.ply` library.
+
+<aside>
+🚨
+
+**Do not run Nano Banana Pro ($0.134/img) on every generation.** It breaks your tiers: $4.99/30 → ~$4.32 compute → ~$0.22 contribution (≈4%); $14.99/100 → ~$14.40 compute → a **loss**. Pro is a premium-export feature, not the default path.
+
+</aside>
+
+<aside>
+⚠️
+
+**Your credit pack doesn't include Google — and bootstrapped, you can't easily fix that.** YC / OpenAI / Anthropic / xAI / AWS / Azure credits won't cover Gemini, and Google's big startup credits (up to $350k, incl. Gemini) require **institutional VC funding** — bootstrapped applicants typically get only ~$2k on the Start tier. So Gemini is likely **real cash from day one**. Two hedges: (1) keep Gemini but treat it as a hard cash cost (your tiers cover it on 2.5 Flash); (2) A/B test **OpenAI gpt-image-1 / Azure OpenAI** image editing — credits you *do* have — and switch if quality holds.
+
+</aside>
+
+---
+
+## 6. Financial projections (revised)
+
+Because the free tier is Gemini-free, compute now scales with **payers**, not signups. Free explorers cost only ~$0.01 each (GPU), so the funnel-burn risk is gone. Assumed payer tier mix: 50% $2 / 35% $4.99 / 15% $14.99 → **blended ARPPU ≈ $5.00**, **blended contribution ≈ $3.02/payer (~60%)** after Stripe + Gemini 2.5 Flash compute.
+
+### Six-month view
+
+| Scenario | Activated | Conversion | Payers | Revenue | Contribution (cash) |
+| --- | --- | --- | --- | --- | --- |
+| Low | 2,500 | 2% | 50 | $250 | ~$151 |
+| Base | 8,000 | 5% | 400 | $2,000 | ~$1,208 |
+| High | 20,000 | 8% | 1,600 | $8,000 | ~$4,832 |
+
+### Twelve-month view
+
+| Scenario | Activated | Conversion | Payers | Revenue | Contribution (cash) |
+| --- | --- | --- | --- | --- | --- |
+| Low | 10,000 | 2% | 200 | $1,000 | ~$604 |
+| Base | 30,000 | 5% | 1,500 | $7,500 | ~$4,530 |
+| High | 75,000 | 8% | 6,000 | $30,000 | ~$18,120 |
+
+Contribution is post-Stripe, post-compute but pre-fixed-costs. While GPU credits last, GPU compute is ~free; Gemini is the cost that bites (see credit note above).
+
+### Gemini cash runway (your binding constraint)
+
+| Gemini budget | Paid gens @ $0.039 | ≈ payers (avg ~25 gens each) |
+| --- | --- | --- |
+| $1,000 | ~25,600 | ~1,000 |
+| $5,000 | ~128,000 | ~5,100 |
+| $10,000 | ~256,000 | ~10,200 |
+
+GPU spend (Modal) is separate and cheaper (~$0.01–0.015/gen incl. free renders); cover it with Modal startup credits + AWS for storage.
+
+---
+
+## 7. Tier review & pricing
+
+Your current tiers are well-structured and all profitable on Gemini 2.5 Flash. Notes per tier:
+
+- **Free (1 GPU gen + prebaked `.ply` overlays):** the right call — zero Gemini cost, lets users feel the product, keeps free-tier burn negligible. Generate the prebaked library offline (Batch API) so even your seeding cost is halved.
+- **$2 / 10 gens ($0.20/gen):** healthy 57% margin, but Stripe's $0.30 fee is 18% of it. Treat as a **friction-reducing acquisition tier**, not a profit center. Don't go below ~$1.99 — micro-prices get destroyed by the fixed fee.
+- **$4.99 / 30 gens ($0.166/gen):** your **anchor** — best balance of margin (61%) and value. Likely your volume tier.
+- **$14.99 / 100 gens ($0.15/gen):** strong 62% margin and a natural home for premium quality (Nano Banana Pro HD exports, extra instruction sheets).
+
+**Suggestions to consider:**
+
+- All per-gen prices ($0.15–0.20) sit 3–4× above the ~$0.05 cost floor — good headroom. You have room to add value rather than cut price.
+- The research doc's strongest monetization idea — the **barber-ready instruction sheet** — isn't reflected in these tiers. Consider attaching one to $4.99 and multiple to $14.99 as the defensible, hard-to-commoditize hook.
+- Watch **pack consumption**: if most $14.99 buyers use far fewer than 100 gens, you're leaving margin on the table and could right-size counts (or you're over-delivering, which is fine pre-traction).
+
+---
+
+## 8. Action checklist
+
+- [ ]  **Credits reality (bootstrapped):** you don't qualify for Modal's or Google's big startup programs (both require VC funding). Skip those; pursue the bootstrapped-eligible ones:
+    - [ ]  **NVIDIA Inception** (free; unlocks ~$10k AWS credits) + **AWS Activate Founders** (~$1k self-funded, or ~$5k via a Brex/Mercury provider Org ID).
+    - [ ]  **Microsoft for Startups Founders Hub** (no funding required; up to $150k Azure + Azure OpenAI credits).
+    - [ ]  **Cloudflare** ($10k, no min funding) for storage/CDN; **GitHub for Startups** (<$1M raised).
+    - [ ]  Apply to **Google for Startups Start tier** anyway — bootstrapped usually nets only ~$2k and may exclude Gemini, but worth a shot with traction.
+- [ ]  **Hedge the Gemini cash cost:** you already hold **OpenAI + Azure** credits — A/B test **gpt-image-1 / Azure OpenAI** image editing vs Gemini for the hair edit. If quality holds, your image cost becomes credit-covered instead of cash.
+- [ ]  Move GPU server into a Modal `Cls` on **A10G**; drop polling/lock; go synchronous.
+- [ ]  Weights → Modal **Volume**; enable **CPU + GPU memory snapshots**; deploy and benchmark cold start over 5+ boots.
+- [ ]  Set `scaledown_window=30–45`; `min_containers=1` only for demos.
+- [ ]  Move `.ply`/`.mp4` outputs to **S3** (AWS credits); point `FACELIFT_URL` at Modal; retire ngrok.
+- [ ]  **Default image model = Gemini 2.5 Flash Image.** A/B test 3.1 Flash; reserve Nano Banana Pro for HD exports only.
+- [ ]  Pre-bake the free-tier hair `.ply` library offline (Batch API = 50% off).
+- [ ]  Pilot **Imagen mask-inpainting** if testers report the face drifting between styles.
+- [ ]  Instrument **3 burn meters** (Modal GPU, Gemini API, AWS) and per-generation cost.
+- [ ]  Attach the **barber instruction sheet** to $4.99/$14.99 as the defensible hook.
+
+---
+
+## 9. Sources & assumptions
+
+- GPU/serverless: Modal pricing & cold-start/snapshot docs (A10G ~$1.10/hr; GPU snapshots alpha, ~10× cold-start reduction).
+- Image API (mid-2026): Gemini 2.5 Flash Image ~$0.039/image (≤1024px); Gemini 3.1 Flash Image ~$0.07; Gemini 3 Pro Image / Nano Banana Pro ~$0.134 (1K/2K) to ~$0.24 (4K); Batch API 50% off (async).
+- Payments: Stripe 2.9% + $0.30 per domestic card transaction.
+- Tier economics use Gemini 2.5 Flash at ~$0.05 all-in/gen (Gemini $0.039 + GPU ~$0.01); worst case ~$0.06 at a 30–45s idle window. Tier mix assumption: 50% $2 / 35% $4.99 / 15% $14.99.
+- Market/pricing strategy: your research analysis ("AI Haircut Simulator Pricing and Financial Plan").
+- All user/conversion figures are planning estimates, not forecasts. GPU job time assumed ~15s (3090) → ~18s (A10G); Gemini ~5–7s. Revisit once you benchmark real A10G timings and measured conversion.

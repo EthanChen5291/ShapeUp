@@ -370,12 +370,16 @@ body {
 
 /* ── Pricing button hover keyframes ─────────────────────── */
 @keyframes starter-ring-grow {
-  0%   { box-shadow: 0 0 0 2px rgba(255,248,234,0.65); }
-  100% { box-shadow: 0 0 0 90px rgba(255,248,234,0); }
+  0%   { box-shadow: 0 0 0 2px rgba(248,200,24,0.65); }
+  100% { box-shadow: 0 0 0 90px rgba(248,200,24,0); }
 }
 @keyframes popular-circle-grow {
   0%   { box-shadow: 0 0 0 2px rgba(80,150,255,0.65); }
   100% { box-shadow: 0 0 0 70px rgba(80,150,255,0); }
+}
+@keyframes lifetime-circle-grow {
+  0%   { box-shadow: 0 0 0 2px rgba(240,70,130,0.65); }
+  100% { box-shadow: 0 0 0 70px rgba(240,70,130,0); }
 }
 @keyframes bubble-float {
   0%   { transform: translate(-50%,-50%) scale(1); opacity: 0.9; }
@@ -1402,49 +1406,10 @@ input[type="range"].slider-warm::-moz-range-thumb {
   100% { opacity: 0; transform: translateY(-28px) scale(0.72); }
 }
 
-/* ── Pricing card LED border flicker — single amber color, irregular flash ── */
-/* ON  = full glow  |  OFF = nearly invisible — pairs are 1% apart (~25ms at 2.5s) */
-@keyframes led-flicker {
-  0%   { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — flash 1 — */
-  5%   { border-color: rgba(80,150,255,0.08); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.04), 0 0 0 1px rgba(80,150,255,0.06); }
-  6%   { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — flash 2 (quick double) — */
-  9%   { border-color: rgba(80,150,255,0.06); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  10%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — stable bright — */
-  24%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — flash 3 (longer off) — */
-  26%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  28%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — stable bright — */
-  40%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — triple burst — */
-  42%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  43%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  45%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  46%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  48%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  50%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — stable bright — */
-  66%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — flash 4 — */
-  68%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  69%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — stable bright — */
-  82%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  /* — flash 5 (double) — */
-  84%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  85%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  87%  { border-color: rgba(80,150,255,0.07); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 2px  0px rgba(80,150,255,0.03), 0 0 0 1px rgba(80,150,255,0.05); }
-  89%  { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-  100% { border-color: rgba(80,150,255,0.92); box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82); }
-}
-
+/* ── Pricing card — constant glow ── */
 .pricing-led-border {
-  border: 1px solid rgba(80,150,255,0.92);
-  box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 26px 5px rgba(80,150,255,0.55), 0 0 0 1px rgba(80,150,255,0.82);
-  animation: led-flicker 2.5s linear infinite;
+  border: 1px solid rgba(80,150,255,0.78);
+  box-shadow: 0 40px 100px -28px rgba(0,0,0,0.55), 0 0 28px 6px rgba(80,150,255,0.4), 0 0 0 1px rgba(80,150,255,0.6);
 }
 
 /* ── Legal page prose ─────────────────────────────────────── */
