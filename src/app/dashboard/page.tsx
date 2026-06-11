@@ -9,6 +9,7 @@ import { Id } from '@convex/_generated/dataModel';
 import { useRouter } from 'next/navigation';
 import { HairParams, UserHeadProfile } from '@/types';
 import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
+import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import dynamic from 'next/dynamic';
 import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
@@ -561,6 +562,34 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
     } catch (err: unknown) { setUsernameError(err instanceof Error ? err.message : 'Something went wrong'); setUsernameLoading(false); }
   };
 
+  const processCapture = useCallback(async (dataUrl: string): Promise<{ profile: UserHeadProfile; sessionId: string | null; url: string | null }> => {
+    const profile: UserHeadProfile = {
+      headProportions: { width: 1.6, height: 2.0, crownY: 1.0 },
+      anchors: { earLeft: [-0.85, 0, 0], earRight: [0.85, 0, 0] },
+      hairMeasurements: { crownHeight: 0.3, sideWidth: 0.2, backLength: 0.25, flatness: 0.5, hairline: 0.28, hairThickness: 0.16 },
+      faceScanData: { landmarks: [], imageDataUrl: dataUrl, imageWidth: 640, imageHeight: 640 },
+      currentStyle: {
+        preset: 'default',
+        hairType: 'straight',
+        colorRGB: '#3b1f0a',
+        params: { topLength: 1, sideLength: 1, backLength: 1, messiness: 0, taper: 0.5, pc1: 0, pc2: 0, pc3: 0, pc4: 0, pc5: 0, pc6: 0 },
+      },
+    };
+    let sessionId: string | null = null;
+    let url: string | null = null;
+    try {
+      const res = await fetch('/api/save-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: dataUrl, currentProfile: buildCurrentProfilePayload(profile) }),
+      });
+      const data = await res.json();
+      sessionId = data.sessionId ?? null;
+      url = data.downloadUrl ?? null;
+    } catch { /* non-fatal */ }
+    return { profile, sessionId, url: url ?? dataUrl };
+  }, []);
+
   const handleCapture = (p: UserHeadProfile, sid: string | null, url: string | null) => {
     setCaptured({ profile: p, sid, url }); setPhase('verify'); setTimeout(() => setShowVerifyBtns(true), 200);
   };
@@ -683,7 +712,7 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
 
               {phase === 'camera' && (
                 <div key={cameraKey} style={{ width: '100%', maxWidth: 'min(460px, calc(90vh - 340px))', position: 'relative' }}>
-                  <ScanCamera hairType="straight" onScanComplete={handleCapture} onDataUrlReady={(d) => setCapturedDataUrl(d)} onDismiss={dismiss} onNoTokens={() => setShowPricing(true)} paywallDisabled={paywallDisabled} onChecksChange={(c) => setLiveChecks(c)} />
+                  <ScanCamera hairType="straight" processCapture={processCapture} onScanComplete={handleCapture} onDataUrlReady={(d) => setCapturedDataUrl(d)} onDismiss={dismiss} onNoTokens={() => setShowPricing(true)} paywallDisabled={paywallDisabled} onChecksChange={(c) => setLiveChecks(c)} />
                 </div>
               )}
 
