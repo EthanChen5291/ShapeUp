@@ -455,9 +455,9 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     })
       .then(r => r.json())
       .then(data => {
-        if (data.jobId) {
-          setEthanJobId(data.jobId);
-          setEthanJobStatus('processing');
+        if (data.splatUrl) {
+          setEthanSplatSrc(data.splatUrl);
+          setEthanJobStatus('done');
         } else {
           setEthanJobStatus('error');
         }

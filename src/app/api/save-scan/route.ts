@@ -4,21 +4,9 @@ import { api } from '@convex/_generated/api';
 import { uploadToS3, getSignedDownloadUrl } from '@/lib/s3';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { parseImageDataUrl } from '@/lib/imageDataUrl';
 
 const MAX_SCAN_IMAGE_BYTES = 6 * 1024 * 1024;
-
-function parseImageDataUrl(value: unknown) {
-  if (typeof value !== 'string') return { error: 'imageDataUrl is required' };
-  const match = value.match(/^data:image\/(png|jpe?g|webp);base64,([a-zA-Z0-9+/=]+)$/);
-  if (!match) return { error: 'imageDataUrl must be a base64 PNG, JPEG, or WebP data URL' };
-  const base64 = match[2];
-  if (base64.length > Math.ceil(MAX_SCAN_IMAGE_BYTES * 4 / 3) + 128) {
-    return { error: 'Image is too large' };
-  }
-  const buffer = Buffer.from(base64, 'base64');
-  if (buffer.length > MAX_SCAN_IMAGE_BYTES) return { error: 'Image is too large' };
-  return { buffer };
-}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireSignedIn();
@@ -62,8 +50,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'invalid JSON body', detail: String(err) }, { status: 400 });
   }
 
-  const parsedImage = parseImageDataUrl(imageDataUrl);
-  if ('error' in parsedImage) {
+  const parsedImage = parseImageDataUrl(imageDataUrl, { maxBytes: MAX_SCAN_IMAGE_BYTES });
+  if (!parsedImage.ok) {
     console.warn('[save-scan] rejected image payload', {
       reason: parsedImage.error,
       user: hashIdentifier(authResult.session.userId),
@@ -79,7 +67,7 @@ export async function POST(req: NextRequest) {
   const scanS3Key = `pictures/${sessionId}/scan.png`;
   let downloadUrl: string | null = null;
   try {
-    await uploadToS3(scanS3Key, buffer, 'image/png');
+    await uploadToS3(scanS3Key, buffer, parsedImage.mimeType);
     downloadUrl = await getSignedDownloadUrl(scanS3Key);
     console.log('[save-scan] uploaded to S3:', scanS3Key);
   } catch (err) {

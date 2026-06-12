@@ -273,7 +273,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
       const baldData = await baldRes.json();
       if (!baldData.baldifiedDataUrl) throw new Error(baldData.error ?? 'No image returned');
 
-      setFaceliftStatus('Sending you to the 3D chair');
+      setFaceliftStatus('Sculpting your 3D head (~30 s)');
       const submitRes = await fetch('/api/facelift', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -284,20 +284,8 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
       });
       const submitData = await submitRes.json();
       if (!submitData.jobId) throw new Error(submitData.error ?? 'No job ID returned');
-
-      setFaceliftStatus('Sculpting (~2 min — grab a coffee)');
-      const jobId = submitData.jobId;
-      while (true) {
-        await new Promise(r => setTimeout(r, 5000));
-        const pollRes = await fetch(`/api/facelift?jobId=${jobId}`);
-        const pollData = await pollRes.json();
-        if (pollData.status === 'success') {
-          renderJobDoneRef.current = true;
-          await new Promise(r => setTimeout(r, 1200));
-          break;
-        }
-        if (pollData.status === 'error') throw new Error(pollData.error ?? 'Facelift job failed');
-      }
+      renderJobDoneRef.current = true;
+      await new Promise(r => setTimeout(r, 1200));
 
       onRenderIn3D(baldData.baldifiedDataUrl);
     } catch (err) {

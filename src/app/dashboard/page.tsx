@@ -637,18 +637,8 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
         if (url) { window.location.href = url; return; }
       }
       if (!submitRes.ok) { const body = await submitRes.text().catch(() => ''); throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`); }
-      const { jobId } = await submitRes.json() as { jobId?: string };
+      const { jobId, splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
       if (!jobId) throw new Error('Server did not return a job ID');
-      let splatUrl: string | null = null;
-      while (!abort.signal.aborted) {
-        await new Promise(r => setTimeout(r, 5000));
-        if (abort.signal.aborted) return;
-        const pollRes = await fetch(`/api/facelift?jobId=${encodeURIComponent(jobId)}&outputName=scan-output`, { signal: abort.signal });
-        if (!pollRes.ok) { const body = await pollRes.text().catch(() => ''); throw new Error(`Build check failed (${pollRes.status})${body ? ': ' + body : ''}`); }
-        const data = await pollRes.json() as { status: string; splatUrl?: string; error?: string };
-        if (data.status === 'success') { splatUrl = data.splatUrl ?? null; break; }
-        if (data.status === 'error') throw new Error(data.error ?? '3D build failed');
-      }
       if (!splatUrl || abort.signal.aborted) return;
       setFaceliftStatus('done');
       setTimeout(() => {

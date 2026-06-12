@@ -2,6 +2,8 @@
 // Modal runs inference synchronously; this handler waits for the result,
 // converts PLY → splat, uploads both (+ video) to S3, and returns signed URLs.
 
+export const maxDuration = 600; // 10 min — covers Modal cold start + weight download + inference
+
 import { NextRequest, NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
@@ -222,7 +224,7 @@ export async function POST(req: NextRequest) {
     upstream = await fetch(`${FACELIFT_URL}/process_image`, {
       method: 'POST',
       body:   form,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(600_000),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
