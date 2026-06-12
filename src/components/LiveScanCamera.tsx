@@ -179,7 +179,7 @@ export default function LiveScanCamera({
   /* ── Per-frame observation ──────────────────────────────────── */
   const observe = useCallback(async (now: number): Promise<FaceObservation | null> => {
     const v = videoRef.current;
-    if (!v || v.readyState < 2) return null;
+    if (!v || v.readyState < 2 || v.paused || !v.videoWidth || !v.videoHeight) return null;
     const eng = engineRef.current;
 
     if (eng === 'mediapipe' && landmarkerRef.current) {
@@ -348,8 +348,12 @@ export default function LiveScanCamera({
     c.width = side; c.height = side;
     const ctx = c.getContext('2d');
     if (!ctx) return;
-    /* center-crop square, unmirrored (the file should match reality) */
+    /* center-crop square, mirrored to match the preview the user saw */
+    ctx.save();
+    ctx.translate(side, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, side, side);
+    ctx.restore();
     const dataUrl = c.toDataURL('image/jpeg', 0.92);
     onDataUrlReady?.(dataUrl);
     setShot(dataUrl);

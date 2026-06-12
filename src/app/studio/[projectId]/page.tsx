@@ -127,8 +127,6 @@ export default function StudioPage() {
   const projectId = params.projectId as Id<'projects'>;
 
   const saveProject = useMutation(api.projects.save);
-  const generateThumbnailUploadUrl = useMutation(api.projects.generateThumbnailUploadUrl);
-  const saveThumbnail = useMutation(api.projects.saveThumbnail);
   const project = useQuery(api.projects.get, { projectId });
 
   const [initialized, setInitialized] = useState(false);
@@ -193,10 +191,14 @@ export default function StudioPage() {
     if (!projectId || !imageUrl) return;
     const t = setInterval(async () => {
       try {
+        const profileToSave = profile ? {
+          ...profile,
+          faceScanData: profile.faceScanData ? { ...profile.faceScanData, imageDataUrl: undefined } : profile.faceScanData,
+        } : undefined;
         await saveProject({
           projectId,
           lastHairParams: hairParams,
-          lastProfile: profile ?? undefined,
+          lastProfile: profileToSave,
           lastImageUrl: imageUrl,
         });
       } catch { /* silent */ }
@@ -236,15 +238,14 @@ export default function StudioPage() {
     if (!projectId) return;
     try {
       const blob = await fetch(dataUrl).then(r => r.blob());
-      const uploadUrl = await generateThumbnailUploadUrl();
-      const { storageId } = await fetch(uploadUrl, {
+      const { url } = await fetch('/api/upload-thumbnail', {
         method: 'POST',
-        headers: { 'Content-Type': 'image/png' },
+        headers: { 'Content-Type': 'image/jpeg' },
         body: blob,
       }).then(r => r.json());
-      await saveThumbnail({ projectId, storageId });
+      await saveProject({ projectId, thumbnailUrl: url });
     } catch { /* non-fatal */ }
-  }, [projectId, generateThumbnailUploadUrl, saveThumbnail]);
+  }, [projectId, saveProject]);
 
   // Show project-not-found state
   if (project === null) {
@@ -275,10 +276,10 @@ export default function StudioPage() {
           <button
             onClick={() => router.push('/dashboard')}
             aria-label="Back to dashboard"
-            className="btn-ink"
-            style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="btn-tomato"
+            style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
             </svg>
           </button>

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       plan: planId,
       credits: String(config.credits),
     },
-    success_url: `${origin}?payment=success`,
+    success_url: `${origin}/dashboard?payment=success`,
     cancel_url:  `${origin}?payment=cancelled`,
   });
 

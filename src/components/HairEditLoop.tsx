@@ -341,10 +341,10 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
           <button
             onClick={() => router.push('/dashboard')}
             aria-label="Back to dashboard"
-            className="btn-ink"
-            style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="btn-tomato"
+            style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
             </svg>
           </button>

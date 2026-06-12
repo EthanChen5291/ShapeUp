@@ -274,7 +274,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
     camera.position.set(5.5, 0, 5.5);
     camera.lookAt(0, 0, 0);
     gl.render(scene, camera);
-    const dataUrl = gl.domElement.toDataURL('image/png');
+    const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.85);
     camera.position.copy(origPos);
     camera.lookAt(0, 0, 0);
     onCapture(dataUrl);
@@ -296,7 +296,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
 
       {showSplat && splatSrc && (
         <Suspense fallback={null}>
-          <Splat src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
+          <Splat key={splatSrc} src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
         </Suspense>
       )}
 

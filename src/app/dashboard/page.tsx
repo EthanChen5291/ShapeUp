@@ -18,6 +18,49 @@ import { BarberMascot, InlineWordmark, BouncyButton } from '@/components/AppUI';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
+/* ─── Clock Counter — slot-machine digit transition ─── */
+function ClockCounter({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
+  const [current, setCurrent] = useState(value);
+  const [prev, setPrev] = useState<number | null>(null);
+  const [animKey, setAnimKey] = useState(0);
+  const currentRef = useRef(value);
+
+  useEffect(() => {
+    if (value === currentRef.current) return;
+    const old = currentRef.current;
+    currentRef.current = value;
+    setPrev(old);
+    setCurrent(value);
+    setAnimKey(k => k + 1);
+    const t = setTimeout(() => setPrev(null), 340);
+    return () => clearTimeout(t);
+  }, [value]);
+
+  return (
+    <span className={className} style={{ position: 'relative', display: 'inline-block', overflow: 'hidden', verticalAlign: 'baseline', ...style }}>
+      {prev !== null && (
+        <span
+          key={`out-${animKey}`}
+          aria-hidden
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0,
+            pointerEvents: 'none',
+            animation: 'clock-digit-out 300ms cubic-bezier(0.4,0,0.6,1) forwards',
+          }}
+        >
+          {prev}
+        </span>
+      )}
+      <span
+        key={`in-${animKey}`}
+        style={{ display: 'block', animation: prev !== null ? 'clock-digit-in 300ms cubic-bezier(0.2,0,0.4,1) forwards' : undefined }}
+      >
+        {current}
+      </span>
+    </span>
+  );
+}
+
 /* ─── Profile Menu ─── */
 function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
@@ -31,6 +74,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [displayCredits, setDisplayCredits] = useState<number | null>(null);
+  const [clockKey, setClockKey] = useState(0);
   const animatingRef = useRef(false);
 
   useEffect(() => {
@@ -55,15 +99,25 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
 
+  const startCreditsRef = useRef(0);
+
   useEffect(() => {
     if (!celebratePurchase) return;
+    const stored = sessionStorage.getItem('preCheckoutCredits');
+    sessionStorage.removeItem('preCheckoutCredits');
+    const start = stored !== null ? parseInt(stored, 10) : 0;
+    startCreditsRef.current = start;
     setTimeout(() => setOpen(true), 300);
     animatingRef.current = true;
-    setDisplayCredits(0);
+    // Remount ClockCounter at pre-purchase count (no animation), then count up
+    setClockKey(k => k + 1);
+    setDisplayCredits(start);
   }, [celebratePurchase]);
 
   useEffect(() => {
     if (!animatingRef.current || user?.credits == null) return;
+    const start = startCreditsRef.current;
+    if (user.credits <= start) return; // webhook not yet applied, wait
     animatingRef.current = false;
     const target = user.credits;
     const duration = 1400;
@@ -72,7 +126,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
     const interval = setInterval(() => {
       step++;
       const eased = 1 - Math.pow(1 - step / steps, 3);
-      setDisplayCredits(Math.round(eased * target));
+      setDisplayCredits(Math.round(start + eased * (target - start)));
       if (step >= steps) {
         clearInterval(interval);
         setDisplayCredits(target);
@@ -122,7 +176,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
           <button onClick={handleToggle} className="flex items-center gap-2 w-full" style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: 8, paddingRight: 15, height: 43 }}>
             <span className="avatar-initial">{initial}</span>
             <span className="font-sans text-[15px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-            <span className="pill-credits">✦ {displayCredits !== null ? displayCredits : (user?.credits ?? 0)}</span>
+            <span className="pill-credits">✦ <ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
             <svg width="12" height="12" viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -133,7 +187,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
                 <div className="tokens-widget">
                   <div className="tokens-widget__row">
                     <span className="tokens-widget__label">Tokens</span>
-                    <span className="tokens-widget__count">{displayCredits !== null ? displayCredits : (user?.credits ?? 0)}</span>
+                    <span className="tokens-widget__count"><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
                   </div>
                   <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full">
                     <span className="btn-tokens-cta__shimmer" />
@@ -206,8 +260,8 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
 
   return createPortal(
     <>
-      <div className="fixed inset-0" style={{ zIndex: 59, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
-      <div style={{ position: 'fixed', zIndex: 60, top: isOpen ? (vh - PANEL_H) / 2 : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? PANEL_H : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
+      <div className="fixed inset-0" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
+      <div style={{ position: 'fixed', zIndex: 10001, top: isOpen ? (vh - PANEL_H) / 2 : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? PANEL_H : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
         <div style={{ position: 'absolute', inset: 0, padding: '48px 52px 44px', display: 'flex', flexDirection: 'column', gap: 28, overflow: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
           <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 30 }}>Settings</h2>
@@ -313,7 +367,7 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   const containerExpanded = expandPhase >= 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
       <div className={closing ? 'popup-out' : 'popup-in'}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', width: containerExpanded ? 'min(80vw, 920px)' : 360, padding: containerExpanded ? '44px 48px 48px' : '44px 40px 40px', transition: `width ${dur} ${ease}, padding ${dur} ${ease}` }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
@@ -364,7 +418,7 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
   useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
   const dismiss = () => { setClosing(true); setTimeout(onDismiss, 420); };
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }}>
       <div style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
@@ -680,7 +734,7 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
             : 'Building your 3D model. This takes about two minutes.';
 
   return (
-    <div className="fixed inset-0 z-40" style={{ background: exiting ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)', transition: 'background 400ms ease' }} onClick={dismiss}>
+    <div className="fixed inset-0 z-[10000]" style={{ background: exiting ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)', transition: 'background 400ms ease' }} onClick={dismiss}>
       <div
         ref={panelRef}
         role="dialog"
@@ -955,7 +1009,7 @@ function ExploreFloor() {
           </div>
         ))}
       </div>
-      <div className="explore-marquee" aria-hidden><div className="explore-marquee-track font-mono">{Array.from({ length: 2 }).map((_, r) => <span key={r}>FRESH CUTS&nbsp;&nbsp;✂&nbsp;&nbsp;TRENDING STYLES&nbsp;&nbsp;✂&nbsp;&nbsp;BARBER PICKS&nbsp;&nbsp;✂&nbsp;&nbsp;FACE-SHAPE MATCHES&nbsp;&nbsp;✂&nbsp;&nbsp;</span>)}</div></div>
+      <div className="explore-marquee" aria-hidden><div className="explore-marquee-track font-mono">{Array.from({ length: 10 }).map((_, r) => <span key={r}>FRESH CUTS&nbsp;&nbsp;✂&nbsp;&nbsp;TRENDING STYLES&nbsp;&nbsp;✂&nbsp;&nbsp;BARBER PICKS&nbsp;&nbsp;✂&nbsp;&nbsp;FACE-SHAPE MATCHES&nbsp;&nbsp;✂&nbsp;&nbsp;</span>)}</div></div>
     </div>
   );
 }
@@ -994,7 +1048,7 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
     setInteracting(true);
   };
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
       <div className="popup-in flex flex-col items-center gap-5">
         <div ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={() => { setInteracting(false); setRotation({ x: 0, y: 0 }); }} style={{ transition: interacting ? 'none' : 'transform 600ms cubic-bezier(.2,.85,.2,1)', transform: `perspective(600px) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
           <div className="polaroid scan-pop-in" style={{ maxWidth: 280 }}>
@@ -1059,27 +1113,35 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : 2;
   const floorSliderRef = useRef<HTMLDivElement>(null);
   const sidebarDarkRef = useRef<HTMLDivElement>(null);
-  const topbarDarkRef = useRef<HTMLDivElement>(null);
+  const wordmarkLightRef = useRef<HTMLDivElement>(null);
+  const wordmarkDarkRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
   const prevFloorRef = useRef(floorIndex);
 
   useEffect(() => {
     if (!vpH) return;
-    const floorSlider = floorSliderRef.current, sidebarDark = sidebarDarkRef.current, topbarDark = topbarDarkRef.current;
-    if (!floorSlider || !sidebarDark || !topbarDark) return;
+    const floorSlider = floorSliderRef.current, sidebarDark = sidebarDarkRef.current;
+    const wLight = wordmarkLightRef.current, wDark = wordmarkDarkRef.current;
+    if (!floorSlider || !sidebarDark) return;
     cancelAnimationFrame(rafRef.current);
     const prevFloor = prevFloorRef.current; prevFloorRef.current = floorIndex;
-    if (floorIndex !== 1 && prevFloor !== 1) { sidebarDark.style.clipPath = 'inset(100% 0 0 0)'; topbarDark.style.opacity = '0'; return; }
+    if (floorIndex !== 1 && prevFloor !== 1) {
+      sidebarDark.style.clipPath = 'inset(100% 0 0 0)';
+      if (wLight) wLight.style.opacity = '1';
+      if (wDark) wDark.style.opacity = '0';
+      return;
+    }
     const step1 = vpH + 320, step2 = 2 * vpH + 640;
     let lastP = -1, stableFrames = 0;
     const tick = () => {
       const matrix = new DOMMatrix(window.getComputedStyle(floorSlider).transform);
       const p = -matrix.m42;
       let charcoalAmount = p <= step1 ? p / step1 : 1 - (p - step1) / (step2 - step1);
-      charcoalAmount = Math.max(0, Math.min(1, charcoalAmount));
+      charcoalAmount = Math.max(0, Math.min(1, charcoalAmount / 0.732051));
       sidebarDark.style.clipPath = `inset(${(1 - charcoalAmount) * 100}% 0 0 0)`;
-      topbarDark.style.opacity = charcoalAmount > 0.85 ? '1' : '0';
-      if (Math.abs(p - lastP) < 0.5) { stableFrames++; if (stableFrames > 4) { const isAtSaved = floorIndex === 1; sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`; topbarDark.style.opacity = isAtSaved ? '1' : '0'; return; } } else { stableFrames = 0; }
+      if (wLight) wLight.style.opacity = String(1 - charcoalAmount);
+      if (wDark) wDark.style.opacity = String(charcoalAmount);
+      if (Math.abs(p - lastP) < 0.5) { stableFrames++; if (stableFrames > 4) { const isAtSaved = floorIndex === 1; sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`; if (wLight) wLight.style.opacity = isAtSaved ? '0' : '1'; if (wDark) wDark.style.opacity = isAtSaved ? '1' : '0'; return; } } else { stableFrames = 0; }
       lastP = p; rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -1154,19 +1216,14 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
         {/* Main content */}
         <div className="min-w-0" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
-          {/* Top bar */}
-          <div style={{ flexShrink: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '24px 40px 0', position: 'relative', zIndex: 1 }}>
+          {/* Top bar — transparent overlay so floor content shows through */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+            <div style={{ padding: '24px 40px 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}><InlineWordmark /></div>
-                <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
+                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'} style={{ position: 'relative' }}>
+                  <div ref={wordmarkLightRef}><InlineWordmark /></div>
+                  <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0 }}><InlineWordmark cream /></div>
                 </div>
-              </div>
-            </div>
-            <div ref={topbarDarkRef} style={{ position: 'absolute', inset: 0, background: '#181b17', opacity: 0, transition: 'opacity 120ms ease', zIndex: 2, padding: '24px 40px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}><InlineWordmark cream /></div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
                   <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
                 </div>
@@ -1179,7 +1236,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
             <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
               {/* Floor 0 — Home */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '0 40px 80px' }}>
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <HomeTitle count={projects?.length} />
                   <div style={{ flex: 1 }} />
@@ -1215,7 +1272,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               </div>
 
               {/* Floor 1 — Saved */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: '24px 40px 80px' }}>
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <SavedTitle count={savedProjects?.length} />
                   <div style={{ flex: 1 }} />
