@@ -33,6 +33,8 @@ npm-debug.log*
 .vercel
 .env*.local
 coverage/
+test-results/
+playwright-report/
 tsconfig.tsbuildinfo
 __pycache__/
 *.py[cod]
