@@ -10,13 +10,17 @@ import { api } from '@convex/_generated/api';
 import { getSignedDownloadUrl, uploadToS3 } from '@/lib/s3';
 import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
+import { parseImageDataUrl, sanitizeOutputName } from '@/lib/imageDataUrl';
 import fs from 'fs/promises';
 import path from 'path';
 
 const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
+const FACELIFT_SHARED_SECRET = process.env.FACELIFT_SHARED_SECRET ?? '';
 
 const SH_C0 = 0.28209479177387814;
 const MAX_FACELIFT_IMAGE_BYTES = 6 * 1024 * 1024;
+const MAX_PLY_BYTES = 80 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 120 * 1024 * 1024;
 
 const PLY_SIZES: Record<string, number> = {
   float: 4, float32: 4, double: 8, float64: 8,
@@ -109,15 +113,20 @@ function plyToSplat(plyBuf: Buffer): Buffer {
   return out;
 }
 
-function parseImageDataUrl(value: unknown) {
-  if (typeof value !== 'string') return { error: 'Invalid imageDataUrl' };
-  const match = value.match(/^data:image\/(png|jpe?g|webp);base64,([a-zA-Z0-9+/=]+)$/);
-  if (!match) return { error: 'Invalid imageDataUrl' };
-  const base64 = match[2];
-  if (base64.length > Math.ceil(MAX_FACELIFT_IMAGE_BYTES * 4 / 3) + 128) return { error: 'Image is too large' };
-  const buffer = Buffer.from(base64, 'base64');
-  if (buffer.length > MAX_FACELIFT_IMAGE_BYTES) return { error: 'Image is too large' };
-  return { buffer };
+function getFaceliftHeaders(): HeadersInit {
+  return {
+    'ngrok-skip-browser-warning': '1',
+    'User-Agent': 'shapeup',
+    ...(FACELIFT_SHARED_SECRET ? { 'X-ShapeUp-Facelift-Secret': FACELIFT_SHARED_SECRET } : {}),
+  };
+}
+
+function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  if (value.length > Math.ceil(maxBytes * 4 / 3) + 128) return null;
+  const buffer = Buffer.from(value, 'base64');
+  if (buffer.length === 0 || buffer.length > maxBytes) return null;
+  return buffer;
 }
 
 export async function POST(req: NextRequest) {
@@ -182,8 +191,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const parsedImage = parseImageDataUrl(imageDataUrl);
-  if ('error' in parsedImage) {
+  const parsedImage = parseImageDataUrl(imageDataUrl, { maxBytes: MAX_FACELIFT_IMAGE_BYTES });
+  if (!parsedImage.ok) {
     console.warn('[facelift] POST: rejected image payload', {
       reason: parsedImage.error,
       user: hashIdentifier(authResult.session.userId),
@@ -216,13 +225,17 @@ export async function POST(req: NextRequest) {
 
   const { buffer } = parsedImage;
   const form = new FormData();
-  form.append('image', new Blob([buffer], { type: 'image/jpeg' }), 'face.jpg');
+  const uploadExt = parsedImage.mimeType === 'image/png' ? 'png' : parsedImage.mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const imageBytes = new Uint8Array(buffer.length);
+  imageBytes.set(buffer);
+  form.append('image', new Blob([imageBytes], { type: parsedImage.mimeType }), `face.${uploadExt}`);
 
   console.log(`[facelift] POST: sending to Modal — ${buffer.length} bytes`);
   let upstream: Response;
   try {
     upstream = await fetch(`${FACELIFT_URL}/process_image`, {
       method: 'POST',
+      headers: getFaceliftHeaders(),
       body:   form,
       signal: AbortSignal.timeout(600_000),
     });
@@ -238,7 +251,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
   }
 
-  const modalData = await upstream.json() as { ply_b64: string; video_b64?: string | null; elapsed_s?: number };
+  let modalData: { ply_b64?: unknown; video_b64?: unknown; elapsed_s?: unknown };
+  try {
+    modalData = await upstream.json();
+  } catch {
+    console.warn('[facelift] POST: Modal returned malformed JSON', {
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ error: 'FaceLift server returned malformed JSON' }, { status: 502 });
+  }
+
+  const plyBuffer = decodeBoundedBase64(modalData.ply_b64, MAX_PLY_BYTES);
+  if (!plyBuffer) {
+    console.warn('[facelift] POST: Modal returned invalid PLY payload', {
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ error: 'FaceLift server returned an invalid PLY payload' }, { status: 502 });
+  }
+
+  const videoBuffer = modalData.video_b64
+    ? decodeBoundedBase64(modalData.video_b64, MAX_VIDEO_BYTES)
+    : null;
+  if (modalData.video_b64 && !videoBuffer) {
+    console.warn('[facelift] POST: Modal returned invalid video payload', {
+      user: hashIdentifier(authResult.session.userId),
+    });
+    return NextResponse.json({ error: 'FaceLift server returned an invalid video payload' }, { status: 502 });
+  }
 
   // Meter actual GPU-seconds (reported by Modal) against the monthly budget.
   if (typeof modalData.elapsed_s === 'number' && modalData.elapsed_s > 0) {
@@ -249,9 +288,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const plyBuffer   = Buffer.from(modalData.ply_b64, 'base64');
-  const splatBuffer = plyToSplat(plyBuffer);
-  const videoBuffer = modalData.video_b64 ? Buffer.from(modalData.video_b64, 'base64') : null;
+  let splatBuffer: Buffer;
+  try {
+    splatBuffer = plyToSplat(plyBuffer);
+  } catch (err) {
+    console.warn('[facelift] POST: Modal returned malformed PLY', {
+      user: hashIdentifier(authResult.session.userId),
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json({ error: 'FaceLift server returned malformed PLY data' }, { status: 502 });
+  }
 
   const jobId    = crypto.randomUUID();
   const plyKey   = `facelifts/${jobId}/output.ply`;
@@ -267,9 +313,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const publicDir = path.join(process.cwd(), 'public');
+    const safeOutputName = sanitizeOutputName(outputName, 'edit-output');
     await Promise.all([
-      fs.writeFile(path.join(publicDir, `${outputName}.ply`),   plyBuffer),
-      fs.writeFile(path.join(publicDir, `${outputName}.splat`), splatBuffer),
+      fs.writeFile(path.join(publicDir, `${safeOutputName}.ply`),   plyBuffer),
+      fs.writeFile(path.join(publicDir, `${safeOutputName}.splat`), splatBuffer),
     ]);
   } catch (err) {
     console.warn('[facelift] POST: could not write local public/ files (non-fatal):', err);

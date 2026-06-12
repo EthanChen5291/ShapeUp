@@ -3,7 +3,10 @@ import requests
 import time
 
 # HairStep server (hair strand reconstruction)
-FACELIFT_URL  = "https://oblivion-wriggly-landfill.ngrok-free.dev"
+FACELIFT_URL = os.environ.get("FACELIFT_URL")
+FACELIFT_SHARED_SECRET = os.environ.get("FACELIFT_SHARED_SECRET")
+if not FACELIFT_URL:
+    raise RuntimeError("FACELIFT_URL must be set before running this script")
 
 ngrok_url = FACELIFT_URL  # swap to FACELIFT_URL to test FaceLift jobs
 image_path = r"C:\Users\stringbot\Documents\Github\HackPrinceton\public\baldified\brunobald_bald.png"
@@ -12,6 +15,8 @@ headers = {
     "ngrok-skip-browser-warning": "true",
     "User-Agent": "python-requests/2.31.0"
 }
+if FACELIFT_SHARED_SECRET:
+    headers["X-ShapeUp-Facelift-Secret"] = FACELIFT_SHARED_SECRET
 
 # Submit the job
 with open(image_path, 'rb') as f:
