@@ -6,8 +6,10 @@
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { BarberOrder } from '@/lib/barberOrder';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
+import BarberOrderReceipt from '@/components/BarberOrderReceipt';
 
 import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
 
@@ -36,6 +38,75 @@ const UNCERTAIN_PATTERNS = [
   /\bno preference\b/i,
 ];
 
+const PROMPT_PLACEHOLDERS = [
+  '"Messy taper fade, please."',
+  '"Take the sides down to a #2."',
+  '"Keep the length, just add texture."',
+  '"Mid fade, clean line-up."',
+  '"Curly on top, skin fade sides."',
+];
+
+// Trending cuts — the refresh button pages through this pool, 4 at a time
+const TRENDING_CUTS = [
+  'low taper fade, textured fringe',
+  'textured crop, skin fade',
+  'modern mullet, faded sides',
+  'blowout taper',
+  'edgar cut, high fade',
+  'wolf cut, light layers',
+  'curtain fringe, mid fade',
+  'comma hair, low taper',
+  'afro taper, sponge curls',
+  'two block, soft layers',
+  'slick back undercut',
+  'side part pompadour',
+  'french crop, hard part',
+  'mid taper with waves',
+  'buzz cut, clean line-up',
+  'fluffy crop, low fade',
+];
+
+const CHIPS_PER_PAGE = 4;
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Tiny stable hash for the order cache key
+function djb2(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+const ORDER_CACHE_PREFIX = 'shapeup-order:';
+
+const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
+  gemini: [
+    'Sketching the cut…',
+    'Reading your curl pattern…',
+    'Combing through the details…',
+    'Eyeballing the blend…',
+  ],
+  hairstep: [
+    'Sculpting it in 3D…',
+    'Setting every strand…',
+    'Spinning the chair around…',
+    'Holding up the mirror…',
+  ],
+};
+
+interface OrderResult {
+  order: BarberOrder;
+  ticketNo: string;
+  text: string;
+}
+
 export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
@@ -47,13 +118,23 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState('');
+  const [freshCut, setFreshCut] = useState(false);
 
   const [agentActive, setAgentActive] = useState(false);
 
   const agent = useElevenLabsAgent((text) => runPromptPipeline(text));
-  const [summary, setSummary] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const summaryRef = useRef<HTMLTextAreaElement>(null);
+
+  const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+
+  // Trending-cut suggestion chips, paged by the refresh button
+  const [chipPool] = useState(() => shuffle(TRENDING_CUTS));
+  const [chipPage, setChipPage] = useState(0);
+  const chips = useMemo(() => {
+    const start = (chipPage * CHIPS_PER_PAGE) % chipPool.length;
+    return chipPool.concat(chipPool).slice(start, start + CHIPS_PER_PAGE);
+  }, [chipPool, chipPage]);
 
   const currentParams = history[historyIndex];
 
@@ -67,6 +148,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     },
     [history, historyIndex, onParamsChange]
   );
+  void pushParams; // retained for slider/param flows
 
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
@@ -158,7 +240,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       }
 
       onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`);
-      setLiveStatus('3D hairstyle render is ready.');
+      setLiveStatus('3D hairstyle render is ready. Fresh cut.');
     } finally {
       // Cancel intervals immediately — don't wait for the useEffect round-trip
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
@@ -168,50 +250,87 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     }
   };
 
-  const undo = () => {
-    if (historyIndex > 0) {
-      const prev = history[historyIndex - 1];
-      setHistoryIndex(historyIndex - 1);
-      onParamsChange(prev);
-    }
-  };
+  // Cache key identifies the cut: same params + same image → same order
+  const orderCacheKey = () =>
+    `${ORDER_CACHE_PREFIX}${djb2(JSON.stringify(currentParams))}:${djb2(latestImageUrl ?? 'noimg')}`;
 
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const next = history[historyIndex + 1];
-      setHistoryIndex(historyIndex + 1);
-      onParamsChange(next);
-    }
-  };
+  const handleGetOrder = async (force = false) => {
+    const cacheKey = orderCacheKey();
 
-  const handleGetSummary = async () => {
-    setSummaryLoading(true);
-    setSummary(null);
+    if (!force) {
+      try {
+        const hit = localStorage.getItem(cacheKey);
+        if (hit) {
+          const parsed = JSON.parse(hit) as OrderResult;
+          if (parsed?.order && parsed?.ticketNo && parsed?.text) {
+            setOrderError(null);
+            setOrderResult(parsed);
+            setLiveStatus('Barber order reprinted from your last visit.');
+            return;
+          }
+        }
+      } catch { /* corrupt cache entry — fall through to a fresh print */ }
+    }
+
+    setOrderLoading(true);
+    setOrderError(null);
     try {
-      const res = await fetch('/api/summary', {
+      const res = await fetch('/api/barber-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile, params: currentParams }),
+        body: JSON.stringify({
+          profile: buildCurrentProfilePayload({
+            ...profile,
+            currentStyle: { ...profile.currentStyle, params: currentParams },
+          }),
+          params: currentParams,
+          imageUrl: latestImageUrl ?? undefined,
+        }),
       });
       const data = await res.json();
-      setSummary(data.summary ?? data.error ?? 'Something went wrong');
-      setLiveStatus('Barber order summary updated.');
-    } catch {
-      setSummary('Failed to generate summary');
-      setLiveStatus('Barber order summary failed.');
+      if (!res.ok || !data.ok || !data.order) {
+        throw new Error(data.error ?? 'Order request failed');
+      }
+      const result: OrderResult = { order: data.order as BarberOrder, ticketNo: data.ticketNo as string, text: data.text as string };
+      setOrderResult(result);
+      setLiveStatus('Barber order printed.');
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      } catch {
+        // Quota — evict older orders and retry once
+        try {
+          Object.keys(localStorage)
+            .filter(k => k.startsWith(ORDER_CACHE_PREFIX) && k !== cacheKey)
+            .forEach(k => localStorage.removeItem(k));
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+        } catch { /* storage unavailable — order still shows, just not cached */ }
+      }
+    } catch (err) {
+      setOrderError(err instanceof Error ? err.message : 'Failed to print the order');
+      setLiveStatus('Barber order failed.');
     } finally {
-      setSummaryLoading(false);
-    }
-  };
-
-  const handleCopySummary = () => {
-    if (summary) {
-      navigator.clipboard.writeText(summary);
-      setLiveStatus('Barber order copied to clipboard.');
+      setOrderLoading(false);
     }
   };
 
   const isBusy = phase !== 'idle';
+
+  // ── Rotating placeholder + barber chatter ─────────────────────────
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setPlaceholderIdx(i => (i + 1) % PROMPT_PLACEHOLDERS.length), 4200);
+    return () => clearInterval(t);
+  }, []);
+
+  const [chatterIdx, setChatterIdx] = useState(0);
+  useEffect(() => {
+    if (!isBusy) return;
+    setChatterIdx(0);
+    const t = setInterval(() => setChatterIdx(i => i + 1), 2600);
+    return () => clearInterval(t);
+  }, [isBusy, phase]);
+  const chatterList = CHATTER[phase === 'hairstep' ? 'hairstep' : 'gemini'];
+  const chatter = chatterList[chatterIdx % chatterList.length];
 
   const [geminiProgress, setGeminiProgress] = useState(0);
   const [hairstepProgress, setHairstepProgress] = useState(0);
@@ -251,15 +370,26 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         // Both bars complete simultaneously when facelift output arrives
         setGeminiProgress(100);
         setHairstepProgress(100);
+        setFreshCut(true);
         const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1600);
-        return () => clearTimeout(t);
+        const t2 = setTimeout(() => setFreshCut(false), 2100);
+        return () => { clearTimeout(t); clearTimeout(t2); };
       }
     }
   }, [phase]);
 
   return (
-    <aside className="flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }} aria-label="Hair editor controls">
+    <aside className="relative flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }} aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
+
+      {/* FRESH CUT stamp — slams in when a render lands */}
+      {freshCut && (
+        <div className="stamp-fresh" aria-hidden>
+          <span>FRESH CUT</span>
+          <span className="stamp-fresh-sub">✂ shapeup approved</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <span className="inline-block w-2 h-7 barber-pole" />
@@ -267,36 +397,81 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
           <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
         </div>
+        <span className={`tb-status ml-auto ${isBusy || orderLoading ? 'tb-status-busy' : 'tb-status-open'}`}>
+          <span className="tb-status-dot" />
+          {isBusy ? 'cutting' : orderLoading ? 'printing' : 'open'}
+        </span>
       </div>
 
       {/* Prompt */}
       <form onSubmit={(e) => { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
+          <span className="font-mono text-[10px] text-[var(--smoke)]">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
         </div>
-        <textarea
-          id="hair-edit-prompt"
-          aria-describedby="hair-edit-prompt-limit"
-          className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
-          style={{ fontStyle: 'italic' }}
-          placeholder='"Messy taper fade, please."'
-          value={prompt}
-          maxLength={MAX_PROMPT_LENGTH}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-        <div id="hair-edit-prompt-limit" className="font-mono text-[10px] text-[var(--smoke)]">
-          {prompt.length}/{MAX_PROMPT_LENGTH}
+        <div className="prompt-frame">
+          <textarea
+            id="hair-edit-prompt"
+            aria-describedby="hair-edit-prompt-chips"
+            className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
+            style={{ fontStyle: 'italic' }}
+            placeholder={PROMPT_PLACEHOLDERS[placeholderIdx]}
+            value={prompt}
+            maxLength={MAX_PROMPT_LENGTH}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }
+            }}
+          />
+        </div>
+        <div id="hair-edit-prompt-chips" className="flex items-start gap-1.5">
+          <div key={chipPage} className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+            {chips.map((chip, i) => (
+              <button
+                key={chip}
+                type="button"
+                disabled={isBusy}
+                onClick={() => setPrompt(chip)}
+                className="chip-suggest chip-pop disabled:opacity-40"
+                style={{ '--ci': i } as React.CSSProperties}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => setChipPage(p => p + 1)}
+            className="chip-refresh disabled:opacity-40"
+            aria-label="Show more trending cuts"
+            title="More trending cuts"
+          >
+            <svg
+              key={chipPage}
+              className={chipPage > 0 ? 'chip-refresh-spin' : undefined}
+              width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
         </div>
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={isBusy}
+            disabled={isBusy || !prompt.trim()}
             aria-label="Apply hair edit request"
-            className="btn btn-tomato flex-1"
+            className="btn btn-tomato btn-snap flex-1"
             style={{ padding: '10px 16px', fontSize: 13 }}
           >
-            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Rendering…' : '✂ Apply'}
+            {isBusy ? (
+              <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
+            ) : (
+              '✂ Apply'
+            )}
           </button>
           <button
             type="button"
@@ -305,10 +480,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               if (agentActive) { agent.stop(); setAgentActive(false); }
               else             { agent.start(); setAgentActive(true); }
             }}
-            className={`btn ${agentActive ? 'btn-tomato' : 'btn-denim'}`}
+            className={`btn btn-snap ${agentActive ? 'btn-tomato' : 'btn-denim'}`}
             style={{ padding: '10px 14px', fontSize: 13 }}
           >
-            {agentActive ? '◼ Stop' : '🎙 Voice'}
+            {agentActive ? (
+              <><span className="rec-dot" aria-hidden />Listening</>
+            ) : (
+              '🎙 Voice'
+            )}
           </button>
         </div>
         {isBusy && (
@@ -325,7 +504,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
                         : 'stage-pip-idle'
                   }`} />
                   <span className={`font-serif italic text-xs ${phase === 'gemini' ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
-                    Drawing Blueprint
+                    Sketching the cut
                   </span>
                 </div>
                 <span className="font-mono text-[10px] text-[var(--smoke)]">
@@ -356,7 +535,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
                         : 'stage-pip-idle'
                   }`} />
                   <span className={`font-serif italic text-xs ${phase === 'hairstep' || hairstepProgress > 0 ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
-                    Sculpting 3D Model
+                    Sculpting in 3D
                   </span>
                 </div>
                 <span className="font-mono text-[10px] text-[var(--smoke)]">
@@ -374,72 +553,69 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
                 </div>
               </div>
             </div>
+
+            {/* Rotating barber chatter */}
+            <p key={chatter} className="chatter-line font-serif italic text-[11.5px] text-[var(--smoke)] text-center">
+              {chatter}
+            </p>
           </div>
         )}
         {pipelineError && (
-          <div className="px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+          <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
             {pipelineError}
           </div>
         )}
       </form>
 
-      {/* Undo / Redo */}
-      {/* <div className="flex gap-2">
-        <button
-          onClick={undo}
-          disabled={historyIndex === 0}
-          className="btn-ghost flex-1 disabled:opacity-40"
-        >
-          ← Undo
-        </button>
-        <button
-          onClick={redo}
-          disabled={historyIndex === history.length - 1}
-          className="btn-ghost flex-1 disabled:opacity-40"
-        >
-          Redo →
-        </button>
-      </div> */}
-
-      {/* Barber Summary */}
+      {/* Barber's Order */}
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <span className="pill pill-tomato">take it to your barber</span>
-        <button
-          onClick={handleGetSummary}
-          disabled={summaryLoading}
-          aria-label="Generate barber order summary"
-          className="btn btn-cream"
-          style={{ padding: '10px 16px', fontSize: 13 }}
-        >
-          {summaryLoading ? 'Writing the order…' : '📜 Barber\u2019s order'}
-        </button>
-        {summary && (
-          <div className="flex flex-col gap-2">
-            <div className="relative">
-              <textarea
-                ref={summaryRef}
-                aria-label="Barber order summary"
-                readOnly
-                value={summary}
-                className="input-soft w-full rounded-xl p-4 pt-5 font-serif text-[13px] leading-snug resize-none h-40 focus:outline-none"
-                style={{ fontStyle: 'normal' }}
-              />
-              <div
-                aria-hidden
-                className="absolute -top-2 left-3 px-2 py-0.5 bg-[var(--tomato)] text-[var(--cream)] font-sans text-[9px] uppercase tracking-wider rounded-md"
-                style={{ fontWeight: 600 }}
-              >
-                order
-              </div>
-            </div>
+        <div className="flex items-center justify-between">
+          <span className="pill pill-tomato">take it to your barber</span>
+          {orderResult && !orderLoading && (
             <button
-              onClick={handleCopySummary}
-              aria-label="Copy barber order summary to clipboard"
-              className="btn-ghost"
+              onClick={() => handleGetOrder(true)}
+              aria-label="Write a fresh order for the latest cut"
+              className="font-mono text-[10px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
             >
-              Copy to clipboard
+              ↻ re-print
             </button>
+          )}
+        </div>
+
+        {!orderResult && !orderLoading && (
+          <button
+            onClick={() => handleGetOrder()}
+            aria-label="Write up the exact instructions to show your barber"
+            className="btn-cta-order"
+          >
+            <span className="btn-cta-order-title"><span className="btn-order-icon" aria-hidden>✂</span> Show my barber</span>
+            <span className="btn-cta-order-sub">this cut, written up so they nail it first try</span>
+            <span className="btn-cta-order-sheen" aria-hidden />
+          </button>
+        )}
+
+        {orderLoading && (
+          <div className="receipt-stub" role="status" aria-label="Printing barber order">
+            <div className="receipt-stub-slot" />
+            <div className="receipt-stub-paper">
+              <div className="receipt-stub-line w-3/4" />
+              <div className="receipt-stub-line w-1/2" />
+              <div className="receipt-stub-line w-2/3" />
+            </div>
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--smoke)] receipt-stub-label">printing the order…</span>
           </div>
+        )}
+
+        {orderError && !orderLoading && (
+          <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
+            {orderError} — <button onClick={() => handleGetOrder()} className="underline">try again</button>
+          </div>
+        )}
+
+        {orderResult && !orderLoading && (
+          <BarberOrderReceipt order={orderResult.order} ticketNo={orderResult.ticketNo} text={orderResult.text} />
         )}
       </div>
 

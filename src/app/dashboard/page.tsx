@@ -637,8 +637,8 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
         if (url) { window.location.href = url; return; }
       }
       if (!submitRes.ok) { const body = await submitRes.text().catch(() => ''); throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`); }
-      const { jobId, splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
-      if (!jobId) throw new Error('Server did not return a job ID');
+      const { splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
+      if (!splatUrl) throw new Error('Server did not return a 3D result URL');
       if (!splatUrl || abort.signal.aborted) return;
       setFaceliftStatus('done');
       setTimeout(() => {

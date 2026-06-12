@@ -283,7 +283,7 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
         }),
       });
       const submitData = await submitRes.json();
-      if (!submitData.jobId) throw new Error(submitData.error ?? 'No job ID returned');
+      if (!submitData.splatUrl) throw new Error(submitData.error ?? 'No 3D result URL returned');
       renderJobDoneRef.current = true;
       await new Promise(r => setTimeout(r, 1200));
 

@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
   const t0 = Date.now();
   console.log('\n[gemini-hair-edit] ===== POST START =====');
   console.log('[gemini-hair-edit] GEMINI_API_KEY set?', !!process.env.GEMINI_API_KEY);
-  console.log('[gemini-hair-edit] GEMINI_API_KEY prefix:', process.env.GEMINI_API_KEY?.slice(0, 8) ?? 'MISSING');
 
   let imageUrl: string, prompt: string, sessionId: string;
   let currentProfile: unknown = null;
@@ -73,9 +72,32 @@ export async function POST(req: NextRequest) {
       safetySettings,
     });
 
-    const fullPrompt = `You are a professional hair stylist visualizer. Edit only the hair in this photo based on the following request: "${prompt}". Keep the face, skin, background, and all non-hair elements completely unchanged. Return the full edited portrait image.
+    const fullPrompt = `ROLE
+You are ShapeUp's master-barber visualizer. You produce photorealistic haircut previews that look like the same photo of the same person, taken minutes after a real cut.
 
-CURRENT_PROFILE: ${JSON.stringify(currentProfile, null, 2)}`;
+CLIENT REQUEST: "${prompt}"
+
+WHAT TO CHANGE — hair only
+- Cut, length, shape, texture, hairline edges, and color ONLY if explicitly requested.
+- Interpret the request the way an experienced barber would, in real barbershop terms:
+  * "fade" = graduated clipper work on sides/back, shortest at the bottom; "taper" = tighter version at the edges only.
+  * "texture"/"messy" = visible separation and movement in the lengths — never noise or frizz.
+  * Respect the client's natural curl pattern, density, and hairline visible in the photo; a style lands differently on coily 4B hair than on straight 1B hair, and the result must show that.
+- If the request is ambiguous, choose the conservative, most-asked-for barbershop interpretation.
+
+HARD CONSTRAINTS — must not change
+- Face geometry, skin, expression, eyes, eyebrows, ears, neck, facial hair (unless asked).
+- Camera angle, framing, crop, background, lighting, white balance.
+- Photographic character: same realism, same grain. No beautification, no stylization, no cartoon drift.
+
+QUALITY BAR
+- The new hairline must sit naturally on the existing forehead. No helmet edges, no floating strands, no pasted-on look.
+- Hair must cast and receive light consistently with the original photo.
+
+CLIENT GEOMETRY (current 3D hair measurements — use to scale the cut believably):
+${JSON.stringify(currentProfile)}
+
+Return ONLY the edited image.`;
     console.log('[gemini-hair-edit] full prompt:', fullPrompt);
     console.log('[gemini-hair-edit] sending request to Gemini...');
 

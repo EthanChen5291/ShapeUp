@@ -204,8 +204,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
       const wrapper = wrapperRefs.current[newIdx];
       if (wrapper) {
         wrapper.style.animation = 'none';
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        wrapper.offsetHeight; // force reflow
+        void wrapper.offsetHeight; // force reflow
         wrapper.style.animation = 'face-bounce 520ms cubic-bezier(0.34, 1.45, 0.64, 1) both';
       }
     };

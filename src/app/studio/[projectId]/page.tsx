@@ -340,8 +340,8 @@ export default function StudioPage() {
             }}
             onClick={() => setPreviewExpanded(v => !v)}
           >
-            <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2 }}>
-              <img src={imageUrl} alt="scan" className="block w-full h-full object-cover" />
+            <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, background: '#1c1510' }}>
+              <img key={imageUrl} src={imageUrl} alt="scan" className="block w-full h-full object-cover cut-develop" />
             </div>
             <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
           </div>

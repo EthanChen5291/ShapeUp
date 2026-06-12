@@ -160,68 +160,94 @@ class FaceLiftServer:
         import asyncio
         import base64
         import os
+        import shutil
         import sys
         import time
         import uuid
+        from io import BytesIO
 
-        from fastapi import FastAPI, File, HTTPException, UploadFile
+        from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+        from PIL import Image, UnidentifiedImageError
 
         sys.path.insert(0, FACELIFT_DIR)
         from inference import process_single_image
 
         api   = FastAPI()
         _lock = asyncio.Lock()
+        shared_secret = os.environ.get("FACELIFT_SHARED_SECRET")
+        max_image_bytes = 6 * 1024 * 1024
+        max_pixels = 12_000_000
 
         @api.post("/process_image")
-        async def process_image(image: UploadFile = File(...)):
+        async def process_image(
+            image: UploadFile = File(...),
+            x_shapeup_facelift_secret: str | None = Header(default=None),
+        ):
+            if shared_secret and x_shapeup_facelift_secret != shared_secret:
+                raise HTTPException(401, "Unauthorized")
+
             job_id     = str(uuid.uuid4())
             input_dir  = "/tmp/facelift_inputs"
-            output_dir = "/tmp/facelift_outputs"
+            output_root = "/tmp/facelift_outputs"
             os.makedirs(input_dir, exist_ok=True)
-            os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(output_root, exist_ok=True)
 
             # Name the image after the job so concurrent jobs never share a path.
             # inference.py derives output_dir/<image_name>/gaussians.ply from
             # the filename stem, so we get output_dir/<job_id>/gaussians.ply.
             img_filename = f"{job_id}.png"
             img_path     = os.path.join(input_dir, img_filename)
+            output_dir   = os.path.join(output_root, job_id)
+
+            raw = await image.read()
+            if len(raw) > max_image_bytes:
+                raise HTTPException(413, "Image is too large")
+            try:
+                with Image.open(BytesIO(raw)) as img:
+                    img.verify()
+                    width, height = img.size
+            except UnidentifiedImageError as exc:
+                raise HTTPException(400, "Invalid image") from exc
+            if width * height > max_pixels:
+                raise HTTPException(413, "Image has too many pixels")
+
             with open(img_path, "wb") as f:
-                f.write(await image.read())
-
-            async with _lock:
-                loop = asyncio.get_event_loop()
-                # Time only the GPU-bound work (inside the lock) so the caller
-                # can meter true GPU-seconds, not network/queue overhead.
-                gpu_start = time.perf_counter()
-                await loop.run_in_executor(None, lambda: process_single_image(
-                    image_file=img_filename,
-                    input_dir=input_dir,
-                    output_dir=output_dir,
-                    auto_crop=True,
-                    unclip_pipeline=self.mv_pipeline,
-                    generator=self.generator,
-                    color_prompt_embedding=self.color_prompt_embeddings,
-                    gs_lrm_model=self.gslrm_model,
-                    demo_fxfycxcy=self.camera_intrinsics,
-                    demo_c2w=self.camera_extrinsics,
-                    guidance_scale_2D=3.0,
-                    step_2D=70,
-                    face_detector=self.face_detector,
-                ))
-                elapsed_s = round(time.perf_counter() - gpu_start, 3)
-
-            ply_path = os.path.join(output_dir, job_id, "gaussians.ply")
-            if not os.path.exists(ply_path):
-                raise HTTPException(500, "FaceLift produced no gaussians.ply")
-
-            with open(ply_path, "rb") as f:
-                ply_b64 = base64.b64encode(f.read()).decode()
+                f.write(raw)
 
             try:
-                os.remove(img_path)
-            except OSError:
-                pass
+                async with _lock:
+                    loop = asyncio.get_event_loop()
+                    gpu_start = time.perf_counter()
+                    await loop.run_in_executor(None, lambda: process_single_image(
+                        image_file=img_filename,
+                        input_dir=input_dir,
+                        output_dir=output_root,
+                        auto_crop=True,
+                        unclip_pipeline=self.mv_pipeline,
+                        generator=self.generator,
+                        color_prompt_embedding=self.color_prompt_embeddings,
+                        gs_lrm_model=self.gslrm_model,
+                        demo_fxfycxcy=self.camera_intrinsics,
+                        demo_c2w=self.camera_extrinsics,
+                        guidance_scale_2D=3.0,
+                        step_2D=70,
+                        face_detector=self.face_detector,
+                    ))
+                    elapsed_s = round(time.perf_counter() - gpu_start, 3)
 
-            return {"ply_b64": ply_b64, "video_b64": None, "elapsed_s": elapsed_s}
+                ply_path = os.path.join(output_dir, "gaussians.ply")
+                if not os.path.exists(ply_path):
+                    raise HTTPException(500, "FaceLift produced no gaussians.ply")
+
+                with open(ply_path, "rb") as f:
+                    ply_b64 = base64.b64encode(f.read()).decode()
+
+                return {"ply_b64": ply_b64, "video_b64": None, "elapsed_s": elapsed_s}
+            finally:
+                try:
+                    os.remove(img_path)
+                except OSError:
+                    pass
+                shutil.rmtree(output_dir, ignore_errors=True)
 
         return api

@@ -34,3 +34,5 @@ npm-debug.log*
 .env*.local
 coverage/
 tsconfig.tsbuildinfo
+__pycache__/
+*.py[cod]
