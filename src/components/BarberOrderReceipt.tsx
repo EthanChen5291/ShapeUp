@@ -3,16 +3,25 @@
 // ============================================================
 // BarberOrderReceipt — the printed Barber's Order
 // A thermal-receipt that feeds out of the toolbox, line by line.
+// Click the paper and it lerps to the centre of the screen for
+// presenting; click away to send it back.
 // Save-as-image draws the receipt onto a canvas (no deps).
 // ============================================================
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BarberOrder } from '@/lib/barberOrder';
 
 interface BarberOrderReceiptProps {
   order: BarberOrder;
   ticketNo: string;
   text: string;
+}
+
+interface PresentGeometry {
+  dx: number;     // offset from screen centre back to the sidebar position
+  dy: number;
+  scale: number;  // how much the receipt grows when presented
+  width: number;  // natural paper width, kept identical so text scales crisply
 }
 
 function cssFont(varName: string, fallback: string): string {
@@ -213,9 +222,134 @@ function drawReceiptPng(order: BarberOrder, ticketNo: string): Promise<Blob | nu
   return new Promise((resolve) => out.toBlob(resolve, 'image/png'));
 }
 
+// ── The paper itself — rendered in the sidebar and in present mode ──
+function ReceiptPaper({
+  order,
+  ticketNo,
+  instant = false,
+  onClick,
+  ariaLabel,
+}: {
+  order: BarberOrder;
+  ticketNo: string;
+  instant?: boolean;
+  onClick?: () => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <div
+      className={`receipt ${instant ? 'receipt-instant' : 'receipt-print receipt-clickable'}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={ariaLabel}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+    >
+      {/* Header */}
+      <div className="receipt-row text-center" style={{ '--ri': 0 } as React.CSSProperties}>
+        <div className="font-display text-[19px] leading-none" style={{ fontWeight: 900, letterSpacing: '0.02em' }}>SHAPE UP</div>
+        <div className="font-sans text-[8.5px] uppercase tracking-[0.3em] text-[var(--smoke)] mt-1.5">— ✂ the barber&rsquo;s order ✂ —</div>
+        <div className="font-mono text-[9px] text-[var(--smoke)] mt-1">ticket {ticketNo} · {new Date().toLocaleDateString()}</div>
+      </div>
+
+      <div className="receipt-rule receipt-row" style={{ '--ri': 1 } as React.CSSProperties} />
+
+      {/* The cut + hair read */}
+      <div className="receipt-row text-center" style={{ '--ri': 2 } as React.CSSProperties}>
+        <div className="font-display italic text-[20px] leading-tight text-[var(--ink)]" style={{ fontWeight: 600 }}>{order.styleName}</div>
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--tomato)] mt-1.5" style={{ fontWeight: 700 }}>
+          {order.hairRead.pattern} · {order.hairRead.density} density
+        </div>
+        <p className="font-serif italic text-[11px] text-[var(--smoke)] mt-1 leading-snug">{order.hairRead.note}</p>
+      </div>
+
+      <div className="receipt-rule receipt-row" style={{ '--ri': 3 } as React.CSSProperties} />
+
+      {/* Zones */}
+      {order.zones.map((z, i) => (
+        <div key={z.zone} className="receipt-row receipt-zone" style={{ '--ri': 4 + i } as React.CSSProperties}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-[var(--ink)]" style={{ fontWeight: 700 }}>{z.label}</span>
+            <span className="font-mono text-[9.5px] text-[var(--tomato)] text-right" style={{ fontWeight: 700 }}>{z.spec}</span>
+          </div>
+          <p className="font-serif text-[12.5px] leading-snug text-[var(--ink)] mt-1">{z.move}</p>
+          <div className="flex items-center justify-between gap-3 mt-1.5">
+            <span className="font-mono text-[9px] text-[var(--smoke)] truncate">⟶ {z.technique}</span>
+            <span className="conf-meter" title={`confidence ${Math.round(z.confidence * 100)}%`}>
+              <span className="conf-track">
+                <span
+                  className="conf-fill"
+                  style={{ width: `${Math.round(z.confidence * 100)}%`, animationDelay: instant ? '0ms' : `${(4 + i) * 130 + 500}ms` }}
+                />
+              </span>
+              <span className="font-mono text-[9px] text-[var(--ink)]" style={{ fontWeight: 600 }}>{Math.round(z.confidence * 100)}%</span>
+            </span>
+          </div>
+        </div>
+      ))}
+
+      {/* Tear line + ask-for */}
+      <div className="receipt-tear receipt-row" style={{ '--ri': 9 } as React.CSSProperties}><span>✂</span></div>
+
+      <div className="receipt-row" style={{ '--ri': 10 } as React.CSSProperties}>
+        <div className="font-mono text-[8.5px] uppercase tracking-[0.2em] text-[var(--smoke)] mb-1.5" style={{ fontWeight: 700 }}>say this in the chair</div>
+        <div className="receipt-askfor">
+          <p className="font-serif italic text-[13px] leading-snug text-[var(--ink)]" style={{ fontWeight: 500 }}>&ldquo;{order.askFor}&rdquo;</p>
+        </div>
+        <div className="font-mono text-[9px] text-[var(--smoke)] mt-2.5">MAINTENANCE — {order.maintenance}</div>
+      </div>
+
+      {/* Barcode footer */}
+      <div className="receipt-row mt-3" style={{ '--ri': 11 } as React.CSSProperties}>
+        <div className="receipt-barcode" aria-hidden />
+        <div className="text-center font-serif italic text-[10px] text-[var(--smoke)] mt-2">no charge for thinking twice ✂</div>
+      </div>
+    </div>
+  );
+}
+
 export default function BarberOrderReceipt({ order, ticketNo, text }: BarberOrderReceiptProps) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const paperHomeRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [presenting, setPresenting] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const [geo, setGeo] = useState<PresentGeometry | null>(null);
+
+  const openPresent = () => {
+    const el = paperHomeRef.current;
+    if (!el || presenting) return;
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    setGeo({
+      dx: rect.left + rect.width / 2 - vw / 2,
+      dy: rect.top + rect.height / 2 - vh / 2,
+      scale: Math.min(1.7, (vw * 0.88) / rect.width, (vh * 0.88) / rect.height),
+      width: rect.width,
+    });
+    setPresenting(true);
+    setEntered(false);
+    // double rAF so the start transform paints before the transition runs
+    requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)));
+  };
+
+  const closePresent = () => {
+    setEntered(false);
+    closeTimerRef.current = setTimeout(() => setPresenting(false), 560);
+  };
+
+  useEffect(() => {
+    if (!presenting) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePresent(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [presenting]);
+
+  useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); }, []);
 
   const handleCopy = async () => {
     try {
@@ -238,89 +372,64 @@ export default function BarberOrderReceipt({ order, ticketNo, text }: BarberOrde
     setTimeout(() => setSaved(false), 1800);
   };
 
+  const actionButtons = (
+    <div className="flex gap-2">
+      <button
+        onClick={handleSave}
+        aria-label="Save barber order as image"
+        className="btn btn-tomato btn-snap flex-1"
+        style={{ padding: '9px 12px', fontSize: 12 }}
+      >
+        {saved ? 'Saved ✓' : '↓ Save as image'}
+      </button>
+      <button
+        onClick={handleCopy}
+        aria-label="Copy barber order to clipboard"
+        className="btn btn-cream btn-snap flex-1"
+        style={{ padding: '9px 12px', fontSize: 12 }}
+      >
+        {copied ? 'Copied ✓' : '⧉ Copy order'}
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="receipt receipt-print" key={ticketNo}>
-        {/* Header */}
-        <div className="receipt-row text-center" style={{ '--ri': 0 } as React.CSSProperties}>
-          <div className="font-display text-[19px] leading-none" style={{ fontWeight: 900, letterSpacing: '0.02em' }}>SHAPE UP</div>
-          <div className="font-sans text-[8.5px] uppercase tracking-[0.3em] text-[var(--smoke)] mt-1.5">— ✂ the barber&rsquo;s order ✂ —</div>
-          <div className="font-mono text-[9px] text-[var(--smoke)] mt-1">ticket {ticketNo} · {new Date().toLocaleDateString()}</div>
-        </div>
-
-        <div className="receipt-rule receipt-row" style={{ '--ri': 1 } as React.CSSProperties} />
-
-        {/* The cut + hair read */}
-        <div className="receipt-row text-center" style={{ '--ri': 2 } as React.CSSProperties}>
-          <div className="font-display italic text-[20px] leading-tight text-[var(--ink)]" style={{ fontWeight: 600 }}>{order.styleName}</div>
-          <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--tomato)] mt-1.5" style={{ fontWeight: 700 }}>
-            {order.hairRead.pattern} · {order.hairRead.density} density
-          </div>
-          <p className="font-serif italic text-[11px] text-[var(--smoke)] mt-1 leading-snug">{order.hairRead.note}</p>
-        </div>
-
-        <div className="receipt-rule receipt-row" style={{ '--ri': 3 } as React.CSSProperties} />
-
-        {/* Zones */}
-        {order.zones.map((z, i) => (
-          <div key={z.zone} className="receipt-row receipt-zone" style={{ '--ri': 4 + i } as React.CSSProperties}>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-[var(--ink)]" style={{ fontWeight: 700 }}>{z.label}</span>
-              <span className="font-mono text-[9.5px] text-[var(--tomato)] text-right" style={{ fontWeight: 700 }}>{z.spec}</span>
-            </div>
-            <p className="font-serif text-[12.5px] leading-snug text-[var(--ink)] mt-1">{z.move}</p>
-            <div className="flex items-center justify-between gap-3 mt-1.5">
-              <span className="font-mono text-[9px] text-[var(--smoke)] truncate">⟶ {z.technique}</span>
-              <span className="conf-meter" title={`confidence ${Math.round(z.confidence * 100)}%`}>
-                <span className="conf-track">
-                  <span
-                    className="conf-fill"
-                    style={{ width: `${Math.round(z.confidence * 100)}%`, animationDelay: `${(4 + i) * 130 + 500}ms` }}
-                  />
-                </span>
-                <span className="font-mono text-[9px] text-[var(--ink)]" style={{ fontWeight: 600 }}>{Math.round(z.confidence * 100)}%</span>
-              </span>
-            </div>
-          </div>
-        ))}
-
-        {/* Tear line + ask-for */}
-        <div className="receipt-tear receipt-row" style={{ '--ri': 9 } as React.CSSProperties}><span>✂</span></div>
-
-        <div className="receipt-row" style={{ '--ri': 10 } as React.CSSProperties}>
-          <div className="font-mono text-[8.5px] uppercase tracking-[0.2em] text-[var(--smoke)] mb-1.5" style={{ fontWeight: 700 }}>say this in the chair</div>
-          <div className="receipt-askfor">
-            <p className="font-serif italic text-[13px] leading-snug text-[var(--ink)]" style={{ fontWeight: 500 }}>&ldquo;{order.askFor}&rdquo;</p>
-          </div>
-          <div className="font-mono text-[9px] text-[var(--smoke)] mt-2.5">MAINTENANCE — {order.maintenance}</div>
-        </div>
-
-        {/* Barcode footer */}
-        <div className="receipt-row mt-3" style={{ '--ri': 11 } as React.CSSProperties}>
-          <div className="receipt-barcode" aria-hidden />
-          <div className="text-center font-serif italic text-[10px] text-[var(--smoke)] mt-2">no charge for thinking twice ✂</div>
-        </div>
+      <div ref={paperHomeRef} style={{ visibility: presenting ? 'hidden' : undefined }} key={ticketNo}>
+        <ReceiptPaper
+          order={order}
+          ticketNo={ticketNo}
+          onClick={openPresent}
+          ariaLabel="Present the order full screen"
+        />
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={handleSave}
-          aria-label="Save barber order as image"
-          className="btn btn-tomato flex-1"
-          style={{ padding: '9px 12px', fontSize: 12 }}
+      {actionButtons}
+
+      {/* Present mode — the receipt lerps from the sidebar to centre stage */}
+      {presenting && geo && (
+        <div
+          className={`present-backdrop ${entered ? 'is-open' : ''}`}
+          onClick={closePresent}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Barber order, presented"
         >
-          {saved ? 'Saved ✓' : '↓ Save as image'}
-        </button>
-        <button
-          onClick={handleCopy}
-          aria-label="Copy barber order to clipboard"
-          className="btn btn-cream flex-1"
-          style={{ padding: '9px 12px', fontSize: 12 }}
-        >
-          {copied ? 'Copied ✓' : '⧉ Copy order'}
-        </button>
-      </div>
+          <div
+            className="present-wrap"
+            style={{
+              width: geo.width,
+              transform: entered
+                ? 'translate(-50%, -50%) scale(' + geo.scale + ')'
+                : `translate(calc(-50% + ${geo.dx}px), calc(-50% + ${geo.dy}px)) scale(1)`,
+            }}
+          >
+            <ReceiptPaper order={order} ticketNo={ticketNo} instant onClick={closePresent} ariaLabel="Put the order back" />
+            <div onClick={(e) => e.stopPropagation()}>{actionButtons}</div>
+          </div>
+          <span className={`present-hint ${entered ? 'is-open' : ''}`}>click anywhere to put it back</span>
+        </div>
+      )}
     </div>
   );
 }

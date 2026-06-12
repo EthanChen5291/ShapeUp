@@ -7,7 +7,7 @@
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
 import { BarberOrder } from '@/lib/barberOrder';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberOrderReceipt from '@/components/BarberOrderReceipt';
 
@@ -46,12 +46,45 @@ const PROMPT_PLACEHOLDERS = [
   '"Curly on top, skin fade sides."',
 ];
 
-const PROMPT_CHIPS = [
-  'low taper, textured top',
-  'skin fade, keep the top',
-  'buzz it — #2 all over',
-  'just clean up the edges',
+// Trending cuts — the refresh button pages through this pool, 4 at a time
+const TRENDING_CUTS = [
+  'low taper fade, textured fringe',
+  'textured crop, skin fade',
+  'modern mullet, faded sides',
+  'blowout taper',
+  'edgar cut, high fade',
+  'wolf cut, light layers',
+  'curtain fringe, mid fade',
+  'comma hair, low taper',
+  'afro taper, sponge curls',
+  'two block, soft layers',
+  'slick back undercut',
+  'side part pompadour',
+  'french crop, hard part',
+  'mid taper with waves',
+  'buzz cut, clean line-up',
+  'fluffy crop, low fade',
 ];
+
+const CHIPS_PER_PAGE = 4;
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Tiny stable hash for the order cache key
+function djb2(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+const ORDER_CACHE_PREFIX = 'shapeup-order:';
 
 const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
   gemini: [
@@ -94,6 +127,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  // Trending-cut suggestion chips, paged by the refresh button
+  const [chipPool] = useState(() => shuffle(TRENDING_CUTS));
+  const [chipPage, setChipPage] = useState(0);
+  const chips = useMemo(() => {
+    const start = (chipPage * CHIPS_PER_PAGE) % chipPool.length;
+    return chipPool.concat(chipPool).slice(start, start + CHIPS_PER_PAGE);
+  }, [chipPool, chipPage]);
 
   const currentParams = history[historyIndex];
 
@@ -209,7 +250,28 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     }
   };
 
-  const handleGetOrder = async () => {
+  // Cache key identifies the cut: same params + same image → same order
+  const orderCacheKey = () =>
+    `${ORDER_CACHE_PREFIX}${djb2(JSON.stringify(currentParams))}:${djb2(latestImageUrl ?? 'noimg')}`;
+
+  const handleGetOrder = async (force = false) => {
+    const cacheKey = orderCacheKey();
+
+    if (!force) {
+      try {
+        const hit = localStorage.getItem(cacheKey);
+        if (hit) {
+          const parsed = JSON.parse(hit) as OrderResult;
+          if (parsed?.order && parsed?.ticketNo && parsed?.text) {
+            setOrderError(null);
+            setOrderResult(parsed);
+            setLiveStatus('Barber order reprinted from your last visit.');
+            return;
+          }
+        }
+      } catch { /* corrupt cache entry — fall through to a fresh print */ }
+    }
+
     setOrderLoading(true);
     setOrderError(null);
     try {
@@ -229,8 +291,20 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       if (!res.ok || !data.ok || !data.order) {
         throw new Error(data.error ?? 'Order request failed');
       }
-      setOrderResult({ order: data.order as BarberOrder, ticketNo: data.ticketNo as string, text: data.text as string });
+      const result: OrderResult = { order: data.order as BarberOrder, ticketNo: data.ticketNo as string, text: data.text as string };
+      setOrderResult(result);
       setLiveStatus('Barber order printed.');
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      } catch {
+        // Quota — evict older orders and retry once
+        try {
+          Object.keys(localStorage)
+            .filter(k => k.startsWith(ORDER_CACHE_PREFIX) && k !== cacheKey)
+            .forEach(k => localStorage.removeItem(k));
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+        } catch { /* storage unavailable — order still shows, just not cached */ }
+      }
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : 'Failed to print the order');
       setLiveStatus('Barber order failed.');
@@ -323,6 +397,10 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
           <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
         </div>
+        <span className={`tb-status ml-auto ${isBusy || orderLoading ? 'tb-status-busy' : 'tb-status-open'}`}>
+          <span className="tb-status-dot" />
+          {isBusy ? 'cutting' : orderLoading ? 'printing' : 'open'}
+        </span>
       </div>
 
       {/* Prompt */}
@@ -331,41 +409,69 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
           <span className="font-mono text-[10px] text-[var(--smoke)]">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
         </div>
-        <textarea
-          id="hair-edit-prompt"
-          aria-describedby="hair-edit-prompt-chips"
-          className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
-          style={{ fontStyle: 'italic' }}
-          placeholder={PROMPT_PLACEHOLDERS[placeholderIdx]}
-          value={prompt}
-          maxLength={MAX_PROMPT_LENGTH}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }
-          }}
-        />
-        <div id="hair-edit-prompt-chips" className="flex flex-wrap gap-1.5">
-          {PROMPT_CHIPS.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              disabled={isBusy}
-              onClick={() => setPrompt(chip)}
-              className="chip-suggest disabled:opacity-40"
+        <div className="prompt-frame">
+          <textarea
+            id="hair-edit-prompt"
+            aria-describedby="hair-edit-prompt-chips"
+            className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
+            style={{ fontStyle: 'italic' }}
+            placeholder={PROMPT_PLACEHOLDERS[placeholderIdx]}
+            value={prompt}
+            maxLength={MAX_PROMPT_LENGTH}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }
+            }}
+          />
+        </div>
+        <div id="hair-edit-prompt-chips" className="flex items-start gap-1.5">
+          <div key={chipPage} className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+            {chips.map((chip, i) => (
+              <button
+                key={chip}
+                type="button"
+                disabled={isBusy}
+                onClick={() => setPrompt(chip)}
+                className="chip-suggest chip-pop disabled:opacity-40"
+                style={{ '--ci': i } as React.CSSProperties}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => setChipPage(p => p + 1)}
+            className="chip-refresh disabled:opacity-40"
+            aria-label="Show more trending cuts"
+            title="More trending cuts"
+          >
+            <svg
+              key={chipPage}
+              className={chipPage > 0 ? 'chip-refresh-spin' : undefined}
+              width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden
             >
-              {chip}
-            </button>
-          ))}
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
         </div>
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={isBusy}
+            disabled={isBusy || !prompt.trim()}
             aria-label="Apply hair edit request"
-            className="btn btn-tomato flex-1"
+            className="btn btn-tomato btn-snap flex-1"
             style={{ padding: '10px 16px', fontSize: 13 }}
           >
-            {phase === 'gemini' ? 'Styling…' : phase === 'hairstep' ? 'Rendering…' : '✂ Apply'}
+            {isBusy ? (
+              <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
+            ) : (
+              '✂ Apply'
+            )}
           </button>
           <button
             type="button"
@@ -374,10 +480,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               if (agentActive) { agent.stop(); setAgentActive(false); }
               else             { agent.start(); setAgentActive(true); }
             }}
-            className={`btn ${agentActive ? 'btn-tomato' : 'btn-denim'}`}
+            className={`btn btn-snap ${agentActive ? 'btn-tomato' : 'btn-denim'}`}
             style={{ padding: '10px 14px', fontSize: 13 }}
           >
-            {agentActive ? '◼ Stop' : '🎙 Voice'}
+            {agentActive ? (
+              <><span className="rec-dot" aria-hidden />Listening</>
+            ) : (
+              '🎙 Voice'
+            )}
           </button>
         </div>
         {isBusy && (
@@ -451,7 +561,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           </div>
         )}
         {pipelineError && (
-          <div className="px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+          <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
             {pipelineError}
           </div>
         )}
@@ -463,8 +574,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           <span className="pill pill-tomato">take it to your barber</span>
           {orderResult && !orderLoading && (
             <button
-              onClick={handleGetOrder}
-              aria-label="Re-print barber order with the latest cut"
+              onClick={() => handleGetOrder(true)}
+              aria-label="Write a fresh order for the latest cut"
               className="font-mono text-[10px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
             >
               ↻ re-print
@@ -474,12 +585,13 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
         {!orderResult && !orderLoading && (
           <button
-            onClick={handleGetOrder}
-            aria-label="Print barber order"
-            className="btn btn-cream"
-            style={{ padding: '10px 16px', fontSize: 13 }}
+            onClick={() => handleGetOrder()}
+            aria-label="Write up the exact instructions to show your barber"
+            className="btn-cta-order"
           >
-            📜 Barber&rsquo;s order
+            <span className="btn-cta-order-title"><span className="btn-order-icon" aria-hidden>✂</span> Show my barber</span>
+            <span className="btn-cta-order-sub">this cut, written up so they nail it first try</span>
+            <span className="btn-cta-order-sheen" aria-hidden />
           </button>
         )}
 
@@ -496,8 +608,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         )}
 
         {orderError && !orderLoading && (
-          <div className="px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
-            {orderError} — <button onClick={handleGetOrder} className="underline">try again</button>
+          <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
+            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
+            {orderError} — <button onClick={() => handleGetOrder()} className="underline">try again</button>
           </div>
         )}
 

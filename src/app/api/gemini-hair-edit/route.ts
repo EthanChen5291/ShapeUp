@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
   const t0 = Date.now();
   console.log('\n[gemini-hair-edit] ===== POST START =====');
   console.log('[gemini-hair-edit] GEMINI_API_KEY set?', !!process.env.GEMINI_API_KEY);
-  console.log('[gemini-hair-edit] GEMINI_API_KEY prefix:', process.env.GEMINI_API_KEY?.slice(0, 8) ?? 'MISSING');
 
   let imageUrl: string, prompt: string, sessionId: string;
   let currentProfile: unknown = null;
