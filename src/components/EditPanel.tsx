@@ -11,7 +11,6 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberOrderReceipt from '@/components/BarberOrderReceipt';
 
-import { useElevenLabsAgent } from '@/hooks/useElevenLabsAgent';
 
 interface EditPanelProps {
   profile: UserHeadProfile;
@@ -119,10 +118,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState('');
   const [freshCut, setFreshCut] = useState(false);
-
-  const [agentActive, setAgentActive] = useState(false);
-
-  const agent = useElevenLabsAgent((text) => runPromptPipeline(text));
 
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
@@ -471,22 +466,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
             ) : (
               '✂ Apply'
-            )}
-          </button>
-          <button
-            type="button"
-            aria-label={agentActive ? 'Stop voice hair edit assistant' : 'Start voice hair edit assistant'}
-            onClick={() => {
-              if (agentActive) { agent.stop(); setAgentActive(false); }
-              else             { agent.start(); setAgentActive(true); }
-            }}
-            className={`btn btn-snap ${agentActive ? 'btn-tomato' : 'btn-denim'}`}
-            style={{ padding: '10px 14px', fontSize: 13 }}
-          >
-            {agentActive ? (
-              <><span className="rec-dot" aria-hidden />Listening</>
-            ) : (
-              '🎙 Voice'
             )}
           </button>
         </div>

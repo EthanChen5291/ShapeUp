@@ -1119,9 +1119,9 @@ input[type="range"].slider-warm::-moz-range-thumb {
 /* ── Button bounce ───────────────────────────────────────── */
 @keyframes btn-bounce {
   0%   { transform: scale(1); }
-  35%  { transform: scale(0.9); }
-  65%  { transform: scale(1.08); }
-  80%  { transform: scale(0.97); }
+  35%  { transform: scale(0.97); }
+  65%  { transform: scale(1.024); }
+  80%  { transform: scale(0.997); }
   100% { transform: scale(1); }
 }
 .btn-bouncing { animation: btn-bounce 380ms cubic-bezier(.34,1.56,.64,1) both; }
@@ -1141,12 +1141,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
   100% { transform: scale(0.85); }
 }
 
-/* ── Project card zoom-in transition ─────────────────────── */
+/* ── Project card press bounce ─────────────────────────── */
 @keyframes project-zoom {
-  from { transform: scale(1);    opacity: 1; }
-  to   { transform: scale(3.5);  opacity: 0; }
+  0%   { transform: scale(1); }
+  28%  { transform: scale(0.93); }
+  62%  { transform: scale(1.03); }
+  80%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
 }
-.project-zoom { animation: project-zoom 500ms cubic-bezier(.4,0,.6,1) both; }
+.project-zoom { animation: project-zoom 340ms cubic-bezier(.34,1.56,.64,1) both; }
 
 /* ── Project card hover wiggle ─────────────────────────────── */
 @keyframes card-wiggle {
@@ -1594,6 +1597,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .pcard-date {
   margin-left: auto;
+  margin-right: 32px;
   font-size: 8.5px;
   letter-spacing: 0.14em;
   color: rgba(42, 32, 26, 0.38);

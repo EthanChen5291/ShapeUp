@@ -127,6 +127,8 @@ export default function StudioPage() {
   const projectId = params.projectId as Id<'projects'>;
 
   const saveProject = useMutation(api.projects.save);
+  const generateThumbnailUploadUrl = useMutation(api.projects.generateThumbnailUploadUrl);
+  const saveThumbnail = useMutation(api.projects.saveThumbnail);
   const project = useQuery(api.projects.get, { projectId });
 
   const [initialized, setInitialized] = useState(false);
@@ -144,6 +146,7 @@ export default function StudioPage() {
   const [sceneBackground, setSceneBackground] = useState('#001f5b');
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
+  const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
 
   // Redirect if signed out
   useEffect(() => {
@@ -229,6 +232,20 @@ export default function StudioPage() {
     } : prev);
   }, []);
 
+  const handleThumbnailReady = useCallback(async (dataUrl: string) => {
+    if (!projectId) return;
+    try {
+      const blob = await fetch(dataUrl).then(r => r.blob());
+      const uploadUrl = await generateThumbnailUploadUrl();
+      const { storageId } = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/png' },
+        body: blob,
+      }).then(r => r.json());
+      await saveThumbnail({ projectId, storageId });
+    } catch { /* non-fatal */ }
+  }, [projectId, generateThumbnailUploadUrl, saveThumbnail]);
+
   // Show project-not-found state
   if (project === null) {
     return (
@@ -254,7 +271,17 @@ export default function StudioPage() {
   if (!faceliftReady && imageUrl) {
     return (
       <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
-        <div className="absolute top-5 left-6 z-20">
+        <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
+          <button
+            onClick={() => router.push('/dashboard')}
+            aria-label="Back to dashboard"
+            className="btn-ink"
+            style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+            </svg>
+          </button>
           <InlineWordmark cream small />
         </div>
         <div className="flex-1 min-w-0 relative">
@@ -316,7 +343,17 @@ export default function StudioPage() {
   // ── 3D Studio ──
   return (
     <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
-      <div className="absolute top-5 left-6 z-20">
+      <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
+        <button
+          onClick={() => router.push('/dashboard')}
+          aria-label="Back to dashboard"
+          className="btn-ink"
+          style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          </svg>
+        </button>
         <InlineWordmark cream small />
       </div>
 
@@ -360,6 +397,8 @@ export default function StudioPage() {
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
+            captureKey={thumbnailCaptureKey}
+            onThumbnailReady={handleThumbnailReady}
           />
 
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
@@ -396,6 +435,7 @@ export default function StudioPage() {
               onPlyReady={(url) => {
                 if (url.startsWith('/')) { setEditSplatSrc(url); }
                 else { setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`); }
+                setThumbnailCaptureKey(k => k + 1);
               }}
               onUncertain={() => setShowRecommendations(true)}
             />

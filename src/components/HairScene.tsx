@@ -251,6 +251,7 @@ interface SceneProps {
   hairstepPlyUrls?: string[];
   hairColor?: string;
   orbitRotateSpeed?: number;
+  captureKey?: number;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
@@ -282,7 +283,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
@@ -368,7 +369,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
         rotateSpeed={orbitRotateSpeed}
       />
       <KeyboardCameraController orbitRef={orbitRef} />
-      {onThumbnailReady && <ThumbnailCapture onCapture={onThumbnailReady} />}
+      {onThumbnailReady && <ThumbnailCapture key={captureKey ?? 0} onCapture={onThumbnailReady} />}
     </>
   );
 }
@@ -387,11 +388,12 @@ interface HairSceneProps {
   disableDefaultHairLayers?: boolean;
   background?:               string;
   uiHidden?:                 boolean;
+  captureKey?:               number;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
@@ -546,6 +548,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairstepPlyUrls={showHair ? hairstepPlyUrls : undefined}
           hairColor={hairColor}
           orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
+          captureKey={captureKey}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
           onThumbnailReady={onThumbnailReady}
         />

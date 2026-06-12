@@ -10,6 +10,7 @@ import { DemoFaceliftStatus } from '@/hooks/useDemoFacelift';
 import HairScene from '@/components/HairScene';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 const BIOMETRIC_CONSENT_VERSION = 'biometric-notice-2026-06-08';
 
@@ -94,6 +95,7 @@ const BARBER_CHATTER = [
 ];
 
 export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRenderIn3D, onHairstepPlyReady, demoMode = false, baldSplatSrc, originalSplatSrc, demoStatus = 'idle', demoError }: HairEditLoopProps) {
+  const router = useRouter();
   const [currentImageUrl, setCurrentImageUrl] = useState(initialImageUrl);
   const [prompt, setPrompt] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -334,10 +336,22 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
 
     return (
       <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
-        {/* Corner wordmark */}
-        <div className="absolute top-5 left-6 z-20 wordmark-stacked text-[var(--cream)]">
-          <span>Shape</span>
-          <span>Up</span>
+        {/* Corner wordmark + home */}
+        <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
+          <button
+            onClick={() => router.push('/dashboard')}
+            aria-label="Back to dashboard"
+            className="btn-ink"
+            style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+            </svg>
+          </button>
+          <div className="wordmark-stacked text-[var(--cream)]">
+            <span>Shape</span>
+            <span>Up</span>
+          </div>
         </div>
 
         {/* Left panel: selfie while loading, 3D scene once bald splat is ready */}
@@ -478,6 +492,19 @@ export default function HairEditLoop({ sessionId, initialImageUrl, profile, onRe
 
   return (
     <main className="relative min-h-screen bg-tomato-shop overflow-hidden">
+
+      <div className="absolute top-5 left-6 z-20">
+        <button
+          onClick={() => router.push('/dashboard')}
+          aria-label="Back to dashboard"
+          className="btn-ink"
+          style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          </svg>
+        </button>
+      </div>
 
       <section className="relative z-10 mx-auto max-w-6xl px-6 pt-16 pb-20">
         {/* Header */}

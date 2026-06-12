@@ -881,7 +881,7 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
         </button>
         <span className="font-mono pcard-tray-label">edit · this cut</span>
       </div>
-      <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 480); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
+      <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
           {project.thumbnailUrl ? <img src={project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
@@ -945,11 +945,8 @@ const TEASER_TAGS = ['taper', 'crop', 'fringe', 'fade', 'flow', 'buzz'];
 function ExploreFloor() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px', gap: 36, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ textAlign: 'center' }}>
-        <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(3.6rem, 6vw, 5.5rem)', color: 'var(--ink)', lineHeight: 0.9 }}>Explore <em style={{ color: 'var(--tomato)' }}>soon</em></h1>
-        <p style={{ margin: '14px auto 0', maxWidth: 420, fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(42,32,26,0.6)' }}>A wall of looks from the neighborhood — browse by face shape, pin what works, walk in with a reference.</p>
-      </div>
-      <div className="explore-wall">
+      <div className="explore-ticket"><span className="inline-block w-2 h-5 barber-pole" /><span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(42,32,26,0.7)', fontWeight: 700 }}>actively in development</span></div>
+      <div className="explore-wall" style={{ justifyContent: 'center' }}>
         {TEASER_TAGS.map((tag, i) => (
           <div key={tag} className="explore-ghost" style={{ ['--eg-wonk' as string]: `${[-1.3, 0.9, -0.6, 1.2, -0.9, 0.7][i]}deg`, ['--eg-phase' as string]: `${i * -0.7}s` }}>
             <div className="explore-ghost-photo"><div style={{ width: 34, opacity: 0.18, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>
@@ -958,7 +955,6 @@ function ExploreFloor() {
           </div>
         ))}
       </div>
-      <div className="explore-ticket"><span className="inline-block w-2 h-5 barber-pole" /><span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(42,32,26,0.7)', fontWeight: 700 }}>actively in development</span></div>
       <div className="explore-marquee" aria-hidden><div className="explore-marquee-track font-mono">{Array.from({ length: 2 }).map((_, r) => <span key={r}>FRESH CUTS&nbsp;&nbsp;✂&nbsp;&nbsp;TRENDING STYLES&nbsp;&nbsp;✂&nbsp;&nbsp;BARBER PICKS&nbsp;&nbsp;✂&nbsp;&nbsp;FACE-SHAPE MATCHES&nbsp;&nbsp;✂&nbsp;&nbsp;</span>)}</div></div>
     </div>
   );

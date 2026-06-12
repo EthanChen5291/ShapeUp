@@ -2724,34 +2724,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               >
                 stuck in your head
               </span>
-              .{' '}
-              <span style={{ color: 'var(--char)' }}>We visualize it </span>
-              <span
-                style={{
-                  color: 'var(--tomato)',
-                  fontWeight: 700,
-                  boxShadow: 'inset 0 -0.5em 0 rgba(255,99,71,0.14)',
-                  padding: '0 0.1em',
-                }}
-              >
-                on your face
-              </span>
-              <span style={{ color: 'var(--char)' }}> and give you</span>{' '}
-              <span
-                className="font-mono"
-                style={{
-                  fontSize: '0.78em',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontWeight: 600,
-                  color: 'var(--ink)',
-                  borderBottom: '2px solid var(--tomato)',
-                  paddingBottom: 1,
-                }}
-              >
-                instructions for your barber
-              </span>
-              <span style={{ color: 'var(--char)' }}>.</span>
+              {'. '}
+              <span style={{ color: 'var(--char)' }}>We visualize it on your face and give you instructions for your barber.</span>
             </p>
           </Reveal>
         </div>
@@ -2776,7 +2750,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   backgroundRepeat: `no-repeat, no-repeat, no-repeat`,
                 }}
               >
-                <div style={{ padding: '38px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ padding: '34px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
                     {item.stat}
                   </div>

@@ -89,3 +89,25 @@ export const get = query({
     return project;
   },
 });
+
+export const generateThumbnailUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    return ctx.storage.generateUploadUrl();
+  },
+});
+
+export const saveThumbnail = mutation({
+  args: { projectId: v.id("projects"), storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.tokenIdentifier !== identity.tokenIdentifier) throw new Error("Not found");
+    const url = await ctx.storage.getUrl(args.storageId);
+    if (!url) throw new Error("Storage URL not available");
+    await ctx.db.patch(args.projectId, { thumbnailUrl: url, updatedAt: Date.now() });
+  },
+});
