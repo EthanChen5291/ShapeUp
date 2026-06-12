@@ -1,5 +1,5 @@
 """
-Modal deployment for FaceLift head reconstruction.
+Modal deployment for FaceLift head reconstruction (brubru6707/facelift).
 
 Usage
 -----
@@ -18,27 +18,25 @@ No ngrok needed — Modal handles HTTPS.
 
 Adding a teammate
 -----------------
-modal.com → your workspace (chen-ethan529) → Settings → Members → Invite member.
-They'll get their own API token scoped to this workspace and can run
-`modal setup` on their machine to authenticate.
+modal.com → your workspace → Settings → Members → Invite member.
 
 Memory snapshot
 ---------------
-On first deploy, the container downloads ~7 GB of weights to the Volume, loads
-them onto the GPU, and Modal snapshots both CPU RAM and GPU VRAM
-(enable_gpu_snapshot alpha). Subsequent cold starts restore from the snapshot
-in ~10–15 s instead of re-reading from disk (~1–3 min).
-The snapshot materialises after ~3–5 cold boots — don't benchmark timing on
-the first run.
+On first deploy the container downloads ~7 GB of weights into the Volume and
+Modal snapshots CPU RAM + GPU VRAM. Subsequent cold starts restore from the
+snapshot in ~10–15 s. The snapshot materialises after ~3–5 cold boots.
+
+Weights location
+----------------
+The repo's inference.py downloads HF weights to {FACELIFT_DIR}/checkpoints/.
+We mount the weights Volume there so downloads survive across deploys.
 
 Synchronous design
 ------------------
 POST /process_image accepts a multipart image, runs FaceLift inference
-(~15–20 s on A10G), and returns JSON with base64-encoded PLY and turntable
-video. The Next.js route.ts decodes, converts PLY → splat, and uploads both
-to S3 — no polling required.
-
-An asyncio.Lock serialises GPU access within a container. Modal auto-scales
+(~15–20 s on L40S), and returns JSON with base64-encoded PLY.
+The Next.js route.ts decodes, converts PLY → splat, and uploads both to S3.
+An asyncio.Lock serialises GPU access within a container; Modal auto-scales
 to additional containers for concurrent users.
 """
 
@@ -46,7 +44,7 @@ import modal
 
 APP_NAME     = "shapeup-facelift"
 FACELIFT_DIR = "/facelift"
-WEIGHTS_DIR  = "/weights"
+WEIGHTS_DIR  = f"{FACELIFT_DIR}/checkpoints"   # Volume mounted here so weights persist
 
 weights_volume = modal.Volume.from_name("facelift-weights", create_if_missing=True)
 
@@ -78,6 +76,7 @@ image = (
         "scikit-image==0.21.0",
         "lpips==0.1.4",
         "rembg",
+        "onnxruntime",          # required by rembg
         "numpy==1.26.4",
         "matplotlib==3.7.5",
         "scikit-learn==1.3.2",
@@ -86,9 +85,11 @@ image = (
         "pytorch-msssim==1.0.0",
         "easydict==1.13",
         "pyyaml==6.0.2",
+        "wandb==0.19.1",
         "termcolor==2.4.0",
         "plyfile==1.0.3",
         "tqdm",
+        "rich",
         "videoio==0.3.0",
         "ffmpeg-python==0.2.0",
         "fastapi",
@@ -97,10 +98,12 @@ image = (
     )
     .run_commands(
         "pip install facenet-pytorch --no-deps",
-        "pip install ninja wheel",  # wheel needed for bdist_wheel; ninja speeds CUDA compile
-        f"git clone https://github.com/weijielyu/FaceLift {FACELIFT_DIR}",
-        # build for A10G (8.6), A100 (8.0), L40S (8.9) — avoids recompiling per GPU
-        "TORCH_CUDA_ARCH_LIST='8.0;8.6;8.9' pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization --no-build-isolation",
+        "pip install ninja wheel",
+        # Clone the optimised fork with its diff-gaussian-rasterization submodule
+        f"git clone --recurse-submodules https://github.com/brubru6707/facelift {FACELIFT_DIR}",
+        # Build CUDA extension from the bundled submodule (matches what Oscar does)
+        # Targets: A100 (8.0), A10G (8.6), L40S (8.9)
+        f"TORCH_CUDA_ARCH_LIST='8.0;8.6;8.9' pip install --no-build-isolation {FACELIFT_DIR}/diff-gaussian-rasterization",
     )
     .env({
         "FACELIFT_DIR":       FACELIFT_DIR,
@@ -131,16 +134,25 @@ class FaceLiftServer:
         import torch
         sys.path.insert(0, FACELIFT_DIR)
         from inference import (
+            get_model_paths,
             initialize_face_detector,
-            initialize_gslrm_model,
             initialize_mvdiffusion_pipeline,
+            initialize_gslrm_model,
             setup_camera_parameters,
         )
-        self.device        = torch.device("cuda:0")
-        self.mv_pipeline   = initialize_mvdiffusion_pipeline(self.device)
-        self.gslrm_model   = initialize_gslrm_model(self.device)
+        self.device = torch.device("cuda:0")
+
+        # get_model_paths() downloads HF weights into FACELIFT_DIR/checkpoints/
+        # on first run; subsequent runs find them already on the Volume.
+        mvdiffusion_path, gslrm_ckpt_path, gslrm_cfg_path = get_model_paths()
+
         self.face_detector = initialize_face_detector(self.device)
-        self.camera_params = setup_camera_parameters(self.device)
+        self.mv_pipeline, self.generator, self.color_prompt_embeddings = (
+            initialize_mvdiffusion_pipeline(mvdiffusion_path, self.device)
+        )
+        self.gslrm_model = initialize_gslrm_model(gslrm_ckpt_path, gslrm_cfg_path, self.device)
+        self.camera_intrinsics, self.camera_extrinsics = setup_camera_parameters(self.device)
+        self.generator.manual_seed(4)
         print("[facelift] Models on GPU — snapshotting.")
 
     @modal.asgi_app()
@@ -151,7 +163,6 @@ class FaceLiftServer:
         import sys
         import time
         import uuid
-        from pathlib import Path
 
         from fastapi import FastAPI, File, HTTPException, UploadFile
 
@@ -163,51 +174,54 @@ class FaceLiftServer:
 
         @api.post("/process_image")
         async def process_image(image: UploadFile = File(...)):
-            job_id   = str(uuid.uuid4())
-            img_dir  = "/tmp/facelift_uploads"
-            os.makedirs(img_dir, exist_ok=True)
-            img_path = f"{img_dir}/{job_id}.png"
+            job_id     = str(uuid.uuid4())
+            input_dir  = "/tmp/facelift_inputs"
+            output_dir = "/tmp/facelift_outputs"
+            os.makedirs(input_dir, exist_ok=True)
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Name the image after the job so concurrent jobs never share a path.
+            # inference.py derives output_dir/<image_name>/gaussians.ply from
+            # the filename stem, so we get output_dir/<job_id>/gaussians.ply.
+            img_filename = f"{job_id}.png"
+            img_path     = os.path.join(input_dir, img_filename)
             with open(img_path, "wb") as f:
                 f.write(await image.read())
 
             async with _lock:
                 loop = asyncio.get_event_loop()
-                output_dir = f"/tmp/facelift/{job_id}"
-                os.makedirs(output_dir, exist_ok=True)
-
                 # Time only the GPU-bound work (inside the lock) so the caller
                 # can meter true GPU-seconds, not network/queue overhead.
                 gpu_start = time.perf_counter()
                 await loop.run_in_executor(None, lambda: process_single_image(
-                    image_path=img_path,
+                    image_file=img_filename,
+                    input_dir=input_dir,
                     output_dir=output_dir,
-                    pipeline=self.mv_pipeline,
-                    gslrm_model=self.gslrm_model,
-                    face_detector=self.face_detector,
-                    camera_params=self.camera_params,
                     auto_crop=True,
-                    seed=4,
+                    unclip_pipeline=self.mv_pipeline,
+                    generator=self.generator,
+                    color_prompt_embedding=self.color_prompt_embeddings,
+                    gs_lrm_model=self.gslrm_model,
+                    demo_fxfycxcy=self.camera_intrinsics,
+                    demo_c2w=self.camera_extrinsics,
                     guidance_scale_2D=3.0,
-                    step_2D=50,
+                    step_2D=70,
+                    face_detector=self.face_detector,
                 ))
                 elapsed_s = round(time.perf_counter() - gpu_start, 3)
 
-            stem      = Path(img_path).stem
-            out_dir   = os.path.join(output_dir, stem)
-            ply_path  = os.path.join(out_dir, "gaussians.ply")
-
+            ply_path = os.path.join(output_dir, job_id, "gaussians.ply")
             if not os.path.exists(ply_path):
                 raise HTTPException(500, "FaceLift produced no gaussians.ply")
 
             with open(ply_path, "rb") as f:
                 ply_b64 = base64.b64encode(f.read()).decode()
 
-            video_b64  = None
-            video_path = os.path.join(out_dir, "turntable.mp4")
-            if os.path.exists(video_path):
-                with open(video_path, "rb") as f:
-                    video_b64 = base64.b64encode(f.read()).decode()
+            try:
+                os.remove(img_path)
+            except OSError:
+                pass
 
-            return {"ply_b64": ply_b64, "video_b64": video_b64, "elapsed_s": elapsed_s}
+            return {"ply_b64": ply_b64, "video_b64": None, "elapsed_s": elapsed_s}
 
         return api
