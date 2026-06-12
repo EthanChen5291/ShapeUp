@@ -16,7 +16,6 @@ import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import dynamic from 'next/dynamic';
 import { mockUserHeadProfile } from '@/data/mockProfile';
-import { useSmirk } from '@/hooks/useSmirk';
 
 const HairScene  = dynamic(() => import('@/components/HairScene'),  { ssr: false });
 const ScanCamera = dynamic(() => import('@/components/ScanCamera'), { ssr: false });
@@ -1786,7 +1785,6 @@ export default function Home() {
     return () => clearInterval(t);
   }, [appState, activeProjectId, params, profile, imageUrl, saveProject]);
 
-  const smirk = useSmirk(undefined);
   // Skip re-building if we already have a persisted splat from a saved project
   const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
   // Prefer the saved splat from the project; fall back to freshly-built one
@@ -2063,14 +2061,6 @@ export default function Home() {
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
-            flameData={
-              smirk.result
-                ? {
-                    vertices: smirk.result.vertices_canonical,
-                    faces: smirk.result.faces,
-                  }
-                : undefined
-            }
           />
 
           {/* Session label — bottom left of the scene */}

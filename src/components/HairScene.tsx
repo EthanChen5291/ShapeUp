@@ -22,7 +22,6 @@ import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { parseNPY } from '@/lib/parseNPY';
@@ -132,7 +131,7 @@ function HairDepthPoints({ url, color, scale, position }: {
 
 // ── Scene content ───────────────────────────────────────────
 
-// Fallback hair transform used before FLAME data + PLY bbox are both available.
+// Fallback hair transform used before a measured PLY bbox is available.
 // Derived by manually aligning brunohair.ply to the reference Polycam head.
 const HAIR_PLY_SCALE_DEFAULT   = 13.109;
 const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
@@ -239,17 +238,10 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
 }
 
 
-interface FlameData {
-  vertices: number[][];
-  faces:    number[][];
-}
-
 interface SceneProps {
   showPolycam?: boolean;
   showSplat?: boolean;
-  showFlame?: boolean;
   visibleLayers: Set<string>;
-  flameData?: FlameData;
   hairScale: number;
   hairPos: [number, number, number];
   splatScale: number;
@@ -290,7 +282,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
@@ -366,10 +358,6 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
         />
       ))}
 
-      {showFlame && flameData && (
-        <FlameMesh vertices={flameData.vertices} faces={flameData.faces} />
-      )}
-
       <OrbitControls
         ref={orbitRef}
         enablePan={false}
@@ -391,7 +379,6 @@ interface HairSceneProps {
   params:                    HairParams;
   colorRGB?:                 string;
   profile?:                  UserHeadProfile;
-  flameData?:                FlameData;
   autoFaceliftDataUrl?:      string;
   faceliftPlyReady?:         boolean;
   hairstepPlyUrl?:           string;
@@ -404,11 +391,10 @@ interface HairSceneProps {
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
-  const [showFlame, setShowFlame]     = useState(false);
   const [visibleLayers, setVisibleLayers] = useState<Set<string>>(
     new Set(disableDefaultHairLayers ? [] : ['hair_modified', 'top_hair'])
   );
@@ -425,9 +411,6 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
       });
     }
   }, [disableDefaultHairLayers]);
-
-  // Local FLAME data fetched from a test image
-  const [localFlameData] = useState<FlameData | null>(null);
 
   // FaceLift job state for ethansample_bald test
   const [ethanJobId, setEthanJobId]       = useState<string | null>(null);
@@ -490,9 +473,6 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     return () => clearInterval(timer);
   }, [ethanJobStatus, ethanJobId]);
 
-  // Prop flameData (from real webcam scan) takes priority over test data
-  const effectiveFlameData = flameData ?? localFlameData ?? undefined;
-
   // Turn splat on automatically as soon as a real URL becomes available
   useEffect(() => {
     console.log('[HairScene] splat effect — splatSrcOverride:', splatSrcOverride, '| ethanSplatSrc:', ethanSplatSrc);
@@ -548,8 +528,6 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
         <Scene
           showPolycam={showPolycam}
           showSplat={showSplat}
-          showFlame={showFlame}
-          flameData={effectiveFlameData}
           visibleLayers={effectiveVisibleLayers}
           hairScale={hairScale}
           hairPos={hairPos}

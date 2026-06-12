@@ -11,7 +11,6 @@ import { buildHairMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
-import { useSmirk } from '@/hooks/useSmirk';
 import EditPanel from '@/components/EditPanel';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
@@ -170,7 +169,6 @@ export default function StudioPage() {
     if (savedSplat) setPersistedSplatUrl(savedSplat);
   }, [project, initialized]);
 
-  const smirk = useSmirk(undefined);
   const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
   const effectiveSplatUrl = persistedSplatUrl ?? splatSrc;
 
@@ -362,7 +360,6 @@ export default function StudioPage() {
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             background={sceneBackground}
             uiHidden={menuHidden}
-            flameData={smirk.result ? { vertices: smirk.result.vertices_canonical, faces: smirk.result.faces } : undefined}
           />
 
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">

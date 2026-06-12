@@ -200,7 +200,7 @@ export default function HairStrandMesh({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
-  // Reactively update scale/position when props change (e.g. after FLAME data arrives)
+  // Reactively update scale/position when props change.
   useEffect(() => {
     if (!hairDataRef.current) return;
     hairDataRef.current.lineSegs.scale.set(scale, scale, scale);
