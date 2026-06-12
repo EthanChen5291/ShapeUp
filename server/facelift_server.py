@@ -26,8 +26,11 @@ Setup:
 """
 
 import os
+import re
+import shutil
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -36,6 +39,10 @@ from flask import Flask, jsonify, request, send_file
 FACELIFT_DIR = os.environ.get("FACELIFT_DIR", str(Path.home() / "FaceLift"))
 RESULTS_DIR  = "/tmp/facelift_results"
 UPLOADS_DIR  = "/tmp/facelift_uploads"
+FACELIFT_SHARED_SECRET = os.environ.get("FACELIFT_SHARED_SECRET")
+MAX_UPLOAD_BYTES = 6 * 1024 * 1024
+JOB_TTL_SECONDS = int(os.environ.get("FACELIFT_JOB_TTL_SECONDS", "3600"))
+JOB_ID_RE = re.compile(r"^[a-f0-9-]{36}$")
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -43,10 +50,30 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 sys.path.insert(0, FACELIFT_DIR)
 
 app   = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 JOBS: dict[str, dict] = {}
 
 _models      = None
 _models_lock = threading.Lock()
+_jobs_lock = threading.Lock()
+
+
+def require_shared_secret():
+    if FACELIFT_SHARED_SECRET and request.headers.get("X-ShapeUp-Facelift-Secret") != FACELIFT_SHARED_SECRET:
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
+
+def cleanup_old_jobs() -> None:
+    cutoff = time.time() - JOB_TTL_SECONDS
+    with _jobs_lock:
+        expired = [
+            job_id for job_id, job in JOBS.items()
+            if job.get("created_at", time.time()) < cutoff and job.get("status") != "running"
+        ]
+        for job_id in expired:
+            JOBS.pop(job_id, None)
+            shutil.rmtree(os.path.join(RESULTS_DIR, job_id), ignore_errors=True)
 
 
 def load_models():
@@ -74,7 +101,8 @@ def load_models():
 
 def run_facelift(job_id: str, image_path: str) -> None:
     try:
-        JOBS[job_id] = {"status": "running"}
+        with _jobs_lock:
+            JOBS[job_id] = {**JOBS.get(job_id, {}), "status": "running"}
         output_dir   = os.path.join(RESULTS_DIR, job_id)
         os.makedirs(output_dir, exist_ok=True)
 
@@ -102,35 +130,58 @@ def run_facelift(job_id: str, image_path: str) -> None:
         video_path  = os.path.join(out_subdir, "turntable.mp4")
 
         if not os.path.exists(ply_path):
-            JOBS[job_id] = {"status": "error", "error": "FaceLift produced no gaussians.ply"}
+            with _jobs_lock:
+                JOBS[job_id] = {**JOBS.get(job_id, {}), "status": "error", "error": "FaceLift produced no gaussians.ply"}
             return
 
-        JOBS[job_id] = {
-            "status":     "success",
-            "ply_path":   ply_path,
-            "video_path": video_path if os.path.exists(video_path) else None,
-        }
+        with _jobs_lock:
+            JOBS[job_id] = {
+                **JOBS.get(job_id, {}),
+                "status":     "success",
+                "ply_path":   ply_path,
+                "video_path": video_path if os.path.exists(video_path) else None,
+            }
     except Exception as e:
         import traceback
-        JOBS[job_id] = {"status": "error", "error": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"}
+        with _jobs_lock:
+            JOBS[job_id] = {**JOBS.get(job_id, {}), "status": "error", "error": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"}
+    finally:
+        try:
+            os.remove(image_path)
+        except OSError:
+            pass
 
 
 @app.route("/process_image", methods=["POST"])
 def process_image():
+    auth_error = require_shared_secret()
+    if auth_error:
+        return auth_error
+    cleanup_old_jobs()
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
     img_file = request.files["image"]
+    if img_file.mimetype not in {"image/png", "image/jpeg", "image/webp"}:
+        return jsonify({"error": "Unsupported image type"}), 400
     job_id   = str(uuid.uuid4())
     img_path = os.path.join(UPLOADS_DIR, f"{job_id}.png")
     img_file.save(img_path)
-    JOBS[job_id] = {"status": "queued"}
+    with _jobs_lock:
+        JOBS[job_id] = {"status": "queued", "created_at": time.time()}
     threading.Thread(target=run_facelift, args=(job_id, img_path), daemon=True).start()
     return jsonify({"job_id": job_id})
 
 
 @app.route("/status/<job_id>")
 def status(job_id: str):
-    job = JOBS.get(job_id)
+    auth_error = require_shared_secret()
+    if auth_error:
+        return auth_error
+    cleanup_old_jobs()
+    if not JOB_ID_RE.match(job_id):
+        return jsonify({"error": "Invalid job_id"}), 400
+    with _jobs_lock:
+        job = JOBS.get(job_id)
     if not job:
         return jsonify({"error": "Unknown job"}), 404
     return jsonify({"status": job["status"], "error": job.get("error")})
@@ -138,7 +189,13 @@ def status(job_id: str):
 
 @app.route("/download/<job_id>/ply")
 def download_ply(job_id: str):
-    job = JOBS.get(job_id)
+    auth_error = require_shared_secret()
+    if auth_error:
+        return auth_error
+    if not JOB_ID_RE.match(job_id):
+        return jsonify({"error": "Invalid job_id"}), 400
+    with _jobs_lock:
+        job = JOBS.get(job_id)
     if not job or job["status"] != "success":
         return jsonify({"error": "Job not complete"}), 404
     return send_file(
@@ -151,7 +208,13 @@ def download_ply(job_id: str):
 
 @app.route("/download/<job_id>/video")
 def download_video(job_id: str):
-    job = JOBS.get(job_id)
+    auth_error = require_shared_secret()
+    if auth_error:
+        return auth_error
+    if not JOB_ID_RE.match(job_id):
+        return jsonify({"error": "Invalid job_id"}), 400
+    with _jobs_lock:
+        job = JOBS.get(job_id)
     if not job or job["status"] != "success":
         return jsonify({"error": "Job not complete"}), 404
     if not job.get("video_path"):
