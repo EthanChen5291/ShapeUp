@@ -3,12 +3,12 @@
 # if nothing changes, get barber summary returns "No change"
 
 What was set up
-Stack: Next.js 15 + TypeScript + Tailwind + react-three-fiber + Anthropic SDK
+Stack: Next.js 15 + TypeScript + Tailwind + react-three-fiber + Gemini API
 
 Ethan (LLM Pipeline / UI)
 File	What to do
-src/hooks/useLLM.ts	Hook is wired — copy .env.local.example → .env.local and add ANTHROPIC_API_KEY
-src/app/api/edit/route.ts	Claude Haiku endpoint. Swap model: string to use Gemini/GPT-4o-mini
+src/hooks/useLLM.ts	Hook is wired — copy .env.local.example → .env.local and add GEMINI_API_KEY
+src/app/api/edit/route.ts	Gemini edit endpoint. Swap model: string only after product review
 src/components/EditPanel.tsx	
 Prompt input + sliders + undo/redo stack — extend the UI here
 
