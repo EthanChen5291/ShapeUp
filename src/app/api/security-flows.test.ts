@@ -238,6 +238,69 @@ describe('scan and generation APIs', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test('/api/facelift forwards the GPU shared secret and rejects malformed PLY before S3 upload', async () => {
+    const uploadToS3 = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ply_b64: 'not-a-valid-ply' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('FACELIFT_URL', 'https://ml.shapeup.test');
+    vi.stubEnv('FACELIFT_SHARED_SECRET', 'server-only-secret');
+    vi.doMock('@clerk/nextjs/server', () => ({
+      auth: vi.fn().mockResolvedValue({
+        userId: 'user_123',
+        getToken: vi.fn().mockResolvedValue('convex.jwt'),
+      }),
+    }));
+    vi.doMock('convex/browser', () => ({
+      ConvexHttpClient: vi.fn(function ConvexHttpClient() {
+        return {
+          setAuth: vi.fn(),
+          query: vi.fn()
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce(false),
+          mutation: vi.fn().mockResolvedValue(undefined),
+        };
+      }),
+    }));
+    vi.doMock('@/lib/s3', () => ({
+      uploadToS3,
+      getSignedDownloadUrl: vi.fn(),
+    }));
+
+    const { POST } = await import('./facelift/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/facelift', {
+      method: 'POST',
+      body: JSON.stringify({ imageDataUrl: pngDataUrl() }),
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    expect(res.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledWith('https://ml.shapeup.test/process_image', expect.objectContaining({
+      headers: expect.objectContaining({ 'X-ShapeUp-Facelift-Secret': 'server-only-secret' }),
+    }));
+    expect(uploadToS3).not.toHaveBeenCalled();
+  });
+
+  test('/api/facelift legacy download proxy requires auth and validates jobId before proxying', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('FACELIFT_URL', 'https://ml.shapeup.test');
+    vi.doMock('@/lib/serverAuth', () => ({
+      requireSignedIn: vi.fn().mockResolvedValue({
+        response: null,
+        session: { userId: 'user_123' },
+      }),
+    }));
+
+    const { GET } = await import('./facelift/[jobId]/[file]/route');
+    const res = await GET(new NextRequest('https://shapeup.test/api/facelift/../../etc/passwd/ply'), {
+      params: Promise.resolve({ jobId: '../../etc/passwd', file: 'ply' }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test('/api/proxy-ply rejects arbitrary private-network URLs', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('ply', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
