@@ -491,7 +491,12 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           </button>
         </div>
         {isBusy && (
-          <div className="pipeline-wrapper">
+          <div
+            className="pipeline-wrapper"
+            role="status"
+            aria-live="polite"
+            aria-label={phase === 'gemini' ? 'Sketching hair edit' : 'Rendering hairstyle in 3D'}
+          >
             {/* Stage 1 — Blueprint (Gemini) */}
             <div className="pipeline-stage">
               <div className="pipeline-stage-header">
@@ -511,13 +516,20 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
                   {geminiProgress >= 100 ? '✓' : geminiProgress < 1 ? '—' : `${Math.round(geminiProgress)}%`}
                 </span>
               </div>
-              <div className="progress-track">
+              <div
+                className="progress-track"
+                role="progressbar"
+                aria-label="Sketching the cut progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(geminiProgress)}
+              >
                 <div
                   className="progress-fill progress-fill-blueprint"
                   style={{ width: `${geminiProgress}%` }}
                 >
                   {geminiProgress > 0 && geminiProgress < 100 && (
-                    <div className="progress-shimmer" />
+                    <div className="progress-shimmer" aria-hidden />
                   )}
                 </div>
               </div>
@@ -542,13 +554,20 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
                   {hairstepProgress >= 100 ? '✓' : phase === 'gemini' ? '—' : hairstepProgress < 1 ? '…' : `${Math.round(hairstepProgress)}%`}
                 </span>
               </div>
-              <div className="progress-track">
+              <div
+                className="progress-track"
+                role="progressbar"
+                aria-label="Sculpting in 3D progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(hairstepProgress)}
+              >
                 <div
                   className="progress-fill progress-fill-3d"
                   style={{ width: `${hairstepProgress}%` }}
                 >
                   {hairstepProgress > 0 && hairstepProgress < 100 && (
-                    <div className="progress-shimmer" />
+                    <div className="progress-shimmer" aria-hidden />
                   )}
                 </div>
               </div>

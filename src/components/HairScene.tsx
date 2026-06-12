@@ -518,7 +518,15 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   }, [visibleLayers, hoveredLayer, showHair]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', cursor: cursorHidden ? 'none' : undefined }}>
+    <div
+      role="region"
+      aria-label="Interactive 3D hairstyle preview"
+      aria-describedby="hair-scene-instructions"
+      style={{ position: 'relative', width: '100%', height: '100%', cursor: cursorHidden ? 'none' : undefined }}
+    >
+      <p id="hair-scene-instructions" className="sr-only">
+        Use pointer or touch controls to rotate and inspect the hairstyle preview.
+      </p>
       <Canvas
         shadows
         gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true }}

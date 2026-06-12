@@ -668,10 +668,29 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
     : 'perspective(1000px) translateX(-120%) rotateY(90deg)';
 
   const panelTransition = exiting ? 'transform 500ms cubic-bezier(.2,.85,.2,1)' : collapsing ? 'width 460ms cubic-bezier(.4,0,1,1)' : expanded ? 'width 500ms cubic-bezier(.2,.85,.2,1)' : rotateIn ? 'transform 380ms cubic-bezier(.2,.85,.2,1)' : slideIn ? 'transform 280ms cubic-bezier(.2,.85,.2,1)' : 'none';
+  const scanStatusMessage =
+    phase === 'username'
+      ? usernameError || 'Choose a username to continue to your scan.'
+      : phase === 'camera'
+        ? 'Camera scan is ready.'
+        : phase === 'verify'
+          ? 'Photo captured. Retake or proceed to build your 3D model.'
+          : faceliftStatus === 'error'
+            ? `3D model build failed. ${faceliftError ?? 'Unknown error'}`
+            : 'Building your 3D model. This takes about two minutes.';
 
   return (
     <div className="fixed inset-0 z-40" style={{ background: exiting ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)', transition: 'background 400ms ease' }} onClick={dismiss}>
-      <div ref={panelRef} onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: '5vw', top: '5vh', height: '90vh', width: (collapsing || exiting) ? '30vw' : expanded ? '90vw' : '30vw', transform: panelTransform, transition: panelTransition, background: '#201a13', borderRadius: 28, boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scan-popup-title"
+        aria-describedby="scan-popup-status"
+        onClick={e => e.stopPropagation()}
+        style={{ position: 'absolute', left: '5vw', top: '5vh', height: '90vh', width: (collapsing || exiting) ? '30vw' : expanded ? '90vw' : '30vw', transform: panelTransform, transition: panelTransition, background: '#201a13', borderRadius: 28, boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+      >
+        <div id="scan-popup-status" className="sr-only" aria-live="polite" aria-atomic="true">{scanStatusMessage}</div>
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Left panel */}
           <div style={{ width: (expanded && !collapsing && !exiting) ? '40vw' : '0vw', overflow: 'hidden', flexShrink: 0, transition: 'width 750ms cubic-bezier(.2,.85,.2,1)', borderRight: '1px solid rgba(255,248,234,0.07)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: (expanded && !collapsing && !exiting) ? '40px 52px' : '0' }}>
@@ -689,8 +708,8 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
                     <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'rgba(255,100,80,0.8)', lineHeight: 1.4, wordBreak: 'break-word' }}>{faceliftError ?? 'Unknown error'}</p>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => { setFaceliftStatus('idle'); setFaceliftError(null); setPhase('processing'); runFacelift(); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--tomato)', color: 'var(--cream)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
-                      <button onClick={() => { faceliftAbortRef.current?.abort(); setFaceliftStatus('idle'); setFaceliftError(null); setPhase('camera'); setCaptured(null); setCapturedDataUrl(null); setCameraKey(k => k + 1); }} style={{ flex: 1, padding: '8px 12px', background: 'rgba(255,248,234,0.08)', color: 'rgba(255,248,234,0.6)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, cursor: 'pointer' }}>Retake photo</button>
+                      <button type="button" onClick={() => { setFaceliftStatus('idle'); setFaceliftError(null); setPhase('processing'); runFacelift(); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--tomato)', color: 'var(--cream)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
+                      <button type="button" onClick={() => { faceliftAbortRef.current?.abort(); setFaceliftStatus('idle'); setFaceliftError(null); setPhase('camera'); setCaptured(null); setCapturedDataUrl(null); setCameraKey(k => k + 1); }} style={{ flex: 1, padding: '8px 12px', background: 'rgba(255,248,234,0.08)', color: 'rgba(255,248,234,0.6)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, cursor: 'pointer' }}>Retake photo</button>
                     </div>
                   </div>
                 )}
@@ -701,10 +720,10 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
           {/* Right panel */}
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px 20px', flexShrink: 0, borderBottom: '1px solid rgba(255,248,234,0.07)', position: 'relative' }}>
-              <h2 className="type-chonk text-[var(--cream)] select-none" style={{ fontSize: 'clamp(1.8rem, 3.5vw, 3rem)', lineHeight: 1 }}>
+              <h2 id="scan-popup-title" className="type-chonk text-[var(--cream)] select-none" style={{ fontSize: 'clamp(1.8rem, 3.5vw, 3rem)', lineHeight: 1 }}>
                 {phase === 'username' ? "Let's meet you" : 'Take a selfie!'}
               </h2>
-              <button onClick={dismiss} className="absolute right-7 w-9 h-9 flex items-center justify-center rounded-full transition-all" style={{ color: 'rgba(255,248,234,0.5)', background: 'rgba(255,248,234,0.07)' }}>✕</button>
+              <button type="button" aria-label="Close scan dialog" onClick={dismiss} className="absolute right-7 w-9 h-9 flex items-center justify-center rounded-full transition-all" style={{ color: 'rgba(255,248,234,0.5)', background: 'rgba(255,248,234,0.07)' }}>✕</button>
             </div>
 
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px', position: 'relative', minHeight: 0, opacity: contentVisible ? 1 : 0, transition: 'opacity 280ms ease' }}>
@@ -712,12 +731,23 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
                 <form onSubmit={handleUsernameSubmit} style={{ width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', gap: 20 }}>
                   <h2 className="type-chonk" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: 'var(--cream)', lineHeight: 1, margin: 0 }}>Set up!</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 13, color: 'rgba(255,248,234,0.5)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, margin: 0 }}>Choose a username</p>
-                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, color: 'rgba(255,248,234,0.6)', margin: 0, lineHeight: 1.5 }}>Letters, numbers, and underscores only.</p>
+                    <label htmlFor="scan-username" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 13, color: 'rgba(255,248,234,0.5)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, margin: 0 }}>Choose a username</label>
+                    <p id="scan-username-help" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, color: 'rgba(255,248,234,0.6)', margin: 0, lineHeight: 1.5 }}>Letters, numbers, and underscores only.</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <input autoFocus type="text" value={usernameValue} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); }} placeholder="e.g. freshcuts_mike" maxLength={20} style={{ fontFamily: 'var(--font-dmsans)', fontSize: 16, fontWeight: 500, padding: '14px 18px', borderRadius: 14, border: usernameError ? '1px solid rgba(220,80,60,0.7)' : '1px solid rgba(255,248,234,0.14)', background: 'rgba(255,248,234,0.06)', color: 'var(--cream)', outline: 'none', width: '100%', boxSizing: 'border-box', transition: 'border-color 200ms ease' }} />
-                    {usernameError && <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 12, color: 'rgba(220,80,60,0.9)', margin: 0 }}>{usernameError}</p>}
+                    <input
+                      id="scan-username"
+                      autoFocus
+                      type="text"
+                      value={usernameValue}
+                      onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); }}
+                      placeholder="e.g. freshcuts_mike"
+                      maxLength={20}
+                      aria-invalid={usernameError ? 'true' : 'false'}
+                      aria-describedby={usernameError ? 'scan-username-error scan-username-help' : 'scan-username-help'}
+                      style={{ fontFamily: 'var(--font-dmsans)', fontSize: 16, fontWeight: 500, padding: '14px 18px', borderRadius: 14, border: usernameError ? '1px solid rgba(220,80,60,0.7)' : '1px solid rgba(255,248,234,0.14)', background: 'rgba(255,248,234,0.06)', color: 'var(--cream)', outline: 'none', width: '100%', boxSizing: 'border-box', transition: 'border-color 200ms ease' }}
+                    />
+                    {usernameError && <p id="scan-username-error" role="alert" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 12, color: 'rgba(220,80,60,0.9)', margin: 0 }}>{usernameError}</p>}
                   </div>
                   <button type="submit" disabled={usernameLoading || usernameValue.trim().length < 2} style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, fontWeight: 700, padding: '13px 0', borderRadius: 14, border: 'none', background: usernameLoading || usernameValue.trim().length < 2 ? 'rgba(255,248,234,0.12)' : 'var(--cream)', color: usernameLoading || usernameValue.trim().length < 2 ? 'rgba(255,248,234,0.3)' : 'var(--ink)', cursor: usernameLoading || usernameValue.trim().length < 2 ? 'default' : 'pointer', width: '100%', transition: 'background 200ms ease, color 200ms ease', letterSpacing: '0.04em' }}>
                     {usernameLoading ? 'Saving…' : 'Continue →'}
