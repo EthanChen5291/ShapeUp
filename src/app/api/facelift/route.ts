@@ -8,7 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { getSignedDownloadUrl, uploadToS3 } from '@/lib/s3';
-import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { parseImageDataUrl, sanitizeOutputName } from '@/lib/imageDataUrl';
 import fs from 'fs/promises';
@@ -157,14 +158,14 @@ export async function POST(req: NextRequest) {
   const DEMO_FACELIFT_USER_LIMIT = 20;
 
   const ip = getClientIp(req);
-  const rateLimited = enforceRateLimits([
+  const rateLimited = await enforceDurableRateLimits([
     {
       ...RATE_LIMITS.faceliftUser,
       limit: isDemoUser ? DEMO_FACELIFT_USER_LIMIT : RATE_LIMITS.faceliftUser.limit,
       key: authResult.session.userId,
     },
     { ...RATE_LIMITS.faceliftIp, key: ip },
-  ], {
+  ], authResult.session, {
     route: '/api/facelift',
     user: hashIdentifier(authResult.session.userId),
     ip: hashIdentifier(ip),

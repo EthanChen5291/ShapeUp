@@ -69,6 +69,40 @@ describe('content filtering', () => {
   });
 });
 
+describe('durable rate limits', () => {
+  test('consumes user-scoped limits against the authenticated identity', async () => {
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const t = authed('rate_user');
+
+    await expect(t.mutation(api.rateLimits.consume, {
+      rules: [{ scope: 'user', label: 'edit:user', limit: 2, windowMs: 60_000 }],
+    })).resolves.toMatchObject({ limited: false });
+
+    await expect(t.mutation(api.rateLimits.consume, {
+      rules: [{ scope: 'user', label: 'edit:user', limit: 2, windowMs: 60_000 }],
+    })).resolves.toMatchObject({ limited: false });
+
+    await expect(t.mutation(api.rateLimits.consume, {
+      rules: [{ scope: 'user', label: 'edit:user', limit: 2, windowMs: 60_000 }],
+    })).resolves.toMatchObject({ limited: true, label: 'edit:user', retryAfterSeconds: 60 });
+  });
+
+  test('consumes IP-scoped limits against a hashed IP key', async () => {
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const t = authed('rate_ip_user');
+
+    const first = await t.mutation(api.rateLimits.consume, {
+      rules: [{ scope: 'ip', label: 'facelift:ip', keyHash: '0123456789ab', limit: 1, windowMs: 10_000 }],
+    });
+    const second = await t.mutation(api.rateLimits.consume, {
+      rules: [{ scope: 'ip', label: 'facelift:ip', keyHash: '0123456789ab', limit: 1, windowMs: 10_000 }],
+    });
+
+    expect(first).toMatchObject({ limited: false });
+    expect(second).toMatchObject({ limited: true, label: 'facelift:ip', retryAfterSeconds: 10 });
+  });
+});
+
 describe('projects', () => {
   test('enforces ownership when saving and deleting projects', async () => {
     const base = convexTest(schema, modules);

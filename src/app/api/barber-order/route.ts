@@ -22,7 +22,8 @@ import {
   validateBarberOrder,
 } from '@/lib/barberOrder';
 import { MAX_SUMMARY_PAYLOAD_LENGTH } from '@/lib/llmValidation';
-import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { isSafeImageSource } from '@/lib/urlSafety';
 
@@ -91,10 +92,10 @@ export async function POST(req: NextRequest) {
   if (authResult.response) return authResult.response;
 
   const ip = getClientIp(req);
-  const rateLimited = enforceRateLimits([
+  const rateLimited = await enforceDurableRateLimits([
     { ...RATE_LIMITS.summaryUser, key: authResult.session.userId },
     { ...RATE_LIMITS.summaryIp, key: ip },
-  ], {
+  ], authResult.session, {
     route: '/api/barber-order',
     user: hashIdentifier(authResult.session.userId),
     ip: hashIdentifier(ip),

@@ -3,7 +3,8 @@ import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { uploadToS3, getSignedDownloadUrl } from '@/lib/s3';
 import { requireSignedIn } from '@/lib/serverAuth';
-import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { parseImageDataUrl } from '@/lib/imageDataUrl';
 
 const MAX_SCAN_IMAGE_BYTES = 6 * 1024 * 1024;
@@ -13,10 +14,10 @@ export async function POST(req: NextRequest) {
   if (authResult.response) return authResult.response;
 
   const ip = getClientIp(req);
-  const rateLimited = enforceRateLimits([
+  const rateLimited = await enforceDurableRateLimits([
     { ...RATE_LIMITS.saveScanUser, key: authResult.session.userId },
     { ...RATE_LIMITS.saveScanIp, key: ip },
-  ], {
+  ], authResult.session, {
     route: '/api/save-scan',
     user: hashIdentifier(authResult.session.userId),
     ip: hashIdentifier(ip),

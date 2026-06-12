@@ -172,7 +172,7 @@ describe('scan and generation APIs', () => {
     }));
 
     expect(res.status).toBe(400);
-    expect(deductCredit.mock.calls.length).toBe(0);
+    expect(deductCredit.mock.calls.some(([, args]) => JSON.stringify(args) === '{}')).toBe(false);
   });
 
   test('/api/facelift forwards the GPU shared secret and rejects malformed PLY before S3 upload', async () => {

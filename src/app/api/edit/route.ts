@@ -17,7 +17,8 @@ import {
   validateLLMEditResponse,
   validatePromptLength,
 } from '@/lib/llmValidation';
-import { RATE_LIMITS, enforceRateLimits, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
+import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 
 const GEMINI_API_URL =
@@ -28,10 +29,10 @@ export async function POST(req: NextRequest) {
   if (authResult.response) return authResult.response;
 
   const ip = getClientIp(req);
-  const rateLimited = enforceRateLimits([
+  const rateLimited = await enforceDurableRateLimits([
     { ...RATE_LIMITS.editUser, key: authResult.session.userId },
     { ...RATE_LIMITS.editIp, key: ip },
-  ], {
+  ], authResult.session, {
     route: '/api/edit',
     user: hashIdentifier(authResult.session.userId),
     ip: hashIdentifier(ip),
