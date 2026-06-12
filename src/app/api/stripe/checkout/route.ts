@@ -5,9 +5,9 @@ import { requireSignedIn } from '@/lib/serverAuth';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const PLAN_CONFIG: Record<string, { amount: number; credits: number; name: string; description: string }> = {
-  starter:  { amount: 199,  credits: 20,  name: '20 Haircut Generations',  description: '20 AI haircut renders — try different styles before your next cut.' },
-  popular:  { amount: 499,  credits: 60,  name: '60 Haircut Generations',  description: '60 AI haircut renders — try different styles before your next cut.' },
-  lifetime: { amount: 1499, credits: 500, name: '500 Haircut Generations', description: '500 AI haircut renders — try different styles before your next cut.' },
+  starter:  { amount: 199,  credits: 8,   name: '8 Haircut Generations',   description: '8 AI haircut renders — try different styles before your next cut.' },
+  popular:  { amount: 499,  credits: 30,  name: '30 Haircut Generations',  description: '30 AI haircut renders — try different styles before your next cut.' },
+  lifetime: { amount: 1499, credits: 100, name: '100 Haircut Generations', description: '100 AI haircut renders — try different styles before your next cut.' },
 };
 
 export async function POST(request: Request) {

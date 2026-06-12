@@ -100,6 +100,15 @@ export const recordBiometricConsent = mutation({
   },
 });
 
+function getBypassEmails(): Set<string> {
+  return new Set(
+    (process.env.DEMO_BYPASS_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 export const deductCredit = mutation({
   args: {},
   handler: async (ctx) => {
@@ -111,10 +120,32 @@ export const deductCredit = mutation({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
     if (!user) throw new Error("User not found — please reload and try again");
+
+    // Dev/demo allowlist: bypass the paywall entirely for whitelisted emails.
+    if (user.email && getBypassEmails().has(user.email.toLowerCase())) {
+      return user.credits;
+    }
+
     if (user.credits <= 0) throw new Error("No credits remaining");
 
     await ctx.db.patch(user._id, { credits: user.credits - 1 });
     return user.credits - 1;
+  },
+});
+
+/** True when the current user is an allowlisted demo/dev account. */
+export const isAllowlisted = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return false;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    // Fall back to the JWT email claim if the user row isn't created yet.
+    const email = user?.email ?? identity.email ?? undefined;
+    return Boolean(email && getBypassEmails().has(email.toLowerCase()));
   },
 });
 

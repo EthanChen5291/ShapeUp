@@ -2156,3 +2156,10 @@ input[type="range"].slider-warm::-moz-range-thumb {
   .lchk-tick path { stroke-dashoffset: 0; }
   .grid-settle, .lchk-row { opacity: 1; }
 }
+
+@keyframes face-bounce {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.055); }
+  65%  { transform: scale(0.972); }
+  100% { transform: scale(1); }
+}

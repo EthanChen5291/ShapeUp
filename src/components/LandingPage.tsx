@@ -168,9 +168,10 @@ function ChatStack({ messages }: { messages: ChatMsg[] }) {
 }
 
 function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: { onSwipeUp?: () => void; onSwipeDown?: () => void; scrollRef?: React.MutableRefObject<{ goNext: () => void; goPrev: () => void } | null>; onActiveChange?: (idx: number) => void }) {
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [displayIdx, setDisplayIdx] = useState(0);
   const activeRef    = useRef(0);
   const videoRefs    = useRef<(HTMLVideoElement | null)[]>([]);
+  const wrapperRefs  = useRef<(HTMLDivElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartY  = useRef(0);
   const wheelLock    = useRef(false);
@@ -186,14 +187,31 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
     const cur  = videoRefs.current[activeRef.current];
     const next = videoRefs.current[newIdx];
     if (cur) cur.pause();
-    if (next) {
-      if (cur) next.currentTime = cur.currentTime;
+    activeRef.current = newIdx;
+    onActiveChangeRef.current?.(newIdx);
+
+    if (!next) return;
+    if (cur) next.currentTime = cur.currentTime;
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
       next.playbackRate = 1.3;
       next.play().catch(() => {});
-    }
-    activeRef.current = newIdx;
-    setActiveIdx(newIdx);
-    onActiveChangeRef.current?.(newIdx);
+      setDisplayIdx(newIdx);
+      // Restart bounce animation imperatively so rapid swipes always retrigger
+      const wrapper = wrapperRefs.current[newIdx];
+      if (wrapper) {
+        wrapper.style.animation = 'none';
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        wrapper.offsetHeight; // force reflow
+        wrapper.style.animation = 'face-bounce 520ms cubic-bezier(0.34, 1.45, 0.64, 1) both';
+      }
+    };
+
+    next.addEventListener('seeked', reveal, { once: true });
+    setTimeout(reveal, 80); // fallback if seeked never fires
   }, []);
 
   const goNext = useCallback(() => { switchTo((activeRef.current + 1) % FACE_VIDS.length); onSwipeUpRef.current?.(); }, [switchTo]);
@@ -267,26 +285,39 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
         {/* 15% scale-down wrapper */}
         <div style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
           {FACE_VIDS.map((src, i) => (
-            <video
+            // Per-face transform + opacity wrapper
+            <div
               key={src}
-              ref={el => { videoRefs.current[i] = el; }}
-              src={src}
-              muted
-              playsInline
-              loop
-              preload="auto"
               style={{
-                position: 'absolute',
-                top: 0, left: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                opacity: i === activeIdx ? 1 : 0,
-                transition: 'opacity 60ms ease',
+                position: 'absolute', inset: 0,
+                opacity: i === displayIdx ? 1 : 0,
+                transition: 'opacity 80ms ease',
                 transform: i === 0 ? 'scale(0.99)' : i === 1 ? 'scale(0.87) translateY(4%)' : i === 2 ? 'scale(0.88) translateY(4%)' : i === 3 ? 'scale(0.97)' : i === 4 ? 'scale(0.96)' : undefined,
-                clipPath: (i === 1 || i === 2 || i === 3) ? 'inset(0 0 2% 0)' : undefined,
               }}
-            />
+            >
+              {/* Bounce animation wrapper — animated imperatively via wrapperRefs */}
+              <div
+                ref={el => { wrapperRefs.current[i] = el; }}
+                style={{ position: 'absolute', inset: 0 }}
+              >
+                <video
+                  ref={el => { videoRefs.current[i] = el; }}
+                  src={src}
+                  muted
+                  playsInline
+                  loop
+                  preload="auto"
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    clipPath: (i === 1 || i === 2 || i === 3) ? 'inset(0 0 2% 0)' : undefined,
+                  }}
+                />
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -1671,11 +1702,11 @@ const PRICING_PLANS = [
     label: 'Starter',
     price: '$1.99',
     sub: 'one-time',
-    tokens: 20,
-    perToken: '10¢',
-    tokenLabel: '20 AI looks',
-    line: '20 custom renders. Enough to test a fade, a crop, and a taper before your next appointment.',
-    cta: 'Try 20 looks',
+    tokens: 8,
+    perToken: '25¢',
+    tokenLabel: '8 AI looks',
+    line: '8 custom renders. Enough to test a fade, a crop, and a taper before your next appointment.',
+    cta: 'Try 8 looks',
     featured: false,
     freeOnly: false,
   },
@@ -1684,11 +1715,11 @@ const PRICING_PLANS = [
     label: 'Explorer',
     price: '$4.99',
     sub: 'one-time',
-    tokens: 60,
-    perToken: '8¢',
-    tokenLabel: '60 AI looks',
-    line: '60 looks to explore. Find what works for your face shape, then walk in with a reference photo.',
-    cta: 'Get 60 looks',
+    tokens: 30,
+    perToken: '17¢',
+    tokenLabel: '30 AI looks',
+    line: '30 looks to explore. Find what works for your face shape, then walk in with a reference photo.',
+    cta: 'Get 30 looks',
     featured: true,
     freeOnly: false,
   },
@@ -1697,11 +1728,11 @@ const PRICING_PLANS = [
     label: 'Pro',
     price: '$14.99',
     sub: 'one-time',
-    tokens: 500,
-    perToken: '3¢',
-    tokenLabel: '500 AI looks',
-    line: 'Serious about your hair. 500 looks at 3¢ each — experiment until you find a signature style.',
-    cta: 'Get 500 looks',
+    tokens: 100,
+    perToken: '15¢',
+    tokenLabel: '100 AI looks',
+    line: 'Serious about your hair. 100 looks at 15¢ each — experiment until you find a signature style.',
+    cta: 'Get 100 looks',
     featured: false,
     freeOnly: false,
   },
@@ -2680,9 +2711,48 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* Bridge line */}
           <Reveal delay={120}>
-            <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 18, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.6, maxWidth: 560, margin: '0 auto' }}>
-              The cut you want is stuck in your head.{' '}
-              <span style={{ color: 'var(--tomato)' }}>ShapeUp visualizes it on your face and gives you instructions for your barber.</span>
+            <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 18, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.7, maxWidth: 600, margin: '0 auto' }}>
+              The cut you want is{' '}
+              <span
+                className="font-display"
+                style={{
+                  fontStyle: 'italic',
+                  fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+                  fontWeight: 800,
+                  fontSize: '1.18em',
+                  color: 'var(--ink)',
+                }}
+              >
+                stuck in your head
+              </span>
+              .{' '}
+              <span style={{ color: 'var(--char)' }}>We visualize it </span>
+              <span
+                style={{
+                  color: 'var(--tomato)',
+                  fontWeight: 700,
+                  boxShadow: 'inset 0 -0.5em 0 rgba(255,99,71,0.14)',
+                  padding: '0 0.1em',
+                }}
+              >
+                on your face
+              </span>
+              <span style={{ color: 'var(--char)' }}> and give you</span>{' '}
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: '0.78em',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  fontWeight: 600,
+                  color: 'var(--ink)',
+                  borderBottom: '2px solid var(--tomato)',
+                  paddingBottom: 1,
+                }}
+              >
+                instructions for your barber
+              </span>
+              <span style={{ color: 'var(--char)' }}>.</span>
             </p>
           </Reveal>
         </div>

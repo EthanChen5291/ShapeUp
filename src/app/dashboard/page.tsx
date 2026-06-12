@@ -236,6 +236,27 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   );
 }
 
+/* ─── Supercell-style starburst value badge ─── */
+function ValueBadge({ label = '2×', size = 56 }: { label?: string; size?: number }) {
+  const spikes = 12, cx = 50, cy = 50, outer = 49, inner = 39;
+  const points = Array.from({ length: spikes * 2 }, (_, i) => {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = (Math.PI / spikes) * i - Math.PI / 2;
+    return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
+  }).join(' ');
+  return (
+    <div style={{ position: 'absolute', top: -16, right: -14, width: size, height: size, zIndex: 6, pointerEvents: 'none', transform: 'rotate(12deg)', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.32))' }}>
+      <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+        <polygon points={points} fill="#e8316f" stroke="#ffffff" strokeWidth="3.5" strokeLinejoin="round" />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transform: 'rotate(-12deg)' }}>
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: size * 0.3, lineHeight: 1 }}>{label}</span>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: size * 0.16, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>value</span>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Expanded Plan Card ─── */
 function ExpandedPlanCard({ plan, loading, onBuy, staggerDelay }: {
   plan: { readonly id: string; readonly label: string; readonly price: string; readonly featured: boolean };
@@ -245,7 +266,8 @@ function ExpandedPlanCard({ plan, loading, onBuy, staggerDelay }: {
   useEffect(() => { const t = setTimeout(() => setReady(true), 16); return () => clearTimeout(t); }, []);
   const springEase = 'cubic-bezier(0.34, 1.15, 0.64, 1)';
   return (
-    <div style={{ flex: '1 1 0', minWidth: 0, transform: ready ? 'scale(1)' : 'scale(0)', opacity: ready ? 1 : 0, transformOrigin: 'center', pointerEvents: ready ? 'auto' : 'none', transition: `transform 540ms ${springEase} ${staggerDelay}ms, opacity 300ms ease ${staggerDelay + 180}ms` }}>
+    <div style={{ position: 'relative', flex: '1 1 0', minWidth: 0, transform: ready ? 'scale(1)' : 'scale(0)', opacity: ready ? 1 : 0, transformOrigin: 'center', pointerEvents: ready ? 'auto' : 'none', transition: `transform 540ms ${springEase} ${staggerDelay}ms, opacity 300ms ease ${staggerDelay + 180}ms` }}>
+      {plan.featured && <ValueBadge />}
       <BouncyButton onClick={() => onBuy(plan.id)} disabled={loading === plan.id} className={`rounded-2xl w-full ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)', padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div className="text-left">
           <div className="font-sans font-semibold" style={{ fontSize: 15 }}>{plan.label}</div>
@@ -271,9 +293,9 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
   }, []);
 
   const PLANS = [
-    { id: 'starter', label: '20 haircut generations', price: '$1.99', featured: false },
-    { id: 'popular', label: '60 haircut generations', price: '$4.99', featured: true },
-    { id: 'lifetime', label: '500 haircut generations', price: '$14.99', featured: false },
+    { id: 'starter', label: '8 haircut generations', price: '$1.99', featured: false },
+    { id: 'popular', label: '30 haircut generations', price: '$4.99', featured: true },
+    { id: 'lifetime', label: '100 haircut generations', price: '$14.99', featured: false },
   ] as const;
 
   const handleBuy = async (planId: string) => {
@@ -303,13 +325,16 @@ function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
           {expandPhase < 2 && (
             <div className="flex flex-col gap-3 w-full" style={{ opacity: expandPhase === 0 ? 1 : 0, transition: 'opacity 200ms ease', pointerEvents: expandPhase === 0 ? 'auto' : 'none' }}>
               {PLANS.map(plan => (
-                <BouncyButton key={plan.id} onClick={() => handleBuy(plan.id)} disabled={loading === plan.id} className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}>
-                  <div className="text-left">
-                    <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
-                    {plan.featured && <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>}
-                  </div>
-                  <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>{loading === plan.id ? '…' : plan.price}</div>
-                </BouncyButton>
+                <div key={plan.id} style={{ position: 'relative' }}>
+                  {plan.featured && <ValueBadge />}
+                  <BouncyButton onClick={() => handleBuy(plan.id)} disabled={loading === plan.id} className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}>
+                    <div className="text-left">
+                      <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
+                      {plan.featured && <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>}
+                    </div>
+                    <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>{loading === plan.id ? '…' : plan.price}</div>
+                  </BouncyButton>
+                </div>
               ))}
             </div>
           )}

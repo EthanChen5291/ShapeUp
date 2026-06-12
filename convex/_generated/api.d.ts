@@ -9,6 +9,7 @@
  */
 
 import type * as facelifts from "../facelifts.js";
+import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
 import type * as lib_contentFilter from "../lib/contentFilter.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
@@ -26,6 +27,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   facelifts: typeof facelifts;
+  gpuUsage: typeof gpuUsage;
   http: typeof http;
   "lib/contentFilter": typeof lib_contentFilter;
   "lib/rateLimit": typeof lib_rateLimit;

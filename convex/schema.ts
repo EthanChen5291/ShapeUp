@@ -58,6 +58,13 @@ export default defineSchema({
     count: v.number(),
   }).index("by_key", ["key"]),
 
+  // Denormalized GPU-seconds counter, one row per monthly bucket ("YYYY-MM").
+  // Used to cap demo Modal spend — see convex/gpuUsage.ts.
+  gpuUsage: defineTable({
+    bucket: v.string(),
+    seconds: v.number(),
+  }).index("by_bucket", ["bucket"]),
+
   projects: defineTable({
     tokenIdentifier: v.string(),
     name: v.string(),

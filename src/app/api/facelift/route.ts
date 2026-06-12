@@ -131,9 +131,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Convex auth token unavailable' }, { status: 401 });
   }
 
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  convex.setAuth(convexToken);
+
+  // Allowlisted demo/dev accounts get a higher per-user generation limit.
+  let isDemoUser = false;
+  try {
+    isDemoUser = await convex.query(api.users.isAllowlisted, {});
+  } catch (err) {
+    console.error('[facelift] POST: allowlist check failed (treating as non-demo):', err);
+  }
+
+  // Allowlisted demo/dev accounts get a raised per-user cap (20 / 10 min).
+  const DEMO_FACELIFT_USER_LIMIT = 20;
+
   const ip = getClientIp(req);
   const rateLimited = enforceRateLimits([
-    { ...RATE_LIMITS.faceliftUser, key: authResult.session.userId },
+    {
+      ...RATE_LIMITS.faceliftUser,
+      limit: isDemoUser ? DEMO_FACELIFT_USER_LIMIT : RATE_LIMITS.faceliftUser.limit,
+      key: authResult.session.userId,
+    },
     { ...RATE_LIMITS.faceliftIp, key: ip },
   ], {
     route: '/api/facelift',
@@ -142,8 +160,6 @@ export async function POST(req: NextRequest) {
   });
   if (rateLimited) return rateLimited;
 
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-  convex.setAuth(convexToken);
   const hasConsent = await convex.query(api.users.hasBiometricConsent, {});
   console.log('[facelift] POST: biometric consent check result:', hasConsent, { user: hashIdentifier(authResult.session.userId) });
   if (!hasConsent) {
@@ -171,6 +187,19 @@ export async function POST(req: NextRequest) {
       user: hashIdentifier(authResult.session.userId),
     });
     return NextResponse.json({ error: parsedImage.error }, { status: 400 });
+  }
+
+  // GPU budget guard: refuse before spinning up Modal so the container scales
+  // to zero and billing stops once the monthly GPU-seconds cap is hit.
+  try {
+    if (await convex.query(api.gpuUsage.isOverBudget, {})) {
+      console.warn('[facelift] POST: rejected — monthly GPU budget reached', {
+        user: hashIdentifier(authResult.session.userId),
+      });
+      return NextResponse.json({ error: 'Demo GPU budget reached — try again next month' }, { status: 503 });
+    }
+  } catch (err) {
+    console.error('[facelift] POST: GPU budget check failed (allowing request):', err);
   }
 
   if (process.env.DISABLE_PAYWALL !== '1') {
@@ -207,7 +236,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
   }
 
-  const modalData = await upstream.json() as { ply_b64: string; video_b64?: string | null };
+  const modalData = await upstream.json() as { ply_b64: string; video_b64?: string | null; elapsed_s?: number };
+
+  // Meter actual GPU-seconds (reported by Modal) against the monthly budget.
+  if (typeof modalData.elapsed_s === 'number' && modalData.elapsed_s > 0) {
+    try {
+      await convex.mutation(api.gpuUsage.record, { seconds: modalData.elapsed_s });
+    } catch (err) {
+      console.error('[facelift] POST: failed to record GPU usage (non-fatal):', err);
+    }
+  }
+
   const plyBuffer   = Buffer.from(modalData.ply_b64, 'base64');
   const splatBuffer = plyToSplat(plyBuffer);
   const videoBuffer = modalData.video_b64 ? Buffer.from(modalData.video_b64, 'base64') : null;

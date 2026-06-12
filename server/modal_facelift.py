@@ -116,6 +116,9 @@ app = modal.App(APP_NAME, image=image)
 @app.cls(
     gpu="L40S",
     scaledown_window=30,
+    # Hard cap on concurrent GPUs — bounds peak demo spend regardless of load.
+    # The app-side monthly GPU-seconds guard (convex/gpuUsage.ts) bounds total.
+    max_containers=2,
     enable_memory_snapshot=True,
     experimental_options={"enable_gpu_snapshot": True},
     volumes={WEIGHTS_DIR: weights_volume},
@@ -146,6 +149,7 @@ class FaceLiftServer:
         import base64
         import os
         import sys
+        import time
         import uuid
         from pathlib import Path
 
@@ -171,6 +175,9 @@ class FaceLiftServer:
                 output_dir = f"/tmp/facelift/{job_id}"
                 os.makedirs(output_dir, exist_ok=True)
 
+                # Time only the GPU-bound work (inside the lock) so the caller
+                # can meter true GPU-seconds, not network/queue overhead.
+                gpu_start = time.perf_counter()
                 await loop.run_in_executor(None, lambda: process_single_image(
                     image_path=img_path,
                     output_dir=output_dir,
@@ -183,6 +190,7 @@ class FaceLiftServer:
                     guidance_scale_2D=3.0,
                     step_2D=50,
                 ))
+                elapsed_s = round(time.perf_counter() - gpu_start, 3)
 
             stem      = Path(img_path).stem
             out_dir   = os.path.join(output_dir, stem)
@@ -200,6 +208,6 @@ class FaceLiftServer:
                 with open(video_path, "rb") as f:
                     video_b64 = base64.b64encode(f.read()).decode()
 
-            return {"ply_b64": ply_b64, "video_b64": video_b64}
+            return {"ply_b64": ply_b64, "video_b64": video_b64, "elapsed_s": elapsed_s}
 
         return api

@@ -39,7 +39,7 @@ describe('Stripe checkout route', () => {
       metadata: expect.objectContaining({
         clerkId: 'user_123',
         plan: 'starter',
-        credits: '20',
+        credits: '8',
       }),
     }));
   });
