@@ -23,7 +23,7 @@ interface EditPanelProps {
   sessionId: string | null;
   latestImageUrl: string | null;
   onImageUpdated: (newUrl: string) => void;
-  onPlyReady: (plyUrl: string) => void;
+  onPlyReady: (plyUrl: string, splatKey?: string) => void;
   onUncertain?: () => void;
   userCredits?: number;
   paywallDisabled?: boolean;
@@ -173,8 +173,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     if (onUncertain && UNCERTAIN_PATTERNS.some(p => p.test(submittedPrompt))) {
       onUncertain();
     }
-    if (!sessionId || !latestImageUrl) {
-      setPipelineError('No session or image available. Please scan first.');
+    if (!latestImageUrl) {
+      setPipelineError('No image available. Please scan first.');
       return;
     }
 
@@ -235,7 +235,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         body:    JSON.stringify({ imageDataUrl: newImageUrl, outputName: 'edit-output' }),
       });
       const faceliftRaw = await faceliftRes.text();
-      let faceliftData: { splatUrl?: string; error?: string };
+      let faceliftData: { splatUrl?: string; error?: string; splatS3Key?: string };
       try { faceliftData = JSON.parse(faceliftRaw); }
       catch {
         pipelineHadErrorRef.current = true;
@@ -252,7 +252,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         return;
       }
 
-      onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`);
+      onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`, faceliftData.splatS3Key);
       setLiveStatus('3D hairstyle render is ready. Fresh cut.');
     } catch (err) {
       if (!pipelineHadErrorRef.current) {

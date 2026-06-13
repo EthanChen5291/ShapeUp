@@ -343,5 +343,5 @@ export async function POST(req: NextRequest) {
   ]);
 
   console.log(`[facelift] POST: done jobId=${jobId}`);
-  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl });
+  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl, splatS3Key: splatKey });
 }

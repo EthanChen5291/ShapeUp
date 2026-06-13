@@ -252,43 +252,69 @@ interface SceneProps {
   hairColor?: string;
   orbitRotateSpeed?: number;
   disableKeyboardControls?: boolean;
+  background?: string;
   captureKey?: number;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-// Captures a 45° screenshot once the scene has rendered, then calls back.
-function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
-  const { gl, scene, camera } = useThree();
-  const doneRef = useRef(false);
-  const readyRef = useRef(false);
-
+// Sets scene.background from the CSS-style background string passed to HairScene.
+// url(...) → TextureLoader; #hex / rgb(...) → THREE.Color; anything else → no-op.
+function SceneBackground({ background }: { background: string }) {
+  const { scene } = useThree();
   useEffect(() => {
-    const t = setTimeout(() => { readyRef.current = true; }, 2000);
-    return () => clearTimeout(t);
-  }, []);
+    if (background.startsWith('url(')) {
+      const path = background.match(/url\(([^)]+)\)/)?.[1] ?? '/preview_bg.jpg';
+      const tex = new THREE.TextureLoader().load(path);
+      scene.background = tex;
+      return () => { tex.dispose(); scene.background = null; };
+    }
+    if (background.startsWith('#') || background.startsWith('rgb')) {
+      scene.background = new THREE.Color(background);
+      return () => { scene.background = null; };
+    }
+  }, [background, scene]);
+  return null;
+}
+
+// Captures the current canvas view as a square 512×512 JPEG thumbnail.
+// Center-crops gl.domElement to a square (handles any panel aspect ratio),
+// then downsamples to 512×512. No camera movement — captures the user's
+// current view angle with whatever scene.background is active.
+// TODO: generate thumbnail server-side during facelift instead of capturing client canvas.
+function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
+  const { gl } = useThree();
+  const doneRef = useRef(false);
+  const frameRef = useRef(0);
 
   useFrame(() => {
-    if (!readyRef.current || doneRef.current) return;
+    if (doneRef.current) return;
+    frameRef.current += 1;
+    if (frameRef.current < 3) return; // wait 3 frames to ensure scene is rendered
     doneRef.current = true;
-    const origPos = camera.position.clone();
-    camera.position.set(0, 0.5, 7);
-    camera.lookAt(0, 0, 0);
-    gl.render(scene, camera);
-    const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.85);
-    camera.position.copy(origPos);
-    camera.lookAt(0, 0, 0);
-    onCapture(dataUrl);
+
+    const SIZE = 512;
+    const cw = gl.domElement.width;
+    const ch = gl.domElement.height;
+    const side = Math.min(cw, ch);
+    const sx = (cw - side) / 2;
+    const sy = (ch - side) / 2;
+    const thumb = document.createElement('canvas');
+    thumb.width = SIZE;
+    thumb.height = SIZE;
+    thumb.getContext('2d')!.drawImage(gl.domElement, sx, sy, side, side, 0, 0, SIZE, SIZE);
+    onCapture(thumb.toDataURL('image/jpeg', 0.82));
   });
 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
     <>
+      {background && <SceneBackground background={background} />}
       <ambientLight intensity={0.5} />
       <directionalLight position={[5, 10, 5]}  intensity={1.0} castShadow />
       <directionalLight position={[0, 2, 5]}   intensity={0.8} />
@@ -395,7 +421,7 @@ interface HairSceneProps {
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = '#001f5b', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = 'url(/preview_bg.jpg) center / 100% 100% no-repeat', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
@@ -494,7 +520,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
   const [hairColor, setHairColor] = useState('#3b1f0a');
   const [cursorHidden, setCursorHidden] = useState(false);
-  const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(2);
+  const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(1);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -551,6 +577,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairColor={hairColor}
           orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
           disableKeyboardControls={disableKeyboardControls}
+          background={background}
           captureKey={captureKey}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
           onThumbnailReady={onThumbnailReady}

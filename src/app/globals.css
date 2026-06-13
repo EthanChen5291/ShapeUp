@@ -1543,8 +1543,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background: var(--biscuit);
   border-radius: 0 0 16px 16px;
   border-top: 1.5px dashed rgba(42, 32, 26, 0.22);  /* ticket perforation */
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 16px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px;
   z-index: 1;
 }
 .pcard-tray-label {
@@ -1556,7 +1556,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 .pcard-chip {
-  width: 50px; height: 50px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   border: none;
   display: flex; align-items: center; justify-content: center;
@@ -1571,6 +1571,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .pcard-chip-butter:hover { background: rgba(255, 231, 176, 0.85); }
 .pcard-chip-gold   { background: rgba(212, 175, 55, 0.18); color: rgb(180, 140, 30); }
 .pcard-chip-gold:hover { background: rgba(212, 175, 55, 0.3); }
+.pcard-chip-purple { background: rgba(130, 80, 200, 0.1); color: rgb(120, 70, 190); }
+.pcard-chip-purple:hover { background: rgba(130, 80, 200, 0.2); }
 
 .pcard-content {
   position: absolute; inset: 0;
@@ -1627,6 +1629,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
   font-size: 16px;
   color: var(--char);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+.pcard-name-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  border-bottom: 1.5px solid rgba(130, 80, 200, 0.5);
+  padding: 0;
+  width: 100%;
   min-width: 0;
 }
 .pcard-date {

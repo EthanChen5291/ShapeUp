@@ -1,20 +1,40 @@
-// GET ?url=<encoded-firebase-storage-url> → binary PLY
-// Proxies Firebase Storage through the Next.js server to avoid browser CORS blocks.
+// GET ?url=<encoded-url> or ?key=<s3-key> → binary splat/PLY
+// Proxies remote storage through the Next.js server to avoid browser CORS blocks.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isSafeRemoteUrl } from '@/lib/urlSafety';
+import { getSignedDownloadUrl } from '@/lib/s3';
+
+const KEY_ALLOWED_PREFIXES = ['facelifts/'];
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
-  if (!url) {
-    return NextResponse.json({ error: 'url param required' }, { status: 400 });
-  }
-  if (!isSafeRemoteUrl(url)) {
-    return NextResponse.json({ error: 'url is not allowed' }, { status: 400 });
+  const key = req.nextUrl.searchParams.get('key');
+
+  if (!url && !key) {
+    return NextResponse.json({ error: 'url or key param required' }, { status: 400 });
   }
 
-  console.log(`[proxy-ply] fetching ${url.slice(0, 80)}…`);
-  const upstream = await fetch(url);
+  let fetchUrl: string;
+
+  if (key) {
+    if (!KEY_ALLOWED_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+      return NextResponse.json({ error: 'key prefix not allowed' }, { status: 400 });
+    }
+    try {
+      fetchUrl = await getSignedDownloadUrl(key);
+    } catch {
+      return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 });
+    }
+  } else {
+    if (!isSafeRemoteUrl(url!)) {
+      return NextResponse.json({ error: 'url is not allowed' }, { status: 400 });
+    }
+    fetchUrl = url!;
+  }
+
+  console.log(`[proxy-ply] fetching ${fetchUrl.slice(0, 80)}…`);
+  const upstream = await fetch(fetchUrl);
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '');
     console.error(`[proxy-ply] upstream ${upstream.status}: ${text.slice(0, 200)}`);

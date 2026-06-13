@@ -21,10 +21,58 @@ import { useNavLoading } from '@/components/NavLoadingOverlay';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
+/* ─── Sign-in modal ─── */
+function SignInModal({ onClose }: { onClose: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  const dismiss = () => {
+    setClosing(true);
+    setTimeout(onClose, 300);
+  };
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: visible && !closing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
+        transition: 'background 320ms ease',
+      }}
+      onClick={dismiss}
+    >
+      <button
+        onClick={dismiss}
+        style={{
+          position: 'absolute', top: 24, right: 24,
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
+          color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >✕</button>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          transform: visible && !closing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
+          opacity: visible && !closing ? 1 : 0,
+          transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+        }}
+      >
+        <SignUpWidget onEnter={onClose} />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ─── Profile Menu ─── */
 function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
-  const { signOut, openSignIn } = useClerk();
+  const { signOut } = useClerk();
+  const [showSignIn, setShowSignIn] = useState(false);
   const userQuery = useQuery(api.users.getMe);
   const [open, setOpen] = useState(false);
   const [swallowing, setSwallowing] = useState(false);
@@ -98,9 +146,12 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
 
   if (!isSignedIn) {
     return (
-      <BouncyButton onClick={() => openSignIn()} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
-        Sign in
-      </BouncyButton>
+      <>
+        <BouncyButton onClick={() => setShowSignIn(true)} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
+          Sign in
+        </BouncyButton>
+        {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
+      </>
     );
   }
 
@@ -753,16 +804,30 @@ function stampDate(ms: number) {
 }
 
 /* ─── Project Card ─── */
-function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { project: ProjectDoc; onClick: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void }) {
+function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave, onRename }: { project: ProjectDoc; onClick: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void; onRename?: (name: string) => void }) {
   const [zooming, setZooming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [stamping, setStamping] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [arrowHovered, setArrowHovered] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(project.name);
+  const [imgError, setImgError] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const DRAWER_H = 72, EASE = 'cubic-bezier(0,0,0.2,1)', DUR = '270ms';
   const isSaved = !!project.savedAt;
+
+  useEffect(() => { setNameValue(project.name); }, [project.name]);
+  useEffect(() => { if (editingName) nameInputRef.current?.focus(); }, [editingName]);
+
+  const commitRename = () => {
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== project.name) onRename?.(trimmed);
+    else setNameValue(project.name);
+    setEditingName(false);
+  };
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -776,10 +841,13 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}
       style={{ transform: isDeleting ? undefined : isHovered ? 'rotate(0deg) translateY(-5px) scale(1.015)' : `rotate(${rotate}deg)`, ['--pcard-wonk' as string]: `${rotate}deg`, boxShadow: isHovered ? '0 22px 44px -14px rgba(42,32,26,0.32)' : 'var(--shadow-md)', outline: isSaved ? '1.5px solid rgba(212,175,55,0.45)' : '1.5px solid rgba(42,32,26,0.14)', pointerEvents: isDeleting ? 'none' : 'auto' }}
     >
-      <div className={`pcard-tape ${isSaved ? 'pcard-tape-gold' : ''}`} aria-hidden />
+      <div className={`pcard-tape ${isSaved ? 'pcard-tape-gold' : ''}`} aria-hidden style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px) rotate(-7deg)` : 'rotate(-7deg)', transition: `transform ${DUR} ${EASE}, background 320ms ease, border-color 320ms ease` }} />
       <div className="pcard-tray" style={{ height: DRAWER_H }}>
         <button className="pcard-chip pcard-chip-cherry" onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete?.(), 420); }, 280); }} aria-label="Delete cut">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+        </button>
+        <button className="pcard-chip pcard-chip-purple" onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setTimeout(() => setEditingName(true), 120); }} aria-label="Rename cut">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M20.707 5.826l-2.534-2.533a1 1 0 0 0-1.414 0l-1.768 1.768 3.948 3.948 1.768-1.769a1 1 0 0 0 0-1.414zM3 17.25V21h3.75l9.81-9.812-3.948-3.948L3 17.25zM17.25 7.75l-9.5 9.5" /></svg>
         </button>
         <button className={`pcard-chip ${isSaved ? 'pcard-chip-gold' : 'pcard-chip-butter'}`} onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setTimeout(() => { if (!isSaved) { setStamping(true); setTimeout(() => setStamping(false), 1100); } if (cardRef.current) onSave?.(cardRef.current.getBoundingClientRect()); }, 240); }} aria-label={isSaved ? 'Remove from saved' : 'Save cut'}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M5 3H19V21L12 15.5L5 21Z" /></svg>
@@ -788,15 +856,28 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       </div>
       <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
-          {(project.thumbnailS3Key || project.thumbnailUrl) ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {(project.thumbnailS3Key || project.thumbnailUrl) && !imgError ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} onError={() => setImgError(true)} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
-          <span className="font-display pcard-name">{project.name}</span>
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              className="font-display pcard-name pcard-name-input"
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); } }}
+              onClick={(e) => e.stopPropagation()}
+              maxLength={40}
+            />
+          ) : (
+            <span className="font-display pcard-name">{nameValue}</span>
+          )}
           <span className="font-mono pcard-date">{stampDate(project.updatedAt)}</span>
         </div>
       </div>
-      {(stamping || isSaved) && <span className={`font-mono pcard-stamp ${stamping ? 'pcard-stamp-slam' : ''}`} aria-hidden>KEEPER</span>}
+      {(stamping || isSaved) && <span className={`font-mono pcard-stamp ${stamping ? 'pcard-stamp-slam' : ''}`} aria-hidden style={!stamping ? { transform: drawerOpen ? `translateY(-${DRAWER_H}px) rotate(7deg)` : 'rotate(7deg)', transition: `transform ${DUR} ${EASE}` } : undefined}>KEEPER</span>}
       <button onClick={(e) => { e.stopPropagation(); setDrawerOpen(o => !o); }} onMouseEnter={(e) => { e.stopPropagation(); setArrowHovered(true); }} onMouseLeave={(e) => { e.stopPropagation(); setArrowHovered(false); }} className="pcard-arrow" style={{ bottom: drawerOpen ? DRAWER_H + 12 : 12, color: arrowHovered ? 'var(--tomato)' : 'var(--ink)', borderColor: arrowHovered ? 'rgba(217,78,58,0.7)' : isSaved ? 'rgba(212,175,55,0.55)' : 'rgba(42,32,26,0.25)', transform: arrowHovered ? 'scale(1.16)' : 'scale(1)' }} aria-label="Card actions">
         <svg width="11" height="11" viewBox="0 0 10 10" fill="none" style={{ transform: drawerOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: `transform ${DUR} ${EASE}` }}><path d="M2 6.5L5 3.5L8 6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
@@ -918,10 +999,11 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
 function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false, isSignedIn }: {
   onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean; isSignedIn?: boolean | null;
 }) {
-  const { openSignIn } = useClerk();
+  const [showSignIn, setShowSignIn] = useState(false);
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
   const toggleSaveProject = useMutation(api.projects.toggleSave);
+  const renameProject = useMutation(api.projects.rename);
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
   const [rightVisible, setRightVisible] = useState(false);
@@ -1104,7 +1186,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
                   {homeProjects?.map((p, i) => (
                     <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                      <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} />
+                      <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                     </div>
                   ))}
                 </div>
@@ -1144,13 +1226,14 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                       <span className="font-display saved-ghost-caption">sign in to see your keepers</span>
                     </div>
                     <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>Your saved cuts live here. Sign in to bookmark styles and build your collection.</p>
-                    <BouncyButton onClick={() => openSignIn()} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                    <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                    {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
                   </div>
                 ) : savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                        <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} />
+                        <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                       </div>
                     ))}
                   </div>

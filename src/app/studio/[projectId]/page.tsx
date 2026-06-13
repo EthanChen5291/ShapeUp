@@ -151,6 +151,8 @@ export default function StudioPage() {
   const [profile, setProfile] = useState<UserHeadProfile | null>(null);
   const [hairParams, setHairParams] = useState<HairParams>(mockUserHeadProfile.currentStyle.params);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [displayImageUrl, setDisplayImageUrl] = useState<string | null>(null);
+  const [polaroidImgError, setPolaroidImgError] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [persistedSplatUrl, setPersistedSplatUrl] = useState<string | null>(null);
   const [hairstepPlyUrl, setHairstepPlyUrl] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export default function StudioPage() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
   const [previewExpanded, setPreviewExpanded] = useState(false);
-  const [sceneBackground, setSceneBackground] = useState('#001f5b');
+  const [sceneBackground, setSceneBackground] = useState('url(/preview_bg.jpg) center / 100% 100% no-repeat');
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
@@ -199,20 +201,34 @@ export default function StudioPage() {
     } else if (project.lastImageUrl) {
       setImageUrl(project.lastImageUrl);
     }
-    const savedSplat = (project as { lastSplatUrl?: string }).lastSplatUrl;
-    if (savedSplat) setPersistedSplatUrl(savedSplat);
+    const editImageS3Key = (project as { lastEditImageS3Key?: string }).lastEditImageS3Key;
+    if (editImageS3Key) {
+      setDisplayImageUrl(`/api/img?key=${encodeURIComponent(editImageS3Key)}`);
+    }
+    const splatS3Key = (project as { splatS3Key?: string }).splatS3Key;
+    if (splatS3Key) {
+      setPersistedSplatUrl(`/api/proxy-ply?key=${encodeURIComponent(splatS3Key)}`);
+    } else {
+      const savedSplat = (project as { lastSplatUrl?: string }).lastSplatUrl;
+      if (savedSplat) setPersistedSplatUrl(savedSplat);
+    }
   }, [project, initialized]);
 
-  const { splatSrc, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
+  const { splatSrc, splatKey, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
   const effectiveSplatUrl = persistedSplatUrl ?? splatSrc;
 
   // Promote splatSrc to persisted once done
   useEffect(() => {
     if (!splatSrc || !projectId) return;
-    setPersistedSplatUrl(splatSrc);
-    saveProject({ projectId, lastSplatUrl: splatSrc }).catch(() => {});
+    if (splatKey) {
+      setPersistedSplatUrl(`/api/proxy-ply?key=${encodeURIComponent(splatKey)}`);
+      saveProject({ projectId, splatS3Key: splatKey }).catch(() => {});
+    } else {
+      setPersistedSplatUrl(splatSrc);
+      saveProject({ projectId, lastSplatUrl: splatSrc }).catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splatSrc, projectId]);
+  }, [splatSrc, splatKey, projectId]);
 
   // Track when splat becomes ready so we can switch to studio view
   useEffect(() => {
@@ -225,7 +241,7 @@ export default function StudioPage() {
     if (!effectiveSplatUrl || splatThumbnailTriggered.current) return;
     splatThumbnailTriggered.current = true;
     // Wait for the .splat file to download and render before capturing
-    const t = setTimeout(() => setThumbnailCaptureKey(k => k + 1), 5000);
+    const t = setTimeout(() => setThumbnailCaptureKey(k => k + 1), 10000);
     return () => clearTimeout(t);
   }, [effectiveSplatUrl]);
 
@@ -278,16 +294,28 @@ export default function StudioPage() {
   }, []);
 
   const handleThumbnailReady = useCallback(async (dataUrl: string) => {
-    if (!projectId) return;
+    if (!projectId || !dataUrl || !dataUrl.startsWith('data:image/')) return;
     try {
-      const blob = await fetch(dataUrl).then(r => r.blob());
-      const { key } = await fetch('/api/upload-thumbnail', {
+      const [header, b64] = dataUrl.split(',');
+      const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+      const bytes = atob(b64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      const blob = new Blob([arr], { type: mime });
+      console.log('[thumbnail] captured blob size:', blob.size);
+      if (blob.size < 2048) { console.warn('[thumbnail] blob too small, skipping'); return; }
+      const res = await fetch('/api/upload-thumbnail', {
         method: 'POST',
         headers: { 'Content-Type': 'image/jpeg' },
         body: blob,
-      }).then(r => r.json());
+      });
+      if (!res.ok) { console.error('[thumbnail] upload failed:', res.status, await res.text()); return; }
+      const { key } = await res.json() as { key?: string };
+      if (!key || typeof key !== 'string') { console.error('[thumbnail] no key in upload response'); return; }
+      console.log('[thumbnail] saving key to project:', key);
       await saveProject({ projectId, thumbnailS3Key: key });
-    } catch { /* non-fatal */ }
+      console.log('[thumbnail] saved OK');
+    } catch (err) { console.error('[thumbnail] non-fatal error:', err); }
   }, [projectId, saveProject]);
 
   // Show project-not-found state
@@ -328,14 +356,13 @@ export default function StudioPage() {
           </button>
           <InlineWordmark cream small />
         </div>
-        <div className="flex-1 min-w-0 relative">
+        <div className="flex-1 min-w-0 relative" style={{ backgroundImage: 'url(/preview_bg.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}>
           <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
             <div
               className={`polaroid ${previewExpanded ? '' : 'wonky-sm-l'}`}
               style={{
-                width: '100%',
-                maxWidth: previewExpanded ? 'min(60vh, 54vw)' : '340px',
-                transition: 'max-width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+                width: previewExpanded ? 'min(60vh, 54vw)' : '340px',
+                transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
                 cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
               }}
               onClick={() => setPreviewExpanded(v => !v)}
@@ -343,7 +370,13 @@ export default function StudioPage() {
               <div className="tape tape-tl" />
               <div className="tape tape-tr" />
               <div className="relative overflow-hidden rounded-sm" style={{ background: '#1c1510', aspectRatio: '1' }}>
-                <Image src={imageUrl} alt="Your scan" fill className="object-cover" unoptimized />
+                {!polaroidImgError ? (
+                  <Image src={imageUrl} alt="Your scan" fill className="object-cover" unoptimized onError={() => setPolaroidImgError(true)} />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ opacity: 0.18 }}>
+                    <div style={{ width: 60, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+                  </div>
+                )}
               </div>
               <div className="absolute bottom-3 left-0 right-0 text-center">
                 <span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>you ✂</span>
@@ -402,7 +435,7 @@ export default function StudioPage() {
       </div>
 
       <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
-        {imageUrl && (
+        {(displayImageUrl ?? imageUrl) && (() => { const displayImg = displayImageUrl ?? imageUrl; return (
           <div
             className={`absolute top-24 left-6 z-10 polaroid ${previewExpanded ? '' : 'wonky-l'}`}
             style={{
@@ -414,11 +447,17 @@ export default function StudioPage() {
             onClick={() => setPreviewExpanded(v => !v)}
           >
             <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, background: '#1c1510' }}>
-              <img key={imageUrl} src={imageUrl} alt="scan" className="block w-full h-full object-cover cut-develop" />
+              {!polaroidImgError ? (
+                <img key={displayImg!} src={displayImg!} alt="scan" className="block w-full h-full object-cover cut-develop" onError={() => setPolaroidImgError(true)} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.18 }}>
+                  <div style={{ width: 40, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+                </div>
+              )}
             </div>
             <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
           </div>
-        )}
+        ); })()}
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
           <div className="absolute top-3 right-3 z-10">
@@ -437,21 +476,34 @@ export default function StudioPage() {
             background={sceneBackground}
             uiHidden={menuHidden}
             captureKey={thumbnailCaptureKey}
-            onThumbnailReady={handleThumbnailReady}
+            onThumbnailReady={
+              (!project?.thumbnailS3Key || !project.thumbnailS3Key.startsWith('thumbnails/') || thumbnailCaptureKey > 0)
+                ? handleThumbnailReady
+                : undefined
+            }
           />
 
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
             <div className="flex items-center gap-2">
-              {sceneControlsEnabled && ['#001f5b', '#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
+              {sceneControlsEnabled && (
+                <button
+                  onClick={() => setSceneBackground('url(/preview_bg.jpg) center / 100% 100% no-repeat')}
+                  title="Photo background"
+                  style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', backgroundImage: 'url(/preview_bg.jpg)', backgroundSize: '100% 100%', border: sceneBackground.startsWith('url(') ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }}
+                />
+              )}
+              {sceneControlsEnabled && ['#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
                 <button key={c} onClick={() => setSceneBackground(c)} style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', background: c, border: sceneBackground === c ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }} />
               ))}
               {sceneControlsEnabled && (
-                <input type="color" value={sceneBackground} onChange={e => setSceneBackground(e.target.value)} title="Custom background" style={{ width: 16, height: 16, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 3, background: 'none', flexShrink: 0 }} />
+                <input type="color" value={sceneBackground.startsWith('#') ? sceneBackground : '#000000'} onChange={e => setSceneBackground(e.target.value)} title="Custom background" style={{ width: 16, height: 16, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 3, background: 'none', flexShrink: 0 }} />
               )}
-              <button onClick={() => setMenuHidden(v => !v)} className="font-mono text-[9px] uppercase tracking-[0.18em] hover:text-[var(--cream)]" style={{ color: 'rgba(255,248,234,0.55)', background: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '3px 8px' }}>
-                {menuHidden ? 'show ui' : 'hide ui'}
-              </button>
+              {sceneControlsEnabled && (
+                <button onClick={() => setMenuHidden(v => !v)} className="font-mono text-[9px] uppercase tracking-[0.18em] hover:text-[var(--cream)]" style={{ color: 'rgba(255,248,234,0.55)', background: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '3px 8px' }}>
+                  {menuHidden ? 'show ui' : 'hide ui'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -488,14 +540,49 @@ export default function StudioPage() {
               onParamsChange={handleParamsChange}
               sessionId={sessionId}
               latestImageUrl={imageUrl}
-              onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
+              onImageUpdated={(url) => {
+                setDisplayImageUrl(url);
+                setPreviewExpanded(false);
+                // Upload the Gemini-edited image to S3 and persist under lastEditImageS3Key,
+                // keeping lastImageS3Key (original scan) intact for drift prevention.
+                if (url.startsWith('data:') && projectId) {
+                  fetch(url)
+                    .then(r => r.blob())
+                    .then(blob => fetch('/api/upload-edit-image', {
+                      method: 'POST',
+                      headers: { 'Content-Type': blob.type || 'image/png' },
+                      body: blob,
+                    }).then(r => r.json()) as Promise<{ key?: string }>)
+                    .then(({ key }) => {
+                      if (key) {
+                        saveProject({ projectId, lastEditImageS3Key: key }).catch(() => {});
+                        setDisplayImageUrl(`/api/img?key=${encodeURIComponent(key)}`);
+                      }
+                    })
+                    .catch(() => {});
+                }
+              }}
               userCredits={userQuery?.credits}
               paywallDisabled={paywallDisabled}
               isAllowlisted={isAllowlisted}
               projectId={projectId}
-              onPlyReady={(url) => {
-                if (url.startsWith('/')) { setEditSplatSrc(url); }
-                else { setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`); }
+              onPlyReady={(url, splatKey) => {
+                if (url.startsWith('/')) {
+                  setEditSplatSrc(url);
+                  if (splatKey) {
+                    setPersistedSplatUrl(`/api/proxy-ply?key=${encodeURIComponent(splatKey)}`);
+                    saveProject({ projectId, splatS3Key: splatKey }).catch(() => {});
+                  } else {
+                    const PROXY_PREFIX = '/api/proxy-ply?url=';
+                    const rawUrl = url.startsWith(PROXY_PREFIX)
+                      ? decodeURIComponent(url.slice(PROXY_PREFIX.length))
+                      : url;
+                    setPersistedSplatUrl(rawUrl);
+                    saveProject({ projectId, lastSplatUrl: rawUrl }).catch(() => {});
+                  }
+                } else {
+                  setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`);
+                }
                 setThumbnailCaptureKey(k => k + 1);
               }}
               onUncertain={() => setShowRecommendations(true)}
