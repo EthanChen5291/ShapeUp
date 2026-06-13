@@ -57,10 +57,10 @@ export function buildClarifyQuestions(
   if (topDelta && Math.abs(topDelta.deltaPct) >= 0.08 && Math.abs(topDelta.deltaPct) < 0.15) {
     qs.push({
       id: 'borderline_top',
-      prompt: 'The top barely changed. Clean it up or take it down?',
+      prompt: 'Your hair on the top seems to have changed. Do you want it cut down or just cleaned up?',
       options: [
+        { value: 'cut',     label: 'Cut it down' },
         { value: 'cleanup', label: 'Just clean it up' },
-        { value: 'cut',     label: 'Take it down' },
       ],
       defaultValue: 'cleanup',
     });
@@ -76,9 +76,9 @@ export function buildClarifyQuestions(
       qs.push({
         id: 'back_intent',
         prompt:
-          'The back is out of frame in the scan — the edit declared it unchanged but the model moved it. Leave it as-is or match the sides?',
+          'Looks like the back of your head may have shifted a bit — it\'s hard to tell since the photo only shows the front. Keep it as-is or have the barber bring it in to match the sides?',
         options: [
-          { value: 'leave', label: 'Leave as-is' },
+          { value: 'leave', label: 'Keep as-is' },
           { value: 'match', label: 'Match the sides' },
         ],
         defaultValue: 'leave',
@@ -90,11 +90,10 @@ export function buildClarifyQuestions(
       // Back holds while the sides/top drop significantly.
       qs.push({
         id: 'back_intent',
-        prompt:
-          'The sides drop significantly but the back stays as-is. Keep it that way or match the sides?',
+        prompt: 'Your sides shortened significantly. Should the back of your head match?',
         options: [
-          { value: 'leave', label: 'Leave the back' },
-          { value: 'match', label: 'Match the sides' },
+          { value: 'match', label: 'Yes, match it' },
+          { value: 'leave', label: 'No, keep it' },
         ],
         defaultValue: 'leave',
       });

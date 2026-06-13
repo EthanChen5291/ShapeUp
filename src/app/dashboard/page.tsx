@@ -690,11 +690,10 @@ interface ProjectDoc {
   _id: Id<'projects'>;
   name: string;
   thumbnailUrl?: string;
-  lastHairParams?: HairParams;
-  lastProfile?: UserHeadProfile;
-  lastImageUrl?: string;
+  thumbnailS3Key?: string;
   updatedAt: number;
   savedAt?: number;
+  splatS3Key?: string;
 }
 
 /* ─── Flying Card ─── */
@@ -775,7 +774,7 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       </div>
       <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
-          {project.thumbnailUrl ? <img src={project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {(project.thumbnailS3Key || project.thumbnailUrl) ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
@@ -1239,14 +1238,26 @@ export default function DashboardPage() {
     if (sid) sessionStorage.setItem('studio_sessionId', sid);
     if (splatUrl) sessionStorage.setItem('studio_splatUrl', splatUrl);
 
+    // Derive the permanent S3 key from sessionId (matches save-scan key path).
+    // Only set if S3 upload succeeded — fallback url starts with "data:" if it failed.
+    const scanS3Key = sid && url && !url.startsWith('data:') ? `pictures/${sid}/scan.png` : null;
+
     // Create a Convex project for this scan
     let projectId: Id<'projects'>;
     try {
       projectId = await createProject({ name: 'My Cut' });
+      const { imageDataUrl: _i, maskDataUrl: _m, classifierFrames: _c, ...cleanScan } =
+        profileWithMeasurements.faceScanData ?? {} as never;
+      const profileToSave = {
+        ...profileWithMeasurements,
+        faceScanData: profileWithMeasurements.faceScanData ? cleanScan : undefined,
+      };
       await saveProject({
         projectId,
         lastImageUrl: url ?? undefined,
-        lastProfile: profileWithMeasurements,
+        lastImageS3Key: scanS3Key ?? undefined,
+        thumbnailS3Key: scanS3Key ?? undefined,
+        lastProfile: profileToSave,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,
       });

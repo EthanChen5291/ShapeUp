@@ -7,5 +7,5 @@ export async function POST(req: NextRequest) {
   const key = `thumbnails/${randomUUID()}.jpg`;
   await uploadToS3(key, buffer, 'image/jpeg');
   const url = await getSignedDownloadUrl(key);
-  return NextResponse.json({ url });
+  return NextResponse.json({ url, key });
 }

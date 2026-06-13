@@ -6,7 +6,11 @@
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
-import { BarberOrder } from '@/lib/barberOrder';
+import { BarberOrder, computeZoneDeltas } from '@/lib/barberOrder';
+import { analyzeOrderFeasibility } from '@/lib/orderFeasibility';
+import { buildClarifyQuestions, answersToStyleContext, ClarifyQuestion } from '@/lib/orderClarify';
+import { EditReport, sanitizeEditReport } from '@/lib/editReport';
+import { ClarifyPanel } from '@/components/ClarifyPanel';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberOrderReceipt from '@/components/BarberOrderReceipt';
@@ -128,6 +132,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [lastEditReport, setLastEditReport] = useState<EditReport | null>(null);
+  const [clarifyState, setClarifyState] = useState<{
+    questions: ClarifyQuestion[];
+    answers:   Record<string, string>;
+  } | null>(null);
 
   // Trending-cut suggestion chips, paged by the refresh button
   const [chipPool] = useState(() => shuffle(TRENDING_CUTS));
@@ -172,6 +181,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     processingRef.current = true;
     pipelineHadErrorRef.current = false;
     setPipelineError(null);
+    setClarifyState(null);
     setPhase('gemini');
 
     // Always edit from the original selfie to prevent facial drift across iterations.
@@ -196,7 +206,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       console.log('[EditPanel] gemini-hair-edit HTTP status:', geminiRes.status);
       const geminiRaw = await geminiRes.text();
       console.log('[EditPanel] gemini-hair-edit raw response:', geminiRaw.slice(0, 300));
-      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
+      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string; editReport?: unknown };
       try { geminiData = JSON.parse(geminiRaw); }
       catch {
         pipelineHadErrorRef.current = true;
@@ -212,6 +222,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       }
       const newImageUrl = geminiData.newImageUrl;
       onImageUpdated(newImageUrl);
+      setLastEditReport(sanitizeEditReport(geminiData.editReport ?? null));
       setLiveStatus('Updated hairstyle image generated. Starting 3D render.');
       setPrompt('');
 
@@ -261,10 +272,26 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const orderCacheKey = () =>
     `${ORDER_CACHE_PREFIX}${djb2(JSON.stringify(currentParams))}:${djb2(latestImageUrl ?? 'noimg')}`;
 
-  const handleGetOrder = async (force = false) => {
+  const handleGetOrder = async (force = false, styleContext?: string[]) => {
+    // Clarify gate — generate questions client-side before the first API call.
+    // Skip when force-reprinting or when styleContext is already resolved.
+    if (!force && styleContext === undefined) {
+      const workingProfile = { ...profile, currentStyle: { ...profile.currentStyle, params: currentParams } };
+      const ctx  = computeZoneDeltas(workingProfile);
+      const feas = analyzeOrderFeasibility(ctx, workingProfile, lastEditReport ? { editReport: lastEditReport } : undefined);
+      const questions = buildClarifyQuestions(ctx, feas, workingProfile);
+      if (questions.length > 0) {
+        const defaults: Record<string, string> = {};
+        for (const q of questions) defaults[q.id] = q.defaultValue;
+        setClarifyState({ questions, answers: defaults });
+        return;
+      }
+    }
+
     const cacheKey = orderCacheKey();
 
-    if (!force) {
+    // Only use the cache when no custom answers were provided.
+    if (!force && styleContext === undefined) {
       try {
         const hit = localStorage.getItem(cacheKey);
         if (hit) {
@@ -292,6 +319,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           }),
           params: currentParams,
           imageUrl: latestImageUrl ?? undefined,
+          styleContext: styleContext ?? [],
         }),
       });
       const data = await res.json();
@@ -319,6 +347,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       setOrderLoading(false);
     }
   };
+
+  const handleClarifyConfirm = useCallback(() => {
+    if (!clarifyState) return;
+    const styleCtx = answersToStyleContext(clarifyState.questions, clarifyState.answers);
+    setClarifyState(null);
+    handleGetOrder(false, styleCtx);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clarifyState]);
 
   const isBusy = phase !== 'idle';
 
@@ -583,7 +619,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">take it to your barber</span>
-          {orderResult && !orderLoading && (
+          {orderResult && !orderLoading && !clarifyState && (
             <button
               onClick={() => handleGetOrder(true)}
               aria-label="Write a fresh order for the latest cut"
@@ -594,7 +630,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           )}
         </div>
 
-        {!orderResult && !orderLoading && (
+        {!orderResult && !orderLoading && !clarifyState && (
           <button
             onClick={() => handleGetOrder()}
             aria-label="Write up the exact instructions to show your barber"
@@ -604,6 +640,19 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             <span className="btn-cta-order-sub">this cut, written up so they nail it first try</span>
             <span className="btn-cta-order-sheen" aria-hidden />
           </button>
+        )}
+
+        {clarifyState && !orderLoading && (
+          <ClarifyPanel
+            questions={clarifyState.questions}
+            answers={clarifyState.answers}
+            onAnswer={(id, val) =>
+              setClarifyState(prev =>
+                prev ? { ...prev, answers: { ...prev.answers, [id]: val } } : null
+              )
+            }
+            onConfirm={handleClarifyConfirm}
+          />
         )}
 
         {orderLoading && (

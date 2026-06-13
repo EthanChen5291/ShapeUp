@@ -182,7 +182,14 @@ export default function StudioPage() {
     setInitialized(true);
     if (project.lastProfile) setProfile(project.lastProfile as UserHeadProfile);
     if (project.lastHairParams) setHairParams(project.lastHairParams as HairParams);
-    if (project.lastImageUrl) setImageUrl(project.lastImageUrl);
+    const imageS3Key = (project as { lastImageS3Key?: string }).lastImageS3Key;
+    if (imageS3Key) {
+      // Prefer a freshly-generated URL from the permanent S3 key over the stored
+      // presigned URL, which may have expired (presigned URLs last 7 days).
+      setImageUrl(`/api/img?key=${encodeURIComponent(imageS3Key)}`);
+    } else if (project.lastImageUrl) {
+      setImageUrl(project.lastImageUrl);
+    }
     const savedSplat = (project as { lastSplatUrl?: string }).lastSplatUrl;
     if (savedSplat) setPersistedSplatUrl(savedSplat);
   }, [project, initialized]);
@@ -255,12 +262,12 @@ export default function StudioPage() {
     if (!projectId) return;
     try {
       const blob = await fetch(dataUrl).then(r => r.blob());
-      const { url } = await fetch('/api/upload-thumbnail', {
+      const { key } = await fetch('/api/upload-thumbnail', {
         method: 'POST',
         headers: { 'Content-Type': 'image/jpeg' },
         body: blob,
       }).then(r => r.json());
-      await saveProject({ projectId, thumbnailUrl: url });
+      await saveProject({ projectId, thumbnailS3Key: key });
     } catch { /* non-fatal */ }
   }, [projectId, saveProject]);
 

@@ -1,16 +1,20 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { hairParamsValidator, lastProfileValidator } from "./validators";
 
 export const list = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    return ctx.db
+    const rows = await ctx.db
       .query("projects")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .order("desc")
       .take(50);
+    return rows.map(({ _id, _creationTime, name, thumbnailUrl, thumbnailS3Key, createdAt, updatedAt, savedAt, splatS3Key }) => ({
+      _id, _creationTime, name, thumbnailUrl, thumbnailS3Key, createdAt, updatedAt, savedAt, splatS3Key,
+    }));
   },
 });
 
@@ -33,9 +37,11 @@ export const save = mutation({
   args: {
     projectId: v.id("projects"),
     thumbnailUrl: v.optional(v.string()),
-    lastHairParams: v.optional(v.any()),
-    lastProfile: v.optional(v.any()),
+    thumbnailS3Key: v.optional(v.string()),
+    lastHairParams: v.optional(hairParamsValidator),
+    lastProfile: v.optional(lastProfileValidator),
     lastImageUrl: v.optional(v.string()),
+    lastImageS3Key: v.optional(v.string()),
     lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
   },
