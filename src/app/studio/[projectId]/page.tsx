@@ -219,6 +219,16 @@ export default function StudioPage() {
     if (effectiveSplatUrl) setSplatReady(true);
   }, [effectiveSplatUrl]);
 
+  // Generate thumbnail from front-facing splat render when splat first loads
+  const splatThumbnailTriggered = useRef(false);
+  useEffect(() => {
+    if (!effectiveSplatUrl || splatThumbnailTriggered.current) return;
+    splatThumbnailTriggered.current = true;
+    // Wait for the .splat file to download and render before capturing
+    const t = setTimeout(() => setThumbnailCaptureKey(k => k + 1), 5000);
+    return () => clearTimeout(t);
+  }, [effectiveSplatUrl]);
+
   // Auto-save every 30s
   useEffect(() => {
     if (!projectId || !imageUrl) return;

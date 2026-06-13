@@ -1272,7 +1272,6 @@ export default function DashboardPage() {
         projectId,
         lastImageUrl: url ?? undefined,
         lastImageS3Key: scanS3Key ?? undefined,
-        thumbnailS3Key: scanS3Key ?? undefined,
         lastProfile: profileToSave,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,

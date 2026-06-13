@@ -272,7 +272,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
     if (!readyRef.current || doneRef.current) return;
     doneRef.current = true;
     const origPos = camera.position.clone();
-    camera.position.set(5.5, 0, 5.5);
+    camera.position.set(0, 0.5, 7);
     camera.lookAt(0, 0, 0);
     gl.render(scene, camera);
     const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.85);
