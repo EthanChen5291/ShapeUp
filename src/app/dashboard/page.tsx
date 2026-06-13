@@ -17,6 +17,7 @@ import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
 import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
 import { PricingPopup } from '@/components/PricingPopup';
+import { useNavLoading } from '@/components/NavLoadingOverlay';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
@@ -408,9 +409,10 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─── Scan Popup ─── */
-function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
+function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false }: {
   onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => void;
   onDismiss: () => void;
+  onNoTokens?: () => void;
   needsUsername?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -523,10 +525,22 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
     faceliftAbortRef.current = abort;
     try {
       const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl }), signal: abort.signal });
-      if (submitRes.status === 401 || submitRes.status === 402) {
+      if (submitRes.status === 402) {
+        dismiss();
+        setTimeout(() => onNoTokens?.(), 900);
+        return;
+      }
+      if (submitRes.status === 401) {
         const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
         const { url } = await checkout.json() as { url?: string };
         if (url) { window.location.href = url; return; }
+      }
+      if (submitRes.status === 403) {
+        setFaceliftStatus('idle');
+        setPhase('verify');
+        setTimeout(() => setShowVerifyBtns(true), 200);
+        setShowConsentDialog(true);
+        return;
       }
       if (!submitRes.ok) { const body = await submitRes.text().catch(() => ''); throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`); }
       const { splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
@@ -1167,6 +1181,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 export default function DashboardPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const { startLoading } = useNavLoading();
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
@@ -1210,6 +1225,7 @@ export default function DashboardPage() {
   };
 
   const [showScanPopup, setShowScanPopup] = useState(false);
+  const [showOutOfTokens, setShowOutOfTokens] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
   const [hasScanEver, setHasScanEver] = useState(false);
   const [selfieFlying, setSelfieFlying] = useState<{ url: string } | null>(null);
@@ -1286,7 +1302,10 @@ export default function DashboardPage() {
     if (!isSignedIn) { openAuthPopup(); return; }
     setShowScanPopup(true);
   };
-  const handleOpenProject = (project: ProjectDoc) => router.push(`/studio/${project._id}`);
+  const handleOpenProject = (project: ProjectDoc) => {
+    startLoading();
+    router.push(`/studio/${project._id}`);
+  };
 
   return (
     <>
@@ -1305,9 +1324,11 @@ export default function DashboardPage() {
         <ScanPopup
           onScanComplete={handleScanComplete}
           onDismiss={() => setShowScanPopup(false)}
+          onNoTokens={() => setShowOutOfTokens(true)}
           needsUsername={needsUsername}
         />
       )}
+      {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
 
       {showAuthPopup && createPortal(
         <div

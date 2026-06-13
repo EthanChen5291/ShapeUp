@@ -2001,7 +2001,6 @@ input[type="range"].slider-warm::-moz-range-thumb {
   position: absolute; inset: 0;
   background: var(--chalk);
   pointer-events: none;
-  transition: opacity 160ms ease-out;
 }
 
 /* polaroid develop — captured frame fades in from over-exposed sepia */
@@ -2042,15 +2041,16 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background: rgba(20, 14, 10, 0.7);
 }
 
-.lsc-caption-row {
-  display: flex; align-items: center; gap: 16px;
-}
 .lsc-caption {
-  flex: 1; margin: 0;
+  margin: 0;
   font-style: italic; font-weight: 500;
   font-size: 17px;
+  text-align: center;
   color: rgba(255, 248, 234, 0.8);
   animation: lsc-caption-in 260ms ease both;
+}
+.lsc-shutter-row {
+  display: flex; justify-content: center;
 }
 @keyframes lsc-caption-in {
   from { opacity: 0; transform: translateY(5px); }

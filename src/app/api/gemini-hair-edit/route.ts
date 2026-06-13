@@ -183,8 +183,12 @@ export async function POST(req: NextRequest) {
   let base64Image: string;
   let mimeType = 'image/png';
   try {
+    // Relative paths (e.g. /api/img?key=…) must be made absolute for server-side fetch
+    const fetchUrl = imageUrl.startsWith('/')
+      ? `${new URL(req.url).origin}${imageUrl}`
+      : imageUrl;
     console.log('[gemini-hair-edit] fetching source image...');
-    const imageRes = await fetch(imageUrl);
+    const imageRes = await fetch(fetchUrl);
     console.log('[gemini-hair-edit] image fetch status:', imageRes.status, imageRes.statusText);
     const contentType = imageRes.headers.get('content-type') ?? 'image/png';
     console.log('[gemini-hair-edit] image content-type:', contentType);

@@ -47,5 +47,8 @@ export function isSafeRemoteUrl(value: string): boolean {
 }
 
 export function isSafeImageSource(value: string): boolean {
-  return value.startsWith('data:image') || isSafeRemoteUrl(value);
+  if (value.startsWith('data:image')) return true;
+  // Allow our own internal S3 proxy path (relative URL, safe to self-fetch)
+  if (/^\/api\/img(\?|$)/.test(value)) return true;
+  return isSafeRemoteUrl(value);
 }

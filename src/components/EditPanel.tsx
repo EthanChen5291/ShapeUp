@@ -642,18 +642,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           </button>
         )}
 
-        {clarifyState && !orderLoading && (
-          <ClarifyPanel
-            questions={clarifyState.questions}
-            answers={clarifyState.answers}
-            onAnswer={(id, val) =>
-              setClarifyState(prev =>
-                prev ? { ...prev, answers: { ...prev.answers, [id]: val } } : null
-              )
-            }
-            onConfirm={handleClarifyConfirm}
-          />
-        )}
 
         {orderLoading && (
           <div className="receipt-stub" role="status" aria-label="Printing barber order">
@@ -685,6 +673,20 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       <PricingPopup
         onDismiss={() => setShowPricing(false)}
         returnUrl={projectId ? `/studio/${projectId}` : undefined}
+      />
+    )}
+
+    {/* Rendered outside the aside so position:fixed escapes overflow-hidden cleanly */}
+    {clarifyState && !orderLoading && (
+      <ClarifyPanel
+        questions={clarifyState.questions}
+        answers={clarifyState.answers}
+        onAnswer={(id, val) =>
+          setClarifyState(prev =>
+            prev ? { ...prev, answers: { ...prev.answers, [id]: val } } : null
+          )
+        }
+        onConfirm={handleClarifyConfirm}
       />
     )}
   </>
