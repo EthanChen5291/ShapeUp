@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 
+function findDataStart(bytes: Uint8Array): number | null {
+  for (const marker of ['end_header\r\n', 'end_header\n']) {
+    for (let i = 0; i <= bytes.length - marker.length; i++) {
+      let match = true;
+      for (let j = 0; j < marker.length; j++) {
+        if (bytes[i + j] !== marker.charCodeAt(j)) { match = false; break; }
+      }
+      if (match) return i + marker.length;
+    }
+  }
+  return null;
+}
+
 /**
  * Parses a HairStep binary PLY file (edge-based, float64 vertices).
  * Standard THREE.PLYLoader won't work — it expects face elements and float32.
@@ -10,22 +23,17 @@ export interface PLYResult {
 }
 
 export async function parsePLY(url: string): Promise<THREE.BufferGeometry> {
-  const buf = await fetch(url).then(r => r.arrayBuffer());
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`parsePLY: fetch failed with status ${res.status} for ${url}`);
+  const buf = await res.arrayBuffer();
   const headerBytes = new Uint8Array(buf);
-
-  // Find end of ASCII header
-  const marker = 'end_header\n';
-  let dataStart = 0;
-  for (let i = 0; i < headerBytes.length - marker.length; i++) {
-    let match = true;
-    for (let j = 0; j < marker.length; j++) {
-      if (headerBytes[i + j] !== marker.charCodeAt(j)) { match = false; break; }
-    }
-    if (match) { dataStart = i + marker.length; break; }
-  }
+  const dataStart = findDataStart(headerBytes);
+  if (dataStart === null) throw new Error('parsePLY: could not find end_header in PLY file');
 
   const header = new TextDecoder().decode(buf.slice(0, dataStart));
-  const vertexCount = parseInt(header.match(/element vertex (\d+)/)![1]);
+  const vertexMatch = header.match(/element vertex (\d+)/);
+  if (!vertexMatch) throw new Error('parsePLY: could not find element vertex in PLY header');
+  const vertexCount = parseInt(vertexMatch[1]);
   const edgeCount   = parseInt(header.match(/element edge (\d+)/)?.[1] ?? '0');
 
   const view = new DataView(buf, dataStart);
@@ -86,19 +94,12 @@ export async function parseGaussianXYZ(
   url: string,
   step = 20,
 ): Promise<{ x: number; y: number; z: number }[]> {
-  const buf = await fetch(url).then(r => r.arrayBuffer());
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const buf = await res.arrayBuffer();
   const bytes = new Uint8Array(buf);
-
-  // Locate end_header
-  const marker = 'end_header\n';
-  let dataStart = 0;
-  for (let i = 0; i < bytes.length - marker.length; i++) {
-    let match = true;
-    for (let j = 0; j < marker.length; j++) {
-      if (bytes[i + j] !== marker.charCodeAt(j)) { match = false; break; }
-    }
-    if (match) { dataStart = i + marker.length; break; }
-  }
+  const dataStart = findDataStart(bytes);
+  if (dataStart === null) return [];
 
   const header = new TextDecoder().decode(buf.slice(0, dataStart));
   const vertexCountMatch = header.match(/element vertex (\d+)/);
@@ -132,21 +133,17 @@ export async function parseGaussianXYZ(
 }
 
 export async function parsePLYWithBBox(url: string): Promise<PLYResult> {
-  const buf = await fetch(url).then(r => r.arrayBuffer());
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`parsePLYWithBBox: fetch failed with status ${res.status} for ${url}`);
+  const buf = await res.arrayBuffer();
   const headerBytes = new Uint8Array(buf);
-
-  const marker = 'end_header\n';
-  let dataStart = 0;
-  for (let i = 0; i < headerBytes.length - marker.length; i++) {
-    let match = true;
-    for (let j = 0; j < marker.length; j++) {
-      if (headerBytes[i + j] !== marker.charCodeAt(j)) { match = false; break; }
-    }
-    if (match) { dataStart = i + marker.length; break; }
-  }
+  const dataStart = findDataStart(headerBytes);
+  if (dataStart === null) throw new Error('parsePLYWithBBox: could not find end_header in PLY file');
 
   const header = new TextDecoder().decode(buf.slice(0, dataStart));
-  const vertexCount = parseInt(header.match(/element vertex (\d+)/)![1]);
+  const vertexMatch = header.match(/element vertex (\d+)/);
+  if (!vertexMatch) throw new Error('parsePLYWithBBox: could not find element vertex in PLY header');
+  const vertexCount = parseInt(vertexMatch[1]);
   const edgeCount   = parseInt(header.match(/element edge (\d+)/)?.[1] ?? '0');
 
   const view = new DataView(buf, dataStart);
