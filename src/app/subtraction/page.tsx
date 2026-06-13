@@ -25,6 +25,7 @@ function dbgErr(msg: string, ...args: unknown[]) {
 
 // Load R3F viewer only on client to avoid SSR issues
 const HairSplatViewer = dynamic(() => import('./HairSplatViewer'), { ssr: false });
+const ErasableSplatViewer = dynamic(() => import('./ErasableSplatViewer'), { ssr: false });
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -774,22 +775,8 @@ export default function SubtractionPage() {
                   {subResult.keptCount.toLocaleString()} gaussians · {subResult.retainedPct}% retained
                 </span>
               </div>
-              <HairSplatViewer src={subResult.splatUrl} />
+              <ErasableSplatViewer plyUrl={subResult.plyUrl} />
               <div style={{ padding: '10px 14px', borderTop: '1px solid #2a2218', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <a
-                  href={subResult.plyUrl}
-                  download="hair.ply"
-                  style={{ color: '#ffe39a', fontSize: 11, textDecoration: 'none', fontWeight: 700 }}
-                >
-                  ↓ hair.ply
-                </a>
-                <a
-                  href={subResult.splatUrl}
-                  download="hair.splat"
-                  style={{ color: '#ffe39a', fontSize: 11, textDecoration: 'none', fontWeight: 700 }}
-                >
-                  ↓ hair.splat
-                </a>
                 <button
                   onClick={restart}
                   style={{ background: 'none', border: '1px solid #443', color: '#887', padding: '2px 12px', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11, marginLeft: 'auto' }}
