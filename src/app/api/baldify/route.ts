@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PROMPT = `Remove all scalp hair from this person so they appear completely bald.
+const PROMPT = `Remove all scalp hair from this person so they appear completely bald. Make the head slightly smaller and more compact than in the original — reduce the overall head size by roughly 8–12%, as if the hair volume was the only thing adding to it. Shrink the skull dome so it sits lower and tighter.
 
-Render the scalp as smooth, natural skin — matching the exact skin tone, texture, and lighting of the face. Preserve the natural skull contour implied by the existing hairline and head shape.
+Render the scalp as smooth, natural skin — matching the exact skin tone, texture, and lighting of the face. Preserve the natural skull contour but with a smaller, tighter profile.
 
 Do NOT change anything else. Keep identical:
 - facial features, expression, and proportions
