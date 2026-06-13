@@ -172,7 +172,13 @@ export async function POST(req: NextRequest) {
   });
   if (rateLimited) return rateLimited;
 
-  const hasConsent = await convex.query(api.users.hasBiometricConsent, {});
+  let hasConsent = await convex.query(api.users.hasBiometricConsent, {});
+  if (!hasConsent) {
+    // Retry once after a short delay — consent may have just been recorded client-side
+    // and the HTTP client snapshot can lag the mutation commit by a small window.
+    await new Promise(r => setTimeout(r, 1200));
+    hasConsent = await convex.query(api.users.hasBiometricConsent, {});
+  }
   console.log('[facelift] POST: biometric consent check result:', hasConsent, { user: hashIdentifier(authResult.session.userId) });
   if (!hasConsent) {
     console.warn('[facelift] POST: rejected missing biometric consent', {

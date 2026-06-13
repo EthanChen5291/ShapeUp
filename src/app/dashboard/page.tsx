@@ -17,6 +17,7 @@ import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
 import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
 import { PricingPopup } from '@/components/PricingPopup';
+import { useNavLoading } from '@/components/NavLoadingOverlay';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
@@ -408,9 +409,10 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─── Scan Popup ─── */
-function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
+function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false }: {
   onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => void;
   onDismiss: () => void;
+  onNoTokens?: () => void;
   needsUsername?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -523,10 +525,22 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
     faceliftAbortRef.current = abort;
     try {
       const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl }), signal: abort.signal });
-      if (submitRes.status === 401 || submitRes.status === 402) {
+      if (submitRes.status === 402) {
+        dismiss();
+        setTimeout(() => onNoTokens?.(), 900);
+        return;
+      }
+      if (submitRes.status === 401) {
         const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
         const { url } = await checkout.json() as { url?: string };
         if (url) { window.location.href = url; return; }
+      }
+      if (submitRes.status === 403) {
+        setFaceliftStatus('idle');
+        setPhase('verify');
+        setTimeout(() => setShowVerifyBtns(true), 200);
+        setShowConsentDialog(true);
+        return;
       }
       if (!submitRes.ok) { const body = await submitRes.text().catch(() => ''); throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`); }
       const { splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
@@ -690,11 +704,10 @@ interface ProjectDoc {
   _id: Id<'projects'>;
   name: string;
   thumbnailUrl?: string;
-  lastHairParams?: HairParams;
-  lastProfile?: UserHeadProfile;
-  lastImageUrl?: string;
+  thumbnailS3Key?: string;
   updatedAt: number;
   savedAt?: number;
+  splatS3Key?: string;
 }
 
 /* ─── Flying Card ─── */
@@ -775,7 +788,7 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       </div>
       <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
-          {project.thumbnailUrl ? <img src={project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {(project.thumbnailS3Key || project.thumbnailUrl) ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
@@ -1168,6 +1181,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 export default function DashboardPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const { startLoading } = useNavLoading();
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
@@ -1211,6 +1225,7 @@ export default function DashboardPage() {
   };
 
   const [showScanPopup, setShowScanPopup] = useState(false);
+  const [showOutOfTokens, setShowOutOfTokens] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
   const [hasScanEver, setHasScanEver] = useState(false);
   const [selfieFlying, setSelfieFlying] = useState<{ url: string } | null>(null);
@@ -1239,14 +1254,26 @@ export default function DashboardPage() {
     if (sid) sessionStorage.setItem('studio_sessionId', sid);
     if (splatUrl) sessionStorage.setItem('studio_splatUrl', splatUrl);
 
+    // Derive the permanent S3 key from sessionId (matches save-scan key path).
+    // Only set if S3 upload succeeded — fallback url starts with "data:" if it failed.
+    const scanS3Key = sid && url && !url.startsWith('data:') ? `pictures/${sid}/scan.png` : null;
+
     // Create a Convex project for this scan
     let projectId: Id<'projects'>;
     try {
       projectId = await createProject({ name: 'My Cut' });
+      const { imageDataUrl: _i, maskDataUrl: _m, classifierFrames: _c, ...cleanScan } =
+        profileWithMeasurements.faceScanData ?? {} as never;
+      const profileToSave = {
+        ...profileWithMeasurements,
+        faceScanData: profileWithMeasurements.faceScanData ? cleanScan : undefined,
+      };
       await saveProject({
         projectId,
         lastImageUrl: url ?? undefined,
-        lastProfile: profileWithMeasurements,
+        lastImageS3Key: scanS3Key ?? undefined,
+        thumbnailS3Key: scanS3Key ?? undefined,
+        lastProfile: profileToSave,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,
       });
@@ -1275,7 +1302,10 @@ export default function DashboardPage() {
     if (!isSignedIn) { openAuthPopup(); return; }
     setShowScanPopup(true);
   };
-  const handleOpenProject = (project: ProjectDoc) => router.push(`/studio/${project._id}`);
+  const handleOpenProject = (project: ProjectDoc) => {
+    startLoading();
+    router.push(`/studio/${project._id}`);
+  };
 
   return (
     <>
@@ -1294,9 +1324,11 @@ export default function DashboardPage() {
         <ScanPopup
           onScanComplete={handleScanComplete}
           onDismiss={() => setShowScanPopup(false)}
+          onNoTokens={() => setShowOutOfTokens(true)}
           needsUsername={needsUsername}
         />
       )}
+      {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
 
       {showAuthPopup && createPortal(
         <div

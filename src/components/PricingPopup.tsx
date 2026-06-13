@@ -50,7 +50,7 @@ const PLANS = [
   { id: 'lifetime', label: '100 haircut generations', price: '$14.99', featured: false },
 ] as const;
 
-export function PricingPopup({ onDismiss, returnUrl }: { onDismiss: () => void; returnUrl?: string }) {
+export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: { onDismiss: () => void; returnUrl?: string; outOfTokens?: boolean }) {
   const [closing, setClosing] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [expandPhase, setExpandPhase] = useState<0 | 1 | 2>(0);
@@ -87,8 +87,8 @@ export function PricingPopup({ onDismiss, returnUrl }: { onDismiss: () => void; 
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
           <div style={{ width: 48, transform: 'rotate(186deg)' }}><BarberMascot /></div>
           <div className="text-center">
-            <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: containerExpanded ? 30 : 26, transition: `font-size ${dur} ${ease}` }}>Top up your cuts</h2>
-            <p className="font-sans text-[var(--smoke)] mt-1" style={{ fontSize: containerExpanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}>Stack tokens and keep the fresh cuts coming.</p>
+            <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: containerExpanded ? 30 : 26, transition: `font-size ${dur} ${ease}` }}>{outOfTokens ? 'You unfortunately ran out of tokens :(' : 'Top up your cuts'}</h2>
+            <p className="font-sans text-[var(--smoke)] mt-1" style={{ fontSize: containerExpanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}>{outOfTokens ? 'Get more here!' : 'Stack tokens and keep the fresh cuts coming.'}</p>
           </div>
           {expandPhase < 2 && (
             <div className="flex flex-col gap-3 w-full" style={{ opacity: expandPhase === 0 ? 1 : 0, transition: 'opacity 200ms ease', pointerEvents: expandPhase === 0 ? 'auto' : 'none' }}>
