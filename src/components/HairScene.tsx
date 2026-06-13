@@ -17,11 +17,11 @@
 
 import * as THREE from 'three';
 
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import FlameMesh from './FlameMesh';
 import HairStrandMesh from './HairStrandMesh';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
@@ -124,7 +124,7 @@ function HairDepthPoints({ url, color, scale, position }: {
   return (
     <group scale={scale} position={position}>
       <points geometry={geo}>
-        <pointsMaterial color={color} size={0.02} sizeAttenuation depthWrite={false} />
+        <pointsMaterial color={color} size={0.02} sizeAttenuation depthWrite={false} alphaHash alphaTest={0.5} />
       </points>
     </group>
   );
@@ -297,6 +297,7 @@ interface SceneProps {
   hairstepPlyUrls?: string[];
   hairColor?: string;
   orbitRotateSpeed?: number;
+  combMode?: boolean;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
@@ -328,7 +329,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, showFlame = false, visibleLayers, flameData, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, onPrimaryHairBBoxReady, onThumbnailReady, combMode }: SceneProps) {
   const orbitRef = useRef<any>(null);
   return (
     <>
@@ -408,6 +409,7 @@ function Scene({ showPolycam = false, showSplat = true, showFlame = false, visib
       )}
 
       <OrbitControls
+        enabled={!combMode}
         ref={orbitRef}
         enablePan={false}
         minPolarAngle={0}
@@ -439,9 +441,10 @@ interface HairSceneProps {
   uiHidden?:                 boolean;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
+  combMode?: boolean;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, flameData, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, background = '#001f5b', uiHidden = false, onPrimaryHairBBoxReady, onThumbnailReady, combMode = false }: HairSceneProps) {
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
   const [showFlame, setShowFlame]     = useState(false);
@@ -588,6 +591,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
           onThumbnailReady={onThumbnailReady}
+          combMode={combMode}
         />
       </Canvas>
 
@@ -674,3 +678,4 @@ export function updateHairMesh(
     }
   });
 }
+

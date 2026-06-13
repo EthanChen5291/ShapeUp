@@ -44,10 +44,22 @@ export function useDemoFacelift(originalImageUrl: string | null) {
         reader.readAsDataURL(blob);
       });
 
-      const submitRes = await fetch('/api/facelift', {
+      const baldRes = await fetch('/api/baldify', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ imageDataUrl }),
+      });
+      if (!baldRes.ok) {
+        const body = await baldRes.text().catch(() => '');
+        throw new Error(`Baldify failed (${baldRes.status}): ${body || 'empty response'}`);
+      }
+      const { baldifiedDataUrl } = await baldRes.json() as { baldifiedDataUrl?: string };
+      if (!baldifiedDataUrl) throw new Error('Baldify returned no image');
+
+      const submitRes = await fetch('/api/facelift', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ imageDataUrl: baldifiedDataUrl }),
       });
       if (submitRes.status === 402 || submitRes.status === 401) {
         const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
