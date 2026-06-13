@@ -10,6 +10,7 @@ import { BarberOrder } from '@/lib/barberOrder';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberOrderReceipt from '@/components/BarberOrderReceipt';
+import { PricingPopup } from '@/components/PricingPopup';
 
 
 interface EditPanelProps {
@@ -20,6 +21,10 @@ interface EditPanelProps {
   onImageUpdated: (newUrl: string) => void;
   onPlyReady: (plyUrl: string) => void;
   onUncertain?: () => void;
+  userCredits?: number;
+  paywallDisabled?: boolean;
+  isAllowlisted?: boolean;
+  projectId?: string;
 }
 
 const UNCERTAIN_PATTERNS = [
@@ -106,11 +111,12 @@ interface OrderResult {
   text: string;
 }
 
-export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain }: EditPanelProps) {
+export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
+  const [showPricing, setShowPricing] = useState(false);
   const processingRef = useRef(false);
   const pipelineHadErrorRef = useRef(false);
   const originalImageUrlRef = useRef<string | null>(null);
@@ -148,6 +154,13 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
     if (!submittedPrompt.trim()) return;
+
+    // Gate behind paywall if out of credits
+    if (!paywallDisabled && !isAllowlisted && typeof userCredits === 'number' && userCredits <= 0) {
+      setShowPricing(true);
+      return;
+    }
+
     if (onUncertain && UNCERTAIN_PATTERNS.some(p => p.test(submittedPrompt))) {
       onUncertain();
     }
@@ -204,21 +217,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
       setPhase('hairstep');
 
-      // Convert Gemini-edited image URL → data URL for facelift
-      const editImgRes = await fetch(newImageUrl);
-      const editBlob   = await editImgRes.blob();
-      const editDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(editBlob);
-      });
-
-      // Submit to facelift and wait for synchronous result
+      // newImageUrl is already a data:image/png;base64,… URL — pass directly to facelift.
       const faceliftRes = await fetch('/api/facelift', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imageDataUrl: editDataUrl, outputName: 'edit-output' }),
+        body:    JSON.stringify({ imageDataUrl: newImageUrl, outputName: 'edit-output' }),
       });
       const faceliftRaw = await faceliftRes.text();
       let faceliftData: { splatUrl?: string; error?: string };
@@ -229,6 +232,10 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         return;
       }
       if (!faceliftData.splatUrl) {
+        if (faceliftRes.status === 402) {
+          setShowPricing(true);
+          return;
+        }
         pipelineHadErrorRef.current = true;
         setPipelineError('Facelift failed: ' + (faceliftData.error ?? 'unknown'));
         return;
@@ -236,6 +243,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
       onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`);
       setLiveStatus('3D hairstyle render is ready. Fresh cut.');
+    } catch (err) {
+      if (!pipelineHadErrorRef.current) {
+        pipelineHadErrorRef.current = true;
+        setPipelineError('Unexpected error: ' + (err instanceof Error ? err.message : String(err)));
+      }
     } finally {
       // Cancel intervals immediately — don't wait for the useEffect round-trip
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
@@ -374,6 +386,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   }, [phase]);
 
   return (
+    <>
     <aside className="relative flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }} aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
@@ -618,5 +631,13 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       </div>
 
     </aside>
+
+    {showPricing && (
+      <PricingPopup
+        onDismiss={() => setShowPricing(false)}
+        returnUrl={projectId ? `/studio/${projectId}` : undefined}
+      />
+    )}
+  </>
   );
 }

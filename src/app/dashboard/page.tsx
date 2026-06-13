@@ -14,52 +14,11 @@ import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import dynamic from 'next/dynamic';
 import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
 import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
-import { BarberMascot, InlineWordmark, BouncyButton } from '@/components/AppUI';
+import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
+import SignUpWidget from '@/components/SignUpWidget';
+import { PricingPopup } from '@/components/PricingPopup';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
-
-/* ─── Clock Counter — slot-machine digit transition ─── */
-function ClockCounter({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
-  const [current, setCurrent] = useState(value);
-  const [prev, setPrev] = useState<number | null>(null);
-  const [animKey, setAnimKey] = useState(0);
-  const currentRef = useRef(value);
-
-  useEffect(() => {
-    if (value === currentRef.current) return;
-    const old = currentRef.current;
-    currentRef.current = value;
-    setPrev(old);
-    setCurrent(value);
-    setAnimKey(k => k + 1);
-    const t = setTimeout(() => setPrev(null), 340);
-    return () => clearTimeout(t);
-  }, [value]);
-
-  return (
-    <span className={className} style={{ position: 'relative', display: 'inline-block', overflow: 'hidden', verticalAlign: 'baseline', ...style }}>
-      {prev !== null && (
-        <span
-          key={`out-${animKey}`}
-          aria-hidden
-          style={{
-            position: 'absolute', top: 0, left: 0, right: 0,
-            pointerEvents: 'none',
-            animation: 'clock-digit-out 300ms cubic-bezier(0.4,0,0.6,1) forwards',
-          }}
-        >
-          {prev}
-        </span>
-      )}
-      <span
-        key={`in-${animKey}`}
-        style={{ display: 'block', animation: prev !== null ? 'clock-digit-in 300ms cubic-bezier(0.2,0,0.4,1) forwards' : undefined }}
-      >
-        {current}
-      </span>
-    </span>
-  );
-}
 
 /* ─── Profile Menu ─── */
 function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
@@ -287,127 +246,6 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
       </div>
     </>,
     document.body
-  );
-}
-
-/* ─── Supercell-style starburst value badge ─── */
-function ValueBadge({ label = '2×', size = 56 }: { label?: string; size?: number }) {
-  const spikes = 12, cx = 50, cy = 50, outer = 49, inner = 39;
-  const points = Array.from({ length: spikes * 2 }, (_, i) => {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = (Math.PI / spikes) * i - Math.PI / 2;
-    return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
-  }).join(' ');
-  return (
-    <div style={{ position: 'absolute', top: -16, right: -14, width: size, height: size, zIndex: 6, pointerEvents: 'none', transform: 'rotate(12deg)', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.32))' }}>
-      <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-        <polygon points={points} fill="#e8316f" stroke="#ffffff" strokeWidth="3.5" strokeLinejoin="round" />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transform: 'rotate(-12deg)' }}>
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: size * 0.3, lineHeight: 1 }}>{label}</span>
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: size * 0.16, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>value</span>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Expanded Plan Card ─── */
-function ExpandedPlanCard({ plan, loading, onBuy, staggerDelay }: {
-  plan: { readonly id: string; readonly label: string; readonly price: string; readonly featured: boolean };
-  loading: string | null; onBuy: (id: string) => void; staggerDelay: number;
-}) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setReady(true), 16); return () => clearTimeout(t); }, []);
-  const springEase = 'cubic-bezier(0.34, 1.15, 0.64, 1)';
-  return (
-    <div style={{ position: 'relative', flex: '1 1 0', minWidth: 0, transform: ready ? 'scale(1)' : 'scale(0)', opacity: ready ? 1 : 0, transformOrigin: 'center', pointerEvents: ready ? 'auto' : 'none', transition: `transform 540ms ${springEase} ${staggerDelay}ms, opacity 300ms ease ${staggerDelay + 180}ms` }}>
-      {plan.featured && <ValueBadge />}
-      <BouncyButton onClick={() => onBuy(plan.id)} disabled={loading === plan.id} className={`rounded-2xl w-full ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)', padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div className="text-left">
-          <div className="font-sans font-semibold" style={{ fontSize: 15 }}>{plan.label}</div>
-          {plan.featured && <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>}
-        </div>
-        <div className="font-display italic" style={{ fontSize: 26, fontWeight: 700, marginTop: 16 }}>{loading === plan.id ? '…' : plan.price}</div>
-      </BouncyButton>
-    </div>
-  );
-}
-
-/* ─── Pricing Popup ─── */
-function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
-  const [closing, setClosing] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [expandPhase, setExpandPhase] = useState<0 | 1 | 2>(0);
-  const dismiss = () => { setClosing(true); setTimeout(onDismiss, 320); };
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setExpandPhase(1), 480);
-    const t2 = setTimeout(() => setExpandPhase(2), 700);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
-
-  const PLANS = [
-    { id: 'starter', label: '8 haircut generations', price: '$1.99', featured: false },
-    { id: 'popular', label: '30 haircut generations', price: '$4.99', featured: true },
-    { id: 'lifetime', label: '100 haircut generations', price: '$14.99', featured: false },
-  ] as const;
-
-  const handleBuy = async (planId: string) => {
-    if (loading) return;
-    setLoading(planId);
-    try {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: planId }) });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
-    } finally { setLoading(null); }
-  };
-
-  const ease = 'cubic-bezier(0.4, 0, 0.2, 1)';
-  const dur = '620ms';
-  const containerExpanded = expandPhase >= 1;
-
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
-      <div className={closing ? 'popup-out' : 'popup-in'}>
-        <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', width: containerExpanded ? 'min(80vw, 920px)' : 360, padding: containerExpanded ? '44px 48px 48px' : '44px 40px 40px', transition: `width ${dur} ${ease}, padding ${dur} ${ease}` }}>
-          <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <div style={{ width: 48, transform: 'rotate(186deg)' }}><BarberMascot /></div>
-          <div className="text-center">
-            <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: containerExpanded ? 30 : 26, transition: `font-size ${dur} ${ease}` }}>Top up your cuts</h2>
-            <p className="font-sans text-[var(--smoke)] mt-1" style={{ fontSize: containerExpanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}>Stack tokens and keep the fresh cuts coming.</p>
-          </div>
-          {expandPhase < 2 && (
-            <div className="flex flex-col gap-3 w-full" style={{ opacity: expandPhase === 0 ? 1 : 0, transition: 'opacity 200ms ease', pointerEvents: expandPhase === 0 ? 'auto' : 'none' }}>
-              {PLANS.map(plan => (
-                <div key={plan.id} style={{ position: 'relative' }}>
-                  {plan.featured && <ValueBadge />}
-                  <BouncyButton onClick={() => handleBuy(plan.id)} disabled={loading === plan.id} className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}>
-                    <div className="text-left">
-                      <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
-                      {plan.featured && <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>}
-                    </div>
-                    <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>{loading === plan.id ? '…' : plan.price}</div>
-                  </BouncyButton>
-                </div>
-              ))}
-            </div>
-          )}
-          {expandPhase === 2 && (
-            <div className="flex flex-row w-full" style={{ gap: 12 }}>
-              {PLANS.map((plan, i) => <ExpandedPlanCard key={plan.id} plan={plan} loading={loading} onBuy={handleBuy} staggerDelay={i * 90} />)}
-            </div>
-          )}
-          <div style={{ width: '100%', overflow: 'hidden', maxHeight: containerExpanded ? 320 : 0, opacity: containerExpanded ? 1 : 0, borderRadius: 16, transition: `max-height 700ms ${ease} 150ms, opacity 500ms ${ease} 300ms` }}>
-            <div style={{ height: 288, position: 'relative', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.10)', zIndex: 0 }} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/3face.png" alt="" style={{ position: 'absolute', top: '50%', left: 32, transform: 'translateY(-50%)', height: '173%', width: 'auto', opacity: 0.4, zIndex: 1 }} />
-              <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1, fontFamily: 'Montserrat, sans-serif', color: '#ffffff', fontSize: 104, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', whiteSpace: 'nowrap' }}>Level Up Now.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1064,9 +902,10 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
 }
 
 /* ─── Main Menu ─── */
-function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false }: {
-  onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean;
+function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false, isSignedIn }: {
+  onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean; isSignedIn?: boolean | null;
 }) {
+  const { openSignIn } = useClerk();
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
   const toggleSaveProject = useMutation(api.projects.toggleSave);
@@ -1284,7 +1123,17 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
                   {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.6)' : 'rgba(252,245,228,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.15)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(252,245,228,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
                 </div>
-                {savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
+                {isSignedIn === false ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 64, gap: 20 }}>
+                    <div className="saved-ghost">
+                      <svg className="saved-ghost-frame" aria-hidden><rect rx="14" ry="14" fill="none" stroke="rgba(252,245,228,0.3)" strokeWidth="1.5" strokeDasharray="8 7" /></svg>
+                      <svg className="saved-ghost-bookmark" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="rgba(212,175,55,0.9)" strokeWidth="2" strokeLinejoin="round" aria-hidden><path d="M5 3H19V21L12 15.5L5 21Z" /></svg>
+                      <span className="font-display saved-ghost-caption">sign in to see your keepers</span>
+                    </div>
+                    <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>Your saved cuts live here. Sign in to bookmark styles and build your collection.</p>
+                    <BouncyButton onClick={() => openSignIn()} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                  </div>
+                ) : savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
@@ -1325,10 +1174,6 @@ export default function DashboardPage() {
   const meUser = useQuery(api.users.getMe);
 
   useEffect(() => {
-    if (isSignedIn === false) router.push('/');
-  }, [isSignedIn, router]);
-
-  useEffect(() => {
     if (isSignedIn) getOrCreate().catch(err => console.error('[Dashboard] getOrCreate failed:', err));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);
@@ -1345,6 +1190,25 @@ export default function DashboardPage() {
   }, []);
 
   const needsUsername = isSignedIn && meUser !== undefined && meUser !== null && !meUser.username;
+
+  const [showAuthPopup, setShowAuthPopup] = useState(false);
+  const [authVisible, setAuthVisible] = useState(false);
+  const [authClosing, setAuthClosing] = useState(false);
+
+  const openAuthPopup = () => {
+    setShowAuthPopup(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setAuthVisible(true)));
+  };
+  const dismissAuthPopup = () => {
+    setAuthClosing(true);
+    setTimeout(() => { setShowAuthPopup(false); setAuthVisible(false); setAuthClosing(false); }, 320);
+  };
+  const handleAuthDone = () => {
+    setShowAuthPopup(false);
+    setAuthVisible(false);
+    setAuthClosing(false);
+    setShowScanPopup(true);
+  };
 
   const [showScanPopup, setShowScanPopup] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
@@ -1407,10 +1271,11 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAddProject = () => setShowScanPopup(true);
+  const handleAddProject = () => {
+    if (!isSignedIn) { openAuthPopup(); return; }
+    setShowScanPopup(true);
+  };
   const handleOpenProject = (project: ProjectDoc) => router.push(`/studio/${project._id}`);
-
-  if (isSignedIn === false) return null;
 
   return (
     <>
@@ -1418,10 +1283,11 @@ export default function DashboardPage() {
         onAdd={handleAddProject}
         onOpenProject={handleOpenProject}
         showScanNow={!hasScanEver}
-        onScanNow={() => setShowScanPopup(true)}
+        onScanNow={() => { if (!isSignedIn) { openAuthPopup(); return; } setShowScanPopup(true); }}
         onRescan={() => setShowScanPopup(true)}
         profilePillPulse={profilePillPulse}
         celebratePurchase={paymentSuccess}
+        isSignedIn={isSignedIn}
       />
 
       {showScanPopup && (
@@ -1430,6 +1296,62 @@ export default function DashboardPage() {
           onDismiss={() => setShowScanPopup(false)}
           needsUsername={needsUsername}
         />
+      )}
+
+      {showAuthPopup && createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: authVisible && !authClosing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
+            transition: 'background 320ms ease',
+          }}
+          onClick={dismissAuthPopup}
+        >
+          <button
+            onClick={dismissAuthPopup}
+            style={{
+              position: 'absolute', top: 24, right: 24,
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
+              color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 160ms ease, color 160ms ease',
+            }}
+          >✕</button>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28,
+              transform: authVisible && !authClosing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
+              opacity: authVisible && !authClosing ? 1 : 0,
+              transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <p style={{
+                fontFamily: 'var(--font-jetbrains), monospace',
+                fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.16em',
+                color: 'rgba(255,248,234,0.45)', margin: '0 0 10px',
+              }}>
+                sign in to continue
+              </p>
+              <h2 style={{
+                fontFamily: 'var(--font-fraunces), Georgia, serif',
+                fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
+                color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,
+              }}>
+                Start exploring.
+              </h2>
+            </div>
+            <SignUpWidget
+              onEnter={handleAuthDone}
+              large
+              redirectUrlComplete="/dashboard"
+            />
+          </div>
+        </div>,
+        document.body
       )}
 
       {showScanResult && imageUrl && (

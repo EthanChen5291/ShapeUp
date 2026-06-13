@@ -85,9 +85,8 @@ export interface OrderComputedContext {
    * True when the request's params drifted from snapshot.currentParams —
    * i.e. the model was edited after the last mesh re-measure. The affected
    * zones' `estimated` values were re-derived by scaling the snapshot
-   * measurement by the param ratio (params are mesh-group scales, so
-   * first-order linear), and their confidence was downgraded to
-   * derived_params level.
+   * measurement by the param ratio (params are mesh-group scales), and
+   * their confidence was downgraded to derived_params level.
    */
   staleSnapshot: boolean;
 }
@@ -425,7 +424,7 @@ export function buildFallbackOrder(
   const moveFor = (d: ZoneDelta) =>
     d.direction === 'keep' ? `Hold the length, just reshape. Land at ${d.targetSpec}.`
     : d.direction === 'take_down' ? `Take it ${d.amount}. Land at ${d.targetSpec}.`
-    : `Growing this out — leave it, dust the ends only. Target ${d.targetSpec} once it’s in.`;
+    : `Growing this out — leave it, dust the ends only. Target ${d.targetSpec} once it's in.`;
 
   const zoneFor = (id: 'top' | 'sides' | 'back', technique: string): BarberZone => {
     const d = byZone[id];
@@ -444,7 +443,7 @@ export function buildFallbackOrder(
   const askParts: string[] = [];
   if (byZone.sides.direction !== 'grow_out') askParts.push(`${byZone.sides.targetSpec} on the sides with a ${taperRead}`);
   if (byZone.top.direction !== 'grow_out') askParts.push(`${byZone.top.targetSpec} on top`);
-  if (byZone.back.direction === 'grow_out') askParts.push('leave the back, I’m growing it');
+  if (byZone.back.direction === 'grow_out') askParts.push('leave the back, I\u2019m growing it');
   else if (byZone.back.direction === 'keep') askParts.push('back stays as-is');
   askParts.push(`${finishRead} finish`);
 
@@ -454,7 +453,7 @@ export function buildFallbackOrder(
         mode: (feas.color.isGreyBlendCandidate ? 'blend' : 'full') as 'blend' | 'full',
         serviceNote: feas.color.serviceNote,
         askFor: feas.color.isGreyBlendCandidate
-          ? `A grey blend, ${feas.color.shadeFamily} family — blend it, don’t fully cover.`
+          ? `A grey blend, ${feas.color.shadeFamily} family — blend it, don\u2019t fully cover.`
           : `Color to a ${feas.color.shadeFamily} — even coverage.`,
       }
     : undefined;
@@ -484,7 +483,7 @@ export function buildFallbackOrder(
 // ── Special tickets (no LLM involved) ───────────────────────────────
 
 /** One-length buzz or full shave — the simplest order there is. */
-export function buildBuzzOrder(_ctx: OrderComputedContext, profile: UserHeadProfile, feas?: FeasibilityReport): BarberOrder {
+export function buildBuzzOrder(ctx: OrderComputedContext, profile: UserHeadProfile, feas?: FeasibilityReport): BarberOrder {
   const params = profile.currentStyle.params;
   const bald = [params.topLength, params.sideLength, params.backLength].every(v => v <= 0.03);
   const spec = bald ? 'skin, no guard' : '#1 all over';
@@ -496,7 +495,7 @@ export function buildBuzzOrder(_ctx: OrderComputedContext, profile: UserHeadProf
   });
   return {
     styleName: bald ? 'Full Shave' : 'Buzz Cut',
-    hairRead: { pattern: profile.currentStyle.hairType, density: 'n/a at this length', note: 'Texture doesn’t matter at this length.' },
+    hairRead: { pattern: profile.currentStyle.hairType, density: 'n/a at this length', note: 'Texture doesn\u2019t matter at this length.' },
     zones: [
       zone('top'), zone('sides'), zone('back'),
       { zone: 'edges', label: ZONE_LABELS.edges, move: bald ? 'Razor the hairline edges clean.' : 'Crisp line-up, square or natural — your call.', technique: 'line-up', spec: bald ? 'razor clean' : 'line-up', confidence: 0.92 },
@@ -523,14 +522,14 @@ export function buildMaintenanceOrder(ctx: OrderComputedContext, profile: UserHe
         : { ...z, move: `Same length — just reshape and tidy. ${z.spec}.`, confidence: Math.max(z.confidence, 0.85) },
     ),
     askFor: `Same cut, just tighten it up — clean the edges and the ${ctx.taperRead}, same lengths everywhere.`,
-    maintenance: 'You’re in the maintenance window — every 3–4 weeks keeps it like this.',
+    maintenance: 'You\u2019re in the maintenance window — every 3–4 weeks keeps it like this.',
   };
 }
 
 // ── Plaintext formatter (clipboard / fallback rendering) ────────────
 export function formatBarberOrderText(order: BarberOrder, ticketNo: string): string {
   const lines: string[] = [
-    'SHAPE UP — BARBER’S ORDER',
+    'SHAPE UP — BARBER\u2019S ORDER',
     `ticket ${ticketNo}`,
     '',
     `THE CUT: ${order.styleName}`,
@@ -561,12 +560,12 @@ export function formatBarberOrderText(order: BarberOrder, ticketNo: string): str
     for (const g of order.growOutPlan) {
       lines.push(
         `  ${g.zone}: target ${g.targetSpec}` +
-        (g.inchesNeeded !== null ? ` — ~${g.inchesNeeded}″ to go (≈${g.weeksEstimate} wks)` : ' — leave it growing'),
+        (g.inchesNeeded !== null ? ` — ~${g.inchesNeeded}\u2033 to go (\u2248${g.weeksEstimate} wks)` : ' — leave it growing'),
       );
     }
   }
   lines.push('');
-  lines.push('SAY THIS IN THE CHAIR:');
+  lines.push(`SAY THIS IN THE CHAIR:`);
   lines.push(`"${order.askFor}"`);
   lines.push('');
   lines.push(`MAINTENANCE: ${order.maintenance}`);

@@ -14,7 +14,8 @@ import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { BarberMascot, InlineWordmark, BouncyButton } from '@/components/AppUI';
+import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
+import { useSearchParams } from 'next/navigation';
 
 const HairScene = dynamic(() => import('@/components/HairScene'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
@@ -124,10 +125,26 @@ export default function StudioPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as Id<'projects'>;
 
   const saveProject = useMutation(api.projects.save);
   const project = useQuery(api.projects.get, { projectId });
+  const userQuery = useQuery(api.users.getMe);
+  const isAllowlisted = useQuery(api.users.isAllowlisted) ?? false;
+  const [paywallDisabled, setPaywallDisabled] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(d => setPaywallDisabled(d.paywallDisabled ?? false)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get('payment') === 'success') {
+      setPaymentSuccess(true);
+      router.replace(`/studio/${projectId}`);
+    }
+  }, [searchParams, projectId, router]);
 
   const [initialized, setInitialized] = useState(false);
   const [profile, setProfile] = useState<UserHeadProfile | null>(null);
@@ -420,7 +437,25 @@ export default function StudioPage() {
       {!menuHidden && (
         <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden sidebar-in">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+              {!paywallDisabled && !isAllowlisted && (
+                <span
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10px]"
+                  style={{
+                    background: (userQuery?.credits ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
+                    border: (userQuery?.credits ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
+                    color: (userQuery?.credits ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
+                    transition: 'background 0.3s, border-color 0.3s',
+                  }}
+                >
+                  ✦ <ClockCounter value={userQuery?.credits ?? 0} />
+                </span>
+              )}
+              {paymentSuccess && (
+                <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <BouncyButton onClick={() => setShowRecommendations(true)} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</BouncyButton>
               <BouncyButton onClick={() => router.push('/dashboard')} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✂ Home</BouncyButton>
@@ -433,6 +468,10 @@ export default function StudioPage() {
               sessionId={sessionId}
               latestImageUrl={imageUrl}
               onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
+              userCredits={userQuery?.credits}
+              paywallDisabled={paywallDisabled}
+              isAllowlisted={isAllowlisted}
+              projectId={projectId}
               onPlyReady={(url) => {
                 if (url.startsWith('/')) { setEditSplatSrc(url); }
                 else { setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`); }
