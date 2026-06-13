@@ -4,8 +4,15 @@
 
 @font-face {
   font-family: 'Montserrat';
-  src: url('/Montserrat-VariableFont_wght.ttf') format('truetype');
+  src: url('/fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
   font-weight: 100 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Hinato';
+  src: url('/fonts/Hinato.otf') format('opentype');
+  font-weight: 700;
   font-style: normal;
 }
 
@@ -355,6 +362,7 @@ body {
   box-shadow: 0 10px 36px rgba(217,78,58,0.55), inset 0 -2px 0 rgba(0,0,0,0.1);
 }
 .btn-tomato:active:not(:disabled) { transform: translateY(0); }
+.btn-tomato.btn-lift-half:hover:not(:disabled) { transform: translateY(-1.5px) scale(1.03); }
 
 .btn-denim {
   background: var(--denim);
@@ -525,6 +533,14 @@ body {
 @keyframes tokens-shimmer {
   0%    { transform: translateX(-120%); }
   35%, 100% { transform: translateX(260%); }
+}
+@keyframes clock-digit-out {
+  0%   { transform: translateY(0);    opacity: 1; }
+  100% { transform: translateY(-115%); opacity: 0; }
+}
+@keyframes clock-digit-in {
+  0%   { transform: translateY(115%); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
 }
 .btn-tokens-cta:hover:not(:disabled) {
   background: linear-gradient(160deg, #ef8068 0%, #e05540 100%);
@@ -783,6 +799,24 @@ input[type="range"].slider-warm::-moz-range-thumb {
   transform: translateY(-5px) rotate(var(--card-wonk, 0deg));
   border-color: rgba(217,78,58,0.5);
   box-shadow: 0 20px 44px -18px rgba(42,32,26,0.25);
+}
+
+/* ── Value-props card hover (dark bg, green/blue accent) ──── */
+.value-card {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  height: 100%;
+  border: 1.5px solid rgb(156,163,175);
+  transition:
+    transform 280ms cubic-bezier(.2,.85,.2,1),
+    border-color 200ms ease,
+    box-shadow 280ms ease;
+}
+.value-card:hover {
+  transform: translateY(-5px) rotate(var(--card-wonk, 0deg));
+  border-color: rgba(74, 222, 128, 0.75);
+  box-shadow: 0 20px 44px -18px rgba(0,0,0,0.45);
 }
 
 /* ── How-it-works step card hover ────────────────────────── */
@@ -1119,9 +1153,9 @@ input[type="range"].slider-warm::-moz-range-thumb {
 /* ── Button bounce ───────────────────────────────────────── */
 @keyframes btn-bounce {
   0%   { transform: scale(1); }
-  35%  { transform: scale(0.97); }
-  65%  { transform: scale(1.024); }
-  80%  { transform: scale(0.997); }
+  35%  { transform: scale(0.986); }
+  65%  { transform: scale(1.011); }
+  80%  { transform: scale(0.999); }
   100% { transform: scale(1); }
 }
 .btn-bouncing { animation: btn-bounce 380ms cubic-bezier(.34,1.56,.64,1) both; }
@@ -1873,7 +1907,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
           mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
 }
 .explore-marquee-track {
-  display: inline-flex;
+  display: flex;
+  width: max-content;
   white-space: nowrap;
   font-size: 10px; font-weight: 700;
   letter-spacing: 0.26em;
@@ -1966,7 +2001,6 @@ input[type="range"].slider-warm::-moz-range-thumb {
   position: absolute; inset: 0;
   background: var(--chalk);
   pointer-events: none;
-  transition: opacity 160ms ease-out;
 }
 
 /* polaroid develop — captured frame fades in from over-exposed sepia */
@@ -2007,15 +2041,16 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background: rgba(20, 14, 10, 0.7);
 }
 
-.lsc-caption-row {
-  display: flex; align-items: center; gap: 16px;
-}
 .lsc-caption {
-  flex: 1; margin: 0;
+  margin: 0;
   font-style: italic; font-weight: 500;
   font-size: 17px;
+  text-align: center;
   color: rgba(255, 248, 234, 0.8);
   animation: lsc-caption-in 260ms ease both;
+}
+.lsc-shutter-row {
+  display: flex; justify-content: center;
 }
 @keyframes lsc-caption-in {
   from { opacity: 0; transform: translateY(5px); }
@@ -2163,8 +2198,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 
 @keyframes face-bounce {
   0%   { transform: scale(1); }
-  35%  { transform: scale(1.055); }
-  65%  { transform: scale(0.972); }
+  35%  { transform: scale(1.017); }
+  65%  { transform: scale(0.992); }
   100% { transform: scale(1); }
 }
 

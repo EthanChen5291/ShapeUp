@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   });
   if (rateLimited) return rateLimited;
 
-  let body: { profile?: unknown; params?: unknown; imageUrl?: unknown };
+  let body: { profile?: unknown; params?: unknown; imageUrl?: unknown; styleContext?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -110,6 +110,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { profile, params } = body;
+  const styleContext = Array.isArray(body.styleContext)
+    ? (body.styleContext as unknown[]).filter((s): s is string => typeof s === 'string').slice(0, 8)
+    : [];
   if (!profile || !params) {
     return NextResponse.json({ ok: false, error: 'Missing profile or params' }, { status: 400 });
   }
@@ -142,6 +145,7 @@ STYLE_CONTEXT:
 - edges/taper read: ${ctx.taperRead}
 - finish read: ${ctx.finishRead}
 - measurement source: ${ctx.source}
+${styleContext.length > 0 ? styleContext.map(s => `- ${s}`).join('\n') : ''}
 
 ${imageUrl ? 'The attached photo is the TARGET render the client chose. Read curl pattern, density and hairline from it.' : 'No photo available — base the hair read on the declared hair type and say so in the note.'}
 

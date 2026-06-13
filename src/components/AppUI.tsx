@@ -2,6 +2,41 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+export function ClockCounter({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
+  const [current, setCurrent] = useState(value);
+  const [prev, setPrev] = useState<number | null>(null);
+  const [animKey, setAnimKey] = useState(0);
+  const currentRef = useRef(value);
+
+  useEffect(() => {
+    if (value === currentRef.current) return;
+    const old = currentRef.current;
+    currentRef.current = value;
+    setPrev(old);
+    setCurrent(value);
+    setAnimKey(k => k + 1);
+    const t = setTimeout(() => setPrev(null), 340);
+    return () => clearTimeout(t);
+  }, [value]);
+
+  return (
+    <span className={className} style={{ position: 'relative', display: 'inline-block', overflow: 'hidden', verticalAlign: 'baseline', ...style }}>
+      {prev !== null && (
+        <span
+          key={`out-${animKey}`}
+          aria-hidden
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, pointerEvents: 'none', animation: 'clock-digit-out 300ms cubic-bezier(0.4,0,0.6,1) forwards' }}
+        >
+          {prev}
+        </span>
+      )}
+      <span key={`in-${animKey}`} style={{ display: 'block', animation: prev !== null ? 'clock-digit-in 300ms cubic-bezier(0.2,0,0.4,1) forwards' : undefined }}>
+        {current}
+      </span>
+    </span>
+  );
+}
+
 export function BarberMascot({ snap = false, size = 'full', isStatic = false, color = '#2a201a' }: { snap?: boolean; size?: 'full' | 'sm'; isStatic?: boolean; color?: string }) {
   const bladeClass = isStatic ? '' : snap ? 'scissor-snap-left' : 'scissor-blade-left';
   const bladeClassR = isStatic ? '' : snap ? 'scissor-snap-right' : 'scissor-blade-right';

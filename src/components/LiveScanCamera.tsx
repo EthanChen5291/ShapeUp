@@ -21,7 +21,7 @@
        pipeline goes (the part that returns profile/sessionId/url).
    ════════════════════════════════════════════════════════════════ */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { UserHeadProfile } from '@/types';
 
 /* ── Check model ─────────────────────────────────────────────── */
@@ -77,6 +77,106 @@ export interface LiveScanCameraProps {
   }>;
 }
 
+/* ── Upload an Image hover button ───────────────────────────── */
+function UploadImageButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  const [hovered, setHovered] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+
+  useLayoutEffect(() => {
+    if (!btnRef.current) return;
+    const update = () => {
+      if (!btnRef.current) return;
+      const r = btnRef.current.getBoundingClientRect();
+      setDims({ w: r.width, h: r.height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(btnRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const BR = 8;
+  const TRACE_INSET = 2;
+  const STROKE_W = 1.5;
+  const rx = Math.max(2, BR - TRACE_INSET);
+  const rw = Math.max(0, dims.w - TRACE_INSET * 2);
+  const rh = Math.max(0, dims.h - TRACE_INSET * 2);
+  const perimeter = dims.w > 0
+    ? 2 * ((rw - 2 * rx) + (rh - 2 * rx)) + 2 * Math.PI * rx
+    : 0;
+
+  const isHov = hovered && !disabled;
+
+  return (
+    <button
+      ref={btnRef}
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        background: 'none',
+        border: 'none',
+        borderRadius: BR,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        padding: '7px 12px',
+        fontFamily: 'var(--font-fraunces), Georgia, serif',
+        fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
+        fontWeight: 700,
+        fontSize: 15,
+        letterSpacing: '-0.01em',
+        color: isHov ? 'var(--char)' : 'rgba(255,248,234,0.85)',
+        opacity: disabled ? 0.38 : 1,
+        transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1), color 200ms ease',
+        transform: isHov ? 'scale(1.06)' : 'scale(1)',
+        marginTop: 4,
+      }}
+    >
+      {/* Amber fill — grows from center on hover */}
+      <span aria-hidden style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(255,232,170,0.93)',
+        clipPath: isHov ? `inset(0% round ${BR}px)` : `inset(50% round ${rx}px)`,
+        transition: 'clip-path 560ms cubic-bezier(0.16,1,0.3,1)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      {/* White SVG trace — draws around border on hover */}
+      {perimeter > 0 && (
+        <svg
+          aria-hidden
+          viewBox={`0 0 ${dims.w} ${dims.h}`}
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            pointerEvents: 'none', zIndex: 1,
+            filter: isHov ? 'drop-shadow(0 0 4px rgba(255,255,255,0.5))' : undefined,
+            transition: 'filter 200ms ease',
+          }}
+        >
+          <rect
+            x={TRACE_INSET} y={TRACE_INSET}
+            width={rw} height={rh}
+            rx={rx} ry={rx}
+            fill="none"
+            stroke="rgba(255,255,255,0.88)"
+            strokeWidth={STROKE_W}
+            strokeDasharray={perimeter}
+            strokeDashoffset={isHov ? 0 : perimeter}
+            style={{ transition: `stroke-dashoffset ${isHov ? '680ms' : '140ms'} cubic-bezier(0.16,1,0.3,1)` }}
+          />
+        </svg>
+      )}
+
+      <span style={{ position: 'relative', zIndex: 2 }}>Upload an Image</span>
+    </button>
+  );
+}
+
 export default function LiveScanCamera({
   onScanComplete,
   onDataUrlReady,
@@ -86,6 +186,7 @@ export default function LiveScanCamera({
   const videoRef    = useRef<HTMLVideoElement>(null);
   const lumaCanvas  = useRef<HTMLCanvasElement | null>(null);
   const shotCanvas  = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const rafRef      = useRef<number>(0);
   const engineRef   = useRef<Engine>('manual');
   const landmarkerRef = useRef<{ detectForVideo: (v: HTMLVideoElement, t: number) => { faceLandmarks: Array<Array<{ x: number; y: number; z: number }>> } } | null>(null);
@@ -179,7 +280,7 @@ export default function LiveScanCamera({
   /* ── Per-frame observation ──────────────────────────────────── */
   const observe = useCallback(async (now: number): Promise<FaceObservation | null> => {
     const v = videoRef.current;
-    if (!v || v.readyState < 2) return null;
+    if (!v || v.readyState < 2 || v.paused || !v.videoWidth || !v.videoHeight) return null;
     const eng = engineRef.current;
 
     if (eng === 'mediapipe' && landmarkerRef.current) {
@@ -348,8 +449,12 @@ export default function LiveScanCamera({
     c.width = side; c.height = side;
     const ctx = c.getContext('2d');
     if (!ctx) return;
-    /* center-crop square, unmirrored (the file should match reality) */
+    /* center-crop square, mirrored to match the preview the user saw */
+    ctx.save();
+    ctx.translate(side, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, side, side);
+    ctx.restore();
     const dataUrl = c.toDataURL('image/jpeg', 0.92);
     onDataUrlReady?.(dataUrl);
     setShot(dataUrl);
@@ -376,6 +481,46 @@ export default function LiveScanCamera({
     fireShutter();
   };
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (capturedRef.current) return;
+    capturedRef.current = true;
+
+    cancelCountdown();
+
+    try {
+      const bitmap = await createImageBitmap(file);
+      const side = Math.min(bitmap.width, bitmap.height);
+      if (!shotCanvas.current) shotCanvas.current = document.createElement('canvas');
+      const c = shotCanvas.current;
+      c.width = side; c.height = side;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, side, side);
+      bitmap.close();
+      const dataUrl = c.toDataURL('image/jpeg', 0.92);
+      onDataUrlReady?.(dataUrl);
+      setShot(dataUrl);
+
+      setTimeout(async () => {
+        setUploading(true);
+        try {
+          if (processCapture) {
+            const { profile, sessionId, url } = await processCapture(dataUrl);
+            onScanComplete(profile, sessionId, url);
+          } else {
+            onScanComplete({} as UserHeadProfile, null, dataUrl);
+          }
+        } finally {
+          setUploading(false);
+        }
+      }, 950);
+    } catch {
+      capturedRef.current = false;
+    }
+  };
+
   /* ── Oval guide state → color ───────────────────────────────── */
   const detecting = engine === 'mediapipe' || engine === 'native';
   const anyFail = CHECK_ORDER.some(k => checks[k] === 'fail');
@@ -397,6 +542,13 @@ export default function LiveScanCamera({
   /* ════════════════════ RENDER ════════════════════ */
   return (
     <div className="lsc-root">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleUpload}
+      />
       {/* ── viewfinder ── */}
       <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
         <video ref={videoRef} playsInline muted className="lsc-video" />
@@ -424,7 +576,7 @@ export default function LiveScanCamera({
         )}
 
         {/* shutter flash */}
-        <div className="lsc-flash" style={{ opacity: flash ? 1 : 0 }} aria-hidden />
+        <div className="lsc-flash" style={{ opacity: flash ? 1 : 0, transition: flash ? 'none' : 'opacity 160ms ease-out' }} aria-hidden />
 
         {/* developed shot — polaroid develop over the live feed */}
         {shot && (
@@ -446,8 +598,8 @@ export default function LiveScanCamera({
       </div>
 
       {/* ── caption + shutter ── */}
-      <div className="lsc-caption-row">
-        <p className="lsc-caption font-display" key={coachLine}>{coachLine}</p>
+      <p className="lsc-caption font-display" key={coachLine}>{coachLine}</p>
+      <div className="lsc-shutter-row">
         <button
           type="button"
           onClick={handleManualShutter}
@@ -461,6 +613,13 @@ export default function LiveScanCamera({
 
       {uploading && (
         <p className="font-mono lsc-uploading">developing…</p>
+      )}
+
+      {!shot && !uploading && (
+        <UploadImageButton
+          onClick={() => fileInputRef.current?.click()}
+          disabled={engine === 'booting'}
+        />
       )}
     </div>
   );

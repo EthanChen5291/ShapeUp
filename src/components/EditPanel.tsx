@@ -6,10 +6,15 @@
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
-import { BarberOrder } from '@/lib/barberOrder';
+import { BarberOrder, computeZoneDeltas } from '@/lib/barberOrder';
+import { analyzeOrderFeasibility } from '@/lib/orderFeasibility';
+import { buildClarifyQuestions, answersToStyleContext, ClarifyQuestion } from '@/lib/orderClarify';
+import { EditReport, sanitizeEditReport } from '@/lib/editReport';
+import { ClarifyPanel } from '@/components/ClarifyPanel';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberOrderReceipt from '@/components/BarberOrderReceipt';
+import { PricingPopup } from '@/components/PricingPopup';
 
 
 interface EditPanelProps {
@@ -20,6 +25,10 @@ interface EditPanelProps {
   onImageUpdated: (newUrl: string) => void;
   onPlyReady: (plyUrl: string) => void;
   onUncertain?: () => void;
+  userCredits?: number;
+  paywallDisabled?: boolean;
+  isAllowlisted?: boolean;
+  projectId?: string;
 }
 
 const UNCERTAIN_PATTERNS = [
@@ -106,11 +115,12 @@ interface OrderResult {
   text: string;
 }
 
-export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain }: EditPanelProps) {
+export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
+  const [showPricing, setShowPricing] = useState(false);
   const processingRef = useRef(false);
   const pipelineHadErrorRef = useRef(false);
   const originalImageUrlRef = useRef<string | null>(null);
@@ -122,6 +132,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [lastEditReport, setLastEditReport] = useState<EditReport | null>(null);
+  const [clarifyState, setClarifyState] = useState<{
+    questions: ClarifyQuestion[];
+    answers:   Record<string, string>;
+  } | null>(null);
 
   // Trending-cut suggestion chips, paged by the refresh button
   const [chipPool] = useState(() => shuffle(TRENDING_CUTS));
@@ -148,6 +163,13 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
     if (!submittedPrompt.trim()) return;
+
+    // Gate behind paywall if out of credits
+    if (!paywallDisabled && !isAllowlisted && typeof userCredits === 'number' && userCredits <= 0) {
+      setShowPricing(true);
+      return;
+    }
+
     if (onUncertain && UNCERTAIN_PATTERNS.some(p => p.test(submittedPrompt))) {
       onUncertain();
     }
@@ -159,6 +181,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     processingRef.current = true;
     pipelineHadErrorRef.current = false;
     setPipelineError(null);
+    setClarifyState(null);
     setPhase('gemini');
 
     // Always edit from the original selfie to prevent facial drift across iterations.
@@ -183,7 +206,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       console.log('[EditPanel] gemini-hair-edit HTTP status:', geminiRes.status);
       const geminiRaw = await geminiRes.text();
       console.log('[EditPanel] gemini-hair-edit raw response:', geminiRaw.slice(0, 300));
-      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string };
+      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string; editReport?: unknown };
       try { geminiData = JSON.parse(geminiRaw); }
       catch {
         pipelineHadErrorRef.current = true;
@@ -199,26 +222,17 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       }
       const newImageUrl = geminiData.newImageUrl;
       onImageUpdated(newImageUrl);
+      setLastEditReport(sanitizeEditReport(geminiData.editReport ?? null));
       setLiveStatus('Updated hairstyle image generated. Starting 3D render.');
       setPrompt('');
 
       setPhase('hairstep');
 
-      // Convert Gemini-edited image URL → data URL for facelift
-      const editImgRes = await fetch(newImageUrl);
-      const editBlob   = await editImgRes.blob();
-      const editDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(editBlob);
-      });
-
-      // Submit to facelift and wait for synchronous result
+      // newImageUrl is already a data:image/png;base64,… URL — pass directly to facelift.
       const faceliftRes = await fetch('/api/facelift', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imageDataUrl: editDataUrl, outputName: 'edit-output' }),
+        body:    JSON.stringify({ imageDataUrl: newImageUrl, outputName: 'edit-output' }),
       });
       const faceliftRaw = await faceliftRes.text();
       let faceliftData: { splatUrl?: string; error?: string };
@@ -229,6 +243,10 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         return;
       }
       if (!faceliftData.splatUrl) {
+        if (faceliftRes.status === 402) {
+          setShowPricing(true);
+          return;
+        }
         pipelineHadErrorRef.current = true;
         setPipelineError('Facelift failed: ' + (faceliftData.error ?? 'unknown'));
         return;
@@ -236,6 +254,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
       onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`);
       setLiveStatus('3D hairstyle render is ready. Fresh cut.');
+    } catch (err) {
+      if (!pipelineHadErrorRef.current) {
+        pipelineHadErrorRef.current = true;
+        setPipelineError('Unexpected error: ' + (err instanceof Error ? err.message : String(err)));
+      }
     } finally {
       // Cancel intervals immediately — don't wait for the useEffect round-trip
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
@@ -249,10 +272,26 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const orderCacheKey = () =>
     `${ORDER_CACHE_PREFIX}${djb2(JSON.stringify(currentParams))}:${djb2(latestImageUrl ?? 'noimg')}`;
 
-  const handleGetOrder = async (force = false) => {
+  const handleGetOrder = async (force = false, styleContext?: string[]) => {
+    // Clarify gate — generate questions client-side before the first API call.
+    // Skip when force-reprinting or when styleContext is already resolved.
+    if (!force && styleContext === undefined) {
+      const workingProfile = { ...profile, currentStyle: { ...profile.currentStyle, params: currentParams } };
+      const ctx  = computeZoneDeltas(workingProfile);
+      const feas = analyzeOrderFeasibility(ctx, workingProfile, lastEditReport ? { editReport: lastEditReport } : undefined);
+      const questions = buildClarifyQuestions(ctx, feas, workingProfile);
+      if (questions.length > 0) {
+        const defaults: Record<string, string> = {};
+        for (const q of questions) defaults[q.id] = q.defaultValue;
+        setClarifyState({ questions, answers: defaults });
+        return;
+      }
+    }
+
     const cacheKey = orderCacheKey();
 
-    if (!force) {
+    // Only use the cache when no custom answers were provided.
+    if (!force && styleContext === undefined) {
       try {
         const hit = localStorage.getItem(cacheKey);
         if (hit) {
@@ -280,6 +319,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           }),
           params: currentParams,
           imageUrl: latestImageUrl ?? undefined,
+          styleContext: styleContext ?? [],
         }),
       });
       const data = await res.json();
@@ -307,6 +347,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       setOrderLoading(false);
     }
   };
+
+  const handleClarifyConfirm = useCallback(() => {
+    if (!clarifyState) return;
+    const styleCtx = answersToStyleContext(clarifyState.questions, clarifyState.answers);
+    setClarifyState(null);
+    handleGetOrder(false, styleCtx);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clarifyState]);
 
   const isBusy = phase !== 'idle';
 
@@ -374,6 +422,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   }, [phase]);
 
   return (
+    <>
     <aside className="relative flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }} aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
@@ -570,7 +619,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">take it to your barber</span>
-          {orderResult && !orderLoading && (
+          {orderResult && !orderLoading && !clarifyState && (
             <button
               onClick={() => handleGetOrder(true)}
               aria-label="Write a fresh order for the latest cut"
@@ -581,7 +630,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           )}
         </div>
 
-        {!orderResult && !orderLoading && (
+        {!orderResult && !orderLoading && !clarifyState && (
           <button
             onClick={() => handleGetOrder()}
             aria-label="Write up the exact instructions to show your barber"
@@ -592,6 +641,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             <span className="btn-cta-order-sheen" aria-hidden />
           </button>
         )}
+
 
         {orderLoading && (
           <div className="receipt-stub" role="status" aria-label="Printing barber order">
@@ -618,5 +668,27 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       </div>
 
     </aside>
+
+    {showPricing && (
+      <PricingPopup
+        onDismiss={() => setShowPricing(false)}
+        returnUrl={projectId ? `/studio/${projectId}` : undefined}
+      />
+    )}
+
+    {/* Rendered outside the aside so position:fixed escapes overflow-hidden cleanly */}
+    {clarifyState && !orderLoading && (
+      <ClarifyPanel
+        questions={clarifyState.questions}
+        answers={clarifyState.answers}
+        onAnswer={(id, val) =>
+          setClarifyState(prev =>
+            prev ? { ...prev, answers: { ...prev.answers, [id]: val } } : null
+          )
+        }
+        onConfirm={handleClarifyConfirm}
+      />
+    )}
+  </>
   );
 }

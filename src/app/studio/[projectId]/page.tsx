@@ -14,7 +14,9 @@ import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { BarberMascot, InlineWordmark, BouncyButton } from '@/components/AppUI';
+import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
+import { useSearchParams } from 'next/navigation';
+import { useNavLoading } from '@/components/NavLoadingOverlay';
 
 const HairScene = dynamic(() => import('@/components/HairScene'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
@@ -124,12 +126,26 @@ export default function StudioPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as Id<'projects'>;
 
   const saveProject = useMutation(api.projects.save);
-  const generateThumbnailUploadUrl = useMutation(api.projects.generateThumbnailUploadUrl);
-  const saveThumbnail = useMutation(api.projects.saveThumbnail);
   const project = useQuery(api.projects.get, { projectId });
+  const userQuery = useQuery(api.users.getMe);
+  const isAllowlisted = useQuery(api.users.isAllowlisted) ?? false;
+  const [paywallDisabled, setPaywallDisabled] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(d => setPaywallDisabled(d.paywallDisabled ?? false)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get('payment') === 'success') {
+      setPaymentSuccess(true);
+      router.replace(`/studio/${projectId}`);
+    }
+  }, [searchParams, projectId, router]);
 
   const [initialized, setInitialized] = useState(false);
   const [profile, setProfile] = useState<UserHeadProfile | null>(null);
@@ -147,6 +163,14 @@ export default function StudioPage() {
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
+
+  const sceneControlsEnabled = process.env.NEXT_PUBLIC_SCENE_CONTROLS !== '0';
+  const { stopLoading } = useNavLoading();
+
+  // Clear global nav loading overlay once project data arrives from Convex
+  useEffect(() => {
+    if (project !== undefined) stopLoading();
+  }, [project, stopLoading]);
 
   // Redirect if signed out
   useEffect(() => {
@@ -167,7 +191,14 @@ export default function StudioPage() {
     setInitialized(true);
     if (project.lastProfile) setProfile(project.lastProfile as UserHeadProfile);
     if (project.lastHairParams) setHairParams(project.lastHairParams as HairParams);
-    if (project.lastImageUrl) setImageUrl(project.lastImageUrl);
+    const imageS3Key = (project as { lastImageS3Key?: string }).lastImageS3Key;
+    if (imageS3Key) {
+      // Prefer a freshly-generated URL from the permanent S3 key over the stored
+      // presigned URL, which may have expired (presigned URLs last 7 days).
+      setImageUrl(`/api/img?key=${encodeURIComponent(imageS3Key)}`);
+    } else if (project.lastImageUrl) {
+      setImageUrl(project.lastImageUrl);
+    }
     const savedSplat = (project as { lastSplatUrl?: string }).lastSplatUrl;
     if (savedSplat) setPersistedSplatUrl(savedSplat);
   }, [project, initialized]);
@@ -193,10 +224,14 @@ export default function StudioPage() {
     if (!projectId || !imageUrl) return;
     const t = setInterval(async () => {
       try {
+        const profileToSave = profile ? {
+          ...profile,
+          faceScanData: profile.faceScanData ? { ...profile.faceScanData, imageDataUrl: undefined } : profile.faceScanData,
+        } : undefined;
         await saveProject({
           projectId,
           lastHairParams: hairParams,
-          lastProfile: profile ?? undefined,
+          lastProfile: profileToSave,
           lastImageUrl: imageUrl,
         });
       } catch { /* silent */ }
@@ -236,15 +271,14 @@ export default function StudioPage() {
     if (!projectId) return;
     try {
       const blob = await fetch(dataUrl).then(r => r.blob());
-      const uploadUrl = await generateThumbnailUploadUrl();
-      const { storageId } = await fetch(uploadUrl, {
+      const { key } = await fetch('/api/upload-thumbnail', {
         method: 'POST',
-        headers: { 'Content-Type': 'image/png' },
+        headers: { 'Content-Type': 'image/jpeg' },
         body: blob,
       }).then(r => r.json());
-      await saveThumbnail({ projectId, storageId });
+      await saveProject({ projectId, thumbnailS3Key: key });
     } catch { /* non-fatal */ }
-  }, [projectId, generateThumbnailUploadUrl, saveThumbnail]);
+  }, [projectId, saveProject]);
 
   // Show project-not-found state
   if (project === null) {
@@ -275,10 +309,10 @@ export default function StudioPage() {
           <button
             onClick={() => router.push('/dashboard')}
             aria-label="Back to dashboard"
-            className="btn-ink"
-            style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="btn-tomato"
+            style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
             </svg>
           </button>
@@ -331,13 +365,7 @@ export default function StudioPage() {
 
   // ── Loading placeholder while project data loads ──
   if (!imageUrl && project === undefined) {
-    return (
-      <main className="fixed inset-0 flex items-center justify-center bg-tomato-shop">
-        <div style={{ width: 48, opacity: 0.5, transform: 'rotate(186deg)' }}>
-          <BarberMascot isStatic color="rgba(245,241,234,0.6)" />
-        </div>
-      </main>
-    );
+    return <main className="fixed inset-0 bg-tomato-shop" />;
   }
 
   // ── 3D Studio ──
@@ -395,6 +423,7 @@ export default function StudioPage() {
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             splatSrcOverride={editSplatSrc ?? effectiveSplatUrl ?? undefined}
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
+            disableKeyboardControls={!sceneControlsEnabled}
             background={sceneBackground}
             uiHidden={menuHidden}
             captureKey={thumbnailCaptureKey}
@@ -404,10 +433,12 @@ export default function StudioPage() {
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
             <div className="flex items-center gap-2">
-              {['#001f5b', '#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
+              {sceneControlsEnabled && ['#001f5b', '#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
                 <button key={c} onClick={() => setSceneBackground(c)} style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', background: c, border: sceneBackground === c ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }} />
               ))}
-              <input type="color" value={sceneBackground} onChange={e => setSceneBackground(e.target.value)} title="Custom background" style={{ width: 16, height: 16, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 3, background: 'none', flexShrink: 0 }} />
+              {sceneControlsEnabled && (
+                <input type="color" value={sceneBackground} onChange={e => setSceneBackground(e.target.value)} title="Custom background" style={{ width: 16, height: 16, padding: 0, border: 'none', cursor: 'pointer', borderRadius: 3, background: 'none', flexShrink: 0 }} />
+              )}
               <button onClick={() => setMenuHidden(v => !v)} className="font-mono text-[9px] uppercase tracking-[0.18em] hover:text-[var(--cream)]" style={{ color: 'rgba(255,248,234,0.55)', background: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '3px 8px' }}>
                 {menuHidden ? 'show ui' : 'hide ui'}
               </button>
@@ -417,9 +448,25 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden sidebar-in">
+        <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden sidebar-in" style={{ zIndex: 50 }}>
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+            <div className="flex items-center gap-2">
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10px]"
+                style={{
+                  background: (userQuery?.credits ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
+                  border: (userQuery?.credits ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
+                  color: (userQuery?.credits ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
+                  transition: 'background 0.3s, border-color 0.3s',
+                }}
+              >
+                ✦ <ClockCounter value={userQuery?.credits ?? 0} />
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+              {paymentSuccess && (
+                <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <BouncyButton onClick={() => setShowRecommendations(true)} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</BouncyButton>
               <BouncyButton onClick={() => router.push('/dashboard')} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✂ Home</BouncyButton>
@@ -432,6 +479,10 @@ export default function StudioPage() {
               sessionId={sessionId}
               latestImageUrl={imageUrl}
               onImageUpdated={(url) => { setImageUrl(url); setPreviewExpanded(false); }}
+              userCredits={userQuery?.credits}
+              paywallDisabled={paywallDisabled}
+              isAllowlisted={isAllowlisted}
+              projectId={projectId}
               onPlyReady={(url) => {
                 if (url.startsWith('/')) { setEditSplatSrc(url); }
                 else { setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`); }

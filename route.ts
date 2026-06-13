@@ -54,21 +54,21 @@ const safetySettings = [
  */
 function slimGeometry(profile: unknown): string {
   if (!profile || typeof profile !== 'object') return 'unavailable';
-  const p = profile as Record<string, unknown>;
+  const p = profile as Record<string, any>;
   const safe = {
     hairMeasurements: p.hairMeasurements ?? null,
     snapshot: p.measurementSnapshot
       ? {
-          source: (p.measurementSnapshot as Record<string, unknown>).source,
-          baseline: (p.measurementSnapshot as Record<string, unknown>).baseline,
-          estimated: (p.measurementSnapshot as Record<string, unknown>).estimated,
+          source: p.measurementSnapshot.source,
+          baseline: p.measurementSnapshot.baseline,
+          estimated: p.measurementSnapshot.estimated,
         }
       : null,
     style: p.currentStyle
       ? {
-          preset: (p.currentStyle as Record<string, unknown>).preset,
-          hairType: (p.currentStyle as Record<string, unknown>).hairType,
-          params: (p.currentStyle as Record<string, unknown>).params,
+          preset: p.currentStyle.preset,
+          hairType: p.currentStyle.hairType,
+          params: p.currentStyle.params,
         }
       : null,
   };
@@ -177,18 +177,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Hostile-input scrub: the request is interpolated into our prompt.
-  const cleanPrompt = prompt.replace(/[ -]/g, ' ').replace(/\s+/g, ' ').trim();
+  const cleanPrompt = prompt.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // --- Fetch source image ---
   let base64Image: string;
   let mimeType = 'image/png';
   try {
-    // Relative paths (e.g. /api/img?key=…) must be made absolute for server-side fetch
-    const fetchUrl = imageUrl.startsWith('/')
-      ? `${new URL(req.url).origin}${imageUrl}`
-      : imageUrl;
     console.log('[gemini-hair-edit] fetching source image...');
-    const imageRes = await fetch(fetchUrl);
+    const imageRes = await fetch(imageUrl);
     console.log('[gemini-hair-edit] image fetch status:', imageRes.status, imageRes.statusText);
     const contentType = imageRes.headers.get('content-type') ?? 'image/png';
     console.log('[gemini-hair-edit] image content-type:', contentType);
@@ -250,16 +246,14 @@ export async function POST(req: NextRequest) {
 
     const parts = candidate.content?.parts ?? [];
     console.log('[gemini-hair-edit] parts count:', parts.length);
-    (parts as unknown[]).forEach((p, i) => {
-      const part = p as Record<string, unknown>;
-      if ('text' in part && part.text) {
-        console.log(`[gemini-hair-edit] part[${i}] type=TEXT value:`, (part.text as string).slice(0, 200));
-        reportText += part.text + '\n';
-      } else if ('inlineData' in part && part.inlineData) {
-        const id = part.inlineData as { mimeType: string; data: string };
-        console.log(`[gemini-hair-edit] part[${i}] type=IMAGE mimeType:`, id.mimeType, '| data length:', (id.data ?? '').length);
+    parts.forEach((p, i) => {
+      if ('text' in p && p.text) {
+        console.log(`[gemini-hair-edit] part[${i}] type=TEXT value:`, p.text.slice(0, 200));
+        reportText += p.text + '\n';
+      } else if ('inlineData' in p && p.inlineData) {
+        console.log(`[gemini-hair-edit] part[${i}] type=IMAGE mimeType:`, p.inlineData.mimeType, '| data length:', (p.inlineData.data ?? '').length);
       } else {
-        console.log(`[gemini-hair-edit] part[${i}] unknown shape:`, JSON.stringify(part).slice(0, 100));
+        console.log(`[gemini-hair-edit] part[${i}] unknown shape:`, JSON.stringify(p).slice(0, 100));
       }
     });
 

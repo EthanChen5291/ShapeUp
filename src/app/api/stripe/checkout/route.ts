@@ -16,12 +16,18 @@ export async function POST(request: Request) {
 
   const origin = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
 
-  const body = await request.json().catch(() => ({})) as { plan?: string };
+  const body = await request.json().catch(() => ({})) as { plan?: string; returnUrl?: string };
   const planId = body.plan && PLAN_CONFIG[body.plan] ? body.plan : 'popular';
   const config = PLAN_CONFIG[planId];
 
+  // Only allow relative paths to prevent open redirect
+  const returnPath = typeof body.returnUrl === 'string' && /^\/[a-zA-Z0-9/_\-?=&]*$/.test(body.returnUrl)
+    ? body.returnUrl
+    : '/dashboard';
+
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
+    allow_promotion_codes: true,
     line_items: [
       {
         price_data: {
@@ -41,8 +47,8 @@ export async function POST(request: Request) {
       plan: planId,
       credits: String(config.credits),
     },
-    success_url: `${origin}?payment=success`,
-    cancel_url:  `${origin}?payment=cancelled`,
+    success_url: `${origin}${returnPath}?payment=success`,
+    cancel_url:  `${origin}${returnPath}?payment=cancelled`,
   });
 
   return NextResponse.json({ url: session.url });

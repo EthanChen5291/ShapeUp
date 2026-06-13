@@ -118,7 +118,7 @@ app = modal.App(APP_NAME, image=image)
 
 @app.cls(
     gpu="L40S",
-    scaledown_window=300,
+    scaledown_window=45,
     # Hard cap on concurrent GPUs — bounds peak demo spend regardless of load.
     # The app-side monthly GPU-seconds guard (convex/gpuUsage.ts) bounds total.
     max_containers=2,

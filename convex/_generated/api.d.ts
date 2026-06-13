@@ -18,6 +18,7 @@ import type * as rateLimits from "../rateLimits.js";
 import type * as sessions from "../sessions.js";
 import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
+import type * as validators from "../validators.js";
 import type * as waitlist from "../waitlist.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   stripe: typeof stripe;
   users: typeof users;
+  validators: typeof validators;
   waitlist: typeof waitlist;
 }>;
 

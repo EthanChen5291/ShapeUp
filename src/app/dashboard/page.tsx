@@ -14,7 +14,10 @@ import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import dynamic from 'next/dynamic';
 import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
 import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
-import { BarberMascot, InlineWordmark, BouncyButton } from '@/components/AppUI';
+import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
+import SignUpWidget from '@/components/SignUpWidget';
+import { PricingPopup } from '@/components/PricingPopup';
+import { useNavLoading } from '@/components/NavLoadingOverlay';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
@@ -31,6 +34,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [displayCredits, setDisplayCredits] = useState<number | null>(null);
+  const [clockKey, setClockKey] = useState(0);
   const animatingRef = useRef(false);
 
   useEffect(() => {
@@ -55,15 +59,25 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   if (userQuery != null) stableUserRef.current = userQuery;
   const user = stableUserRef.current;
 
+  const startCreditsRef = useRef(0);
+
   useEffect(() => {
     if (!celebratePurchase) return;
+    const stored = sessionStorage.getItem('preCheckoutCredits');
+    sessionStorage.removeItem('preCheckoutCredits');
+    const start = stored !== null ? parseInt(stored, 10) : 0;
+    startCreditsRef.current = start;
     setTimeout(() => setOpen(true), 300);
     animatingRef.current = true;
-    setDisplayCredits(0);
+    // Remount ClockCounter at pre-purchase count (no animation), then count up
+    setClockKey(k => k + 1);
+    setDisplayCredits(start);
   }, [celebratePurchase]);
 
   useEffect(() => {
     if (!animatingRef.current || user?.credits == null) return;
+    const start = startCreditsRef.current;
+    if (user.credits <= start) return; // webhook not yet applied, wait
     animatingRef.current = false;
     const target = user.credits;
     const duration = 1400;
@@ -72,7 +86,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
     const interval = setInterval(() => {
       step++;
       const eased = 1 - Math.pow(1 - step / steps, 3);
-      setDisplayCredits(Math.round(eased * target));
+      setDisplayCredits(Math.round(start + eased * (target - start)));
       if (step >= steps) {
         clearInterval(interval);
         setDisplayCredits(target);
@@ -122,7 +136,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
           <button onClick={handleToggle} className="flex items-center gap-2 w-full" style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: 8, paddingRight: 15, height: 43 }}>
             <span className="avatar-initial">{initial}</span>
             <span className="font-sans text-[15px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-            <span className="pill-credits">✦ {displayCredits !== null ? displayCredits : (user?.credits ?? 0)}</span>
+            <span className="pill-credits">✦ <ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
             <svg width="12" height="12" viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -133,7 +147,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
                 <div className="tokens-widget">
                   <div className="tokens-widget__row">
                     <span className="tokens-widget__label">Tokens</span>
-                    <span className="tokens-widget__count">{displayCredits !== null ? displayCredits : (user?.credits ?? 0)}</span>
+                    <span className="tokens-widget__count"><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
                   </div>
                   <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full">
                     <span className="btn-tokens-cta__shimmer" />
@@ -206,8 +220,8 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
 
   return createPortal(
     <>
-      <div className="fixed inset-0" style={{ zIndex: 59, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
-      <div style={{ position: 'fixed', zIndex: 60, top: isOpen ? (vh - PANEL_H) / 2 : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? PANEL_H : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
+      <div className="fixed inset-0" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
+      <div style={{ position: 'fixed', zIndex: 10001, top: isOpen ? (vh - PANEL_H) / 2 : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? PANEL_H : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
         <div style={{ position: 'absolute', inset: 0, padding: '48px 52px 44px', display: 'flex', flexDirection: 'column', gap: 28, overflow: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
           <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 30 }}>Settings</h2>
@@ -236,127 +250,6 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   );
 }
 
-/* ─── Supercell-style starburst value badge ─── */
-function ValueBadge({ label = '2×', size = 56 }: { label?: string; size?: number }) {
-  const spikes = 12, cx = 50, cy = 50, outer = 49, inner = 39;
-  const points = Array.from({ length: spikes * 2 }, (_, i) => {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = (Math.PI / spikes) * i - Math.PI / 2;
-    return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
-  }).join(' ');
-  return (
-    <div style={{ position: 'absolute', top: -16, right: -14, width: size, height: size, zIndex: 6, pointerEvents: 'none', transform: 'rotate(12deg)', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.32))' }}>
-      <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-        <polygon points={points} fill="#e8316f" stroke="#ffffff" strokeWidth="3.5" strokeLinejoin="round" />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transform: 'rotate(-12deg)' }}>
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: size * 0.3, lineHeight: 1 }}>{label}</span>
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: size * 0.16, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>value</span>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Expanded Plan Card ─── */
-function ExpandedPlanCard({ plan, loading, onBuy, staggerDelay }: {
-  plan: { readonly id: string; readonly label: string; readonly price: string; readonly featured: boolean };
-  loading: string | null; onBuy: (id: string) => void; staggerDelay: number;
-}) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setReady(true), 16); return () => clearTimeout(t); }, []);
-  const springEase = 'cubic-bezier(0.34, 1.15, 0.64, 1)';
-  return (
-    <div style={{ position: 'relative', flex: '1 1 0', minWidth: 0, transform: ready ? 'scale(1)' : 'scale(0)', opacity: ready ? 1 : 0, transformOrigin: 'center', pointerEvents: ready ? 'auto' : 'none', transition: `transform 540ms ${springEase} ${staggerDelay}ms, opacity 300ms ease ${staggerDelay + 180}ms` }}>
-      {plan.featured && <ValueBadge />}
-      <BouncyButton onClick={() => onBuy(plan.id)} disabled={loading === plan.id} className={`rounded-2xl w-full ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)', padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div className="text-left">
-          <div className="font-sans font-semibold" style={{ fontSize: 15 }}>{plan.label}</div>
-          {plan.featured && <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>}
-        </div>
-        <div className="font-display italic" style={{ fontSize: 26, fontWeight: 700, marginTop: 16 }}>{loading === plan.id ? '…' : plan.price}</div>
-      </BouncyButton>
-    </div>
-  );
-}
-
-/* ─── Pricing Popup ─── */
-function PricingPopup({ onDismiss }: { onDismiss: () => void }) {
-  const [closing, setClosing] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [expandPhase, setExpandPhase] = useState<0 | 1 | 2>(0);
-  const dismiss = () => { setClosing(true); setTimeout(onDismiss, 320); };
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setExpandPhase(1), 480);
-    const t2 = setTimeout(() => setExpandPhase(2), 700);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
-
-  const PLANS = [
-    { id: 'starter', label: '8 haircut generations', price: '$1.99', featured: false },
-    { id: 'popular', label: '30 haircut generations', price: '$4.99', featured: true },
-    { id: 'lifetime', label: '100 haircut generations', price: '$14.99', featured: false },
-  ] as const;
-
-  const handleBuy = async (planId: string) => {
-    if (loading) return;
-    setLoading(planId);
-    try {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: planId }) });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
-    } finally { setLoading(null); }
-  };
-
-  const ease = 'cubic-bezier(0.4, 0, 0.2, 1)';
-  const dur = '620ms';
-  const containerExpanded = expandPhase >= 1;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
-      <div className={closing ? 'popup-out' : 'popup-in'}>
-        <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', width: containerExpanded ? 'min(80vw, 920px)' : 360, padding: containerExpanded ? '44px 48px 48px' : '44px 40px 40px', transition: `width ${dur} ${ease}, padding ${dur} ${ease}` }}>
-          <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <div style={{ width: 48, transform: 'rotate(186deg)' }}><BarberMascot /></div>
-          <div className="text-center">
-            <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: containerExpanded ? 30 : 26, transition: `font-size ${dur} ${ease}` }}>Top up your cuts</h2>
-            <p className="font-sans text-[var(--smoke)] mt-1" style={{ fontSize: containerExpanded ? 16 : 14, transition: `font-size ${dur} ${ease}` }}>Stack tokens and keep the fresh cuts coming.</p>
-          </div>
-          {expandPhase < 2 && (
-            <div className="flex flex-col gap-3 w-full" style={{ opacity: expandPhase === 0 ? 1 : 0, transition: 'opacity 200ms ease', pointerEvents: expandPhase === 0 ? 'auto' : 'none' }}>
-              {PLANS.map(plan => (
-                <div key={plan.id} style={{ position: 'relative' }}>
-                  {plan.featured && <ValueBadge />}
-                  <BouncyButton onClick={() => handleBuy(plan.id)} disabled={loading === plan.id} className={`w-full flex items-center justify-between rounded-2xl px-5 py-4 ${plan.featured ? 'btn-tomato' : 'btn-cream'}`} style={{ border: plan.featured ? 'none' : '1px solid rgba(42,32,26,0.12)' }}>
-                    <div className="text-left">
-                      <div className="font-sans font-semibold" style={{ fontSize: 14 }}>{plan.label}</div>
-                      {plan.featured && <div className="font-mono opacity-75 mt-0.5" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Most popular</div>}
-                    </div>
-                    <div className="font-display italic" style={{ fontSize: 22, fontWeight: 700 }}>{loading === plan.id ? '…' : plan.price}</div>
-                  </BouncyButton>
-                </div>
-              ))}
-            </div>
-          )}
-          {expandPhase === 2 && (
-            <div className="flex flex-row w-full" style={{ gap: 12 }}>
-              {PLANS.map((plan, i) => <ExpandedPlanCard key={plan.id} plan={plan} loading={loading} onBuy={handleBuy} staggerDelay={i * 90} />)}
-            </div>
-          )}
-          <div style={{ width: '100%', overflow: 'hidden', maxHeight: containerExpanded ? 320 : 0, opacity: containerExpanded ? 1 : 0, borderRadius: 16, transition: `max-height 700ms ${ease} 150ms, opacity 500ms ${ease} 300ms` }}>
-            <div style={{ height: 288, position: 'relative', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: 16, overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.10)', zIndex: 0 }} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/3face.png" alt="" style={{ position: 'absolute', top: '50%', left: 32, transform: 'translateY(-50%)', height: '173%', width: 'auto', opacity: 0.4, zIndex: 1 }} />
-              <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1, fontFamily: 'Montserrat, sans-serif', color: '#ffffff', fontSize: 104, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em', whiteSpace: 'nowrap' }}>Level Up Now.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Scan Now Popup ─── */
 function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss: () => void }) {
   const [show, setShow] = useState(false);
@@ -364,7 +257,7 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
   useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
   const dismiss = () => { setClosing(true); setTimeout(onDismiss, 420); };
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }}>
       <div style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
@@ -519,9 +412,10 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─── Scan Popup ─── */
-function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
+function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false }: {
   onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => void;
   onDismiss: () => void;
+  onNoTokens?: () => void;
   needsUsername?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -653,10 +547,22 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
 
     try {
       const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl }), signal: abort.signal });
-      if (submitRes.status === 401 || submitRes.status === 402) {
+      if (submitRes.status === 402) {
+        dismiss();
+        setTimeout(() => onNoTokens?.(), 900);
+        return;
+      }
+      if (submitRes.status === 401) {
         const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
         const { url } = await checkout.json() as { url?: string };
         if (url) { window.location.href = url; return; }
+      }
+      if (submitRes.status === 403) {
+        setFaceliftStatus('idle');
+        setPhase('verify');
+        setTimeout(() => setShowVerifyBtns(true), 200);
+        setShowConsentDialog(true);
+        return;
       }
       if (!submitRes.ok) { const body = await submitRes.text().catch(() => ''); throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`); }
       const { splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
@@ -702,7 +608,7 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
             : 'Building your 3D model. This takes about two minutes.';
 
   return (
-    <div className="fixed inset-0 z-40" style={{ background: exiting ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)', transition: 'background 400ms ease' }} onClick={dismiss}>
+    <div className="fixed inset-0 z-[10000]" style={{ background: exiting ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)', transition: 'background 400ms ease' }} onClick={dismiss}>
       <div
         ref={panelRef}
         role="dialog"
@@ -820,11 +726,10 @@ interface ProjectDoc {
   _id: Id<'projects'>;
   name: string;
   thumbnailUrl?: string;
-  lastHairParams?: HairParams;
-  lastProfile?: UserHeadProfile;
-  lastImageUrl?: string;
+  thumbnailS3Key?: string;
   updatedAt: number;
   savedAt?: number;
+  splatS3Key?: string;
 }
 
 /* ─── Flying Card ─── */
@@ -905,7 +810,7 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       </div>
       <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
-          {project.thumbnailUrl ? <img src={project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {(project.thumbnailS3Key || project.thumbnailUrl) ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
@@ -977,7 +882,7 @@ function ExploreFloor() {
           </div>
         ))}
       </div>
-      <div className="explore-marquee" aria-hidden><div className="explore-marquee-track font-mono">{Array.from({ length: 2 }).map((_, r) => <span key={r}>FRESH CUTS&nbsp;&nbsp;✂&nbsp;&nbsp;TRENDING STYLES&nbsp;&nbsp;✂&nbsp;&nbsp;BARBER PICKS&nbsp;&nbsp;✂&nbsp;&nbsp;FACE-SHAPE MATCHES&nbsp;&nbsp;✂&nbsp;&nbsp;</span>)}</div></div>
+      <div className="explore-marquee" aria-hidden><div className="explore-marquee-track font-mono">{Array.from({ length: 10 }).map((_, r) => <span key={r}>FRESH CUTS&nbsp;&nbsp;✂&nbsp;&nbsp;TRENDING STYLES&nbsp;&nbsp;✂&nbsp;&nbsp;BARBER PICKS&nbsp;&nbsp;✂&nbsp;&nbsp;FACE-SHAPE MATCHES&nbsp;&nbsp;✂&nbsp;&nbsp;</span>)}</div></div>
     </div>
   );
 }
@@ -1016,7 +921,7 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
     setInteracting(true);
   };
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
       <div className="popup-in flex flex-col items-center gap-5">
         <div ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={() => { setInteracting(false); setRotation({ x: 0, y: 0 }); }} style={{ transition: interacting ? 'none' : 'transform 600ms cubic-bezier(.2,.85,.2,1)', transform: `perspective(600px) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
           <div className="polaroid scan-pop-in" style={{ maxWidth: 280 }}>
@@ -1032,9 +937,10 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
 }
 
 /* ─── Main Menu ─── */
-function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false }: {
-  onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean;
+function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false, isSignedIn }: {
+  onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean; isSignedIn?: boolean | null;
 }) {
+  const { openSignIn } = useClerk();
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
   const toggleSaveProject = useMutation(api.projects.toggleSave);
@@ -1081,27 +987,35 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : 2;
   const floorSliderRef = useRef<HTMLDivElement>(null);
   const sidebarDarkRef = useRef<HTMLDivElement>(null);
-  const topbarDarkRef = useRef<HTMLDivElement>(null);
+  const wordmarkLightRef = useRef<HTMLDivElement>(null);
+  const wordmarkDarkRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
   const prevFloorRef = useRef(floorIndex);
 
   useEffect(() => {
     if (!vpH) return;
-    const floorSlider = floorSliderRef.current, sidebarDark = sidebarDarkRef.current, topbarDark = topbarDarkRef.current;
-    if (!floorSlider || !sidebarDark || !topbarDark) return;
+    const floorSlider = floorSliderRef.current, sidebarDark = sidebarDarkRef.current;
+    const wLight = wordmarkLightRef.current, wDark = wordmarkDarkRef.current;
+    if (!floorSlider || !sidebarDark) return;
     cancelAnimationFrame(rafRef.current);
     const prevFloor = prevFloorRef.current; prevFloorRef.current = floorIndex;
-    if (floorIndex !== 1 && prevFloor !== 1) { sidebarDark.style.clipPath = 'inset(100% 0 0 0)'; topbarDark.style.opacity = '0'; return; }
+    if (floorIndex !== 1 && prevFloor !== 1) {
+      sidebarDark.style.clipPath = 'inset(100% 0 0 0)';
+      if (wLight) wLight.style.opacity = '1';
+      if (wDark) wDark.style.opacity = '0';
+      return;
+    }
     const step1 = vpH + 320, step2 = 2 * vpH + 640;
     let lastP = -1, stableFrames = 0;
     const tick = () => {
       const matrix = new DOMMatrix(window.getComputedStyle(floorSlider).transform);
       const p = -matrix.m42;
       let charcoalAmount = p <= step1 ? p / step1 : 1 - (p - step1) / (step2 - step1);
-      charcoalAmount = Math.max(0, Math.min(1, charcoalAmount));
+      charcoalAmount = Math.max(0, Math.min(1, charcoalAmount / 0.732051));
       sidebarDark.style.clipPath = `inset(${(1 - charcoalAmount) * 100}% 0 0 0)`;
-      topbarDark.style.opacity = charcoalAmount > 0.85 ? '1' : '0';
-      if (Math.abs(p - lastP) < 0.5) { stableFrames++; if (stableFrames > 4) { const isAtSaved = floorIndex === 1; sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`; topbarDark.style.opacity = isAtSaved ? '1' : '0'; return; } } else { stableFrames = 0; }
+      if (wLight) wLight.style.opacity = String(1 - charcoalAmount);
+      if (wDark) wDark.style.opacity = String(charcoalAmount);
+      if (Math.abs(p - lastP) < 0.5) { stableFrames++; if (stableFrames > 4) { const isAtSaved = floorIndex === 1; sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`; if (wLight) wLight.style.opacity = isAtSaved ? '0' : '1'; if (wDark) wDark.style.opacity = isAtSaved ? '1' : '0'; return; } } else { stableFrames = 0; }
       lastP = p; rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -1176,19 +1090,14 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
         {/* Main content */}
         <div className="min-w-0" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
-          {/* Top bar */}
-          <div style={{ flexShrink: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '24px 40px 0', position: 'relative', zIndex: 1 }}>
+          {/* Top bar — transparent overlay so floor content shows through */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+            <div style={{ padding: '24px 40px 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}><InlineWordmark /></div>
-                <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
+                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'} style={{ position: 'relative' }}>
+                  <div ref={wordmarkLightRef}><InlineWordmark /></div>
+                  <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0 }}><InlineWordmark cream /></div>
                 </div>
-              </div>
-            </div>
-            <div ref={topbarDarkRef} style={{ position: 'absolute', inset: 0, background: '#181b17', opacity: 0, transition: 'opacity 120ms ease', zIndex: 2, padding: '24px 40px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'}><InlineWordmark cream /></div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
                   <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
                 </div>
@@ -1201,7 +1110,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
             <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
               {/* Floor 0 — Home */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '0 40px 80px' }}>
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <HomeTitle count={projects?.length} />
                   <div style={{ flex: 1 }} />
@@ -1237,7 +1146,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               </div>
 
               {/* Floor 1 — Saved */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: '24px 40px 80px' }}>
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <SavedTitle count={savedProjects?.length} />
                   <div style={{ flex: 1 }} />
@@ -1249,7 +1158,17 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
                   {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.6)' : 'rgba(252,245,228,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.15)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(252,245,228,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
                 </div>
-                {savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
+                {isSignedIn === false ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 64, gap: 20 }}>
+                    <div className="saved-ghost">
+                      <svg className="saved-ghost-frame" aria-hidden><rect rx="14" ry="14" fill="none" stroke="rgba(252,245,228,0.3)" strokeWidth="1.5" strokeDasharray="8 7" /></svg>
+                      <svg className="saved-ghost-bookmark" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="rgba(212,175,55,0.9)" strokeWidth="2" strokeLinejoin="round" aria-hidden><path d="M5 3H19V21L12 15.5L5 21Z" /></svg>
+                      <span className="font-display saved-ghost-caption">sign in to see your keepers</span>
+                    </div>
+                    <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>Your saved cuts live here. Sign in to bookmark styles and build your collection.</p>
+                    <BouncyButton onClick={() => openSignIn()} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                  </div>
+                ) : savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
@@ -1284,14 +1203,11 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 export default function DashboardPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
+  const { startLoading } = useNavLoading();
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
   const meUser = useQuery(api.users.getMe);
-
-  useEffect(() => {
-    if (isSignedIn === false) router.push('/');
-  }, [isSignedIn, router]);
 
   useEffect(() => {
     if (isSignedIn) getOrCreate().catch(err => console.error('[Dashboard] getOrCreate failed:', err));
@@ -1311,7 +1227,27 @@ export default function DashboardPage() {
 
   const needsUsername = isSignedIn && meUser !== undefined && meUser !== null && !meUser.username;
 
+  const [showAuthPopup, setShowAuthPopup] = useState(false);
+  const [authVisible, setAuthVisible] = useState(false);
+  const [authClosing, setAuthClosing] = useState(false);
+
+  const openAuthPopup = () => {
+    setShowAuthPopup(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setAuthVisible(true)));
+  };
+  const dismissAuthPopup = () => {
+    setAuthClosing(true);
+    setTimeout(() => { setShowAuthPopup(false); setAuthVisible(false); setAuthClosing(false); }, 320);
+  };
+  const handleAuthDone = () => {
+    setShowAuthPopup(false);
+    setAuthVisible(false);
+    setAuthClosing(false);
+    setShowScanPopup(true);
+  };
+
   const [showScanPopup, setShowScanPopup] = useState(false);
+  const [showOutOfTokens, setShowOutOfTokens] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
   const [hasScanEver, setHasScanEver] = useState(false);
   const [selfieFlying, setSelfieFlying] = useState<{ url: string } | null>(null);
@@ -1340,6 +1276,10 @@ export default function DashboardPage() {
     if (sid) sessionStorage.setItem('studio_sessionId', sid);
     if (splatUrl) sessionStorage.setItem('studio_splatUrl', splatUrl);
 
+    // Derive the permanent S3 key from sessionId (matches save-scan key path).
+    // Only set if S3 upload succeeded — fallback url starts with "data:" if it failed.
+    const scanS3Key = sid && url && !url.startsWith('data:') ? `pictures/${sid}/scan.png` : null;
+
     // Create a Convex project for this scan
     let projectId: Id<'projects'>;
     try {
@@ -1354,6 +1294,8 @@ export default function DashboardPage() {
       await saveProject({
         projectId,
         lastImageUrl: url ?? undefined,
+        lastImageS3Key: scanS3Key ?? undefined,
+        thumbnailS3Key: scanS3Key ?? undefined,
         lastProfile: profileForConvex,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,
@@ -1379,10 +1321,14 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAddProject = () => setShowScanPopup(true);
-  const handleOpenProject = (project: ProjectDoc) => router.push(`/studio/${project._id}`);
-
-  if (isSignedIn === false) return null;
+  const handleAddProject = () => {
+    if (!isSignedIn) { openAuthPopup(); return; }
+    setShowScanPopup(true);
+  };
+  const handleOpenProject = (project: ProjectDoc) => {
+    startLoading();
+    router.push(`/studio/${project._id}`);
+  };
 
   return (
     <>
@@ -1390,18 +1336,77 @@ export default function DashboardPage() {
         onAdd={handleAddProject}
         onOpenProject={handleOpenProject}
         showScanNow={!hasScanEver}
-        onScanNow={() => setShowScanPopup(true)}
+        onScanNow={() => { if (!isSignedIn) { openAuthPopup(); return; } setShowScanPopup(true); }}
         onRescan={() => setShowScanPopup(true)}
         profilePillPulse={profilePillPulse}
         celebratePurchase={paymentSuccess}
+        isSignedIn={isSignedIn}
       />
 
       {showScanPopup && (
         <ScanPopup
           onScanComplete={handleScanComplete}
           onDismiss={() => setShowScanPopup(false)}
+          onNoTokens={() => setShowOutOfTokens(true)}
           needsUsername={needsUsername}
         />
+      )}
+      {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
+
+      {showAuthPopup && createPortal(
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: authVisible && !authClosing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
+            transition: 'background 320ms ease',
+          }}
+          onClick={dismissAuthPopup}
+        >
+          <button
+            onClick={dismissAuthPopup}
+            style={{
+              position: 'absolute', top: 24, right: 24,
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
+              color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 160ms ease, color 160ms ease',
+            }}
+          >✕</button>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28,
+              transform: authVisible && !authClosing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
+              opacity: authVisible && !authClosing ? 1 : 0,
+              transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <p style={{
+                fontFamily: 'var(--font-jetbrains), monospace',
+                fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.16em',
+                color: 'rgba(255,248,234,0.45)', margin: '0 0 10px',
+              }}>
+                sign in to continue
+              </p>
+              <h2 style={{
+                fontFamily: 'var(--font-fraunces), Georgia, serif',
+                fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
+                color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,
+              }}>
+                Start exploring.
+              </h2>
+            </div>
+            <SignUpWidget
+              onEnter={handleAuthDone}
+              large
+              redirectUrlComplete="/dashboard"
+            />
+          </div>
+        </div>,
+        document.body
       )}
 
       {showScanResult && imageUrl && (

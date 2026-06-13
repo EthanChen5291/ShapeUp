@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useUser } from '@clerk/nextjs';
-import { useSignIn, useSignUp } from '@clerk/nextjs/legacy';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
 import Image from 'next/image';
 import Link from 'next/link';
 import { BarberMascot, BouncyButton, Reveal } from '@/components/AppUI';
+import SignUpWidget from '@/components/SignUpWidget';
 
 /* ─────────────── Face Video Swiper ─────────────── */
 const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mp4`);
@@ -272,6 +274,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
       {/* Visual layer: clip top 10% + blob mask. Kept separate from the event container so wheel/touch hit area is unaffected. */}
       <div style={{
         position: 'absolute', inset: 0,
+        overflow: 'hidden',
         clipPath: 'inset(10% 0 0 0)',
         WebkitMaskImage: 'url(/blob.png)',
         WebkitMaskSize: '100% 100%',
@@ -635,7 +638,11 @@ function DescribeMsgBubble({ msg }: { msg: DescribeChatMsg }) {
   const [showText, setShowText] = useState(!msg.isNew);
 
   useEffect(() => {
-    if (!msg.isNew) return;
+    if (!msg.isNew) {
+      // Message was superseded — resolve any pending loading state immediately
+      setShowText(true);
+      return;
+    }
     // The barber "thinks" a beat longer than the user types
     const t = setTimeout(() => setShowText(true), isBarber ? 720 : 300);
     return () => clearTimeout(t);
@@ -717,6 +724,8 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
 
   const scrollRef = useRef({ y: 0, yTarget: 0 });
 
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const clearPending = useCallback(() => {
     pendingTimers.current.forEach(clearTimeout);
     pendingTimers.current = [];
@@ -764,10 +773,28 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     });
   }, [msgs]);
 
+  const triggerInactivityReset = useCallback(() => {
+    clearPending();
+    setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
+    scrollRef.current.yTarget = 0;
+    const t = setTimeout(() => {
+      lerpActiveRef.current = false;
+      idRef.current = 0;
+      curIdxRef.current = 0;
+      setCurIdx(0);
+      setMsgs([]);
+    }, 600);
+    pendingTimers.current.push(t);
+  }, [clearPending]);
+
   const handleSend = useCallback(() => {
     setSendBouncing(false);
     requestAnimationFrame(() => setSendBouncing(true));
     setTimeout(() => setSendBouncing(false), 500);
+
+    // Reset inactivity timer — fade+reset fires 8s after the last send
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    inactivityTimerRef.current = setTimeout(() => triggerInactivityReset(), 8000);
 
     const idx = curIdxRef.current;
     const text = FACE2_MESSAGES[idx];
@@ -776,39 +803,24 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     setCurIdx(next);
     onSendRef.current?.(idx);
 
-    // The barber replies a beat later — every sent message gets its own reply
-    const scheduleReply = () => {
-      const t = setTimeout(() => {
-        setMsgs(prev => [
-          { id: idRef.current++, text: FACE2_REPLIES[idx], isNew: true, from: 'barber' as const },
-          ...prev.map(m => ({ ...m, isNew: false })),
-        ]);
-      }, 600);
-      pendingTimers.current.push(t);
-    };
+    const newMsg: DescribeChatMsg = { id: idRef.current++, text, isNew: true };
+    setMsgs(prev => [newMsg, ...prev.map(m => ({ ...m, isNew: false }))]);
 
-    if (idx === 0 && idRef.current > 0) {
-      // Cycling back: cancel all pending timers, disintegrate existing messages upward, then restart
-      clearPending();
-      setMsgs(prev => prev.map((m, i) => ({ ...m, isNew: false, disintegrating: true, disintegrateDelay: i * 60 })));
-      // Start lerping back to y=0 immediately so the scroll is near 0 by the time messages clear
-      scrollRef.current.yTarget = 0;
-      const t = setTimeout(() => {
-        lerpActiveRef.current = false;
-        idRef.current = 0;
-        setMsgs([{ id: idRef.current++, text, isNew: true }]);
-        scheduleReply();
-      }, 600);
-      pendingTimers.current.push(t);
-    } else {
-      const newMsg: DescribeChatMsg = { id: idRef.current++, text, isNew: true };
-      setMsgs(prev => [newMsg, ...prev.map(m => ({ ...m, isNew: false }))]);
-      scheduleReply();
-    }
-  }, [clearPending]);
+    // The barber replies a beat later — every sent message gets its own reply
+    const t = setTimeout(() => {
+      setMsgs(prev => [
+        { id: idRef.current++, text: FACE2_REPLIES[idx], isNew: true, from: 'barber' as const },
+        ...prev.map(m => ({ ...m, isNew: false })),
+      ]);
+    }, 600);
+    pendingTimers.current.push(t);
+  }, [clearPending, triggerInactivityReset]);
 
   // Clear all pending timers if the demo unmounts mid-conversation
-  useEffect(() => () => { clearPending(); }, [clearPending]);
+  useEffect(() => () => {
+    clearPending();
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+  }, [clearPending]);
 
   const [sendBouncing, setSendBouncing] = useState(false);
   const [sendHovered, setSendHovered] = useState(false);
@@ -1006,8 +1018,10 @@ function GlimpseSection() {
       // easeOutExpo: fast burst, decelerates
       const ease = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
       const radius = ease * GLIMPSE_FINAL_RADIUS;
-      // total CCW sweep during eruption: 270°
-      const sweepOffset = ease * (Math.PI * 1.5);
+      // Accumulate orbit continuously so there's no speed gap at the transition
+      s.orbitOffset += GLIMPSE_ORBIT_SPEED * dt;
+      // Total sweep = eruption arc + continuous orbit component
+      const sweepOffset = ease * (Math.PI * 1.5) + s.orbitOffset;
 
       for (let i = 0; i < GLIMPSE_SATELLITE_COUNT; i++) {
         const el = satelliteRefs.current[i];
@@ -1023,7 +1037,8 @@ function GlimpseSection() {
 
       if (t >= 1) {
         s.phase = 'orbiting';
-        s.orbitOffset = Math.PI * 1.5;
+        // Fold the eruption arc into orbitOffset so orbiting picks up at the same angle
+        s.orbitOffset += Math.PI * 1.5;
       }
     } else if (s.phase === 'orbiting') {
       s.orbitOffset += GLIMPSE_ORBIT_SPEED * dt;
@@ -1047,22 +1062,43 @@ function GlimpseSection() {
   useEffect(() => {
     const el = sectionRef.current;
     if (!el) return;
+
+    const startLoop = () => {
+      cancelAnimationFrame(rafRef.current);
+      stateRef.current.lastTime = 0;
+      rafRef.current = requestAnimationFrame(runFrame);
+    };
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && stateRef.current.phase === 'idle') {
-          stateRef.current.phase = 'erupting';
-          stateRef.current.eruptionStart = performance.now();
-          stateRef.current.lastTime = 0;
-          setCenterVisible(true);
-          rafRef.current = requestAnimationFrame(runFrame);
+        if (entry.isIntersecting) {
+          if (stateRef.current.phase === 'idle') {
+            stateRef.current.phase = 'erupting';
+            stateRef.current.eruptionStart = performance.now();
+            setCenterVisible(true);
+          }
+          startLoop();
+        } else {
+          // Pause when scrolled out of view — saves GPU/battery
+          cancelAnimationFrame(rafRef.current);
         }
       },
-      { threshold: 0.25 },
+      { threshold: 0.1 },
     );
     observer.observe(el);
+
+    // Restart if the RAF chain died while the tab was hidden (Safari, etc.)
+    const handleVisibility = () => {
+      if (!document.hidden && stateRef.current.phase !== 'idle') {
+        startLoop();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       observer.disconnect();
       cancelAnimationFrame(rafRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [runFrame]);
 
@@ -1228,457 +1264,6 @@ function GlimpseSection() {
   );
 }
 
-/* ─────────────── Sign-Up Widget ─────────────── */
-function SignUpWidget({ onEnter, large = false }: { onEnter: () => void; large?: boolean }) {
-  const { signUp, setActive } = useSignUp();
-  const { signIn } = useSignIn();
-  const { isSignedIn } = useUser();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
-  // large (dashboard): combined email+password, no 'password' step
-  // default (landing): multi-step — start → password → verify / 2fa
-  const [step, setStep] = useState<'start' | 'password' | 'verify' | '2fa'>('start');
-  const [secondFactorStrategy, setSecondFactorStrategy] = useState<'email_code' | 'totp' | 'phone_code' | 'backup_code'>('email_code');
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  // Size tokens
-  const s = {
-    cardMaxWidth:     large ? 640  : 340,
-    cardRadius:       large ? 28   : 20,
-    cardPadding:      large ? '40px 40px 32px' : '24px 24px 20px',
-    cardGap:          large ? 20   : 12,
-    inputFontSize:    large ? 22   : 15,
-    inputPadding:     large ? '18px 24px' : '13px 16px',
-    inputRadius:      large ? 16   : 12,
-    formGap:          large ? 14   : 10,
-    btnFontSize:      large ? 22   : 15,
-    btnPadding:       large ? '18px 0' : '13px 0',
-    btnRadius:        large ? 16   : 12,
-    googleFontSize:   large ? 20   : 14,
-    googlePadding:    large ? '18px 0' : '12px 0',
-    googleRadius:     large ? 16   : 12,
-    googleGap:        large ? 14   : 10,
-    googleIconSize:   large ? 24   : 18,
-    orFontSize:       large ? 13   : 10,
-    orGap:            large ? 14   : 10,
-    noteFontSize:     large ? 13   : 10,
-    errorFontSize:    large ? 16   : 12,
-    backFontSize:     large ? 18   : 13,
-    titleFontSize:    large ? 22   : 15,
-    subtitleFontSize: large ? 18   : 13,
-    codeFontSize:     large ? 32   : 20,
-    dashBtnPadding:   large ? '22px 56px' : '18px 44px',
-    dashBtnFontSize:  large ? 28   : 22,
-    dashBtnRadius:    large ? 20   : 18,
-  };
-
-  if (isSignedIn) {
-    return (
-      <BouncyButton
-        onClick={onEnter}
-        className="btn-tomato"
-        style={{
-          padding: s.dashBtnPadding,
-          fontSize: s.dashBtnFontSize,
-          fontFamily: 'var(--font-fraunces), Georgia, serif',
-          fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
-          fontWeight: 900,
-          letterSpacing: '-0.01em',
-          borderRadius: s.dashBtnRadius,
-          boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
-        }}
-      >
-        Go to dashboard →
-      </BouncyButton>
-    );
-  }
-
-  // Shared auth logic: try sign-in first (no verification for returning users),
-  // fall back to sign-up with email verification only for new accounts.
-  const submitCredentials = async () => {
-    if (!signIn || !signUp || !setActive) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      // Try sign-in first — existing users never hit email verification
-      let signInResult;
-      try {
-        signInResult = await signIn.create({ strategy: 'password', identifier: email.trim(), password });
-      } catch (rawErr: unknown) {
-        const err = rawErr as { errors?: Array<{ code?: string; message?: string }> };
-        const firstErr = err?.errors?.[0];
-        const code = firstErr?.code ?? '';
-        const isNotFound = code === 'form_identifier_not_found'
-          || (firstErr?.message ?? '').toLowerCase().includes('find');
-        if (!isNotFound) {
-          const friendlyMsg: Record<string, string> = {
-            form_password_incorrect:          'Wrong password — try again.',
-            form_password_pwned:              'This password was found in a data breach. Please choose a different one.',
-            strategy_for_user_invalid:        'This account was created with Google. Use "Continue with Google" to sign in.',
-            not_allowed_access:               'Your account has been suspended. Contact support for help.',
-            too_many_requests:                'Too many attempts — please wait a moment and try again.',
-            session_exists:                   'You\'re already signed in.',
-            form_param_missing:               'Please enter both your email and password.',
-            form_identifier_not_found:        'No account found with that email.',
-          };
-          setError(friendlyMsg[code] ?? (firstErr?.message ?? 'Something went wrong'));
-          return;
-        }
-        signInResult = null;
-      }
-
-      if (signInResult) {
-        let finalResult = signInResult;
-        if (signInResult.status === 'needs_first_factor') {
-          finalResult = await signIn.attemptFirstFactor({ strategy: 'password', password });
-        }
-        if (finalResult.status === 'complete' && finalResult.createdSessionId) {
-          await setActive({ session: finalResult.createdSessionId });
-          onEnter();
-          return;
-        }
-        if (finalResult.status === 'needs_second_factor') {
-          const supported = finalResult.supportedSecondFactors ?? [];
-          const strategy =
-            supported.find(f => f.strategy === 'email_code') ? 'email_code' :
-            supported.find(f => f.strategy === 'phone_code') ? 'phone_code' :
-            supported.find(f => f.strategy === 'totp') ? 'totp' :
-            'email_code';
-          setSecondFactorStrategy(strategy as 'email_code' | 'totp' | 'phone_code' | 'backup_code');
-          if (strategy === 'email_code' || strategy === 'phone_code') {
-            await signIn.prepareSecondFactor({ strategy });
-          }
-          setCode('');
-          setStep('2fa');
-          return;
-        }
-        setError('Sign-in incomplete — please try again.');
-        return;
-      }
-
-      // New user — sign up and require email verification once
-      const signUpResult = await signUp.create({ emailAddress: email.trim(), password });
-      if (signUpResult.status === 'missing_requirements') {
-        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-        setStep('verify');
-      } else if (signUpResult.status === 'complete' && signUpResult.createdSessionId) {
-        await setActive({ session: signUpResult.createdSessionId });
-        onEnter();
-      } else {
-        setError('Sign-up failed — please try again.');
-      }
-    } catch (err: unknown) {
-      const e = err as { errors?: Array<{ code?: string; message?: string }> };
-      const clerkCode = e?.errors?.[0]?.code ?? '';
-      const outerFriendly: Record<string, string> = {
-        form_password_not_strong_enough: 'Password is too weak — use at least 8 characters with a mix of letters and numbers.',
-        form_identifier_exists:          'An account with this email already exists. Try signing in instead.',
-        strategy_for_user_invalid:       'This account was created with Google. Use "Continue with Google" to sign in.',
-        not_allowed_access:              'Your account has been suspended. Contact support for help.',
-        too_many_requests:               'Too many attempts — please wait a moment and try again.',
-      };
-      setError(outerFriendly[clerkCode] ?? (e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Something went wrong')));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Landing page: advance from email step to password step
-  const handleEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setError('');
-    setStep('password');
-  };
-
-  // Landing page: password step submit
-  const handlePassword = async (e: React.FormEvent) => { e.preventDefault(); if (!password) return; await submitCredentials(); };
-
-  // Dashboard: combined email+password submit
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!email.trim() || !password) return; await submitCredentials(); };
-
-  // Email verification code (only when Clerk requires it after sign-up)
-  const handleVerify = async (e: React.FormEvent) => {
-    if (!signUp || !setActive) return;
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-    try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
-      if (result.status === 'complete' && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        onEnter();
-      } else {
-        setError('Sign-up failed — please try again.');
-      }
-    } catch (err: unknown) {
-      const e = err as { errors?: Array<{ message?: string }> };
-      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Invalid code — try again'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handle2FA = async (e: React.FormEvent) => {
-    if (!signIn || !setActive) return;
-    e.preventDefault();
-    setSubmitting(true);
-    setError('');
-    try {
-      const result = await signIn.attemptSecondFactor({ strategy: secondFactorStrategy, code });
-      if (result.status === 'complete' && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        onEnter();
-      } else {
-        setError('Verification failed — please try again.');
-      }
-    } catch (err: unknown) {
-      const e = err as { errors?: Array<{ message?: string }> };
-      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Invalid code — try again'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    if (!signIn) return;
-    setError('');
-    try {
-      await signIn.authenticateWithRedirect({
-        strategy: 'oauth_google',
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}/`,
-      });
-    } catch (err: unknown) {
-      const e = err as { errors?: Array<{ message?: string }> };
-      setError(e?.errors?.[0]?.message ?? (err instanceof Error ? err.message : 'Google sign-in failed'));
-    }
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    fontFamily: 'var(--font-dmsans)',
-    fontSize: s.inputFontSize,
-    padding: s.inputPadding,
-    borderRadius: s.inputRadius,
-    border: '1.5px solid rgba(42,32,26,0.13)',
-    background: 'var(--biscuit)',
-    color: 'var(--ink)',
-    outline: 'none',
-    boxSizing: 'border-box',
-    transition: 'border-color 180ms ease',
-  };
-
-  const GoogleIcon = () => (
-    <svg width={s.googleIconSize} height={s.googleIconSize} viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
-      <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
-      <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332Z" fill="#FBBC05"/>
-      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
-    </svg>
-  );
-
-  return (
-    <div style={{
-      width: '100%',
-      maxWidth: s.cardMaxWidth,
-      background: 'var(--cream)',
-      border: '1px solid rgba(42,32,26,0.1)',
-      borderRadius: s.cardRadius,
-      padding: s.cardPadding,
-      boxShadow: '0 10px 44px -12px rgba(42,32,26,0.16)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: s.cardGap,
-    }}>
-      {/* ── Verify email code ── */}
-      {step === 'verify' && (
-        <>
-          <button
-            onClick={() => { setStep(large ? 'start' : 'password'); setCode(''); setError(''); }}
-            className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
-          >
-            ← back
-          </button>
-          <div style={{ marginBottom: 4 }}>
-            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>Check your inbox</p>
-            <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>We sent a 6-digit code to {email}</p>
-          </div>
-          <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
-            <input
-              autoFocus type="text" inputMode="numeric" maxLength={6}
-              value={code}
-              onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
-              placeholder="123456"
-              style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: s.codeFontSize, textAlign: 'center' }}
-            />
-            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
-            <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
-              style={{ ...inputStyle, padding: s.btnPadding, background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: s.btnFontSize, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
-              {submitting ? 'Verifying…' : 'Verify →'}
-            </button>
-          </form>
-        </>
-      )}
-
-      {/* ── Two-factor auth ── */}
-      {step === '2fa' && (
-        <>
-          <button
-            onClick={() => { setStep(large ? 'start' : 'password'); setCode(''); setError(''); }}
-            className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
-          >
-            ← back
-          </button>
-          <div style={{ marginBottom: 4 }}>
-            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>Two-factor authentication</p>
-            <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>
-              {secondFactorStrategy === 'phone_code' ? `Enter the code sent to your phone` : `Enter the code sent to ${email}`}
-            </p>
-          </div>
-          <form onSubmit={handle2FA} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
-            <input
-              autoFocus type="text" inputMode="numeric" maxLength={secondFactorStrategy === 'backup_code' ? 20 : 6}
-              value={code}
-              onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }}
-              placeholder="123456"
-              style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: s.codeFontSize, textAlign: 'center' }}
-            />
-            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
-            <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
-              style={{ ...inputStyle, padding: s.btnPadding, background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: s.btnFontSize, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
-              {submitting ? 'Verifying…' : 'Verify →'}
-            </button>
-          </form>
-        </>
-      )}
-
-      {/* ── Landing page: password step ── */}
-      {!large && step === 'password' && (
-        <>
-          <button
-            onClick={() => { setStep('start'); setPassword(''); setError(''); }}
-            className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
-          >
-            ← back
-          </button>
-          <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>{email}</p>
-          <form onSubmit={handlePassword} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
-            <input
-              autoFocus type="password" autoComplete="new-password"
-              value={password}
-              onChange={e => { setPassword(e.target.value); setError(''); }}
-              placeholder="password"
-              style={inputStyle}
-              onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
-              onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
-            />
-            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
-            <button type="submit" disabled={submitting || !password} className="btn-tomato"
-              style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !password ? 0.5 : 1, cursor: submitting || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-              {submitting ? 'One sec…' : 'Continue →'}
-            </button>
-          </form>
-        </>
-      )}
-
-      {/* ── Start step ── */}
-      {step === 'start' && (
-        <>
-          {large ? (
-            /* Dashboard: email + password together */
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
-              <input
-                autoFocus type="email" autoComplete="email"
-                value={email}
-                onChange={e => { setEmail(e.target.value); setError(''); }}
-                placeholder="your@email.com"
-                style={inputStyle}
-                onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
-              />
-              <input
-                type="password" autoComplete="current-password"
-                value={password}
-                onChange={e => { setPassword(e.target.value); setError(''); }}
-                placeholder="password"
-                style={inputStyle}
-                onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
-              />
-              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
-              <button type="submit" disabled={submitting || !email.trim() || !password} className="btn-tomato"
-                style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !email.trim() || !password ? 0.5 : 1, cursor: submitting || !email.trim() || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-                {submitting ? 'One sec…' : 'Continue →'}
-              </button>
-            </form>
-          ) : (
-            /* Landing page: email only, advances to password step */
-            <form onSubmit={handleEmail} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
-              <input
-                type="email" autoComplete="email"
-                value={email}
-                onChange={e => { setEmail(e.target.value); setError(''); }}
-                placeholder="your@email.com"
-                style={inputStyle}
-                onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
-              />
-              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
-              <button type="submit" disabled={!email.trim()} className="btn-tomato"
-                style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: !email.trim() ? 0.5 : 1, cursor: !email.trim() ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-                Continue with email →
-              </button>
-            </form>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: s.orGap }}>
-            <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
-            <span className="font-mono" style={{ fontSize: s.orFontSize, color: 'var(--smoke)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>or</span>
-            <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
-          </div>
-
-          <button
-            onClick={handleGoogle}
-            className="font-sans"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: s.googleGap,
-              width: '100%', padding: s.googlePadding, borderRadius: s.googleRadius,
-              border: '1.5px solid rgba(42,32,26,0.13)', background: 'var(--cream)',
-              color: 'var(--ink)', fontSize: s.googleFontSize, fontWeight: 600, cursor: 'pointer',
-              transition: 'background 150ms ease, border-color 150ms ease',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'var(--biscuit)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(42,32,26,0.22)';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'var(--cream)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(42,32,26,0.13)';
-            }}
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
-
-          <p className="font-mono" style={{ fontSize: s.noteFontSize, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
-            Free to start · No credit card · By continuing, you agree to the{' '}
-            <Link href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</Link>
-            {' '}and{' '}
-            <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</Link>
-          </p>
-        </>
-      )}
-      <div id="clerk-captcha" />
-    </div>
-  );
-}
-
 /* ─────────────── Landing Page ─────────────── */
 /* ─────────────── Landing Pricing Section ─────────────── */
 /* ─────────────── Landing Pricing Cards ─────────────── */
@@ -1782,8 +1367,8 @@ function PricingCTAButton({
   const hoverText = (variant === 'popular' || variant === 'lifetime') ? '#ffffff' : 'rgba(42,32,26,0.9)';
   const baseStyle: React.CSSProperties =
     variant === 'popular'  ? { border: '1px solid rgba(55,110,210,0.5)',  background: 'rgba(55,110,210,0.22)', color: 'rgba(255,248,234,0.78)', boxShadow: '0 4px 22px rgba(55,110,210,0.18)' } :
-    variant === 'lifetime' ? { border: '1px solid rgba(220,70,120,0.28)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
-    variant === 'starter'  ? { border: '1px solid rgba(248,200,24,0.22)', background: 'rgba(248,200,24,0.06)', color: 'var(--cream)' } :
+    variant === 'lifetime' ? { border: '1px solid rgba(220,70,120,0.43)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
+    variant === 'starter'  ? { border: '1px solid rgba(248,200,24,0.32)', background: 'rgba(248,200,24,0.06)', color: 'var(--cream)' } :
                              { border: '1px solid rgba(255,248,234,0.18)', background: 'rgba(255,248,234,0.07)', color: 'var(--cream)' };
 
   const LT_BR = 12;
@@ -1890,12 +1475,9 @@ function PricingCTAButton({
             transition: hovered ? 'opacity 40ms ease 10ms' : 'opacity 100ms ease',
           }}
         >
-          <rect
-            x={1}
-            y={1}
-            width={btnSize.w}
-            height={btnSize.h}
-            rx={LT_BR}
+          {/* CW path: top → right → bottom → left */}
+          <path
+            d={`M ${1 + LT_BR} 1 L ${1 + btnSize.w - LT_BR} 1 A ${LT_BR} ${LT_BR} 0 0 1 ${1 + btnSize.w} ${1 + LT_BR} L ${1 + btnSize.w} ${1 + btnSize.h - LT_BR} A ${LT_BR} ${LT_BR} 0 0 1 ${1 + btnSize.w - LT_BR} ${1 + btnSize.h} L ${1 + LT_BR} ${1 + btnSize.h} A ${LT_BR} ${LT_BR} 0 0 1 1 ${1 + btnSize.h - LT_BR} L 1 ${1 + LT_BR} A ${LT_BR} ${LT_BR} 0 0 1 ${1 + LT_BR} 1 Z`}
             fill="none"
             stroke={ringColor}
             strokeWidth="2"
@@ -2212,11 +1794,11 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <div style={{
                     width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                    background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
+                    background: plan.id === 'starter' ? 'rgba(248,200,24,0.18)' : plan.id === 'lifetime' ? 'rgba(240,70,130,0.18)' : plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <div style={{ width: 13, transform: 'rotate(186deg)' }}>
-                      <BarberMascot isStatic color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'rgba(80,150,255,0.9)'} />
+                      <BarberMascot isStatic color={plan.id === 'starter' ? 'rgba(248,200,24,0.9)' : plan.id === 'lifetime' ? 'rgba(240,70,130,0.9)' : plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'rgba(80,150,255,0.9)'} />
                     </div>
                   </div>
                   <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
@@ -2445,10 +2027,18 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
 
   const { isSignedIn } = useUser();
+  const meUser = useQuery(api.users.getMe);
   const [pendingAction, setPendingAction] = useState<null | { type: 'free' } | { type: 'paid'; planId: string }>(null);
   const [authVisible, setAuthVisible] = useState(false);
   const [authClosing, setAuthClosing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [checkoutPending, setCheckoutPending] = useState(false);
+
+  // If returning from Google OAuth with a pending checkout, show a loading screen
+  // immediately (before first paint) so the user never sees the landing page.
+  useLayoutEffect(() => {
+    if (sessionStorage.getItem('pendingPlanId')) setCheckoutPending(true);
+  }, []);
 
   useEffect(() => {
     if (pendingAction) {
@@ -2456,12 +2046,24 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     }
   }, [pendingAction]);
 
+  // After Google OAuth redirect, isSignedIn flips to true on a fresh page load.
+  // pendingAction state is gone, so we recover the plan from sessionStorage.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const planId = sessionStorage.getItem('pendingPlanId');
+    if (!planId) return;
+    sessionStorage.removeItem('pendingPlanId');
+    runCheckout(planId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
+
   const dismissAuth = () => {
     setAuthClosing(true);
     setTimeout(() => { setPendingAction(null); setAuthVisible(false); setAuthClosing(false); }, 320);
   };
 
   const runCheckout = async (planId: string) => {
+    sessionStorage.setItem('preCheckoutCredits', String(meUser?.credits ?? 0));
     setCheckoutLoading(planId);
     try {
       const res = await fetch('/api/stripe/checkout', {
@@ -2519,6 +2121,26 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const [describeActiveIdx, setDescribeActiveIdx] = useState<number | undefined>(undefined);
   const [logoHover, setLogoHover] = useState(false);
 
+  if (checkoutPending) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        background: '#faf9f6', gap: 20,
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          border: '3px solid #e5e3de',
+          borderTopColor: '#c0392b',
+          animation: 'spin 0.75s linear infinite',
+        }} />
+        <span style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 18, color: '#555', fontWeight: 600 }}>
+          Opening checkout…
+        </span>
+      </div>
+    );
+  }
+
   return (
     <main className="relative min-h-screen overflow-x-hidden">
       {/* ─── Light section ─── */}
@@ -2569,11 +2191,11 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </button>
           </div>
           <BouncyButton
-            onClick={handleFreeTry}
-            className="btn-tomato"
+            onClick={() => { window.location.href = '/dashboard'; }}
+            className="btn-tomato btn-lift-half"
             style={{ padding: '11px 22px', fontSize: 13, borderRadius: 10 }}
           >
-            try it free →
+            dashboard
           </BouncyButton>
         </nav>
 
@@ -2662,28 +2284,28 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </Reveal>
           <Reveal delay={160}>
             <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 17, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.65 }}>
-              You walk out of the barber having settled — not because your barber was bad,
+              You walk out of the barber disappointed — not because your barber was bad,
               but because there was no way to show exactly what you meant.
             </p>
           </Reveal>
 
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 39 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 0 }}>
             {[
               {
                 stat: '~6 weeks',
                 label: 'to grow back a bad cut',
-                desc: 'Hair grows about half an inch a month.',
+                desc: 'A bad cut takes time to go away. Hair grows about half an inch a month.',
               },
               {
                 stat: '$45+ a visit',
                 label: 'no preview, full commitment',
-                desc: 'You bind yourself to paying before you see anything. No refunds.',
+                desc: 'You bind yourself to paying before you see anything, with no refunds :(',
               },
               {
                 stat: '1 in 3',
                 label: 'leave wishing they\'d said more',
-                desc: 'Most people stay quiet in the chair. Yet, the cut isn\'t what they pictured.',
+                desc: 'The cut isn\'t what you wanted. Yet you stay quiet in the chair.',
               },
             ].map((item, i) => (
               <Reveal key={i} delay={i * 110} wonk={[-0.7, 0.5, -0.5][i]}>
@@ -2710,47 +2332,34 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* Bridge line */}
           <Reveal delay={120}>
-            <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 18, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.7, maxWidth: 600, margin: '0 auto' }}>
-              The cut you want is{' '}
-              <span
-                className="font-display"
-                style={{
-                  fontStyle: 'italic',
-                  fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
-                  fontWeight: 800,
-                  fontSize: '1.18em',
-                  color: 'var(--ink)',
-                }}
-              >
-                stuck in your head
-              </span>
-              {'. '}
-              <span style={{ color: 'var(--char)' }}>We visualize it on your face and give you instructions for your barber.</span>
+            <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 18, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.7, maxWidth: 600, margin: '48px auto' }}>
+              We show you how any hairstyle looks on your face. Then, we give your barber the steps to make it happen.
             </p>
           </Reveal>
         </div>
 
         {/* ── Value props bar ── */}
-        <div style={{ margin: '62px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div style={{ margin: '0 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {([
             { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%' },
             { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '50%' },
             { stat: '$2', label: 'FOR 20 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '100%' },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
-              <div
-                style={{
-                  borderRadius: 18,
-                  overflow: 'hidden',
-                  height: '100%',
-                  border: '1.5px solid rgb(156,163,175)',
-                  backgroundImage: `linear-gradient(rgba(10,6,4,0.60) 0%, rgba(10,6,4,0.60) 100%), url(/3face_blur.png), url(/dark_charcoal.png)`,
-                  backgroundSize: `100% 100%, 300% auto, cover`,
-                  backgroundPosition: `0 0, ${item.bgPos} center, center`,
-                  backgroundRepeat: `no-repeat, no-repeat, no-repeat`,
-                }}
-              >
-                <div style={{ padding: '34px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="value-card" style={{ '--card-wonk': `${[-0.6, 0.6, -0.4][i]}deg` } as React.CSSProperties}>
+                {/* Image layer — brightness reduced by 25% */}
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  backgroundImage: `url(/3face_blur.png), url(/dark_charcoal.png)`,
+                  backgroundSize: `300% auto, cover`,
+                  backgroundPosition: `${item.bgPos} center, center`,
+                  backgroundRepeat: `no-repeat, no-repeat`,
+                  filter: 'brightness(0.75)',
+                }} />
+                {/* Dark overlay */}
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,6,4,0.60)' }} />
+                {/* Content */}
+                <div style={{ position: 'relative', zIndex: 1, padding: '34px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
                     {item.stat}
                   </div>
@@ -2785,7 +2394,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </Reveal>
           <Reveal delay={160}>
             <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', textAlign: 'center', maxWidth: 460, margin: '0 auto 52px', lineHeight: 1.55 }}>
-              This demo is live — what you send in step 2 renders in step 3.
+              This demo is live — send a message and try it yourself.
             </p>
           </Reveal>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative' }}>
@@ -2808,8 +2417,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   <Image src="/1.png" alt="Step 1" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>Scan</span>
-                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>30 seconds</span>
+                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>Selfie</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>30 seconds</span>
                 </div>
               </div>
               {/* Body — one selfie, polaroid treatment */}
@@ -2852,7 +2461,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>Describe</span>
-                  <span className="font-mono" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>text it like a friend</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>text it like a friend</span>
                 </div>
               </div>
               {/* Body */}
@@ -2933,7 +2542,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             Ready to see your next cut?
           </p>
           <TraceBorderCta
-            onClick={handleFreeTry}
+            onClick={() => { window.location.href = '/dashboard'; }}
             variant="tomato"
             style={{
               padding: '18px 44px',
@@ -2976,7 +2585,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               Pick your style.
             </p>
             <TraceBorderCta
-              onClick={handleFreeTry}
+              onClick={() => { window.location.href = '/dashboard'; }}
               variant="blue"
               style={{
                 padding: '18px 44px',
@@ -3124,7 +2733,15 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 {pendingAction.type === 'free' ? 'Start exploring.' : 'One step away.'}
               </h2>
             </div>
-            <SignUpWidget onEnter={handleAuthDone} large />
+            <SignUpWidget
+              onEnter={handleAuthDone}
+              large
+              onBeforeGoogleRedirect={() => {
+                if (pendingAction?.type === 'paid') {
+                  sessionStorage.setItem('pendingPlanId', pendingAction.planId);
+                }
+              }}
+            />
           </div>
         </div>,
         document.body
