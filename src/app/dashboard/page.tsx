@@ -381,10 +381,10 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
 /* ─── Scan progress bars ─── */
 type BarSegment = { to: number; ms: number } | { hold: number };
 const SCAN_STEPS: { label: string; holdAt88: boolean; segments: BarSegment[] }[] = [
-  { label: 'Scanning geometry', holdAt88: false, segments: [{ to: 28, ms: 820 }, { hold: 1100 }, { to: 64, ms: 1050 }, { hold: 750 }, { to: 100, ms: 880 }] },
-  { label: 'Mapping features', holdAt88: false, segments: [{ to: 16, ms: 900 }, { hold: 2300 }, { to: 44, ms: 1450 }, { hold: 1500 }, { to: 78, ms: 1550 }, { hold: 1000 }, { to: 100, ms: 1050 }] },
-  { label: 'Generating mesh', holdAt88: false, segments: [{ to: 11, ms: 950 }, { hold: 2900 }, { to: 34, ms: 1650 }, { hold: 1900 }, { to: 62, ms: 1900 }, { hold: 1600 }, { to: 86, ms: 1400 }, { hold: 650 }, { to: 100, ms: 950 }] },
-  { label: 'Building model', holdAt88: true, segments: [{ to: 19, ms: 1150 }, { hold: 3600 }, { to: 47, ms: 2050 }, { hold: 2700 }, { to: 88, ms: 2900 }] },
+  { label: 'Scanning geometry', holdAt88: false, segments: [{ to: 28, ms: 350 }, { hold: 400 }, { to: 64, ms: 450 }, { hold: 300 }, { to: 100, ms: 500 }] },
+  { label: 'Mapping features', holdAt88: false, segments: [{ to: 16, ms: 350 }, { hold: 600 }, { to: 44, ms: 550 }, { hold: 450 }, { to: 78, ms: 500 }, { hold: 250 }, { to: 100, ms: 350 }] },
+  { label: 'Generating mesh', holdAt88: false, segments: [{ to: 11, ms: 350 }, { hold: 600 }, { to: 34, ms: 550 }, { hold: 500 }, { to: 62, ms: 600 }, { hold: 400 }, { to: 86, ms: 450 }, { hold: 200 }, { to: 100, ms: 350 }] },
+  { label: 'Building model', holdAt88: true, segments: [{ to: 19, ms: 600 }, { hold: 1400 }, { to: 47, ms: 1000 }, { hold: 1200 }, { to: 88, ms: 1800 }] },
 ];
 
 function easeOut(t: number) { return 1 - Math.pow(1 - t, 3); }
@@ -403,6 +403,8 @@ function OrganicBar({ label, active = false, segments, holdAt88 = false, complet
   const completedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const completeRef = useRef(complete);
+  completeRef.current = complete;
 
   useEffect(() => { if (active) setVisible(true); }, [active]);
 
@@ -410,9 +412,10 @@ function OrganicBar({ label, active = false, segments, holdAt88 = false, complet
     if (!visible || completedRef.current) return;
     stepRef.current = 0; stepStartRef.current = performance.now(); fromPctRef.current = 0;
     const advance = (now: number) => {
+      if (completeRef.current || completedRef.current) return;
       const seg = segments[stepRef.current];
       if (!seg) return;
-      if ('hold' in seg) { holdRef.current = setTimeout(() => { stepRef.current++; stepStartRef.current = performance.now(); rafRef.current = requestAnimationFrame(advance); }, seg.hold); return; }
+      if ('hold' in seg) { holdRef.current = setTimeout(() => { if (completeRef.current || completedRef.current) return; stepRef.current++; stepStartRef.current = performance.now(); rafRef.current = requestAnimationFrame(advance); }, seg.hold); return; }
       const elapsed = now - stepStartRef.current;
       const t = Math.min(elapsed / seg.ms, 1);
       const pct = fromPctRef.current + easeOut(t) * (seg.to - fromPctRef.current);
@@ -602,18 +605,20 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
     };
     let sessionId: string | null = null;
     let url: string | null = null;
-    try {
-      const res = await fetch('/api/save-scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: dataUrl, currentProfile: buildCurrentProfilePayload(profile) }),
-      });
-      const data = await res.json();
-      sessionId = data.sessionId ?? null;
-      url = data.downloadUrl ?? null;
-    } catch { /* non-fatal */ }
+    if (hasConsent) {
+      try {
+        const res = await fetch('/api/save-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageDataUrl: dataUrl, currentProfile: buildCurrentProfilePayload(profile) }),
+        });
+        const data = await res.json();
+        sessionId = data.sessionId ?? null;
+        url = data.downloadUrl ?? null;
+      } catch { /* non-fatal */ }
+    }
     return { profile, sessionId, url: url ?? dataUrl };
-  }, []);
+  }, [hasConsent]);
 
   const handleCapture = (p: UserHeadProfile, sid: string | null, url: string | null) => {
     setCaptured({ profile: p, sid, url }); setPhase('verify'); setTimeout(() => setShowVerifyBtns(true), 200);
@@ -629,6 +634,23 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
     setShowVerifyBtns(false); setPhase('processing'); setFaceliftStatus('processing'); setFaceliftError(null); setActiveBarIndex(0);
     const abort = new AbortController();
     faceliftAbortRef.current = abort;
+
+    // Save scan now if consent was missing at capture time
+    let sid = captured.sid;
+    let scanUrl = captured.url;
+    if (!sid) {
+      try {
+        const res = await fetch('/api/save-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageDataUrl: capturedDataUrl, currentProfile: buildCurrentProfilePayload(captured.profile) }),
+        });
+        const data = await res.json();
+        sid = data.sessionId ?? null;
+        scanUrl = data.downloadUrl ?? scanUrl;
+      } catch { /* non-fatal */ }
+    }
+
     try {
       const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl }), signal: abort.signal });
       if (submitRes.status === 401 || submitRes.status === 402) {
@@ -646,7 +668,7 @@ function ScanPopup({ onScanComplete, onDismiss, needsUsername = false }: {
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
         setExiting(true);
-        setTimeout(() => { onScanComplete(captured.profile, captured.sid, captured.url, fromRect, wasFirstScanRef.current, splatUrl!); }, 600);
+        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!); }, 600);
       }, 900);
     } catch (err) {
       if (abort.signal.aborted) return;
@@ -1322,10 +1344,17 @@ export default function DashboardPage() {
     let projectId: Id<'projects'>;
     try {
       projectId = await createProject({ name: 'My Cut' });
+      const { faceScanData, ...profileRest } = profileWithMeasurements;
+      const profileForConvex = {
+        ...profileRest,
+        ...(faceScanData && {
+          faceScanData: (({ imageDataUrl: _url, maskDataUrl: _mask, classifierFrames: _frames, ...scanRest }) => scanRest)(faceScanData),
+        }),
+      };
       await saveProject({
         projectId,
         lastImageUrl: url ?? undefined,
-        lastProfile: profileWithMeasurements,
+        lastProfile: profileForConvex,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,
       });
