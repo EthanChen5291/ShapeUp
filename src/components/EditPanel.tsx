@@ -620,7 +620,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     </div>
 
     {/* Barber's Order — separate card */}
-    <div className="flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
+    <div className="flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3 mt-3" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">take it to your barber</span>
           {orderResult && !orderLoading && !clarifyState && (

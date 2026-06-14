@@ -24,21 +24,6 @@ const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommenda
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
-function SunIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="4.5" fill="currentColor" />
-      <line x1="12" y1="2" x2="12" y2="5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="12" y1="18.5" x2="12" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="4.22" y1="4.22" x2="6.46" y2="6.46" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="17.54" y1="17.54" x2="19.78" y2="19.78" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="2" y1="12" x2="5.5" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="18.5" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="4.22" y1="19.78" x2="6.46" y2="17.54" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="17.54" y1="6.46" x2="19.78" y2="4.22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function FaceliftLoader({ demoStatus }: { demoStatus: string }) {
   const frozen = demoStatus === 'error';
@@ -139,6 +124,24 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
   );
 }
 
+function SunIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.8" fill="rgba(255,248,234,0.9)" />
+      {Array.from({ length: 8 }, (_, i) => {
+        const a = (i * Math.PI) / 4;
+        return (
+          <line key={i}
+            x1={12 + 6 * Math.cos(a)} y1={12 + 6 * Math.sin(a)}
+            x2={12 + 9.5 * Math.cos(a)} y2={12 + 9.5 * Math.sin(a)}
+            stroke="rgba(255,248,234,0.9)" strokeWidth="1.6" strokeLinecap="round"
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function StudioPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
@@ -182,21 +185,21 @@ export default function StudioPage() {
   const [sceneBackground, setSceneBackground] = useState(() => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     return isDark
-      ? 'url(/preview_bg_dark.jpg) center / 100% 100% no-repeat'
-      : 'url(/project_bg.jpg) center / 100% 100% no-repeat';
+      ? 'url(/preview_bg_dark.png) center / 100% 100% no-repeat'
+      : 'url(/preview_bg.jpg) center / 100% 100% no-repeat';
   });
+  // CSS-mode brightness for non-default backgrounds: 0.5 → brightness(1.0) filter, bypasses Three.js color-space overlay.
+  // undefined = Three.js mode (keeps the pleasant lightening on preview_bg.jpg).
+  const [sceneBgBrightness, setSceneBgBrightness] = useState<number | undefined>(() => {
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    return isDark ? 0.5 : undefined;
+  });
+  const [sunOpen, setSunOpen] = useState(false);
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
+  const [polaroidKey, setPolaroidKey] = useState(0);
 
-  // Sun brightness control
-  const [bgBrightness, setBgBrightness] = useState(0.5);
-  const [sunOpen, setSunOpen] = useState(false);
-  const [sunHovered, setSunHovered] = useState(false);
-  const sunControlRef = useRef<HTMLDivElement>(null);
-  const sliderTrackRef = useRef<HTMLDivElement>(null);
-  const isSliderDragging = useRef(false);
-  const brightnessSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sceneControlsEnabled = process.env.NEXT_PUBLIC_SCENE_CONTROLS !== '0';
   const { stopLoading } = useNavLoading();
@@ -211,47 +214,6 @@ export default function StudioPage() {
     if (isSignedIn === false) router.push('/');
   }, [isSignedIn, router]);
 
-  // Close sun control on outside click
-  useEffect(() => {
-    if (!sunOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (sunControlRef.current && !sunControlRef.current.contains(e.target as Node)) {
-        setSunOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [sunOpen]);
-
-  const handleBrightnessChange = useCallback((val: number) => {
-    setBgBrightness(val);
-    if (brightnessSaveTimerRef.current) clearTimeout(brightnessSaveTimerRef.current);
-    brightnessSaveTimerRef.current = setTimeout(() => {
-      if (projectId) saveProject({ projectId, bgBrightness: val }).catch(() => {});
-    }, 600);
-  }, [projectId, saveProject]);
-
-  const updateBrightnessFromPointer = useCallback((clientY: number) => {
-    if (!sliderTrackRef.current) return;
-    const rect = sliderTrackRef.current.getBoundingClientRect();
-    const ratio = (clientY - rect.top) / rect.height;
-    handleBrightnessChange(1 - Math.max(0, Math.min(1, ratio)));
-  }, [handleBrightnessChange]);
-
-  const handleSliderPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    isSliderDragging.current = true;
-    updateBrightnessFromPointer(e.clientY);
-  }, [updateBrightnessFromPointer]);
-
-  const handleSliderPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isSliderDragging.current) return;
-    updateBrightnessFromPointer(e.clientY);
-  }, [updateBrightnessFromPointer]);
-
-  const handleSliderPointerUp = useCallback(() => {
-    isSliderDragging.current = false;
-  }, []);
 
   // Read transient sessionId from sessionStorage (set by dashboard after scan)
   useEffect(() => {
@@ -286,8 +248,6 @@ export default function StudioPage() {
       const savedSplat = (project as { lastSplatUrl?: string }).lastSplatUrl;
       if (savedSplat) setPersistedSplatUrl(savedSplat);
     }
-    const savedBrightness = (project as { bgBrightness?: number }).bgBrightness;
-    if (typeof savedBrightness === 'number') setBgBrightness(savedBrightness);
   }, [project, initialized]);
 
   const { splatSrc, splatKey, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
@@ -418,13 +378,13 @@ export default function StudioPage() {
   // ── Hair edit loop (splat building) ──
   if (!faceliftReady && imageUrl) {
     return (
-      <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
+      <main className="flex fixed inset-0 overflow-hidden" style={{ background: '#1e1e1e' }}>
         <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
           <button
             onClick={() => router.push('/dashboard')}
             aria-label="Back to dashboard"
             className="btn-tomato"
-            style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 20, outline: '2px solid #ffffff', outlineOffset: 2, color: '#ffffff', boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.1)' }}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
@@ -461,12 +421,12 @@ export default function StudioPage() {
             <FaceliftLoader demoStatus={demoStatus} />
           </div>
         </div>
-        <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden">
+        <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden self-start h-[70vh]">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
             <div className="flex items-center gap-2">
               <button disabled className="btn-ink opacity-40 cursor-not-allowed" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</button>
-              <button onClick={() => router.push('/dashboard')} className="btn-tomato" style={{ padding: '11px 22px', fontSize: 18 }}>✂ Home</button>
+              <button onClick={() => router.push('/dashboard')} className="btn-tomato" style={{ padding: '11px 22px', fontSize: 18, borderRadius: 20, outline: '2px solid #ffffff', outlineOffset: 2, color: '#ffffff', boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.1)' }}>✂ Home</button>
             </div>
           </div>
           <div className="flex-1 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
@@ -495,9 +455,9 @@ export default function StudioPage() {
           onClick={() => router.push('/dashboard')}
           aria-label="Back to dashboard"
           className="btn-ink"
-          style={{ padding: '7px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '2px solid #ffffff', color: '#ffffff' }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
           </svg>
         </button>
@@ -524,7 +484,7 @@ export default function StudioPage() {
           >
             <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, background: '#1c1510' }}>
               {!polaroidImgError ? (
-                <img src={displayImg!} alt="scan" className="block w-full h-full object-cover cut-develop" onError={() => setPolaroidImgError(true)} />
+                <img key={polaroidKey} src={displayImg!} alt="scan" className="block w-full h-full object-cover cut-develop" onError={() => setPolaroidImgError(true)} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.18 }}>
                   <div style={{ width: 40, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
@@ -536,130 +496,63 @@ export default function StudioPage() {
         ); })()}
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
-          {/* Sun brightness control — brightness handled via HairScene backgroundBrightness prop */}
-          {sceneBackground.startsWith('url(/project_bg') && (
-            <div
-              ref={sunControlRef}
-              className="absolute z-20"
-              style={{ top: 14, right: 14 }}
-            >
-              {/* Row: [OK pill] [vertical gradient bar] [sun btn] — top-aligned */}
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-
-                {/* OK pill — same height as bar, to the left, vertical text */}
+          {/* Sun button + bg palette dots */}
+          <div className="absolute z-20" style={{ top: 14, right: 14 }}>
+            {/* Palette dots — absolutely to the left, top-aligned */}
+            <div style={{ position: 'absolute', right: 42, top: 7, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {([
+                { src: '/preview_bg_white.jpg', bg: 'url(/preview_bg_white.jpg) center / 100% 100% no-repeat', brightness: 0.5 as number | undefined },
+                { src: '/preview_bg.jpg',       bg: 'url(/preview_bg.jpg) center / 100% 100% no-repeat',       brightness: undefined as number | undefined },
+                { src: '/preview_bg_dark.png',  bg: 'url(/preview_bg_dark.png) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
+              ]).map(({ src, bg, brightness }, idx) => (
                 <button
-                  onClick={() => setSunOpen(false)}
-                  aria-label="Close brightness control"
+                  key={src}
+                  onClick={() => { setSceneBackground(bg); setSceneBgBrightness(brightness); setSunOpen(false); }}
+                  title={src}
                   style={{
-                    height: 180,
-                    width: 28,
-                    borderRadius: 14,
-                    background: 'rgba(255,255,255,0.05)',
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255,255,255,0.11)',
-                    color: 'rgba(255,255,255,0.5)',
-                    fontSize: 10,
-                    fontFamily: 'var(--font-dmsans), system-ui, sans-serif',
-                    letterSpacing: '0.06em',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    writingMode: 'vertical-rl' as const,
-                    textOrientation: 'mixed' as const,
-                    rotate: '180deg',
-                    transformOrigin: 'top center',
-                    transform: sunOpen ? 'scaleY(1) scaleX(1)' : 'scaleY(0.04) scaleX(0.35)',
-                    opacity: sunOpen ? 1 : 0,
-                    transition: sunOpen
-                      ? 'transform 0.52s cubic-bezier(0.34, 1.15, 0.64, 1), opacity 0.28s ease'
-                      : 'transform 0.22s ease-in, opacity 0.18s ease',
-                    pointerEvents: sunOpen ? 'auto' : 'none',
-                    padding: 0,
-                    flexShrink: 0,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
-                >
-                  OK
-                </button>
-
-                {/* Vertical gradient brightness bar — draggable */}
-                <div
-                  ref={sliderTrackRef}
-                  onPointerDown={handleSliderPointerDown}
-                  onPointerMove={handleSliderPointerMove}
-                  onPointerUp={handleSliderPointerUp}
-                  onPointerCancel={handleSliderPointerUp}
-                  style={{
-                    position: 'relative',
-                    width: 14,
-                    height: 180,
-                    borderRadius: 7,
-                    background: 'linear-gradient(to top, #0a0806 0%, #3a2010 18%, #9e6d3a 42%, #e8d5b5 68%, #f8f2e8 86%, #ffffff 100%)',
-                    border: '1px solid rgba(255,255,255,0.16)',
-                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05), 0 4px 20px rgba(0,0,0,0.28)',
-                    cursor: 'ns-resize',
-                    flexShrink: 0,
-                    transformOrigin: 'top center',
-                    transform: sunOpen ? 'scaleY(1) scaleX(1)' : 'scaleY(0.04) scaleX(0.35)',
-                    opacity: sunOpen ? 1 : 0,
-                    transition: sunOpen
-                      ? 'transform 0.52s cubic-bezier(0.34, 1.15, 0.64, 1), opacity 0.28s ease'
-                      : 'transform 0.22s ease-in, opacity 0.18s ease',
-                    pointerEvents: sunOpen ? 'auto' : 'none',
-                  }}
-                >
-                  {/* Draggable thumb */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: '50%',
-                      top: `${(1 - bgBrightness) * 100}%`,
-                      transform: 'translate(-50%, -50%)',
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      background: 'rgba(255,255,255,0.94)',
-                      border: '1px solid rgba(255,255,255,0.7)',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.95)',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                </div>
-
-                {/* Sun button — truly transparent liquid glass */}
-                <button
-                  onMouseEnter={() => { if (!sunOpen) setSunHovered(true); }}
-                  onMouseLeave={() => setSunHovered(false)}
-                  onClick={() => { setSunOpen(v => !v); setSunHovered(false); }}
-                  aria-label="Adjust background brightness"
-                  style={{
-                    width: 34,
-                    height: 34,
+                    width: 20,
+                    height: 20,
                     borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.06)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255,255,255,0.13)',
-                    boxShadow: '0 2px 14px rgba(0,0,0,0.08), inset 0 0.5px 0 rgba(255,255,255,0.18)',
+                    backgroundImage: `url(${src})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    border: sceneBackground === bg
+                      ? '2px solid rgba(255,248,234,0.92)'
+                      : '1px solid rgba(255,248,234,0.28)',
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'rgba(255,255,255,0.55)',
-                    transform: sunOpen ? 'scale(1.5)' : sunHovered ? 'scale(1.1)' : 'scale(1)',
-                    transition: 'transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     flexShrink: 0,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
                     padding: 0,
+                    opacity: sunOpen ? 1 : 0,
+                    transform: sunOpen ? 'scale(1) translateX(0)' : 'scale(0) translateX(35px)',
+                    transition: `opacity 0.22s ease ${idx * 0.06}s, transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.06}s, border 0.18s ease`,
+                    pointerEvents: sunOpen ? 'auto' : 'none',
                   }}
-                >
-                  <SunIcon />
-                </button>
-              </div>
+                />
+              ))}
             </div>
-          )}
+            {/* Sun toggle button */}
+            <button
+              onClick={() => setSunOpen(v => !v)}
+              title="Change background"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: sunOpen ? 'rgba(255,248,234,0.18)' : 'rgba(0,0,0,0.28)',
+                border: sunOpen ? '1.5px solid rgba(255,248,234,0.7)' : '1.5px solid rgba(255,248,234,0.3)',
+                backdropFilter: 'blur(6px)',
+                cursor: 'pointer',
+                transition: 'border 0.2s ease, background 0.2s ease',
+                padding: 0,
+              }}
+            >
+              <SunIcon size={20} />
+            </button>
+          </div>
 
           <div className="absolute top-3 right-3 z-10">
             <HairRecommendationsBar visible={showRecommendations} onHover={setPreviewPlyUrl} onSelect={(url) => { setHairstepPlyUrl(url); setPreviewPlyUrl(null); }} />
@@ -675,7 +568,7 @@ export default function StudioPage() {
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             disableKeyboardControls={!sceneControlsEnabled}
             background={sceneBackground}
-            backgroundBrightness={sceneBackground.startsWith('url(/project_bg') ? bgBrightness : undefined}
+            backgroundBrightness={sceneBgBrightness}
             uiHidden={menuHidden}
             captureKey={thumbnailCaptureKey}
             renderQuality={renderQuality}
@@ -713,28 +606,23 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden sidebar-in" style={{ zIndex: 50 }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10px]"
-                style={{
-                  background: (userQuery?.credits ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
-                  border: (userQuery?.credits ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
-                  color: (userQuery?.credits ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
-                  transition: 'background 0.3s, border-color 0.3s',
-                }}
-              >
-                ✦ <ClockCounter value={userQuery?.credits ?? 0} />
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
-              {paymentSuccess && (
-                <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
-              )}
-            </div>
-            <div className="flex items-center">
-              <BouncyButton onClick={() => setShowRecommendations(true)} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</BouncyButton>
-            </div>
+        <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-hidden sidebar-in self-start h-[65vh]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
+              style={{
+                background: (userQuery?.credits ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
+                border: (userQuery?.credits ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
+                color: (userQuery?.credits ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
+                transition: 'background 0.3s, border-color 0.3s',
+              }}
+            >
+              ✦ <ClockCounter value={userQuery?.credits ?? 0} />
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+            {paymentSuccess && (
+              <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
+            )}
           </div>
           <EditPanel
               profile={profile ?? mockUserHeadProfile}
@@ -744,6 +632,8 @@ export default function StudioPage() {
               onImageUpdated={(url) => {
                 setDisplayImageUrl(url);
                 setPreviewExpanded(false);
+                setPolaroidImgError(false);
+                setPolaroidKey(k => k + 1);
                 // Upload the Gemini-edited image to S3 and persist under lastEditImageS3Key,
                 // keeping lastImageS3Key (original scan) intact for drift prevention.
                 if (url.startsWith('data:') && projectId) {
