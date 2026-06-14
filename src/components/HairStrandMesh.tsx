@@ -128,6 +128,7 @@ interface HairStrandMeshProps {
   position?: [number, number, number];
   renderOrder?: number;
   lineWidth?: number;
+  renderQuality?: 'performance' | 'balanced' | 'high';
   onBBoxReady?: (bbox: PLYBBox) => void;
 }
 
@@ -142,6 +143,7 @@ export default function HairStrandMesh({
   position = [0, 0, 0],
   renderOrder = 0,
   lineWidth = 1.2,
+  renderQuality = 'balanced',
   onBBoxReady,
 }: HairStrandMeshProps) {
   const { size } = useThree();
@@ -175,7 +177,7 @@ export default function HairStrandMesh({
         linewidth: lineWidth,
         resolution: new THREE.Vector2(size.width, size.height),
       });
-      applyKajiyaKay(mat);
+      if (renderQuality !== 'performance') applyKajiyaKay(mat);
 
       const ls = new LineSegments2(lsGeo, mat);
       ls.scale.set(scale, scale, scale);
@@ -198,7 +200,7 @@ export default function HairStrandMesh({
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+  }, [url, renderQuality]);
 
   // Reactively update scale/position when props change.
   useEffect(() => {

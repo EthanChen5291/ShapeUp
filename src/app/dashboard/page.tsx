@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
+import { ConvexError } from 'convex/values';
 import { api } from '@convex/_generated/api';
 import { Id } from '@convex/_generated/dataModel';
 import { useRouter } from 'next/navigation';
@@ -18,13 +19,74 @@ import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/comp
 import SignUpWidget from '@/components/SignUpWidget';
 import { PricingPopup } from '@/components/PricingPopup';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
+import { useSettings, type Theme, type RenderQuality } from '@/contexts/SettingsContext';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
+
+function generateUniqueCutName(existing: { name: string }[] | undefined): string {
+  const used = new Set<number>();
+  for (const p of existing ?? []) {
+    const m = p.name.match(/^My Cut #(\d{3})$/);
+    if (m) used.add(parseInt(m[1], 10));
+  }
+  const available: number[] = [];
+  for (let i = 100; i <= 999; i++) { if (!used.has(i)) available.push(i); }
+  if (available.length === 0) return 'My Cut';
+  return `My Cut #${available[Math.floor(Math.random() * available.length)]}`;
+}
+
+/* ─── Sign-in modal ─── */
+function SignInModal({ onClose }: { onClose: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  const dismiss = () => {
+    setClosing(true);
+    setTimeout(onClose, 300);
+  };
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: visible && !closing ? 'rgba(10,8,6,0.92)' : 'rgba(10,8,6,0)',
+        transition: 'background 320ms ease',
+      }}
+      onClick={dismiss}
+    >
+      <button
+        onClick={dismiss}
+        style={{
+          position: 'absolute', top: 24, right: 24,
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'rgba(255,248,234,0.08)', border: '1px solid rgba(255,248,234,0.16)',
+          color: 'rgba(255,248,234,0.55)', cursor: 'pointer', fontSize: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >✕</button>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          transform: visible && !closing ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
+          opacity: visible && !closing ? 1 : 0,
+          transition: 'transform 300ms cubic-bezier(.2,.85,.2,1), opacity 280ms ease',
+        }}
+      >
+        <SignUpWidget onEnter={onClose} />
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 /* ─── Profile Menu ─── */
 function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
-  const { signOut, openSignIn } = useClerk();
+  const { signOut } = useClerk();
+  const [showSignIn, setShowSignIn] = useState(false);
   const userQuery = useQuery(api.users.getMe);
   const [open, setOpen] = useState(false);
   const [swallowing, setSwallowing] = useState(false);
@@ -98,9 +160,12 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
 
   if (!isSignedIn) {
     return (
-      <BouncyButton onClick={() => openSignIn()} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
-        Sign in
-      </BouncyButton>
+      <>
+        <BouncyButton onClick={() => setShowSignIn(true)} className="btn" style={{ padding: '9px 18px', fontSize: 11, background: 'var(--coral)', color: 'var(--offwhite)', border: 'none' }}>
+          Sign in
+        </BouncyButton>
+        {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
+      </>
     );
   }
 
@@ -187,12 +252,23 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
 function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => void; onRescan: () => void; originRect: DOMRect }) {
   const userQuery = useQuery(api.users.getMe);
   const setUsernameMutation = useMutation(api.users.setUsername);
+  const revokeBiometricConsentMutation = useMutation(api.users.revokeBiometricConsent);
+  const deleteAccountMutation = useMutation(api.users.deleteCurrentUserData);
+  const { theme, renderQuality, language, aiTrainingOptOut, updateTheme, updateRenderQuality, updateLanguage, updateAiTrainingOptOut } = useSettings();
+
   const [phase, setPhase] = useState<'entering' | 'open' | 'closing'>('entering');
   const [usernameValue, setUsernameValue] = useState(userQuery?.username ?? '');
   const [usernameError, setUsernameError] = useState('');
   const [usernameLoading, setUsernameLoading] = useState(false);
   const [usernameSaved, setUsernameSaved] = useState(false);
-  const PANEL_W = 580, PANEL_H = 540;
+
+  const [revokingConsent, setRevokingConsent] = useState(false);
+  const [consentRevoked, setConsentRevoked] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const PANEL_W = 600, PANEL_H = 680;
 
   useEffect(() => {
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('open')));
@@ -207,8 +283,51 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
     try {
       await setUsernameMutation({ username: usernameValue.trim() });
       setUsernameSaved(true); setTimeout(() => setUsernameSaved(false), 2000);
-    } catch (err) { setUsernameError(err instanceof Error ? err.message : 'Something went wrong'); }
+    } catch (err) { setUsernameError(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Please try again.'); }
     finally { setUsernameLoading(false); }
+  };
+
+  const handleRevokeConsent = async () => {
+    setRevokingConsent(true);
+    try {
+      await revokeBiometricConsentMutation();
+      setConsentRevoked(true);
+    } catch { /* non-fatal */ }
+    finally { setRevokingConsent(false); }
+  };
+
+  const handleDownloadData = () => {
+    if (!userQuery) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      account: {
+        username: userQuery.username,
+        email: userQuery.email,
+        credits: userQuery.credits,
+        biometricConsentAt: userQuery.biometricConsentAt ? new Date(userQuery.biometricConsentAt).toISOString() : null,
+        biometricConsentVersion: userQuery.biometricConsentVersion ?? null,
+        aiTrainingOptOut: userQuery.aiTrainingOptOut ?? false,
+      },
+      note: 'Scan images and 3D models are not included in this export. Contact support to request full media export.',
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'shapeup-my-data.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirm) { setDeleteConfirm(true); return; }
+    setDeleting(true); setDeleteError('');
+    try {
+      await deleteAccountMutation();
+      dismiss();
+      window.location.href = '/';
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Something went wrong');
+      setDeleting(false);
+    }
   };
 
   const isOpen = phase === 'open';
@@ -218,15 +337,38 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   const lerpDur = isOpen ? '480ms' : '240ms';
   const panelTransition = phase === 'entering' ? 'none' : `top ${lerpDur} ${lerpEase}, left ${lerpDur} ${lerpEase}, width ${lerpDur} ${lerpEase}, height ${lerpDur} ${lerpEase}, border-radius ${lerpDur} ${lerpEase}, box-shadow 300ms ease`;
 
+  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+    <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>{children}</span>
+  );
+  const Divider = () => <div style={{ borderTop: '1px dashed rgba(74,58,46,0.15)', margin: '0 0' }} />;
+
+  const themeOptions: { value: Theme; label: string; icon: string }[] = [
+    { value: 'light', label: 'Light', icon: '☀' },
+    { value: 'system', label: 'System', icon: '⬤' },
+    { value: 'dark', label: 'Dark', icon: '◐' },
+  ];
+
+  const qualityOptions: { value: RenderQuality; label: string; desc: string }[] = [
+    { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device' },
+    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens' },
+    { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition' },
+  ];
+
+  const consentDate = userQuery?.biometricConsentAt
+    ? new Date(userQuery.biometricConsentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
   return createPortal(
     <>
       <div className="fixed inset-0" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
-      <div style={{ position: 'fixed', zIndex: 10001, top: isOpen ? (vh - PANEL_H) / 2 : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? PANEL_H : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
-        <div style={{ position: 'absolute', inset: 0, padding: '48px 52px 44px', display: 'flex', flexDirection: 'column', gap: 28, overflow: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease' }}>
+      <div style={{ position: 'fixed', zIndex: 10001, top: isOpen ? Math.max(24, (vh - PANEL_H) / 2) : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? Math.min(PANEL_H, vh - 48) : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
+        <div style={{ position: 'absolute', inset: 0, padding: '44px 52px 44px', display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 30 }}>Settings</h2>
+          <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 28 }}>Settings</h2>
+
+          {/* ── Account ── */}
           <div className="flex flex-col gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--smoke)]">Username</span>
+            <SectionLabel>Account</SectionLabel>
             <div className="flex gap-3">
               <input type="text" value={usernameValue} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="flex-1 font-sans text-[15px] text-[var(--ink)] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none' }} />
               <BouncyButton onClick={handleSaveUsername} disabled={usernameLoading || usernameValue.trim().length < 2} className="btn-ink font-sans text-[13px]" style={{ padding: '10px 20px', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1 }}>
@@ -234,13 +376,127 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
               </BouncyButton>
             </div>
             {usernameError && <span className="font-sans text-[13px] text-[var(--tomato)]">{usernameError}</span>}
+            <div className="flex items-center gap-3 mt-1">
+              <label className="font-sans text-[13px] text-[var(--char)]" style={{ minWidth: 68 }}>Language</label>
+              <select value={language} onChange={e => updateLanguage(e.target.value)} className="settings-lang-select font-sans text-[13px] text-[var(--ink)] rounded-lg px-3 py-2" style={{ background: 'var(--biscuit)', border: '1.5px solid transparent', outline: 'none', cursor: 'pointer' }}>
+                <option value="en">English</option>
+                <option value="es" disabled>Español (soon)</option>
+                <option value="fr" disabled>Français (soon)</option>
+              </select>
+            </div>
           </div>
-          <div className="border-t border-dashed border-[var(--char)]/15" />
+
+          <Divider />
+
+          {/* ── Appearance ── */}
           <div className="flex flex-col gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--smoke)]">3D Scan</span>
+            <SectionLabel>Appearance</SectionLabel>
+            <div className="flex gap-2">
+              {themeOptions.map(opt => (
+                <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? 'var(--ink)' : 'var(--biscuit)', color: theme === opt.value ? 'var(--cream)' : 'var(--char)', border: theme === opt.value ? '1.5px solid transparent' : '1.5px solid transparent', fontWeight: theme === opt.value ? 600 : 400 }}>
+                  <span style={{ fontSize: 16 }}>{opt.icon}</span>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Divider />
+
+          {/* ── Render Quality ── */}
+          <div className="flex flex-col gap-3">
+            <SectionLabel>Render Quality</SectionLabel>
+            <div className="flex flex-col gap-2">
+              {qualityOptions.map(opt => (
+                <button key={opt.value} onClick={() => updateRenderQuality(opt.value)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all" style={{ background: renderQuality === opt.value ? 'var(--ink)' : 'var(--biscuit)', color: renderQuality === opt.value ? 'var(--cream)' : 'var(--ink)' }}>
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? 'var(--butter)' : 'var(--smoke)', transition: 'background 200ms' }} />
+                  <div className="flex flex-col">
+                    <span className="font-sans text-[13px] font-semibold">{opt.label}</span>
+                    <span className="font-sans text-[11px]" style={{ opacity: 0.8 }}>{opt.desc}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Divider />
+
+          {/* ── 3D Scan ── */}
+          <div className="flex flex-col gap-3">
+            <SectionLabel>3D Scan</SectionLabel>
             <div className="flex items-center justify-between gap-4">
-              <p className="font-sans text-[14px] text-[var(--smoke)] leading-snug" style={{ flex: 1 }}>Take a new photo to rebuild your 3D head model from scratch.</p>
-              <BouncyButton onClick={() => { setPhase('closing'); setTimeout(() => { onDismiss(); onRescan(); }, 270); }} className="btn btn-cream" style={{ padding: '12px 24px', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>✂ Rescan</BouncyButton>
+              <p className="font-sans text-[13px] text-[var(--char)] leading-snug" style={{ flex: 1 }}>Rebuild your 3D head model from a new photo.</p>
+              <BouncyButton onClick={() => { setPhase('closing'); setTimeout(() => { onDismiss(); onRescan(); }, 270); }} className="btn btn-cream" style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>✂ Rescan</BouncyButton>
+            </div>
+          </div>
+
+          <Divider />
+
+          {/* ── Privacy & Data ── */}
+          <div className="flex flex-col gap-4">
+            <SectionLabel>Privacy & Data</SectionLabel>
+
+            {/* AI training opt-out */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Improve ShapeUp with my scans</span>
+                <span className="font-sans text-[11px] text-[var(--char)]">Helps train our hair AI models. Off by default.</span>
+              </div>
+              <button onClick={() => updateAiTrainingOptOut(!aiTrainingOptOut)} className="relative flex-shrink-0" style={{ width: 42, height: 24, borderRadius: 12, background: !aiTrainingOptOut ? 'var(--smoke)' : 'var(--terracotta)', border: 'none', cursor: 'pointer', transition: 'background 220ms ease', padding: 0 }} aria-checked={!aiTrainingOptOut} role="switch">
+                <span style={{ position: 'absolute', top: 3, left: !aiTrainingOptOut ? 3 : 21, width: 18, height: 18, borderRadius: '50%', background: 'var(--cream)', transition: 'left 220ms ease', display: 'block' }} />
+              </button>
+            </div>
+
+            {/* Biometric consent */}
+            <div className="flex flex-col gap-1.5 rounded-xl p-3" style={{ background: 'var(--biscuit)' }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Biometric consent</span>
+                {consentDate && !consentRevoked ? (
+                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>granted {consentDate}</span>
+                ) : (
+                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>not granted</span>
+                )}
+              </div>
+              <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
+                {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — facial scan data stored for 3D model generation.
+              </p>
+              {(consentDate && !consentRevoked) && (
+                <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11px] self-start mt-1" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 8, padding: '4px 12px', opacity: revokingConsent ? 0.5 : 1 }}>
+                  {revokingConsent ? '…' : 'Revoke consent'}
+                </BouncyButton>
+              )}
+              {consentRevoked && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>✓ Consent revoked. Your scan data will be cleared.</span>}
+            </div>
+
+            {/* Download data */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Download my data</span>
+                <span className="font-sans text-[11px] text-[var(--char)]">Export your account info as JSON (GDPR / CCPA).</span>
+              </div>
+              <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12px] flex-shrink-0" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.2)', color: 'var(--ink)', borderRadius: 10, padding: '7px 14px', opacity: !userQuery ? 0.4 : 1 }}>
+                ↓ Export
+              </BouncyButton>
+            </div>
+
+            {/* Delete account */}
+            <div className="flex flex-col gap-2 rounded-xl p-3" style={{ background: 'rgba(169,49,31,0.06)', border: '1px solid rgba(169,49,31,0.18)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-sans text-[13px] font-semibold" style={{ color: 'var(--cherry)' }}>Delete account</span>
+                  <span className="font-sans text-[11px] text-[var(--char)]">Permanently removes your data. This cannot be undone.</span>
+                </div>
+                <BouncyButton onClick={handleDeleteAccount} disabled={deleting} className="font-sans text-[12px] flex-shrink-0" style={{ background: deleteConfirm ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: deleteConfirm ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '7px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms, color 200ms' }}>
+                  {deleting ? '…' : deleteConfirm ? 'Confirm delete' : 'Delete'}
+                </BouncyButton>
+              </div>
+              {deleteConfirm && !deleting && (
+                <div className="flex items-center gap-2">
+                  <span className="font-sans text-[11px]" style={{ color: 'var(--cherry)' }}>All scans, projects, and your account will be deleted.</span>
+                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11px]" style={{ background: 'none', border: 'none', color: 'var(--char)', cursor: 'pointer', padding: 0 }}>Cancel</button>
+                </div>
+              )}
+              {deleteError && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{deleteError}</span>}
             </div>
           </div>
         </div>
@@ -481,7 +737,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
       setTimeout(() => setExpanded(true), 120);
       setTimeout(() => { setPhase('camera'); setContentVisible(true); }, 500);
       setTimeout(() => setShowRequirements(true), 900);
-    } catch (err: unknown) { setUsernameError(err instanceof Error ? err.message : 'Something went wrong'); setUsernameLoading(false); }
+    } catch (err: unknown) { setUsernameError(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Please try again.'); setUsernameLoading(false); }
   };
 
   const processCapture = useCallback(async (dataUrl: string): Promise<{ profile: UserHeadProfile; sessionId: string | null; url: string | null }> => {
@@ -774,17 +1030,63 @@ function stampDate(ms: number) {
   return `${mon} ${String(d.getDate()).padStart(2, '0')} '${String(d.getFullYear()).slice(2)}`;
 }
 
+/* ─── Delete Confirm Popup ─── */
+function DeleteConfirmPopup({ projectName, onConfirm, onCancel }: { projectName: string; onConfirm: () => void; onCancel: () => void }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setVisible(true), 16); return () => clearTimeout(t); }, []);
+  const cancel = () => { setVisible(false); setTimeout(onCancel, 260); };
+  const confirm = () => { setVisible(false); setTimeout(onConfirm, 260); };
+  return createPortal(
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: visible ? 'rgba(10,8,6,0.72)' : 'rgba(10,8,6,0)', transition: 'background 260ms ease' }}
+      onClick={cancel}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: 'var(--cream)', borderRadius: 24, padding: '36px 44px', boxShadow: '0 32px 80px -20px rgba(0,0,0,0.5)', border: '1px solid rgba(42,32,26,0.1)', minWidth: 340, maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 20, transform: visible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.96)', opacity: visible ? 1 : 0, transition: 'transform 280ms cubic-bezier(.2,.85,.2,1), opacity 260ms ease' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <h3 className="font-display" style={{ fontSize: 22, fontWeight: 700, fontStyle: 'italic', color: 'var(--ink)', margin: 0 }}>Delete this cut?</h3>
+          <p className="font-sans" style={{ fontSize: 14, color: 'var(--smoke)', margin: 0, lineHeight: 1.5 }}>
+            Are you sure you want to delete <strong style={{ color: 'var(--ink)' }}>{projectName}</strong>?
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <BouncyButton onClick={cancel} className="btn btn-cream flex-1 font-sans" style={{ padding: '12px 0', fontSize: 14 }}>No, keep it</BouncyButton>
+          <BouncyButton onClick={confirm} className="flex-1 font-sans" style={{ padding: '12px 0', fontSize: 14, fontWeight: 700, background: 'var(--cherry)', color: 'var(--cream)', border: 'none', borderRadius: 14 }}>Yes, delete</BouncyButton>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ─── Project Card ─── */
-function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { project: ProjectDoc; onClick: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void }) {
+function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave, onRename }: { project: ProjectDoc; onClick: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void; onRename?: (name: string) => void }) {
   const [zooming, setZooming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [stamping, setStamping] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [arrowHovered, setArrowHovered] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(project.name);
+  const [imgError, setImgError] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const DRAWER_H = 72, EASE = 'cubic-bezier(0,0,0.2,1)', DUR = '270ms';
   const isSaved = !!project.savedAt;
+
+  useEffect(() => { setNameValue(project.name); }, [project.name]);
+  useEffect(() => { if (editingName) nameInputRef.current?.focus(); }, [editingName]);
+
+  const commitRename = () => {
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== project.name) onRename?.(trimmed);
+    else setNameValue(project.name);
+    setEditingName(false);
+  };
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -798,10 +1100,13 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}
       style={{ transform: isDeleting ? undefined : isHovered ? 'rotate(0deg) translateY(-5px) scale(1.015)' : `rotate(${rotate}deg)`, ['--pcard-wonk' as string]: `${rotate}deg`, boxShadow: isHovered ? '0 22px 44px -14px rgba(42,32,26,0.32)' : 'var(--shadow-md)', outline: isSaved ? '1.5px solid rgba(212,175,55,0.45)' : '1.5px solid rgba(42,32,26,0.14)', pointerEvents: isDeleting ? 'none' : 'auto' }}
     >
-      <div className={`pcard-tape ${isSaved ? 'pcard-tape-gold' : ''}`} aria-hidden />
+      <div className={`pcard-tape ${isSaved ? 'pcard-tape-gold' : ''}`} aria-hidden style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px) rotate(-7deg)` : 'rotate(-7deg)', transition: `transform ${DUR} ${EASE}, background 320ms ease, border-color 320ms ease` }} />
       <div className="pcard-tray" style={{ height: DRAWER_H }}>
-        <button className="pcard-chip pcard-chip-cherry" onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete?.(), 420); }, 280); }} aria-label="Delete cut">
+        <button className="pcard-chip pcard-chip-cherry" onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setShowDeleteConfirm(true); }} aria-label="Delete cut">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></svg>
+        </button>
+        <button className="pcard-chip pcard-chip-purple" onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setTimeout(() => setEditingName(true), 120); }} aria-label="Rename cut">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M20.707 5.826l-2.534-2.533a1 1 0 0 0-1.414 0l-1.768 1.768 3.948 3.948 1.768-1.769a1 1 0 0 0 0-1.414zM3 17.25V21h3.75l9.81-9.812-3.948-3.948L3 17.25zM17.25 7.75l-9.5 9.5" /></svg>
         </button>
         <button className={`pcard-chip ${isSaved ? 'pcard-chip-gold' : 'pcard-chip-butter'}`} onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); setTimeout(() => { if (!isSaved) { setStamping(true); setTimeout(() => setStamping(false), 1100); } if (cardRef.current) onSave?.(cardRef.current.getBoundingClientRect()); }, 240); }} aria-label={isSaved ? 'Remove from saved' : 'Save cut'}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M5 3H19V21L12 15.5L5 21Z" /></svg>
@@ -810,18 +1115,38 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave }: { proje
       </div>
       <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
-          {(project.thumbnailS3Key || project.thumbnailUrl) ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {(project.thumbnailS3Key || project.thumbnailUrl) && !imgError ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} onError={() => setImgError(true)} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
-          <span className="font-display pcard-name">{project.name}</span>
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              className="font-display pcard-name pcard-name-input"
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') { setNameValue(project.name); setEditingName(false); } }}
+              onClick={(e) => e.stopPropagation()}
+              maxLength={40}
+            />
+          ) : (
+            <span className="font-display pcard-name">{nameValue}</span>
+          )}
           <span className="font-mono pcard-date">{stampDate(project.updatedAt)}</span>
         </div>
       </div>
-      {(stamping || isSaved) && <span className={`font-mono pcard-stamp ${stamping ? 'pcard-stamp-slam' : ''}`} aria-hidden>KEEPER</span>}
+      {(stamping || isSaved) && <span className={`font-mono pcard-stamp ${stamping ? 'pcard-stamp-slam' : ''}`} aria-hidden style={!stamping ? { transform: drawerOpen ? `translateY(-${DRAWER_H}px) rotate(7deg)` : 'rotate(7deg)', transition: `transform ${DUR} ${EASE}` } : undefined}>KEEPER</span>}
       <button onClick={(e) => { e.stopPropagation(); setDrawerOpen(o => !o); }} onMouseEnter={(e) => { e.stopPropagation(); setArrowHovered(true); }} onMouseLeave={(e) => { e.stopPropagation(); setArrowHovered(false); }} className="pcard-arrow" style={{ bottom: drawerOpen ? DRAWER_H + 12 : 12, color: arrowHovered ? 'var(--tomato)' : 'var(--ink)', borderColor: arrowHovered ? 'rgba(217,78,58,0.7)' : isSaved ? 'rgba(212,175,55,0.55)' : 'rgba(42,32,26,0.25)', transform: arrowHovered ? 'scale(1.16)' : 'scale(1)' }} aria-label="Card actions">
         <svg width="11" height="11" viewBox="0 0 10 10" fill="none" style={{ transform: drawerOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: `transform ${DUR} ${EASE}` }}><path d="M2 6.5L5 3.5L8 6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
+      {showDeleteConfirm && (
+        <DeleteConfirmPopup
+          projectName={project.name}
+          onConfirm={() => { setShowDeleteConfirm(false); setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete?.(), 420); }, 280); }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }
@@ -872,7 +1197,7 @@ const TEASER_TAGS = ['taper', 'crop', 'fringe', 'fade', 'flow', 'buzz'];
 function ExploreFloor() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px', gap: 36, position: 'relative', overflow: 'hidden' }}>
-      <div className="explore-ticket"><span className="inline-block w-2 h-5 barber-pole" /><span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(42,32,26,0.7)', fontWeight: 700 }}>actively in development</span></div>
+      <div className="explore-ticket"><span className="inline-block w-2 h-5 barber-pole" /><span className="font-mono explore-ticket-label" style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>actively in development</span></div>
       <div className="explore-wall" style={{ justifyContent: 'center' }}>
         {TEASER_TAGS.map((tag, i) => (
           <div key={tag} className="explore-ghost" style={{ ['--eg-wonk' as string]: `${[-1.3, 0.9, -0.6, 1.2, -0.9, 0.7][i]}deg`, ['--eg-phase' as string]: `${i * -0.7}s` }}>
@@ -940,10 +1265,19 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
 function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false, isSignedIn }: {
   onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean; isSignedIn?: boolean | null;
 }) {
-  const { openSignIn } = useClerk();
+  const [showSignIn, setShowSignIn] = useState(false);
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
   const toggleSaveProject = useMutation(api.projects.toggleSave);
+  const renameProject = useMutation(api.projects.rename);
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains('dark'));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
   const [menuVisible, setMenuVisible] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
   const [rightVisible, setRightVisible] = useState(false);
@@ -1116,7 +1450,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248 }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(42,32,26,0.28)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.28)')} />
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid var(--search-floor0-border)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.28)' : 'rgba(42,32,26,0.28)')} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
@@ -1126,7 +1460,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
                   {homeProjects?.map((p, i) => (
                     <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                      <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} />
+                      <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                     </div>
                   ))}
                 </div>
@@ -1146,13 +1480,13 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               </div>
 
               {/* Floor 1 — Saved */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: '56px 40px 80px' }}>
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#181b17' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <SavedTitle count={savedProjects?.length} />
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248 }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(252,245,228,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(252,245,228,0.28)', borderRadius: 9999, background: 'rgba(252,245,228,0.08)', fontSize: 14, color: '#fcf5e4', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.6)')} onBlur={e => (e.target.style.borderColor = 'rgba(252,245,228,0.28)')} />
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(252,245,228,0.45)', borderRadius: 9999, background: 'rgba(252,245,228,0.08)', fontSize: 14, color: '#fcf5e4', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.6)')} onBlur={e => (e.target.style.borderColor = 'rgba(252,245,228,0.45)')} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
@@ -1166,13 +1500,14 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                       <span className="font-display saved-ghost-caption">sign in to see your keepers</span>
                     </div>
                     <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>Your saved cuts live here. Sign in to bookmark styles and build your collection.</p>
-                    <BouncyButton onClick={() => openSignIn()} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                    <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                    {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
                   </div>
                 ) : savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                        <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} />
+                        <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                       </div>
                     ))}
                   </div>
@@ -1180,15 +1515,19 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               </div>
 
               {/* Gap band: Saved → Explore */}
-              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
-                <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
-                  <rect width="1440" height="320" fill="#2b2e27" />
-                  <path d="M0,320 L0,180 C240,70 480,290 720,180 C960,70 1200,290 1440,180 L1440,320 Z" fill="#fcf5e4" />
-                </svg>
-              </div>
+              {isDark ? (
+                <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: '#181b17' }} />
+              ) : (
+                <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
+                  <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
+                    <rect width="1440" height="320" fill="#2b2e27" />
+                    <path d="M0,320 L0,180 C240,70 480,290 720,180 C960,70 1200,290 1440,180 L1440,320 Z" fill="#fcf5e4" />
+                  </svg>
+                </div>
+              )}
 
               {/* Floor 2 — Explore */}
-              <div style={{ height: vpH || '100vh', position: 'relative' }}><ExploreFloor /></div>
+              <div style={{ height: vpH || '100vh', position: 'relative', background: isDark ? '#181b17' : undefined }}><ExploreFloor /></div>
             </div>
           </div>
 
@@ -1208,6 +1547,7 @@ export default function DashboardPage() {
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
   const meUser = useQuery(api.users.getMe);
+  const allProjects = useQuery(api.projects.list);
 
   useEffect(() => {
     if (isSignedIn) getOrCreate().catch(err => console.error('[Dashboard] getOrCreate failed:', err));
@@ -1283,20 +1623,19 @@ export default function DashboardPage() {
     // Create a Convex project for this scan
     let projectId: Id<'projects'>;
     try {
-      projectId = await createProject({ name: 'My Cut' });
-      const { faceScanData, ...profileRest } = profileWithMeasurements;
-      const profileForConvex = {
-        ...profileRest,
-        ...(faceScanData && {
-          faceScanData: (({ imageDataUrl: _url, maskDataUrl: _mask, classifierFrames: _frames, ...scanRest }) => scanRest)(faceScanData),
-        }),
+      projectId = await createProject({ name: generateUniqueCutName(allProjects ?? []) });
+      const { imageDataUrl: _i, maskDataUrl: _m, classifierFrames: _c, ...cleanScan } =
+        profileWithMeasurements.faceScanData ?? {} as never;
+      const profileToSave = {
+        ...profileWithMeasurements,
+        faceScanData: profileWithMeasurements.faceScanData ? cleanScan : undefined,
       };
       await saveProject({
         projectId,
         lastImageUrl: url ?? undefined,
         lastImageS3Key: scanS3Key ?? undefined,
         thumbnailS3Key: scanS3Key ?? undefined,
-        lastProfile: profileForConvex,
+        lastProfile: profileToSave,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,
       });

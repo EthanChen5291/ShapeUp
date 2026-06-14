@@ -1543,8 +1543,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background: var(--biscuit);
   border-radius: 0 0 16px 16px;
   border-top: 1.5px dashed rgba(42, 32, 26, 0.22);  /* ticket perforation */
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 16px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px;
   z-index: 1;
 }
 .pcard-tray-label {
@@ -1556,7 +1556,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 .pcard-chip {
-  width: 50px; height: 50px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   border: none;
   display: flex; align-items: center; justify-content: center;
@@ -1571,6 +1571,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .pcard-chip-butter:hover { background: rgba(255, 231, 176, 0.85); }
 .pcard-chip-gold   { background: rgba(212, 175, 55, 0.18); color: rgb(180, 140, 30); }
 .pcard-chip-gold:hover { background: rgba(212, 175, 55, 0.3); }
+.pcard-chip-purple { background: rgba(130, 80, 200, 0.1); color: rgb(120, 70, 190); }
+.pcard-chip-purple:hover { background: rgba(130, 80, 200, 0.2); }
 
 .pcard-content {
   position: absolute; inset: 0;
@@ -1627,6 +1629,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
   font-size: 16px;
   color: var(--char);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+.pcard-name-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  border-bottom: 1.5px solid rgba(130, 80, 200, 0.5);
+  padding: 0;
+  width: 100%;
   min-width: 0;
 }
 .pcard-date {
@@ -1914,6 +1925,41 @@ input[type="range"].slider-warm::-moz-range-thumb {
   letter-spacing: 0.26em;
   color: rgba(42, 32, 26, 0.45);
   animation: explore-marquee-roll 26s linear infinite;
+}
+
+/* ── Explore — dark mode overrides ─────────────────────────────── */
+html.dark .explore-ghost {
+  background: #252820;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  outline: 1.5px solid rgba(252, 245, 228, 0.15);
+}
+html.dark .explore-ghost:hover {
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+}
+html.dark .explore-ghost-photo {
+  background: linear-gradient(160deg, #2e3129, #1e2119);
+}
+html.dark .explore-ghost-tag {
+  color: rgba(252, 245, 228, 0.75);
+}
+html.dark .explore-ghost-stamp {
+  color: rgba(252, 245, 228, 0.9);
+  background: #2e3129;
+  border: 1.2px solid rgba(252, 245, 228, 0.55);
+}
+html.dark .explore-ticket {
+  background: #252820;
+  border: 1.5px solid rgba(252, 245, 228, 0.2);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+.explore-ticket-label { color: rgba(42, 32, 26, 0.7); }
+html.dark .explore-ticket-label { color: rgba(252, 245, 228, 0.85); }
+html.dark .explore-marquee {
+  border-top: 1.5px solid rgba(252, 245, 228, 0.1);
+  background: #181b17;
+}
+html.dark .explore-marquee-track {
+  color: rgba(252, 245, 228, 0.55);
 }
 @keyframes explore-marquee-roll {
   from { transform: translateX(0); }
@@ -2667,6 +2713,22 @@ input[type="range"].slider-warm::-moz-range-thumb {
   font-size: 11.5px;
   opacity: 0.88;
 }
+.btn-cta-order-beta {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cherry);
+  background: rgba(255, 248, 234, 0.92);
+  border-radius: 4px;
+  padding: 2px 5px;
+  line-height: 1.2;
+  pointer-events: none;
+}
 .btn-cta-order-sheen {
   position: absolute;
   inset: 0;
@@ -2755,4 +2817,142 @@ input[type="range"].slider-warm::-moz-range-thumb {
     0%, 99% { opacity: 1; transform: translate(-50%, -50%) rotate(-6deg); }
     100%    { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg); }
   }
+}
+
+/* ============================================================
+   DARK MODE — html.dark overrides warm palette with charcoal
+   ============================================================ */
+html.dark {
+  --biscuit:    #1e1e21;
+  --biscuit-lt: #252528;
+  --cream:      #2b2b2f;
+  --butter:     #3a3a40;
+  --peach:      #3a2e2a;
+  --chalk:      #1e1e21;
+
+  --ink:   #f0ece4;
+  --char:  #c4c0b8;
+  --smoke: #8a8a96;
+}
+
+html.dark body {
+  background: var(--biscuit);
+  color: var(--ink);
+}
+
+html.dark .pcard {
+  background: var(--cream);
+  outline-color: rgba(255,255,255,0.1) !important;
+}
+
+html.dark .tokens-widget {
+  background: linear-gradient(150deg, #ffe9b8 0%, #ffd170 100%);
+  border-color: rgba(200, 150, 30, 0.4);
+}
+html.dark .tokens-widget__count {
+  color: #2a201a;
+}
+html.dark .tokens-widget__label {
+  color: #7a5920;
+}
+
+html.dark .btn-tokens-cta {
+  color: #ffffff;
+}
+
+html.dark .count-ticket {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* language select — strip OS chrome */
+.settings-lang-select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+html.dark .settings-lang-select {
+  background: var(--biscuit-lt);
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: var(--ink);
+  border-radius: 8px;
+}
+
+/* ── Floor-0 search border (visible in dark mode) ──────────── */
+:root { --search-floor0-border: rgba(42, 32, 26, 0.28); }
+html.dark { --search-floor0-border: rgba(255, 255, 255, 0.28); }
+
+/* ── Studio outer shell — dark mode replaces tomato red ─────── */
+html.dark .bg-tomato-shop {
+  background: #111113;
+  /* scope-restore --cream for studio text so text-[var(--cream)] stays light */
+  --cream: #F5F1EA;
+}
+html.dark .bg-tomato-shop::after {
+  background: none;
+}
+
+html.dark .fresh-sheet {
+  background: var(--cream);
+}
+
+/* ── Sun brightness glass slider ─────────────────────────── */
+.slider-glass {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.slider-glass::-webkit-slider-runnable-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.slider-glass::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.9);
+  margin-top: -7px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+.slider-glass::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.slider-glass::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.slider-glass::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+@keyframes sunBounceIn {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.62); }
+  60%  { transform: scale(1.44); }
+  80%  { transform: scale(1.52); }
+  100% { transform: scale(1.5); }
+}
+@keyframes sunBounceHover {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.13); }
+  75%  { transform: scale(1.07); }
+  100% { transform: scale(1.1); }
 }

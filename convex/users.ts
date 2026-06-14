@@ -1,4 +1,5 @@
 import { internalMutation, mutation, query } from "./_generated/server";
+import { ConvexError } from "convex/values";
 import { v } from "convex/values";
 import { validateUsernameBusinessRules } from "./lib/contentFilter";
 import { enforceMutationRateLimit } from "./lib/rateLimit";
@@ -119,14 +120,14 @@ export const deductCredit = mutation({
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
-    if (!user) throw new Error("User not found — please reload and try again");
+    if (!user) throw new ConvexError("Couldn't find your account. Please reload and try again.");
 
     // Dev/demo allowlist: bypass the paywall entirely for whitelisted emails.
     if (user.email && getBypassEmails().has(user.email.toLowerCase())) {
       return user.credits;
     }
 
-    if (user.credits <= 0) throw new Error("No credits remaining");
+    if (user.credits <= 0) throw new ConvexError("You're out of credits. Add more to continue.");
 
     await ctx.db.patch(user._id, { credits: user.credits - 1 });
     return user.credits - 1;
@@ -163,22 +164,22 @@ export const setUsername = mutation({
     );
 
     const trimmed = args.username.trim();
-    if (trimmed.length < 2 || trimmed.length > 20) throw new Error("Username must be 2–20 characters");
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) throw new Error("Username can only contain letters, numbers, and underscores");
+    if (trimmed.length < 2 || trimmed.length > 20) throw new ConvexError("Username must be between 2 and 20 characters.");
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) throw new ConvexError("Only letters, numbers, and underscores are allowed.");
     const businessRuleError = validateUsernameBusinessRules(trimmed);
-    if (businessRuleError) throw new Error(businessRuleError);
+    if (businessRuleError) throw new ConvexError(businessRuleError);
 
     const existing = await ctx.db
       .query("users")
       .withIndex("by_username", (q) => q.eq("username", trimmed))
       .unique();
-    if (existing) throw new Error("Username is already taken");
+    if (existing) throw new ConvexError("That username is already taken. Try another one.");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("Couldn't find your account. Try signing out and back in.");
 
     await ctx.db.patch(user._id, { username: trimmed });
     return trimmed;
@@ -251,6 +252,44 @@ export const deleteCurrentUserData = mutation({
       s3Keys: [...s3Keys],
       warning: "Legacy session rows without userId cannot be safely attributed for automatic deletion.",
     };
+  },
+});
+
+export const updateSettings = mutation({
+  args: {
+    theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("system"))),
+    renderQuality: v.optional(v.union(v.literal("performance"), v.literal("balanced"), v.literal("high"))),
+    aiTrainingOptOut: v.optional(v.boolean()),
+    language: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (!user) throw new Error("User not found");
+    const patch: Record<string, unknown> = {};
+    if (args.theme !== undefined) patch.theme = args.theme;
+    if (args.renderQuality !== undefined) patch.renderQuality = args.renderQuality;
+    if (args.aiTrainingOptOut !== undefined) patch.aiTrainingOptOut = args.aiTrainingOptOut;
+    if (args.language !== undefined) patch.language = args.language;
+    await ctx.db.patch(user._id, patch);
+  },
+});
+
+export const revokeBiometricConsent = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (!user) throw new Error("User not found");
+    await ctx.db.patch(user._id, { biometricConsentAt: undefined, biometricConsentVersion: undefined });
   },
 });
 

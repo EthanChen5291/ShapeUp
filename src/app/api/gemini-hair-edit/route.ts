@@ -147,13 +147,13 @@ export async function POST(req: NextRequest) {
   });
   if (rateLimited) return rateLimited;
 
-  let imageUrl: string, prompt: string, sessionId: string;
+  let imageUrl: string, prompt: string, sessionId: string | undefined;
   let currentProfile: unknown = null;
   try {
     const body = await req.json();
     imageUrl = body.imageUrl;
     prompt = body.prompt;
-    sessionId = body.sessionId;
+    sessionId = body.sessionId ?? undefined;
     currentProfile = body.currentProfile ?? null;
     console.log('[gemini-hair-edit] body parsed OK');
     console.log('[gemini-hair-edit]   sessionId:', sessionId);
@@ -165,9 +165,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!imageUrl || !prompt || !sessionId) {
-    console.error('[gemini-hair-edit] missing fields — imageUrl:', !!imageUrl, '| prompt:', !!prompt, '| sessionId:', !!sessionId);
-    return NextResponse.json({ ok: false, error: 'imageUrl, prompt, and sessionId are required' }, { status: 400 });
+  if (!imageUrl || !prompt) {
+    console.error('[gemini-hair-edit] missing fields — imageUrl:', !!imageUrl, '| prompt:', !!prompt, '| sessionId:', sessionId ?? 'none');
+    return NextResponse.json({ ok: false, error: 'imageUrl and prompt are required' }, { status: 400 });
   }
   if (typeof prompt !== 'string' || prompt.length > MAX_PROMPT_LENGTH) {
     return NextResponse.json({ ok: false, error: `prompt must be a string of at most ${MAX_PROMPT_LENGTH} characters` }, { status: 400 });

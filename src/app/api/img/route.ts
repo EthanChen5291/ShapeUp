@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSignedDownloadUrl } from '@/lib/s3';
 
 // Only these S3 key prefixes can be served through this route.
-const ALLOWED_PREFIXES = ['thumbnails/', 'pictures/'];
+const ALLOWED_PREFIXES = ['thumbnails/', 'pictures/', 'edit-images/'];
 
 export async function GET(req: NextRequest) {
   const key = req.nextUrl.searchParams.get('key');

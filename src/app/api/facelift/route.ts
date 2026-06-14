@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
       await convex.mutation(api.users.deductCredit, {});
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const status = msg.includes('No credits') ? 402 : 400;
+      const status = msg.includes('out of credits') || msg.includes('No credits') ? 402 : 400;
       return NextResponse.json({ error: msg }, { status });
     }
   }
@@ -343,5 +343,5 @@ export async function POST(req: NextRequest) {
   ]);
 
   console.log(`[facelift] POST: done jobId=${jobId}`);
-  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl });
+  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl, splatS3Key: splatKey });
 }

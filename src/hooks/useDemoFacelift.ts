@@ -6,6 +6,7 @@ export type DemoFaceliftStatus = 'idle' | 'processing' | 'done' | 'error';
 
 export function useDemoFacelift(originalImageUrl: string | null) {
   const [splatSrc, setSplatSrc] = useState<string | null>(null);
+  const [splatKey, setSplatKey] = useState<string | null>(null);
   const [status,   setStatus]   = useState<DemoFaceliftStatus>('idle');
   const [error,    setError]    = useState<string | null>(null);
   const startedRef = useRef(false);
@@ -45,11 +46,12 @@ export function useDemoFacelift(originalImageUrl: string | null) {
         throw new Error(`Facelift failed (${res.status}): ${body || 'empty response'}`);
       }
 
-      const { splatUrl, error: serverError } = await res.json() as { splatUrl?: string; error?: string };
+      const { splatUrl, error: serverError, splatS3Key } = await res.json() as { splatUrl?: string; error?: string; splatS3Key?: string };
       if (serverError) throw new Error(serverError);
       if (!splatUrl) throw new Error('No splatUrl in response');
 
       setSplatSrc(splatUrl);
+      if (splatS3Key) setSplatKey(splatS3Key);
       setStatus('done');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -59,5 +61,5 @@ export function useDemoFacelift(originalImageUrl: string | null) {
     }
   }
 
-  return { splatSrc, status, error };
+  return { splatSrc, splatKey, status, error };
 }
