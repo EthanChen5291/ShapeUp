@@ -17,11 +17,28 @@ import dynamic from 'next/dynamic';
 import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
 import { useSearchParams } from 'next/navigation';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
+import { useSettings } from '@/contexts/SettingsContext';
 
 const HairScene = dynamic(() => import('@/components/HairScene'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
+
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.5" fill="currentColor" />
+      <line x1="12" y1="2" x2="12" y2="5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="12" y1="18.5" x2="12" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="4.22" y1="4.22" x2="6.46" y2="6.46" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="17.54" y1="17.54" x2="19.78" y2="19.78" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="2" y1="12" x2="5.5" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="18.5" y1="12" x2="22" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="4.22" y1="19.78" x2="6.46" y2="17.54" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="17.54" y1="6.46" x2="19.78" y2="4.22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function FaceliftLoader({ demoStatus }: { demoStatus: string }) {
   const frozen = demoStatus === 'error';
@@ -128,6 +145,7 @@ export default function StudioPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params.projectId as Id<'projects'>;
+  const { renderQuality } = useSettings();
 
   const saveProject = useMutation(api.projects.save);
   const project = useQuery(api.projects.get, { projectId });
@@ -161,10 +179,24 @@ export default function StudioPage() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
   const [previewExpanded, setPreviewExpanded] = useState(false);
-  const [sceneBackground, setSceneBackground] = useState('url(/preview_bg.jpg) center / 100% 100% no-repeat');
+  const [sceneBackground, setSceneBackground] = useState(() => {
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    return isDark
+      ? 'url(/preview_bg_dark.jpg) center / 100% 100% no-repeat'
+      : 'url(/project_bg.jpg) center / 100% 100% no-repeat';
+  });
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
+
+  // Sun brightness control
+  const [bgBrightness, setBgBrightness] = useState(0.5);
+  const [sunOpen, setSunOpen] = useState(false);
+  const [sunHovered, setSunHovered] = useState(false);
+  const sunControlRef = useRef<HTMLDivElement>(null);
+  const sliderTrackRef = useRef<HTMLDivElement>(null);
+  const isSliderDragging = useRef(false);
+  const brightnessSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sceneControlsEnabled = process.env.NEXT_PUBLIC_SCENE_CONTROLS !== '0';
   const { stopLoading } = useNavLoading();
@@ -178,6 +210,48 @@ export default function StudioPage() {
   useEffect(() => {
     if (isSignedIn === false) router.push('/');
   }, [isSignedIn, router]);
+
+  // Close sun control on outside click
+  useEffect(() => {
+    if (!sunOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (sunControlRef.current && !sunControlRef.current.contains(e.target as Node)) {
+        setSunOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [sunOpen]);
+
+  const handleBrightnessChange = useCallback((val: number) => {
+    setBgBrightness(val);
+    if (brightnessSaveTimerRef.current) clearTimeout(brightnessSaveTimerRef.current);
+    brightnessSaveTimerRef.current = setTimeout(() => {
+      if (projectId) saveProject({ projectId, bgBrightness: val }).catch(() => {});
+    }, 600);
+  }, [projectId, saveProject]);
+
+  const updateBrightnessFromPointer = useCallback((clientY: number) => {
+    if (!sliderTrackRef.current) return;
+    const rect = sliderTrackRef.current.getBoundingClientRect();
+    const ratio = (clientY - rect.top) / rect.height;
+    handleBrightnessChange(1 - Math.max(0, Math.min(1, ratio)));
+  }, [handleBrightnessChange]);
+
+  const handleSliderPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isSliderDragging.current = true;
+    updateBrightnessFromPointer(e.clientY);
+  }, [updateBrightnessFromPointer]);
+
+  const handleSliderPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isSliderDragging.current) return;
+    updateBrightnessFromPointer(e.clientY);
+  }, [updateBrightnessFromPointer]);
+
+  const handleSliderPointerUp = useCallback(() => {
+    isSliderDragging.current = false;
+  }, []);
 
   // Read transient sessionId from sessionStorage (set by dashboard after scan)
   useEffect(() => {
@@ -212,6 +286,8 @@ export default function StudioPage() {
       const savedSplat = (project as { lastSplatUrl?: string }).lastSplatUrl;
       if (savedSplat) setPersistedSplatUrl(savedSplat);
     }
+    const savedBrightness = (project as { bgBrightness?: number }).bgBrightness;
+    if (typeof savedBrightness === 'number') setBgBrightness(savedBrightness);
   }, [project, initialized]);
 
   const { splatSrc, splatKey, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
@@ -390,7 +466,7 @@ export default function StudioPage() {
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
             <div className="flex items-center gap-2">
               <button disabled className="btn-ink opacity-40 cursor-not-allowed" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</button>
-              <button onClick={() => router.push('/dashboard')} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✂ Home</button>
+              <button onClick={() => router.push('/dashboard')} className="btn-tomato" style={{ padding: '11px 22px', fontSize: 18 }}>✂ Home</button>
             </div>
           </div>
           <div className="flex-1 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
@@ -448,7 +524,7 @@ export default function StudioPage() {
           >
             <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, background: '#1c1510' }}>
               {!polaroidImgError ? (
-                <img key={displayImg!} src={displayImg!} alt="scan" className="block w-full h-full object-cover cut-develop" onError={() => setPolaroidImgError(true)} />
+                <img src={displayImg!} alt="scan" className="block w-full h-full object-cover cut-develop" onError={() => setPolaroidImgError(true)} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.18 }}>
                   <div style={{ width: 40, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
@@ -460,6 +536,131 @@ export default function StudioPage() {
         ); })()}
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
+          {/* Sun brightness control — brightness handled via HairScene backgroundBrightness prop */}
+          {sceneBackground.startsWith('url(/project_bg') && (
+            <div
+              ref={sunControlRef}
+              className="absolute z-20"
+              style={{ top: 14, right: 14 }}
+            >
+              {/* Row: [OK pill] [vertical gradient bar] [sun btn] — top-aligned */}
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+
+                {/* OK pill — same height as bar, to the left, vertical text */}
+                <button
+                  onClick={() => setSunOpen(false)}
+                  aria-label="Close brightness control"
+                  style={{
+                    height: 180,
+                    width: 28,
+                    borderRadius: 14,
+                    background: 'rgba(255,255,255,0.05)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255,255,255,0.11)',
+                    color: 'rgba(255,255,255,0.5)',
+                    fontSize: 10,
+                    fontFamily: 'var(--font-dmsans), system-ui, sans-serif',
+                    letterSpacing: '0.06em',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    writingMode: 'vertical-rl' as const,
+                    textOrientation: 'mixed' as const,
+                    rotate: '180deg',
+                    transformOrigin: 'top center',
+                    transform: sunOpen ? 'scaleY(1) scaleX(1)' : 'scaleY(0.04) scaleX(0.35)',
+                    opacity: sunOpen ? 1 : 0,
+                    transition: sunOpen
+                      ? 'transform 0.52s cubic-bezier(0.34, 1.15, 0.64, 1), opacity 0.28s ease'
+                      : 'transform 0.22s ease-in, opacity 0.18s ease',
+                    pointerEvents: sunOpen ? 'auto' : 'none',
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
+                >
+                  OK
+                </button>
+
+                {/* Vertical gradient brightness bar — draggable */}
+                <div
+                  ref={sliderTrackRef}
+                  onPointerDown={handleSliderPointerDown}
+                  onPointerMove={handleSliderPointerMove}
+                  onPointerUp={handleSliderPointerUp}
+                  onPointerCancel={handleSliderPointerUp}
+                  style={{
+                    position: 'relative',
+                    width: 14,
+                    height: 180,
+                    borderRadius: 7,
+                    background: 'linear-gradient(to top, #0a0806 0%, #3a2010 18%, #9e6d3a 42%, #e8d5b5 68%, #f8f2e8 86%, #ffffff 100%)',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05), 0 4px 20px rgba(0,0,0,0.28)',
+                    cursor: 'ns-resize',
+                    flexShrink: 0,
+                    transformOrigin: 'top center',
+                    transform: sunOpen ? 'scaleY(1) scaleX(1)' : 'scaleY(0.04) scaleX(0.35)',
+                    opacity: sunOpen ? 1 : 0,
+                    transition: sunOpen
+                      ? 'transform 0.52s cubic-bezier(0.34, 1.15, 0.64, 1), opacity 0.28s ease'
+                      : 'transform 0.22s ease-in, opacity 0.18s ease',
+                    pointerEvents: sunOpen ? 'auto' : 'none',
+                  }}
+                >
+                  {/* Draggable thumb */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: `${(1 - bgBrightness) * 100}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.94)',
+                      border: '1px solid rgba(255,255,255,0.7)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.95)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Sun button — truly transparent liquid glass */}
+                <button
+                  onMouseEnter={() => { if (!sunOpen) setSunHovered(true); }}
+                  onMouseLeave={() => setSunHovered(false)}
+                  onClick={() => { setSunOpen(v => !v); setSunHovered(false); }}
+                  aria-label="Adjust background brightness"
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255,255,255,0.13)',
+                    boxShadow: '0 2px 14px rgba(0,0,0,0.08), inset 0 0.5px 0 rgba(255,255,255,0.18)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'rgba(255,255,255,0.55)',
+                    transform: sunOpen ? 'scale(1.5)' : sunHovered ? 'scale(1.1)' : 'scale(1)',
+                    transition: 'transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    flexShrink: 0,
+                    padding: 0,
+                  }}
+                >
+                  <SunIcon />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="absolute top-3 right-3 z-10">
             <HairRecommendationsBar visible={showRecommendations} onHover={setPreviewPlyUrl} onSelect={(url) => { setHairstepPlyUrl(url); setPreviewPlyUrl(null); }} />
           </div>
@@ -474,8 +675,10 @@ export default function StudioPage() {
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             disableKeyboardControls={!sceneControlsEnabled}
             background={sceneBackground}
+            backgroundBrightness={sceneBackground.startsWith('url(/project_bg') ? bgBrightness : undefined}
             uiHidden={menuHidden}
             captureKey={thumbnailCaptureKey}
+            renderQuality={renderQuality}
             onThumbnailReady={
               (!project?.thumbnailS3Key || !project.thumbnailS3Key.startsWith('thumbnails/') || thumbnailCaptureKey > 0)
                 ? handleThumbnailReady
@@ -488,9 +691,9 @@ export default function StudioPage() {
             <div className="flex items-center gap-2">
               {sceneControlsEnabled && (
                 <button
-                  onClick={() => setSceneBackground('url(/preview_bg.jpg) center / 100% 100% no-repeat')}
+                  onClick={() => setSceneBackground('url(/project_bg.jpg) center / 100% 100% no-repeat')}
                   title="Photo background"
-                  style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', backgroundImage: 'url(/preview_bg.jpg)', backgroundSize: '100% 100%', border: sceneBackground.startsWith('url(') ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }}
+                  style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', backgroundImage: 'url(/project_bg.jpg)', backgroundSize: '100% 100%', border: (sceneBackground.startsWith('url(/project_bg') || sceneBackground.startsWith('url(/preview_bg_dark')) ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }}
                 />
               )}
               {sceneControlsEnabled && ['#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (
@@ -512,7 +715,7 @@ export default function StudioPage() {
       {!menuHidden && (
         <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden sidebar-in" style={{ zIndex: 50 }}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               <span
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10px]"
                 style={{
@@ -529,13 +732,11 @@ export default function StudioPage() {
                 <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center">
               <BouncyButton onClick={() => setShowRecommendations(true)} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</BouncyButton>
-              <BouncyButton onClick={() => router.push('/dashboard')} className="btn-ink" style={{ padding: '6px 12px', fontSize: 10 }}>✂ Home</BouncyButton>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-            <EditPanel
+          <EditPanel
               profile={profile ?? mockUserHeadProfile}
               onParamsChange={handleParamsChange}
               sessionId={sessionId}
@@ -556,7 +757,10 @@ export default function StudioPage() {
                     .then(({ key }) => {
                       if (key) {
                         saveProject({ projectId, lastEditImageS3Key: key }).catch(() => {});
-                        setDisplayImageUrl(`/api/img?key=${encodeURIComponent(key)}`);
+                        const s3Url = `/api/img?key=${encodeURIComponent(key)}`;
+                        const preload = new window.Image();
+                        preload.onload = () => setDisplayImageUrl(s3Url);
+                        preload.src = s3Url;
                       }
                     })
                     .catch(() => {});
@@ -587,7 +791,6 @@ export default function StudioPage() {
               }}
               onUncertain={() => setShowRecommendations(true)}
             />
-          </div>
         </aside>
       )}
     </main>

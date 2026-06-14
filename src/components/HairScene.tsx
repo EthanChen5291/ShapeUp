@@ -254,6 +254,7 @@ interface SceneProps {
   disableKeyboardControls?: boolean;
   background?: string;
   captureKey?: number;
+  renderQuality?: 'performance' | 'balanced' | 'high';
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
@@ -309,7 +310,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, renderQuality = 'balanced', onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
@@ -350,29 +351,41 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
         )
       )}
 
-      {hairstepPlyUrl && (
-        <>
-        <HairStrandMesh
-          url={hairstepPlyUrl}
-          color={hairColor ?? "#3b1f0a"}
-          scale={hairScale}
-          position={hairPos}
-          lineWidth={0.8}
-          renderOrder={0}
-          onBBoxReady={onPrimaryHairBBoxReady}
-        />
-        {visibleLayers.has('top_hair') && (
-          <HairStrandMesh
-            url={`${S3_HAIR}/top_hair.ply`}
-            color={hairColor ?? "#3b1f0a"}
-            scale={hairScale}
-            position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
-            lineWidth={0.8}
-            renderOrder={0}
-          />
-        )}
-        </>
-      )}
+      {hairstepPlyUrl && (() => {
+        const lw = renderQuality === 'performance' ? 0.6 : renderQuality === 'high' ? 0.9 : 0.8;
+        const passes = renderQuality === 'high' ? 3 : 1;
+        const offsets: [number, number, number][] = [
+          [0, 0, 0],
+          [0.003, 0.003, 0],
+          [-0.003, -0.003, 0],
+        ];
+        return (
+          <>
+            {Array.from({ length: passes }, (_, pi) => (
+              <HairStrandMesh
+                key={`hairstep-${pi}`}
+                url={hairstepPlyUrl}
+                color={hairColor ?? "#3b1f0a"}
+                scale={hairScale}
+                position={[hairPos[0] + offsets[pi][0], hairPos[1] + offsets[pi][1], hairPos[2] + offsets[pi][2]]}
+                lineWidth={lw}
+                renderOrder={pi}
+                onBBoxReady={pi === 0 ? onPrimaryHairBBoxReady : undefined}
+              />
+            ))}
+            {visibleLayers.has('top_hair') && (
+              <HairStrandMesh
+                url={`${S3_HAIR}/top_hair.ply`}
+                color={hairColor ?? "#3b1f0a"}
+                scale={hairScale}
+                position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
+                lineWidth={lw}
+                renderOrder={0}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {hairstepPlyUrls?.map((url, i) => (
         <HairStrandMesh
@@ -415,13 +428,15 @@ interface HairSceneProps {
   disableDefaultHairLayers?: boolean;
   disableKeyboardControls?:  boolean;
   background?:               string;
+  backgroundBrightness?:     number;
   uiHidden?:                 boolean;
   captureKey?:               number;
+  renderQuality?:            'performance' | 'balanced' | 'high';
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = 'url(/preview_bg.jpg) center / 100% 100% no-repeat', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = 'url(/preview_bg.jpg) center / 100% 100% no-repeat', backgroundBrightness, uiHidden = false, captureKey, renderQuality = 'balanced', onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
@@ -547,6 +562,14 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     return next;
   }, [visibleLayers, hoveredLayer, showHair]);
 
+  // When backgroundBrightness is provided for a URL background, render the image
+  // as a CSS-filtered div behind a transparent canvas so brightness only affects
+  // the background plate, not the hair mesh or splat render.
+  const useCssBg = backgroundBrightness !== undefined && background.startsWith('url(');
+  const cssBrightnessFilter = useCssBg
+    ? `brightness(${Math.max(0.05, backgroundBrightness! * 2)})`
+    : undefined;
+
   return (
     <div
       role="region"
@@ -557,11 +580,22 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
       <p id="hair-scene-instructions" className="sr-only">
         Use pointer or touch controls to rotate and inspect the hairstyle preview.
       </p>
+      {useCssBg && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background,
+            filter: cssBrightnessFilter,
+            zIndex: 0,
+          }}
+        />
+      )}
       <Canvas
         shadows
-        gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true }}
+        gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true, alpha: useCssBg }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
-        style={{ width: '100%', height: '100%', background }}
+        style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: useCssBg ? 'transparent' : background }}
       >
         <Scene
           showPolycam={showPolycam}
@@ -577,8 +611,9 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairColor={hairColor}
           orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
           disableKeyboardControls={disableKeyboardControls}
-          background={background}
+          background={useCssBg ? undefined : background}
           captureKey={captureKey}
+          renderQuality={renderQuality}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
           onThumbnailReady={onThumbnailReady}
         />

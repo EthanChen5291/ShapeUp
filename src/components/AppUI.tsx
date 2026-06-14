@@ -63,7 +63,7 @@ export function BarberMascot({ snap = false, size = 'full', isStatic = false, co
 
 export function InlineWordmark({ cream = false, small = false }: { cream?: boolean; small?: boolean }) {
   const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
-  const mascotColor = cream ? 'rgba(245,241,234,0.88)' : '#2a201a';
+  const mascotColor = cream ? 'rgba(245,241,234,0.88)' : 'currentColor';
   const textSize = small ? 'text-[13px]' : 'text-[18px]';
   return (
     <div className={`wordmark-inline ${color} ${textSize}`}>

@@ -3,6 +3,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Fraunces, DM_Sans, JetBrains_Mono, Montserrat } from 'next/font/google';
 import { ConvexClerkProvider } from '@/components/ConvexClerkProvider';
 import { NavLoadingProvider } from '@/components/NavLoadingOverlay';
+import { SettingsProvider } from '@/contexts/SettingsContext';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -51,9 +52,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             .font-mono    { font-family: var(--font-jetbrains), ui-monospace, monospace !important; }
           `}</style>
           <ConvexClerkProvider>
-            <NavLoadingProvider>
-              {children}
-            </NavLoadingProvider>
+            <SettingsProvider>
+              <NavLoadingProvider>
+                {children}
+              </NavLoadingProvider>
+            </SettingsProvider>
           </ConvexClerkProvider>
         </body>
       </html>

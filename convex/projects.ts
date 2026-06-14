@@ -51,6 +51,7 @@ export const save = mutation({
     lastEditImageS3Key: v.optional(v.string()),
     lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
+    bgBrightness: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();

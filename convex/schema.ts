@@ -10,6 +10,10 @@ export default defineSchema({
     credits: v.number(),
     biometricConsentAt: v.optional(v.number()),
     biometricConsentVersion: v.optional(v.string()),
+    theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("system"))),
+    renderQuality: v.optional(v.union(v.literal("performance"), v.literal("balanced"), v.literal("high"))),
+    aiTrainingOptOut: v.optional(v.boolean()),
+    language: v.optional(v.string()),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])
@@ -81,6 +85,7 @@ export default defineSchema({
     lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
     savedAt: v.optional(v.number()),
+    bgBrightness: v.optional(v.number()),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_token_and_updated", ["tokenIdentifier", "updatedAt"]),

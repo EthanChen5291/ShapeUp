@@ -423,7 +423,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
   return (
     <>
-    <aside className="relative flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" style={{ background: 'var(--biscuit-lt)' }} aria-label="Hair editor controls">
+    <div className="flex-1 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
+    <aside className="relative flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}
@@ -615,8 +616,11 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         )}
       </form>
 
-      {/* Barber's Order */}
-      <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
+    </aside>
+    </div>
+
+    {/* Barber's Order — separate card */}
+    <div className="flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">take it to your barber</span>
           {orderResult && !orderLoading && !clarifyState && (
@@ -636,6 +640,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             aria-label="Write up the exact instructions to show your barber"
             className="btn-cta-order"
           >
+            <span className="btn-cta-order-beta" aria-label="beta">beta</span>
             <span className="btn-cta-order-title"><span className="btn-order-icon" aria-hidden>✂</span> Show my barber</span>
             <span className="btn-cta-order-sub">this cut, written up so they nail it first try</span>
             <span className="btn-cta-order-sheen" aria-hidden />
@@ -665,9 +670,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         {orderResult && !orderLoading && (
           <BarberOrderReceipt order={orderResult.order} ticketNo={orderResult.ticketNo} text={orderResult.text} />
         )}
-      </div>
-
-    </aside>
+    </div>
 
     {showPricing && (
       <PricingPopup
