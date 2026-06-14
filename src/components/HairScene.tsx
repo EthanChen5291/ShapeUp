@@ -70,18 +70,21 @@ function PolycamHead() {
 //   (H, W)  — 2D depth map: constructs 3D points by mapping pixel (i,j) →
 //              (x, y) in PLY bbox space and depth value → z offset.
 //              Subsampled every DEPTH_STEP pixels to keep point count manageable.
-const DEPTH_STEP = 6; // sample every Nth pixel from the depth map
+const DEPTH_STEP_DEFAULT = 6;
+const DEPTH_STEP_PERFORMANCE = 9; // ~2x fewer points (9²/6² ≈ 2.25×)
 // PLY bbox extents used to normalize depth map pixel coords into PLY space.
 const PLY_W = 0.34; const PLY_H = 0.37; const PLY_D = 0.30;
 const PLY_Y_CENTER = 1.72; const PLY_Z_CENTER = -0.016;
 
-function HairDepthPoints({ url, color, scale, position }: {
+function HairDepthPoints({ url, color, scale, position, renderQuality = 'balanced' }: {
   url: string;
   color: string;
   scale: number;
   position: [number, number, number];
+  renderQuality?: 'performance' | 'balanced' | 'high';
 }) {
   const [geo, setGeo] = useState<THREE.BufferGeometry | null>(null);
+  const depthStep = renderQuality === 'performance' ? DEPTH_STEP_PERFORMANCE : DEPTH_STEP_DEFAULT;
 
   useEffect(() => {
     let cancelled = false;
@@ -95,8 +98,8 @@ function HairDepthPoints({ url, color, scale, position }: {
         // 2D depth map (H, W): build point cloud in PLY coordinate space
         const [H, W] = shape;
         const pts: number[] = [];
-        for (let i = 0; i < H; i += DEPTH_STEP) {
-          for (let j = 0; j < W; j += DEPTH_STEP) {
+        for (let i = 0; i < H; i += depthStep) {
+          for (let j = 0; j < W; j += depthStep) {
             const d = data[i * W + j];
             if (d <= 0) continue; // skip background/empty pixels
             const x = ((j - W / 2) / W) * PLY_W;
@@ -115,7 +118,7 @@ function HairDepthPoints({ url, color, scale, position }: {
       setGeo(g);
     });
     return () => { cancelled = true; };
-  }, [url]);
+  }, [url, depthStep]);
 
   useEffect(() => () => { geo?.dispose(); }, [geo]);
 
@@ -168,7 +171,7 @@ function isTyping(): boolean {
 }
 
 function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any> }) {
-  const { camera } = useThree();
+  const { camera, invalidate } = useThree();
   const keys    = useRef(new Set<string>());
   const velRot  = useRef({ theta: 0, phi: 0 });
   const velMove = useRef(new THREE.Vector3());
@@ -177,6 +180,7 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
     const onDown = (e: KeyboardEvent) => {
       if (isTyping()) return;
       keys.current.add(e.code);
+      invalidate(); // kick the demand-mode loop on first keydown
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code))
         e.preventDefault();
     };
@@ -190,7 +194,7 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, []);
+  }, [invalidate]);
 
   useFrame((_, delta) => {
     const controls = orbitRef.current;
@@ -232,6 +236,8 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
     controls.target.add(move);
 
     controls.update();
+    // In demand mode, keep requesting frames while keys are held
+    if (keys.current.size > 0) invalidate();
   });
 
   return null;
@@ -316,9 +322,9 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
   return (
     <>
       {background && <SceneBackground background={background} />}
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[5, 10, 5]}  intensity={1.0} castShadow />
-      <directionalLight position={[0, 2, 5]}   intensity={0.8} />
+      <ambientLight intensity={renderQuality === 'performance' ? 0.75 : 0.5} />
+      <directionalLight position={[5, 10, 5]} intensity={1.0} castShadow={renderQuality !== 'performance'} />
+      <directionalLight position={[0, 2, 5]}  intensity={0.8} />
 
       {showPolycam && <PolycamHead />}
 
@@ -336,6 +342,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
             color={hairColor ?? l.color}
             scale={hairScale}
             position={hairPos}
+            renderQuality={renderQuality}
           />
         ) : (
           <HairStrandMesh
@@ -346,6 +353,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
             position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
             lineWidth={l.lineWidth}
             renderOrder={l.renderOrder}
+            renderQuality={renderQuality}
             onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
           />
         )
@@ -370,6 +378,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
                 position={[hairPos[0] + offsets[pi][0], hairPos[1] + offsets[pi][1], hairPos[2] + offsets[pi][2]]}
                 lineWidth={lw}
                 renderOrder={pi}
+                renderQuality={renderQuality}
                 onBBoxReady={pi === 0 ? onPrimaryHairBBoxReady : undefined}
               />
             ))}
@@ -381,6 +390,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
                 position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
                 lineWidth={lw}
                 renderOrder={0}
+                renderQuality={renderQuality}
               />
             )}
           </>
@@ -396,6 +406,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
           position={hairPos}
           lineWidth={0.8}
           renderOrder={0}
+          renderQuality={renderQuality}
         />
       ))}
 
@@ -592,8 +603,16 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
         />
       )}
       <Canvas
-        shadows
-        gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true, alpha: useCssBg }}
+        shadows={renderQuality !== 'performance'}
+        dpr={renderQuality === 'performance' ? 1 : renderQuality === 'balanced' ? [1, 1.5] : [1, 2]}
+        frameloop={renderQuality === 'performance' ? 'demand' : 'always'}
+        gl={{
+          antialias: renderQuality !== 'performance',
+          powerPreference: renderQuality === 'performance' ? 'low-power' : 'high-performance',
+          toneMapping: THREE.NoToneMapping,
+          preserveDrawingBuffer: true,
+          alpha: useCssBg,
+        }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
         style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: useCssBg ? 'transparent' : background }}
       >

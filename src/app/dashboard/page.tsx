@@ -338,7 +338,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   const panelTransition = phase === 'entering' ? 'none' : `top ${lerpDur} ${lerpEase}, left ${lerpDur} ${lerpEase}, width ${lerpDur} ${lerpEase}, height ${lerpDur} ${lerpEase}, border-radius ${lerpDur} ${lerpEase}, box-shadow 300ms ease`;
 
   const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--smoke)' }}>{children}</span>
+    <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>{children}</span>
   );
   const Divider = () => <div style={{ borderTop: '1px dashed rgba(74,58,46,0.15)', margin: '0 0' }} />;
 
@@ -377,7 +377,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
             </div>
             {usernameError && <span className="font-sans text-[13px] text-[var(--tomato)]">{usernameError}</span>}
             <div className="flex items-center gap-3 mt-1">
-              <label className="font-sans text-[13px] text-[var(--smoke)]" style={{ minWidth: 68 }}>Language</label>
+              <label className="font-sans text-[13px] text-[var(--char)]" style={{ minWidth: 68 }}>Language</label>
               <select value={language} onChange={e => updateLanguage(e.target.value)} className="settings-lang-select font-sans text-[13px] text-[var(--ink)] rounded-lg px-3 py-2" style={{ background: 'var(--biscuit)', border: '1.5px solid transparent', outline: 'none', cursor: 'pointer' }}>
                 <option value="en">English</option>
                 <option value="es" disabled>Español (soon)</option>
@@ -393,7 +393,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
             <SectionLabel>Appearance</SectionLabel>
             <div className="flex gap-2">
               {themeOptions.map(opt => (
-                <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? 'var(--ink)' : 'var(--biscuit)', color: theme === opt.value ? 'var(--cream)' : 'var(--smoke)', border: theme === opt.value ? '1.5px solid transparent' : '1.5px solid transparent', fontWeight: theme === opt.value ? 600 : 400 }}>
+                <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? 'var(--ink)' : 'var(--biscuit)', color: theme === opt.value ? 'var(--cream)' : 'var(--char)', border: theme === opt.value ? '1.5px solid transparent' : '1.5px solid transparent', fontWeight: theme === opt.value ? 600 : 400 }}>
                   <span style={{ fontSize: 16 }}>{opt.icon}</span>
                   {opt.label}
                 </button>
@@ -412,7 +412,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? 'var(--butter)' : 'var(--smoke)', transition: 'background 200ms' }} />
                   <div className="flex flex-col">
                     <span className="font-sans text-[13px] font-semibold">{opt.label}</span>
-                    <span className="font-sans text-[11px]" style={{ opacity: 0.65 }}>{opt.desc}</span>
+                    <span className="font-sans text-[11px]" style={{ opacity: 0.8 }}>{opt.desc}</span>
                   </div>
                 </button>
               ))}
@@ -425,7 +425,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
           <div className="flex flex-col gap-3">
             <SectionLabel>3D Scan</SectionLabel>
             <div className="flex items-center justify-between gap-4">
-              <p className="font-sans text-[13px] text-[var(--smoke)] leading-snug" style={{ flex: 1 }}>Rebuild your 3D head model from a new photo.</p>
+              <p className="font-sans text-[13px] text-[var(--char)] leading-snug" style={{ flex: 1 }}>Rebuild your 3D head model from a new photo.</p>
               <BouncyButton onClick={() => { setPhase('closing'); setTimeout(() => { onDismiss(); onRescan(); }, 270); }} className="btn btn-cream" style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>✂ Rescan</BouncyButton>
             </div>
           </div>
@@ -440,7 +440,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Improve ShapeUp with my scans</span>
-                <span className="font-sans text-[11px] text-[var(--smoke)]">Helps train our hair AI models. Off by default.</span>
+                <span className="font-sans text-[11px] text-[var(--char)]">Helps train our hair AI models. Off by default.</span>
               </div>
               <button onClick={() => updateAiTrainingOptOut(!aiTrainingOptOut)} className="relative flex-shrink-0" style={{ width: 42, height: 24, borderRadius: 12, background: !aiTrainingOptOut ? 'var(--smoke)' : 'var(--terracotta)', border: 'none', cursor: 'pointer', transition: 'background 220ms ease', padding: 0 }} aria-checked={!aiTrainingOptOut} role="switch">
                 <span style={{ position: 'absolute', top: 3, left: !aiTrainingOptOut ? 3 : 21, width: 18, height: 18, borderRadius: '50%', background: 'var(--cream)', transition: 'left 220ms ease', display: 'block' }} />
@@ -452,12 +452,12 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
               <div className="flex items-center justify-between gap-2">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Biometric consent</span>
                 {consentDate && !consentRevoked ? (
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--smoke)' }}>granted {consentDate}</span>
+                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>granted {consentDate}</span>
                 ) : (
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--smoke)' }}>not granted</span>
+                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>not granted</span>
                 )}
               </div>
-              <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--smoke)', margin: 0 }}>
+              <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
                 {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — facial scan data stored for 3D model generation.
               </p>
               {(consentDate && !consentRevoked) && (
@@ -472,7 +472,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Download my data</span>
-                <span className="font-sans text-[11px] text-[var(--smoke)]">Export your account info as JSON (GDPR / CCPA).</span>
+                <span className="font-sans text-[11px] text-[var(--char)]">Export your account info as JSON (GDPR / CCPA).</span>
               </div>
               <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12px] flex-shrink-0" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.2)', color: 'var(--ink)', borderRadius: 10, padding: '7px 14px', opacity: !userQuery ? 0.4 : 1 }}>
                 ↓ Export
@@ -484,7 +484,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-sans text-[13px] font-semibold" style={{ color: 'var(--cherry)' }}>Delete account</span>
-                  <span className="font-sans text-[11px] text-[var(--smoke)]">Permanently removes your data. This cannot be undone.</span>
+                  <span className="font-sans text-[11px] text-[var(--char)]">Permanently removes your data. This cannot be undone.</span>
                 </div>
                 <BouncyButton onClick={handleDeleteAccount} disabled={deleting} className="font-sans text-[12px] flex-shrink-0" style={{ background: deleteConfirm ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: deleteConfirm ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '7px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms, color 200ms' }}>
                   {deleting ? '…' : deleteConfirm ? 'Confirm delete' : 'Delete'}
@@ -493,7 +493,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
               {deleteConfirm && !deleting && (
                 <div className="flex items-center gap-2">
                   <span className="font-sans text-[11px]" style={{ color: 'var(--cherry)' }}>All scans, projects, and your account will be deleted.</span>
-                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11px]" style={{ background: 'none', border: 'none', color: 'var(--smoke)', cursor: 'pointer', padding: 0 }}>Cancel</button>
+                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11px]" style={{ background: 'none', border: 'none', color: 'var(--char)', cursor: 'pointer', padding: 0 }}>Cancel</button>
                 </div>
               )}
               {deleteError && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{deleteError}</span>}
