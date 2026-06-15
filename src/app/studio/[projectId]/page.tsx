@@ -519,41 +519,64 @@ export default function StudioPage() {
         ); })()}
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
+          {/* Click-outside backdrop — closes palette when clicking anywhere in the scene */}
+          {sunOpen && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 19 }} onClick={() => setSunOpen(false)} />
+          )}
           {/* Sun button + bg palette dots */}
           <div className="absolute z-20" style={{ top: 14, right: 14 }}>
-            {/* Palette dots — absolutely to the left, top-aligned */}
-            <div style={{ position: 'absolute', right: 42, top: 7, display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {([
-                { src: '/preview_bg_white.jpg', bg: 'url(/preview_bg_white.jpg) center / 100% 100% no-repeat', brightness: 0.5 as number | undefined },
-                { src: '/preview_bg.jpg',       bg: 'url(/preview_bg.jpg) center / 100% 100% no-repeat',       brightness: undefined as number | undefined },
-                { src: '/preview_bg_dark.png',  bg: 'url(/preview_bg_dark.png) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
-              ]).map(({ src, bg, brightness }, idx) => (
+            {/* Orbital palette dots — polar layout π to 3π/2, start as dots at sun, bloom outward */}
+            {([
+              { src: '/preview_bg_white.jpg', bg: 'url(/preview_bg_white.jpg) center / 100% 100% no-repeat', brightness: 0.5 as number | undefined },
+              { src: '/preview_bg.jpg',       bg: 'url(/preview_bg.jpg) center / 100% 100% no-repeat',       brightness: undefined as number | undefined },
+              { src: '/preview_bg_dark.png',  bg: 'url(/preview_bg_dark.png) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
+              { src: null,                    bg: '#000000',                                                   brightness: 0.5 as number | undefined },
+            ]).map(({ src, bg, brightness }, idx) => {
+              const angle = Math.PI + (idx / 3) * (Math.PI / 2);
+              const r = 50;
+              const dx = r * Math.cos(angle);
+              const dy = -r * Math.sin(angle);
+              const isSelected = sceneBackground === bg;
+              const bgStyle: React.CSSProperties = src
+                ? {
+                    backgroundImage: [
+                      'radial-gradient(circle at center, transparent 20%, rgba(0,0,0,0.28) 88%)',
+                      `url(${src})`,
+                    ].join(', '),
+                    backgroundSize: 'cover, cover',
+                    backgroundPosition: 'center, center',
+                  }
+                : { background: bg };
+              return (
                 <button
-                  key={src}
-                  onClick={() => { setSceneBackground(bg); setSceneBgBrightness(brightness); setSunOpen(false); }}
-                  title={src}
+                  key={bg}
+                  onClick={() => { setSceneBackground(bg); setSceneBgBrightness(brightness); }}
+                  title={src ?? bg}
                   style={{
-                    width: 20,
-                    height: 20,
+                    position: 'absolute',
+                    top: 17,
+                    left: 17,
+                    width: 22,
+                    height: 22,
                     borderRadius: '50%',
-                    backgroundImage: `url(${src})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    border: sceneBackground === bg
-                      ? '2px solid rgba(255,248,234,0.92)'
-                      : '1px solid rgba(255,248,234,0.28)',
+                    ...bgStyle,
+                    border: isSelected ? '2px solid rgba(255,248,234,0.92)' : '1.5px solid rgba(255,248,234,0.32)',
                     cursor: 'pointer',
-                    flexShrink: 0,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                    boxShadow: 'inset 0 0 7px 2px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.45)',
                     padding: 0,
+                    filter: src ? 'saturate(0.87) contrast(0.88)' : undefined,
                     opacity: sunOpen ? 1 : 0,
-                    transform: sunOpen ? 'scale(1) translateX(0)' : 'scale(0) translateX(35px)',
-                    transition: `opacity 0.22s ease ${idx * 0.06}s, transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.06}s, border 0.18s ease`,
+                    transform: sunOpen
+                      ? `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(1)`
+                      : `translate(-50%, -50%) translate(0px, 0px) scale(0)`,
+                    transition: sunOpen
+                      ? `transform 0.44s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.07}s, opacity 0.2s ease ${idx * 0.07}s, border 0.18s ease`
+                      : `transform 0.3s ease-in ${(3 - idx) * 0.06}s, opacity 0.18s ease ${(3 - idx) * 0.06}s, border 0.18s ease`,
                     pointerEvents: sunOpen ? 'auto' : 'none',
                   }}
                 />
-              ))}
-            </div>
+              );
+            })}
             {/* Sun toggle button */}
             <button
               onClick={() => setSunOpen(v => !v)}
@@ -630,7 +653,7 @@ export default function StudioPage() {
 
       {!menuHidden && (
         <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-hidden sidebar-in self-start h-[80vh]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
               style={{

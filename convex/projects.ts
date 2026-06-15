@@ -1,6 +1,8 @@
 import { internalMutation, mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { hairParamsValidator, lastProfileValidator } from "./validators";
+
+export const MAX_PROJECTS_PER_USER = 5;
 
 export const list = query({
   args: {},
@@ -29,6 +31,15 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthenticated");
+    const existing = await ctx.db
+      .query("projects")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .take(MAX_PROJECTS_PER_USER + 1);
+    if (existing.length >= MAX_PROJECTS_PER_USER) {
+      throw new ConvexError(
+        `You've reached the limit of ${MAX_PROJECTS_PER_USER} projects. Delete one to make room for a new cut.`,
+      );
+    }
     const now = Date.now();
     return ctx.db.insert("projects", {
       tokenIdentifier: identity.tokenIdentifier,

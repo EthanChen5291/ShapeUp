@@ -23,6 +23,8 @@ import { useSettings, type Theme, type RenderQuality } from '@/contexts/Settings
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
+const MAX_PROJECTS_PER_USER = 5;
+
 function generateUniqueCutName(existing: { name: string }[] | undefined): string {
   const used = new Set<number>();
   for (const p of existing ?? []) {
@@ -439,8 +441,8 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
             {/* AI training opt-out */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
-                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Improve ShapeUp with my scans</span>
-                <span className="font-sans text-[11px] text-[var(--char)]">Helps train our hair AI models. Off by default.</span>
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Improve ShapeUp</span>
+                <span className="font-sans text-[11px] text-[var(--char)]">We use your information to enhance our user experience.</span>
               </div>
               <button onClick={() => updateAiTrainingOptOut(!aiTrainingOptOut)} className="relative flex-shrink-0" style={{ width: 42, height: 24, borderRadius: 12, background: !aiTrainingOptOut ? 'var(--smoke)' : 'var(--terracotta)', border: 'none', cursor: 'pointer', transition: 'background 220ms ease', padding: 0 }} aria-checked={!aiTrainingOptOut} role="switch">
                 <span style={{ position: 'absolute', top: 3, left: !aiTrainingOptOut ? 3 : 21, width: 18, height: 18, borderRadius: '50%', background: 'var(--cream)', transition: 'left 220ms ease', display: 'block' }} />
@@ -521,6 +523,27 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
           <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Scan now!</h2>
           <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>Drop in the chair and start styling yourself in 3D!</p>
           <BouncyButton onClick={onLetsDo} className="btn btn-tomato w-full" style={{ padding: '20px 48px', fontSize: 26, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em' }}>Take Picture</BouncyButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Project Limit Popup ─── */
+function ProjectLimitPopup({ onDismiss }: { onDismiss: () => void }) {
+  const [show, setShow] = useState(false);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
+  const dismiss = () => { setClosing(true); setTimeout(onDismiss, 420); };
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }} onClick={dismiss}>
+      <div onClick={e => e.stopPropagation()} style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
+        <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, maxWidth: 420, padding: '44px 44px 40px' }}>
+          <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
+          <div style={{ width: 52, transform: 'rotate(186deg)' }}><BarberMascot /></div>
+          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Chair&rsquo;s full!</h2>
+          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>You&rsquo;ve hit the limit of {MAX_PROJECTS_PER_USER} cuts. Delete one to make room for a fresh style.</p>
+          <BouncyButton onClick={dismiss} className="btn btn-tomato w-full" style={{ padding: '14px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em' }}>Got it</BouncyButton>
         </div>
       </div>
     </div>
@@ -1587,6 +1610,7 @@ export default function DashboardPage() {
   };
 
   const [showScanPopup, setShowScanPopup] = useState(false);
+  const [showLimitReached, setShowLimitReached] = useState(false);
   const [showOutOfTokens, setShowOutOfTokens] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
   const [hasScanEver, setHasScanEver] = useState(false);
@@ -1660,8 +1684,11 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const atProjectLimit = (allProjects?.length ?? 0) >= MAX_PROJECTS_PER_USER;
+
   const handleAddProject = () => {
     if (!isSignedIn) { openAuthPopup(); return; }
+    if (atProjectLimit) { setShowLimitReached(true); return; }
     setShowScanPopup(true);
   };
   const handleOpenProject = (project: ProjectDoc) => {
@@ -1675,7 +1702,7 @@ export default function DashboardPage() {
         onAdd={handleAddProject}
         onOpenProject={handleOpenProject}
         showScanNow={!hasScanEver}
-        onScanNow={() => { if (!isSignedIn) { openAuthPopup(); return; } setShowScanPopup(true); }}
+        onScanNow={() => { if (!isSignedIn) { openAuthPopup(); return; } if (atProjectLimit) { setShowLimitReached(true); return; } setShowScanPopup(true); }}
         onRescan={() => setShowScanPopup(true)}
         profilePillPulse={profilePillPulse}
         celebratePurchase={paymentSuccess}
@@ -1691,6 +1718,7 @@ export default function DashboardPage() {
         />
       )}
       {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
+      {showLimitReached && <ProjectLimitPopup onDismiss={() => setShowLimitReached(false)} />}
 
       {showAuthPopup && createPortal(
         <div
