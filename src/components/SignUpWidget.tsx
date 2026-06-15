@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useClerk, useUser } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import { useSignIn, useSignUp } from '@clerk/nextjs/legacy';
 import Link from 'next/link';
 import { BouncyButton } from '@/components/AppUI';
@@ -16,7 +16,6 @@ export interface SignUpWidgetProps {
 export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRedirect, redirectUrlComplete = '/' }: SignUpWidgetProps) {
   const { signUp, setActive } = useSignUp();
   const { signIn } = useSignIn();
-  const { redirectToSignIn } = useClerk();
   const { isSignedIn } = useUser();
   const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
   const [email, setEmail] = useState('');
@@ -229,16 +228,17 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
       setError('Sign-in is not configured for this deployment.');
       return;
     }
-    if (!redirectToSignIn) {
+    if (!signIn) {
       setError('Sign-in is still loading. Try again in a moment.');
       return;
     }
     setError('');
     try {
       onBeforeGoogleRedirect?.();
-      await redirectToSignIn({
-        signInForceRedirectUrl: redirectUrlComplete,
-        signUpForceRedirectUrl: redirectUrlComplete,
+      await signIn.authenticateWithRedirect({
+        strategy: 'oauth_google',
+        redirectUrl: '/sso-callback',
+        redirectUrlComplete,
       });
     } catch (err: unknown) {
       const e = err as { errors?: Array<{ message?: string }> };

@@ -38,8 +38,11 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'ShapeUp · The 3D Barber',
+  title: 'ShapeUp',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
+  icons: {
+    icon: '/tab_logo1.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
