@@ -775,7 +775,7 @@ export default function SubtractionPage() {
                   {subResult.keptCount.toLocaleString()} gaussians · {subResult.retainedPct}% retained
                 </span>
               </div>
-              <ErasableSplatViewer plyUrl={subResult.plyUrl} />
+              <ErasableSplatViewer plyUrl={subResult.plyUrl} splatUrl={subResult.splatUrl} />
               <div style={{ padding: '10px 14px', borderTop: '1px solid #2a2218', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <button
                   onClick={restart}

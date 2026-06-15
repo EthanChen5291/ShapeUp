@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Splat } from '@react-three/drei';
 import * as THREE from 'three';
 import { GaussianData, buildPlyBlob, buildSplatBlob, parsePly, projectToScreen } from './plyUtils';
 
 interface Props {
-  plyUrl: string;
+  plyUrl:   string;
+  splatUrl: string;   // S3 .splat URL — used for initial display; blob URL takes over after first erase
   height?: number;
 }
 
@@ -39,11 +40,11 @@ function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
+export default function ErasableSplatViewer({ plyUrl, splatUrl, height = 400 }: Props) {
   const [gaussians,    setGaussians]    = useState<GaussianData | null>(null);
-  const [loading,      setLoading]      = useState(true);
+  const [plyLoading,   setPlyLoading]   = useState(true);   // true while PLY is being fetched/parsed
   const [loadError,    setLoadError]    = useState<string | null>(null);
-  const [splatBlobUrl, setSplatBlobUrl] = useState<string | null>(null);
+  const [splatBlobUrl, setSplatBlobUrl] = useState<string | null>(null);  // only set after first erase
   const [eraserMode,   setEraserMode]   = useState(false);
   const [brushRadius,  setBrushRadius]  = useState(30);
   const [deletedCount, setDeletedCount] = useState(0);
@@ -66,17 +67,11 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
   // Keep brushRadiusRef in sync
   useEffect(() => { brushRadiusRef.current = brushRadius; }, [brushRadius]);
 
-  // Log every splatBlobUrl change so we can see what <Splat> receives
-  useEffect(() => {
-    if (splatBlobUrl) {
-      console.log(`[ErasableSplatViewer] splatBlobUrl changed → ${splatBlobUrl}`);
-    }
-  }, [splatBlobUrl]);
 
-  // Load PLY on mount / url change
+  // Load PLY in background for eraser use — display starts from splatUrl (S3) immediately.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    setPlyLoading(true);
     setLoadError(null);
     setGaussians(null);
     setSplatBlobUrl(null);
@@ -86,6 +81,13 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
     undoStack.current = [];
     strokeRef.current = [];
     screenPosRef.current = null;
+
+    // Revoke any previous blob URL
+    const prevUrl = splatUrlRef.current;
+    if (prevUrl) {
+      splatUrlRef.current = null;
+      setTimeout(() => URL.revokeObjectURL(prevUrl), 2000);
+    }
 
     (async () => {
       try {
@@ -98,49 +100,30 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
         if (cancelled) return;
 
         const g = parsePly(buf);
-        console.log(`[ErasableSplatViewer] parsePly done: count=${g.count}, stride=${g.stride}, props=${Object.keys(g.propOffset).join(',')}`);
+        console.log(`[ErasableSplatViewer] parsePly done: count=${g.count}, stride=${g.stride}`);
         gaussiansRef.current = g;
         setGaussians(g);
-
-        // Build initial splat blob
-        const blob = buildSplatBlob(g, new Set());
-        console.log(`[ErasableSplatViewer] initial blob: size=${blob.size}, divisible32=${blob.size % 32 === 0}`);
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        console.log(`[ErasableSplatViewer] blob URL created: ${url}`);
-        splatUrlRef.current = url;
-        setSplatBlobUrl(url);
+        // splatBlobUrl stays null — display continues using splatUrl prop.
+        // It switches to a blob URL only when the user makes their first erase (rebuildSplat).
       } catch (err) {
         console.error(`[ErasableSplatViewer] load error:`, err);
         if (cancelled) return;
         setLoadError(err instanceof Error ? err.message : String(err));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setPlyLoading(false);
       }
     })();
 
-    return () => {
-      cancelled = true;
-      // Revoke with delay so Splat (which fetches the URL itself) has time to finish.
-      // Immediate revocation causes "Failed to parse file" in React Strict Mode because
-      // state still holds the URL after cleanup, and Splat tries to fetch the revoked URL.
-      const urlToRevoke = splatUrlRef.current;
-      if (urlToRevoke) {
-        splatUrlRef.current = null;
-        setTimeout(() => URL.revokeObjectURL(urlToRevoke), 5000);
-      }
-    };
+    return () => { cancelled = true; };
   }, [plyUrl]);
 
-  // Rebuild splat from current deleted set
+  // Rebuild splat from current deleted set; switches display from S3 URL to blob URL.
   const rebuildSplat = useCallback(() => {
     const g = gaussiansRef.current;
     if (!g) return;
 
     const blob = buildSplatBlob(g, deletedRef.current);
-    console.log(`[ErasableSplatViewer] rebuildSplat blob: size=${blob.size}, divisible32=${blob.size % 32 === 0}`);
     const newUrl = URL.createObjectURL(blob);
-    console.log(`[ErasableSplatViewer] rebuildSplat new URL: ${newUrl}`);
 
     const oldUrl = splatUrlRef.current;
     splatUrlRef.current = newUrl;
@@ -148,7 +131,6 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
     setDeletedCount(deletedRef.current.size);
     setUndoAvailable(undoStack.current.length > 0);
 
-    // Delay revoke so the renderer finishes with old URL
     if (oldUrl) setTimeout(() => URL.revokeObjectURL(oldUrl), 2000);
   }, []);
 
@@ -289,6 +271,9 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
     fontWeight: 700,
   };
 
+  // Use blob URL once available (after first erase), otherwise show the S3 .splat URL directly.
+  const displayUrl = splatBlobUrl ?? splatUrl;
+
   const total = gaussians?.count ?? 0;
   const remaining = total - deletedCount;
 
@@ -303,18 +288,6 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
         onMouseUp={eraserMode ? commitStroke : undefined}
         onMouseLeave={eraserMode ? handleMouseLeave : undefined}
       >
-        {/* Loading overlay */}
-        {loading && (
-          <div style={{
-            position: 'absolute', inset: 0, zIndex: 10,
-            background: '#0a0805',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'monospace', fontSize: 12, color: '#665',
-          }}>
-            loading PLY…
-          </div>
-        )}
-
         {/* Error overlay */}
         {loadError && (
           <div style={{
@@ -333,7 +306,6 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
           <div style={{
             position: 'absolute', inset: 0, zIndex: 4,
             cursor: 'crosshair',
-            // transparent — just captures pointer events
           }} />
         )}
 
@@ -342,9 +314,9 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
           style={{ background: '#0a0805', width: '100%', height: '100%' }}
         >
           <SceneCapture cameraRef={cameraRef} glRef={glRef} />
-          {splatBlobUrl && (
-            <Splat key={splatBlobUrl} src={splatBlobUrl} />
-          )}
+          <Suspense fallback={null}>
+            <Splat key={displayUrl} src={displayUrl} />
+          </Suspense>
           <OrbitControls
             autoRotate={!eraserMode}
             autoRotateSpeed={0.8}
@@ -381,12 +353,14 @@ export default function ErasableSplatViewer({ plyUrl, height = 400 }: Props) {
         gap: 8,
         flexWrap: 'wrap',
       }}>
-        {/* Eraser toggle */}
+        {/* Eraser toggle — disabled until PLY is ready */}
         <button
           onClick={toggleEraserMode}
-          style={eraserMode ? eraserActiveBtn : btnBase}
+          disabled={plyLoading}
+          style={plyLoading ? btnDisabled : eraserMode ? eraserActiveBtn : btnBase}
+          title={plyLoading ? 'Loading PLY data for eraser…' : undefined}
         >
-          {eraserMode ? '[ ERASER ON ]' : '[ ERASER ]'}
+          {plyLoading ? '[ loading eraser… ]' : eraserMode ? '[ ERASER ON ]' : '[ ERASER ]'}
         </button>
 
         {/* Brush controls — only in eraser mode */}
