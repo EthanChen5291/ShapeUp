@@ -6,7 +6,7 @@ import { enforceMutationRateLimit } from "./lib/rateLimit";
 import { maybeAttachReferral, uniqueReferralCode } from "./lib/referrals";
 
 // Plan ranking — higher index = more premium. Drives the displayed plan tier.
-const PLAN_RANK = ["starter", "popular", "lifetime"] as const;
+const PLAN_RANK = ["starter", "popular", "pro"] as const;
 type PlanId = (typeof PLAN_RANK)[number];
 
 const BIOMETRIC_CONSENT_VERSION = "biometric-notice-2026-06-08";
@@ -369,7 +369,7 @@ export const addCreditsForStripeEvent = internalMutation({
     eventId: v.string(),
     clerkId: v.string(),
     amount: v.number(),
-    plan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("lifetime"))),
+    plan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("pro"))),
   },
   handler: async (ctx, args) => {
     if (!Number.isFinite(args.amount) || args.amount <= 0) {

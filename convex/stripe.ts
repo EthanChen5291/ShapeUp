@@ -32,7 +32,7 @@ export const handleWebhook = internalAction({
       const clerkId = session.metadata?.clerkId;
       const credits = Number(session.metadata?.credits);
       const rawPlan = session.metadata?.plan;
-      const plan = rawPlan === "starter" || rawPlan === "popular" || rawPlan === "lifetime" ? rawPlan : undefined;
+      const plan = rawPlan === "starter" || rawPlan === "popular" || rawPlan === "pro" ? rawPlan : undefined;
       console.log("[stripe-webhook] checkout.session.completed — session.id=", session.id, "clerkId from metadata=", clerkId ?? "MISSING", "plan=", plan ?? "none");
       if (clerkId && Number.isFinite(credits) && credits > 0) {
         console.log("[stripe-webhook] calling addCreditsForStripeEvent — clerkId=", clerkId, "amount=", credits, "eventId=", event.id);

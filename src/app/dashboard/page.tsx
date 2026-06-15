@@ -192,7 +192,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
     setOpen(o => !o);
   };
 
-  const PLAN_LABEL: Record<string, string> = { starter: 'Starter', popular: 'Explorer', lifetime: 'Pro' };
+  const PLAN_LABEL: Record<string, string> = { starter: 'Starter', popular: 'Explorer', pro: 'Pro' };
   const planName = user?.topPlan ? PLAN_LABEL[user.topPlan] : 'Free';
 
   const handleCopyReferral = async () => {

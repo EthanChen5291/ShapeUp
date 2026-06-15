@@ -61,7 +61,7 @@ const PLANS = [
     freeOnly: false,
   },
   {
-    id: 'lifetime',
+    id: 'pro',
     label: 'Pro',
     price: '$14.99',
     sub: 'one-time',

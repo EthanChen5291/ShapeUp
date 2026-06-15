@@ -31,7 +31,7 @@ const PLANS = [
     accentBg: 'rgba(80,150,255,0.18)' as const,
   },
   {
-    id: 'lifetime' as const,
+    id: 'pro' as const,
     label: 'Pro',
     price: '$14.99',
     sub: 'one-time',
@@ -45,7 +45,7 @@ const PLANS = [
   },
 ];
 
-type PlanId = 'starter' | 'popular' | 'lifetime';
+type PlanId = 'starter' | 'popular' | 'pro';
 
 const POPULAR_RING_POS = [
   { x: 28, y: 30, delay: 30  },
@@ -78,27 +78,27 @@ function PlanCTAButton({ variant, children, onClick, disabled }: {
   const onLeave = () => setHovered(false);
 
   const fillColor =
-    variant === 'lifetime' ? 'rgb(240,70,130)' :
+    variant === 'pro' ? 'rgb(240,70,130)' :
     variant === 'popular'  ? 'rgb(80,150,255)'  :
                              'rgb(248,200,24)';
 
-  const hoverText = (variant === 'popular' || variant === 'lifetime') ? '#ffffff' : 'rgba(42,32,26,0.9)';
+  const hoverText = (variant === 'popular' || variant === 'pro') ? '#ffffff' : 'rgba(42,32,26,0.9)';
 
   const baseStyle: React.CSSProperties =
     variant === 'popular'  ? { border: '1px solid rgba(55,110,210,0.5)',  background: 'rgba(55,110,210,0.22)', color: 'rgba(255,248,234,0.78)', boxShadow: '0 4px 22px rgba(55,110,210,0.18)' } :
-    variant === 'lifetime' ? { border: '1px solid rgba(220,70,120,0.43)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
+    variant === 'pro' ? { border: '1px solid rgba(220,70,120,0.43)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
                              { border: '1px solid rgba(248,200,24,0.32)',  background: 'rgba(248,200,24,0.06)',  color: 'var(--cream)' };
 
   const LT_BR = 12;
   const ringColor =
     variant === 'starter'  ? 'rgba(255,238,148,0.88)' :
-    variant === 'lifetime' ? 'rgba(255,190,218,0.88)' :
+    variant === 'pro' ? 'rgba(255,190,218,0.88)' :
                              'rgba(255,255,255,0.85)';
 
-  const hoverScale = variant === 'lifetime' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)';
+  const hoverScale = variant === 'pro' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)';
   const hoverShadow =
     variant === 'popular'  ? '0 8px 48px -2px rgba(80,150,255,0.95), 0 0 56px rgba(80,150,255,0.65)' :
-    variant === 'lifetime' ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)' :
+    variant === 'pro' ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)' :
                              '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)';
 
   return (
@@ -146,13 +146,13 @@ function PlanCTAButton({ variant, children, onClick, disabled }: {
           }} />
         ))}
 
-        {variant === 'lifetime' && hovered && POPULAR_RING_POS.map((p, i) => (
+        {variant === 'pro' && hovered && POPULAR_RING_POS.map((p, i) => (
           <span key={`ltcircle-${animKey}-${i}`} aria-hidden style={{
             position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
             width: 2, height: 2, borderRadius: '50%',
             transform: 'translate(-50%,-50%)',
             pointerEvents: 'none', zIndex: 1,
-            animation: `lifetime-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
+            animation: `pro-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
           }} />
         ))}
 

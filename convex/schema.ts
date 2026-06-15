@@ -19,7 +19,7 @@ export default defineSchema({
     // The referral code this user signed up under (set once, at creation).
     referredBy: v.optional(v.string()),
     // Highest-ranked plan ever purchased; drives the displayed plan tier.
-    topPlan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("lifetime"))),
+    topPlan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("pro"))),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])
