@@ -20,6 +20,7 @@ import SignUpWidget from '@/components/SignUpWidget';
 import { PricingPopup } from '@/components/PricingPopup';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings, type Theme, type RenderQuality } from '@/contexts/SettingsContext';
+import { captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from '@/lib/referral';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
@@ -101,6 +102,15 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   const [clockKey, setClockKey] = useState(0);
   const animatingRef = useRef(false);
 
+  const referralStats = useQuery(api.users.getReferralStats);
+  const redeemMutation = useMutation(api.redeem.redeem);
+  const [copied, setCopied] = useState(false);
+  const [redeemValue, setRedeemValue] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState('');
+  const [redeemErr, setRedeemErr] = useState('');
+  const [barberNote, setBarberNote] = useState(false);
+
   useEffect(() => {
     if (!pulse) return;
     setSwallowing(true);
@@ -180,6 +190,40 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
       setMenuPos({ top: rect.top, right: window.innerWidth - rect.right });
     }
     setOpen(o => !o);
+  };
+
+  const PLAN_LABEL: Record<string, string> = { starter: 'Starter', popular: 'Explorer', lifetime: 'Pro' };
+  const planName = user?.topPlan ? PLAN_LABEL[user.topPlan] : 'Free';
+
+  const handleCopyReferral = async () => {
+    if (!referralStats?.referralCode) return;
+    const link = `${window.location.origin}/?ref=${referralStats.referralCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard blocked — ignore */ }
+  };
+
+  const handleRedeem = async () => {
+    const code = redeemValue.trim();
+    if (!code || redeeming) return;
+    setRedeeming(true); setRedeemErr(''); setRedeemMsg('');
+    try {
+      const res = await redeemMutation({ code });
+      setRedeemMsg(`✓ ${res.tokens} tokens added`);
+      setRedeemValue('');
+      setTimeout(() => setRedeemMsg(''), 3000);
+    } catch (err) {
+      setRedeemErr(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Try again.');
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
+  const handleBarber = () => {
+    setBarberNote(true);
+    setTimeout(() => setBarberNote(false), 2400);
   };
 
   return (
@@ -1573,7 +1617,12 @@ export default function DashboardPage() {
   const allProjects = useQuery(api.projects.list);
 
   useEffect(() => {
-    if (isSignedIn) getOrCreate().catch(err => console.error('[Dashboard] getOrCreate failed:', err));
+    captureReferralFromUrl();
+    if (isSignedIn) {
+      getOrCreate({ referralCode: getPendingReferralCode() })
+        .then(() => clearPendingReferralCode())
+        .catch(err => console.error('[Dashboard] getOrCreate failed:', err));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);
 

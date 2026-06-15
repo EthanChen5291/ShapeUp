@@ -3,6 +3,11 @@ import { ConvexError } from "convex/values";
 import { v } from "convex/values";
 import { validateUsernameBusinessRules } from "./lib/contentFilter";
 import { enforceMutationRateLimit } from "./lib/rateLimit";
+import { maybeAttachReferral, uniqueReferralCode } from "./lib/referrals";
+
+// Plan ranking — higher index = more premium. Drives the displayed plan tier.
+const PLAN_RANK = ["starter", "popular", "lifetime"] as const;
+type PlanId = (typeof PLAN_RANK)[number];
 
 const BIOMETRIC_CONSENT_VERSION = "biometric-notice-2026-06-08";
 const USERNAME_CHANGE_LIMIT = 5;
@@ -21,8 +26,8 @@ export const getMe = query({
 });
 
 export const getOrCreate = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { referralCode: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthenticated");
 
@@ -30,7 +35,13 @@ export const getOrCreate = mutation({
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
-    if (existing) return existing._id;
+    if (existing) {
+      // Backfill a referral code for accounts that predate the referral feature.
+      if (!existing.referralCode) {
+        await ctx.db.patch(existing._id, { referralCode: await uniqueReferralCode(ctx) });
+      }
+      return existing._id;
+    }
 
     // Check for a pending user created by the webhook before first login
     const pending = await ctx.db
@@ -42,17 +53,50 @@ export const getOrCreate = mutation({
         tokenIdentifier: identity.tokenIdentifier,
         email: identity.email ?? pending.email,
         username: identity.nickname ?? pending.username,
+        referralCode: pending.referralCode ?? (await uniqueReferralCode(ctx)),
       });
+      await maybeAttachReferral(ctx, pending._id, args.referralCode);
       return pending._id;
     }
 
-    return ctx.db.insert("users", {
+    const userId = await ctx.db.insert("users", {
       tokenIdentifier: identity.tokenIdentifier,
       clerkId: identity.subject,
       email: identity.email,
       username: identity.nickname ?? undefined,
       credits: 0,
+      referralCode: await uniqueReferralCode(ctx),
     });
+    await maybeAttachReferral(ctx, userId, args.referralCode);
+    return userId;
+  },
+});
+
+export const getReferralStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (!user) return null;
+
+    const referrals = await ctx.db
+      .query("referrals")
+      .withIndex("by_referrer", (q) => q.eq("referrerUserId", user._id))
+      .take(500);
+    const rewarded = referrals.filter((r) => r.status === "rewarded").length;
+    const pending = referrals.length - rewarded;
+
+    return {
+      referralCode: user.referralCode ?? null,
+      friendsJoined: referrals.length,
+      friendsRewarded: rewarded,
+      friendsPending: pending,
+      tokensEarned: rewarded * 3,
+    };
   },
 });
 
@@ -313,8 +357,20 @@ export const addCredits = internalMutation({
   },
 });
 
+/** Returns the higher-ranked of two plan ids (or the defined one). */
+function higherPlan(a: PlanId | undefined, b: PlanId | undefined): PlanId | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return PLAN_RANK.indexOf(a) >= PLAN_RANK.indexOf(b) ? a : b;
+}
+
 export const addCreditsForStripeEvent = internalMutation({
-  args: { eventId: v.string(), clerkId: v.string(), amount: v.number() },
+  args: {
+    eventId: v.string(),
+    clerkId: v.string(),
+    amount: v.number(),
+    plan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("lifetime"))),
+  },
   handler: async (ctx, args) => {
     if (!Number.isFinite(args.amount) || args.amount <= 0) {
       throw new Error("Invalid credit amount");
@@ -337,12 +393,16 @@ export const addCreditsForStripeEvent = internalMutation({
       .unique();
 
     if (user) {
-      await ctx.db.patch(user._id, { credits: user.credits + args.amount });
+      await ctx.db.patch(user._id, {
+        credits: user.credits + args.amount,
+        topPlan: higherPlan(user.topPlan, args.plan),
+      });
     } else {
       await ctx.db.insert("users", {
         tokenIdentifier: `pending|${args.clerkId}`,
         clerkId: args.clerkId,
         credits: args.amount,
+        topPlan: args.plan,
       });
     }
 

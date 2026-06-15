@@ -1,6 +1,7 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { hairParamsValidator, lastProfileValidator } from "./validators";
+import { grantReferralReward } from "./lib/referrals";
 
 export const MAX_PROJECTS_PER_USER = 5;
 
@@ -40,13 +41,25 @@ export const create = mutation({
         `You've reached the limit of ${MAX_PROJECTS_PER_USER} projects. Delete one to make room for a new cut.`,
       );
     }
+    const isFirstProject = existing.length === 0;
     const now = Date.now();
-    return ctx.db.insert("projects", {
+    const projectId = await ctx.db.insert("projects", {
       tokenIdentifier: identity.tokenIdentifier,
       name: args.name,
       createdAt: now,
       updatedAt: now,
     });
+
+    // A referred user's first project unlocks the referral reward for both parties.
+    if (isFirstProject) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+        .unique();
+      if (user) await grantReferralReward(ctx, user._id);
+    }
+
+    return projectId;
   },
 });
 

@@ -31,10 +31,12 @@ export const handleWebhook = internalAction({
       const session = event.data.object as Stripe.Checkout.Session;
       const clerkId = session.metadata?.clerkId;
       const credits = Number(session.metadata?.credits);
-      console.log("[stripe-webhook] checkout.session.completed — session.id=", session.id, "clerkId from metadata=", clerkId ?? "MISSING");
+      const rawPlan = session.metadata?.plan;
+      const plan = rawPlan === "starter" || rawPlan === "popular" || rawPlan === "lifetime" ? rawPlan : undefined;
+      console.log("[stripe-webhook] checkout.session.completed — session.id=", session.id, "clerkId from metadata=", clerkId ?? "MISSING", "plan=", plan ?? "none");
       if (clerkId && Number.isFinite(credits) && credits > 0) {
         console.log("[stripe-webhook] calling addCreditsForStripeEvent — clerkId=", clerkId, "amount=", credits, "eventId=", event.id);
-        await ctx.runMutation(internal.users.addCreditsForStripeEvent, { eventId: event.id, clerkId, amount: credits });
+        await ctx.runMutation(internal.users.addCreditsForStripeEvent, { eventId: event.id, clerkId, amount: credits, plan });
         console.log("[stripe-webhook] credit mutation completed successfully");
       } else {
         console.error("[stripe-webhook] MISSING or invalid checkout metadata — credits NOT added. session.metadata=", JSON.stringify(session.metadata));

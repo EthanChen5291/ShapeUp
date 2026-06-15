@@ -199,7 +199,7 @@ export default function StudioPage() {
   const [sceneBackground, setSceneBackground] = useState(() => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     return isDark
-      ? 'url(/preview_bg_dark.png) center / 100% 100% no-repeat'
+      ? 'url(/preview_bg_dark.jpg) center / 100% 100% no-repeat'
       : 'url(/preview_bg.jpg) center / 100% 100% no-repeat';
   });
   // CSS-mode brightness for non-default backgrounds: 0.5 → brightness(1.0) filter, bypasses Three.js color-space overlay.
@@ -529,7 +529,7 @@ export default function StudioPage() {
             {([
               { src: '/preview_bg_white.jpg', bg: 'url(/preview_bg_white.jpg) center / 100% 100% no-repeat', brightness: 0.5 as number | undefined },
               { src: '/preview_bg.jpg',       bg: 'url(/preview_bg.jpg) center / 100% 100% no-repeat',       brightness: undefined as number | undefined },
-              { src: '/preview_bg_dark.png',  bg: 'url(/preview_bg_dark.png) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
+              { src: '/preview_bg_dark.jpg',  bg: 'url(/preview_bg_dark.jpg) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
               { src: null,                    bg: '#000000',                                                   brightness: 0.5 as number | undefined },
             ]).map(({ src, bg, brightness }, idx) => {
               const angle = Math.PI + (idx / 3) * (Math.PI / 2);
@@ -537,16 +537,6 @@ export default function StudioPage() {
               const dx = r * Math.cos(angle);
               const dy = -r * Math.sin(angle);
               const isSelected = sceneBackground === bg;
-              const bgStyle: React.CSSProperties = src
-                ? {
-                    backgroundImage: [
-                      'radial-gradient(circle at center, transparent 20%, rgba(0,0,0,0.28) 88%)',
-                      `url(${src})`,
-                    ].join(', '),
-                    backgroundSize: 'cover, cover',
-                    backgroundPosition: 'center, center',
-                  }
-                : { background: bg };
               return (
                 <button
                   key={bg}
@@ -559,12 +549,14 @@ export default function StudioPage() {
                     width: 22,
                     height: 22,
                     borderRadius: '50%',
-                    ...bgStyle,
+                    backgroundImage: src ? `url(${src})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    background: src ? undefined : bg,
                     border: isSelected ? '2px solid rgba(255,248,234,0.92)' : '1.5px solid rgba(255,248,234,0.32)',
                     cursor: 'pointer',
-                    boxShadow: 'inset 0 0 7px 2px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.45)',
+                    boxShadow: 'inset 0 0 9px 3px rgba(0,0,0,0.38), inset 0 0 3px 1px rgba(255,255,255,0.06), 0 2px 8px rgba(0,0,0,0.45)',
                     padding: 0,
-                    filter: src ? 'saturate(0.87) contrast(0.88)' : undefined,
                     opacity: sunOpen ? 1 : 0,
                     transform: sunOpen
                       ? `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(1)`
@@ -632,7 +624,7 @@ export default function StudioPage() {
                 <button
                   onClick={() => setSceneBackground('url(/project_bg.jpg) center / 100% 100% no-repeat')}
                   title="Photo background"
-                  style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', backgroundImage: 'url(/project_bg.jpg)', backgroundSize: '100% 100%', border: (sceneBackground.startsWith('url(/project_bg') || sceneBackground.startsWith('url(/preview_bg_dark')) ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }}
+                  style={{ width: 13, height: 13, borderRadius: '50%', cursor: 'pointer', backgroundImage: 'url(/project_bg.jpg)', backgroundSize: '100% 100%', border: (sceneBackground.startsWith('url(/project_bg') || sceneBackground.startsWith('url(/preview_bg_dark.jpg')) ? '2px solid rgba(255,248,234,0.9)' : '1px solid rgba(255,248,234,0.25)', flexShrink: 0 }}
                 />
               )}
               {sceneControlsEnabled && ['#000000', '#1c1510', '#00b140', '#f5f0e8'].map(c => (

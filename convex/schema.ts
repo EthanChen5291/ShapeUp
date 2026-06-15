@@ -14,10 +14,48 @@ export default defineSchema({
     renderQuality: v.optional(v.union(v.literal("performance"), v.literal("balanced"), v.literal("high"))),
     aiTrainingOptOut: v.optional(v.boolean()),
     language: v.optional(v.string()),
+    // Each user's own shareable referral code.
+    referralCode: v.optional(v.string()),
+    // The referral code this user signed up under (set once, at creation).
+    referredBy: v.optional(v.string()),
+    // Highest-ranked plan ever purchased; drives the displayed plan tier.
+    topPlan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("lifetime"))),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])
-    .index("by_username", ["username"]),
+    .index("by_username", ["username"])
+    .index("by_referral_code", ["referralCode"]),
+
+  // One row per referral relationship. Reward is granted when the referred
+  // user creates their first project (status flips pending -> rewarded).
+  referrals: defineTable({
+    referrerUserId: v.id("users"),
+    referredUserId: v.id("users"),
+    referrerCode: v.string(),
+    status: v.union(v.literal("pending"), v.literal("rewarded")),
+    createdAt: v.number(),
+    rewardedAt: v.optional(v.number()),
+  })
+    .index("by_referred", ["referredUserId"])
+    .index("by_referrer", ["referrerUserId"]),
+
+  // Custom redeemable token codes (separate from Stripe promo codes).
+  redeemCodes: defineTable({
+    code: v.string(),
+    tokens: v.number(),
+    maxUses: v.optional(v.number()), // undefined = unlimited
+    usedCount: v.number(),
+    expiresAt: v.optional(v.number()),
+    active: v.boolean(),
+  }).index("by_code", ["code"]),
+
+  // One row per (user, code) to prevent the same user redeeming a code twice.
+  redeemRedemptions: defineTable({
+    userId: v.id("users"),
+    code: v.string(),
+    tokens: v.number(),
+    redeemedAt: v.number(),
+  }).index("by_user_and_code", ["userId", "code"]),
 
   sessions: defineTable({
     userId: v.optional(v.string()),

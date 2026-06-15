@@ -24,7 +24,6 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import HairStrandMesh from './HairStrandMesh';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
-import { parseNPY } from '@/lib/parseNPY';
 
 // ── Polycam head ─────────────────────────────────────────────
 function PolycamHeadGLB() {
@@ -62,76 +61,6 @@ function PolycamHead() {
   );
 }
 
-// ── Hair depth points (npy) ─────────────────────────────────
-
-// Renders a .npy file as a visible point cloud.
-// Handles two shapes:
-//   (N, 3)  — direct XYZ points (used as-is, scaled by scale/position group)
-//   (H, W)  — 2D depth map: constructs 3D points by mapping pixel (i,j) →
-//              (x, y) in PLY bbox space and depth value → z offset.
-//              Subsampled every DEPTH_STEP pixels to keep point count manageable.
-const DEPTH_STEP_DEFAULT = 6;
-const DEPTH_STEP_PERFORMANCE = 9; // ~2x fewer points (9²/6² ≈ 2.25×)
-// PLY bbox extents used to normalize depth map pixel coords into PLY space.
-const PLY_W = 0.34; const PLY_H = 0.37; const PLY_D = 0.30;
-const PLY_Y_CENTER = 1.72; const PLY_Z_CENTER = -0.016;
-
-function HairDepthPoints({ url, color, scale, position, renderQuality = 'balanced' }: {
-  url: string;
-  color: string;
-  scale: number;
-  position: [number, number, number];
-  renderQuality?: 'performance' | 'balanced' | 'high';
-}) {
-  const [geo, setGeo] = useState<THREE.BufferGeometry | null>(null);
-  const depthStep = renderQuality === 'performance' ? DEPTH_STEP_PERFORMANCE : DEPTH_STEP_DEFAULT;
-
-  useEffect(() => {
-    let cancelled = false;
-    parseNPY(url).then(({ data, shape }) => {
-      if (cancelled) return;
-      const g = new THREE.BufferGeometry();
-
-      let positions: Float32Array;
-
-      if (shape.length === 2) {
-        // 2D depth map (H, W): build point cloud in PLY coordinate space
-        const [H, W] = shape;
-        const pts: number[] = [];
-        for (let i = 0; i < H; i += depthStep) {
-          for (let j = 0; j < W; j += depthStep) {
-            const d = data[i * W + j];
-            if (d <= 0) continue; // skip background/empty pixels
-            const x = ((j - W / 2) / W) * PLY_W;
-            const y = PLY_Y_CENTER - ((i - H / 2) / H) * PLY_H;
-            const z = PLY_Z_CENTER + (d - 0.5) * PLY_D;
-            pts.push(x, y, z);
-          }
-        }
-        positions = new Float32Array(pts);
-      } else {
-        // (N, 3): direct XYZ points
-        positions = new Float32Array(data);
-      }
-
-      g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      setGeo(g);
-    });
-    return () => { cancelled = true; };
-  }, [url, depthStep]);
-
-  useEffect(() => () => { geo?.dispose(); }, [geo]);
-
-  if (!geo) return null;
-  return (
-    <group scale={scale} position={position}>
-      <points geometry={geo}>
-        <pointsMaterial color={color} size={0.02} sizeAttenuation depthWrite={false} />
-      </points>
-    </group>
-  );
-}
-
 // ── Scene content ───────────────────────────────────────────
 
 // Fallback hair transform used before a measured PLY bbox is available.
@@ -143,17 +72,16 @@ const ORBIT_SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.5, 4.0];
 
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
-// type 'ply' → HairStrandMesh, type 'npy' → HairDepthPoints
-type HairLayer = { type: 'ply' | 'npy'; id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
+type HairLayer = { id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
 const S3_HAIR = 'https://shape-up-s3.s3.us-east-1.amazonaws.com/hair';
 
 const HAIR_LAYERS: HairLayer[] = [
-  { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: `${S3_HAIR}/hair_modified.ply`, color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: `${S3_HAIR}/strands_1.ply`,   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: `${S3_HAIR}/preset_a.ply`,    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'medium long',        label: 'Guest',       url: `${S3_HAIR}/guest.ply`,       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: `${S3_HAIR}/brunohair.ply`,   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: `${S3_HAIR}/top_hair.ply`,    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
+  { id: 'pretty interesting', label: 'Modified',    url: `${S3_HAIR}/hair_modified.ply`, color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'pretty thick',    label: 'Strands 1',   url: `${S3_HAIR}/strands_1.ply`,   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'medium bob',     label: 'Preset A',    url: `${S3_HAIR}/preset_a.ply`,    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'medium long',        label: 'Guest',       url: `${S3_HAIR}/guest.ply`,       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'brunohair',    label: 'Bruno',       url: `${S3_HAIR}/brunohair.ply`,   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'top_hair',     label: 'Top Hair',    url: `${S3_HAIR}/top_hair.ply`,    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
 ];
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
@@ -334,30 +262,19 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
         </Suspense>
       )}
 
-      {HAIR_LAYERS.filter(l => visibleLayers.has(l.id)).map(l =>
-        l.type === 'npy' ? (
-          <HairDepthPoints
-            key={l.id}
-            url={l.url}
-            color={hairColor ?? l.color}
-            scale={hairScale}
-            position={hairPos}
-            renderQuality={renderQuality}
-          />
-        ) : (
-          <HairStrandMesh
-            key={l.id}
-            url={l.url}
-            color={hairColor ?? l.color}
-            scale={hairScale}
-            position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
-            lineWidth={l.lineWidth}
-            renderOrder={l.renderOrder}
-            renderQuality={renderQuality}
-            onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
-          />
-        )
-      )}
+      {HAIR_LAYERS.filter(l => visibleLayers.has(l.id)).map(l => (
+        <HairStrandMesh
+          key={l.id}
+          url={l.url}
+          color={hairColor ?? l.color}
+          scale={hairScale}
+          position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
+          lineWidth={l.lineWidth}
+          renderOrder={l.renderOrder}
+          renderQuality={renderQuality}
+          onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
+        />
+      ))}
 
       {hairstepPlyUrl && (() => {
         const lw = renderQuality === 'performance' ? 0.6 : renderQuality === 'high' ? 0.9 : 0.8;
