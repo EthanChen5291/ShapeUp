@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useClerk, useUser } from '@clerk/nextjs';
 import { useSignIn, useSignUp } from '@clerk/nextjs/legacy';
 import Link from 'next/link';
 import { BouncyButton } from '@/components/AppUI';
@@ -16,7 +16,9 @@ export interface SignUpWidgetProps {
 export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRedirect, redirectUrlComplete = '/' }: SignUpWidgetProps) {
   const { signUp, setActive } = useSignUp();
   const { signIn } = useSignIn();
+  const { redirectToSignIn } = useClerk();
   const { isSignedIn } = useUser();
+  const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -77,7 +79,14 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
   }
 
   const submitCredentials = async () => {
-    if (!signIn || !signUp || !setActive) return;
+    if (!clerkConfigured) {
+      setError('Sign-in is not configured for this deployment.');
+      return;
+    }
+    if (!signIn || !signUp || !setActive) {
+      setError('Sign-in is still loading. Try again in a moment.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -216,14 +225,20 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
   };
 
   const handleGoogle = async () => {
-    if (!signIn) return;
+    if (!clerkConfigured) {
+      setError('Sign-in is not configured for this deployment.');
+      return;
+    }
+    if (!redirectToSignIn) {
+      setError('Sign-in is still loading. Try again in a moment.');
+      return;
+    }
     setError('');
     try {
       onBeforeGoogleRedirect?.();
-      await signIn.authenticateWithRedirect({
-        strategy: 'oauth_google',
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}${redirectUrlComplete}`,
+      await redirectToSignIn({
+        signInForceRedirectUrl: redirectUrlComplete,
+        signUpForceRedirectUrl: redirectUrlComplete,
       });
     } catch (err: unknown) {
       const e = err as { errors?: Array<{ message?: string }> };

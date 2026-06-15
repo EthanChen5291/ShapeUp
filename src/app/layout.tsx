@@ -6,6 +6,8 @@ import { NavLoadingProvider } from '@/components/NavLoadingOverlay';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import './globals.css';
 
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 const fraunces = Fraunces({
   subsets: ['latin'],
   variable: '--font-fraunces',
@@ -42,7 +44,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
       <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrains.variable} ${montserrat.variable}`}>
         <body style={{ fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
           <style>{`

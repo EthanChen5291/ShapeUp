@@ -272,19 +272,14 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
               </div>
 
               {/* ── Refer a friend ── */}
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Refer a friend</span>
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--terracotta)' }}>+3 ✦ each</span>
-                </div>
-                <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>You both get 3 tokens when they sign up and create their first cut.</p>
-                <BouncyButton onClick={handleCopyReferral} disabled={!referralStats?.referralCode} className="font-sans text-[13px] w-full" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.18)', color: 'var(--ink)', borderRadius: 12, padding: '9px 14px', fontWeight: 600, opacity: referralStats?.referralCode ? 1 : 0.5 }}>
-                  {copied ? '✓ Invite link copied' : '🔗 Copy invite link'}
-                </BouncyButton>
-                {referralStats && referralStats.friendsJoined > 0 && (
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>{referralStats.friendsJoined} joined · {referralStats.tokensEarned} ✦ earned</span>
-                )}
-              </div>
+              <BouncyButton
+                onClick={handleCopyReferral}
+                disabled={!referralStats?.referralCode}
+                className="font-sans w-full"
+                style={{ background: 'var(--terracotta)', border: 'none', color: 'var(--offwhite)', borderRadius: 14, padding: '13px 18px', fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', boxShadow: '0 6px 18px -6px rgba(193,90,56,0.55)', opacity: referralStats?.referralCode ? 1 : 0.5 }}
+              >
+                {copied ? '✓ Invite link copied!' : '✦ Refer a friend for 6 tokens!'}
+              </BouncyButton>
 
               {/* ── Redeem a code ── */}
               <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-2">
