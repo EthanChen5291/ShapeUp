@@ -142,6 +142,19 @@ function SunIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+// Decode a base64 data: URL to a Blob without fetch(). fetch() on a data: URL
+// is a "connect" and is blocked by our CSP (connect-src has no data:), which
+// silently killed the edit-image upload — see onImageUpdated.
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',');
+  const header = dataUrl.slice(0, comma);
+  const mime = header.match(/data:([^;]+)/)?.[1] ?? 'image/png';
+  const binary = atob(dataUrl.slice(comma + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 export default function StudioPage() {
   const { isSignedIn } = useUser();
   const router = useRouter();
@@ -174,6 +187,7 @@ export default function StudioPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [displayImageUrl, setDisplayImageUrl] = useState<string | null>(null);
   const [polaroidImgError, setPolaroidImgError] = useState(false);
+  const [editSaveError, setEditSaveError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [persistedSplatUrl, setPersistedSplatUrl] = useState<string | null>(null);
   const [hairstepPlyUrl, setHairstepPlyUrl] = useState<string | null>(null);
@@ -492,6 +506,15 @@ export default function StudioPage() {
               )}
             </div>
             <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
+            {editSaveError && (
+              <div
+                className="absolute left-0 right-0 top-full mt-2 rounded-md px-2 py-1.5 text-[10px] leading-tight font-mono"
+                style={{ background: 'rgba(217,78,58,0.14)', border: '1px solid rgba(217,78,58,0.4)', color: 'var(--cherry, #d94e3a)', minWidth: 160 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {editSaveError}
+              </div>
+            )}
           </div>
         ); })()}
 
@@ -634,26 +657,46 @@ export default function StudioPage() {
                 setPreviewExpanded(false);
                 setPolaroidImgError(false);
                 setPolaroidKey(k => k + 1);
+                setEditSaveError(null);
                 // Upload the Gemini-edited image to S3 and persist under lastEditImageS3Key,
                 // keeping lastImageS3Key (original scan) intact for drift prevention.
+                // Every step is checked and surfaced — a silent failure here loses the
+                // edit on refresh, which is exactly the bug that hid behind a swallowed catch.
                 if (url.startsWith('data:') && projectId) {
-                  fetch(url)
-                    .then(r => r.blob())
-                    .then(blob => fetch('/api/upload-edit-image', {
-                      method: 'POST',
-                      headers: { 'Content-Type': blob.type || 'image/png' },
-                      body: blob,
-                    }).then(r => r.json()) as Promise<{ key?: string }>)
-                    .then(({ key }) => {
-                      if (key) {
-                        saveProject({ projectId, lastEditImageS3Key: key }).catch(() => {});
-                        const s3Url = `/api/img?key=${encodeURIComponent(key)}`;
-                        const preload = new window.Image();
-                        preload.onload = () => setDisplayImageUrl(s3Url);
-                        preload.src = s3Url;
+                  (async () => {
+                    try {
+                      const blob = dataUrlToBlob(url);
+                      const uploadRes = await fetch('/api/upload-edit-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': blob.type || 'image/png' },
+                        body: blob,
+                      });
+                      if (!uploadRes.ok) {
+                        const body = await uploadRes.text().catch(() => '');
+                        console.error('[studio] edit-image upload failed:', uploadRes.status, body.slice(0, 300));
+                        setEditSaveError(`Edit not saved — upload failed (HTTP ${uploadRes.status}). Refresh will lose it.`);
+                        return;
                       }
-                    })
-                    .catch(() => {});
+                      const { key } = (await uploadRes.json()) as { key?: string };
+                      if (!key) {
+                        console.error('[studio] edit-image upload returned no key');
+                        setEditSaveError('Edit not saved — upload returned no key. Refresh will lose it.');
+                        return;
+                      }
+                      try {
+                        await saveProject({ projectId, lastEditImageS3Key: key });
+                      } catch (e) {
+                        console.error('[studio] saveProject(lastEditImageS3Key) failed:', e);
+                        setEditSaveError('Edit uploaded but not linked to project — refresh will lose it.');
+                        return;
+                      }
+                      setEditSaveError(null);
+                      setDisplayImageUrl(`/api/img?key=${encodeURIComponent(key)}`);
+                    } catch (e) {
+                      console.error('[studio] edit-image persist pipeline threw:', e);
+                      setEditSaveError('Edit not saved — see console for details. Refresh will lose it.');
+                    }
+                  })();
                 }
               }}
               userCredits={userQuery?.credits}
