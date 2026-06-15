@@ -294,7 +294,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
 
               <h2 style={{
                 fontFamily: 'var(--font-fraunces), Georgia, serif',
-                fontSize: 'clamp(2rem, 4vw, 3.2rem)',
+                fontSize: 'clamp(2.4rem, 4.5vw, 3.8rem)',
                 fontWeight: 900,
                 color: 'var(--cream)',
                 lineHeight: 0.95, margin: 0,
@@ -305,7 +305,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
               <p style={{
                 fontFamily: 'var(--font-fraunces), Georgia, serif',
                 fontStyle: 'italic',
-                fontSize: 17,
+                fontSize: 20,
                 color: 'rgba(255,248,234,0.72)',
                 margin: 0, maxWidth: 400, lineHeight: 1.35,
               }}>
@@ -354,7 +354,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
 
                   <div style={{
                     fontFamily: 'var(--font-jetbrains), monospace',
-                    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', fontWeight: 600,
+                    fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.18em', fontWeight: 600,
                     color: plan.featured ? 'rgba(80,150,255,0.9)' : 'rgba(255,248,234,0.58)',
                     marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
                   }}>
@@ -373,7 +373,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
                   <div style={{ marginBottom: 4 }}>
                     <span style={{
                       fontFamily: 'var(--font-fraunces), Georgia, serif',
-                      fontSize: 'clamp(1.8rem, 2.5vw, 2.4rem)', fontWeight: 900,
+                      fontSize: 'clamp(2.2rem, 3vw, 3rem)', fontWeight: 900,
                       color: 'var(--cream)', lineHeight: 1, letterSpacing: '-0.03em',
                     }}>
                       {plan.price}
@@ -382,7 +382,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
 
                   <div style={{
                     fontFamily: 'var(--font-jetbrains), monospace',
-                    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+                    fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em',
                     color: 'rgba(255,248,234,0.48)', marginBottom: 20,
                   }}>
                     {plan.perToken} / token · {plan.sub}
@@ -402,7 +402,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
                     </div>
                     <span style={{
                       fontFamily: 'var(--font-dmsans), sans-serif',
-                      fontSize: 14, fontWeight: 700, color: 'var(--cream)',
+                      fontSize: 17, fontWeight: 700, color: 'var(--cream)',
                     }}>
                       {plan.tokenLabel}
                     </span>
@@ -410,7 +410,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
 
                   <p style={{
                     fontFamily: 'var(--font-dmsans), sans-serif',
-                    fontSize: 12, color: 'rgba(255,248,234,0.64)', lineHeight: 1.55,
+                    fontSize: 14, color: 'rgba(255,248,234,0.64)', lineHeight: 1.55,
                     margin: '0 0 20px', flex: 1,
                   }}>
                     {plan.line}

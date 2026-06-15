@@ -254,6 +254,10 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
           </button>
           <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
             <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>Plan</span>
+                <span className="font-sans text-[12px]" style={{ fontWeight: 700, color: planName === 'Free' ? 'var(--char)' : 'var(--ink)', background: 'var(--biscuit)', borderRadius: 999, padding: '3px 12px' }}>{planName}</span>
+              </div>
               <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex flex-col gap-3">
                 <div className="tokens-widget">
                   <div className="tokens-widget__row">
@@ -266,6 +270,50 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
                   </BouncyButton>
                 </div>
               </div>
+
+              {/* ── Refer a friend ── */}
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Refer a friend</span>
+                  <span className="font-mono text-[10px]" style={{ color: 'var(--terracotta)' }}>+3 ✦ each</span>
+                </div>
+                <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>You both get 3 tokens when they sign up and create their first cut.</p>
+                <BouncyButton onClick={handleCopyReferral} disabled={!referralStats?.referralCode} className="font-sans text-[13px] w-full" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.18)', color: 'var(--ink)', borderRadius: 12, padding: '9px 14px', fontWeight: 600, opacity: referralStats?.referralCode ? 1 : 0.5 }}>
+                  {copied ? '✓ Invite link copied' : '🔗 Copy invite link'}
+                </BouncyButton>
+                {referralStats && referralStats.friendsJoined > 0 && (
+                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>{referralStats.friendsJoined} joined · {referralStats.tokensEarned} ✦ earned</span>
+                )}
+              </div>
+
+              {/* ── Redeem a code ── */}
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-2">
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Redeem a code</span>
+                <div className="flex gap-2">
+                  <input
+                    value={redeemValue}
+                    onChange={e => { setRedeemValue(e.target.value.toUpperCase()); setRedeemErr(''); setRedeemMsg(''); }}
+                    onKeyDown={e => { if (e.key === 'Enter') handleRedeem(); }}
+                    placeholder="ENTER CODE"
+                    className="flex-1 font-mono text-[13px] tracking-wider text-[var(--ink)] rounded-xl px-3 py-2.5"
+                    style={{ background: 'var(--biscuit)', border: redeemErr ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none' }}
+                  />
+                  <BouncyButton onClick={handleRedeem} disabled={redeeming || !redeemValue.trim()} className="btn-ink font-sans text-[13px]" style={{ padding: '8px 18px', opacity: redeeming || !redeemValue.trim() ? 0.45 : 1 }}>
+                    {redeeming ? '…' : 'Redeem'}
+                  </BouncyButton>
+                </div>
+                {redeemMsg && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>{redeemMsg}</span>}
+                {redeemErr && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{redeemErr}</span>}
+              </div>
+
+              {/* ── Take to my barber ── */}
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-1.5">
+                <BouncyButton onClick={handleBarber} className="font-sans text-[13px] w-full" style={{ background: 'none', border: '1px solid rgba(42,32,26,0.18)', color: 'var(--ink)', borderRadius: 12, padding: '9px 14px', fontWeight: 600 }}>
+                  ✂ Take to my barber
+                </BouncyButton>
+                {barberNote && <span className="font-sans text-[11px] text-center" style={{ color: 'var(--char)' }}>Coming soon — share your look with your barber.</span>}
+              </div>
+
               <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
                 <BouncyButton
                   onClick={() => {
