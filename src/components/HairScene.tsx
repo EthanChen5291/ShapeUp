@@ -528,7 +528,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           powerPreference: renderQuality === 'performance' ? 'low-power' : 'high-performance',
           toneMapping: THREE.NoToneMapping,
           preserveDrawingBuffer: true,
-          alpha: useCssBg,
+          alpha: true,
         }}
         camera={{ position: [0, 0, 7.8], fov: 45 }}
         style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: useCssBg ? 'transparent' : background }}
