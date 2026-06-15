@@ -2,7 +2,7 @@
 // Modal runs inference synchronously; this handler waits for the result,
 // converts PLY → splat, uploads both (+ video) to S3, and returns signed URLs.
 
-export const maxDuration = 600; // 10 min — covers Modal cold start + weight download + inference
+export const maxDuration = 300; // Vercel Hobby cap; Modal work must finish within 5 min.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
