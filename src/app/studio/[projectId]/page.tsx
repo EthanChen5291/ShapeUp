@@ -59,8 +59,27 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
   const llmPayload = buildCurrentProfilePayload(profile);
   const liveMeasurementsJson = JSON.stringify(llmPayload.measurementSnapshot, null, 2);
 
+  // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
+  const [hint, setHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
+  const hintTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const handleSubmit = () => {
+    if (!prompt.trim()) {
+      hintTimers.current.forEach(clearTimeout);
+      setHint('shown');
+      hintTimers.current = [
+        setTimeout(() => setHint('fading'), 2700),
+        setTimeout(() => setHint('hidden'), 3000),
+      ];
+      return;
+    }
+    onSubmit();
+  };
+
+  useEffect(() => () => hintTimers.current.forEach(clearTimeout), []);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
   };
 
   return (
@@ -72,7 +91,7 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
           <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
         </div>
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="flex flex-col gap-3">
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="relative flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="pill pill-tomato">new request</span>
           <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
@@ -89,6 +108,21 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
           <button type="submit" className="btn btn-tomato flex-1" style={{ padding: '10px 16px', fontSize: 13 }}>✂ Render in 3D</button>
           <button type="button" disabled className="btn btn-denim opacity-40 cursor-not-allowed" style={{ padding: '10px 14px', fontSize: 13 }}>🎙 Voice</button>
         </div>
+        {hint !== 'hidden' && (
+          <div
+            role="status"
+            className="absolute left-0 right-0 -bottom-2 translate-y-full z-20 flex items-center gap-2 rounded-xl px-3 py-2 text-sm shadow-lg pointer-events-none"
+            style={{
+              background: 'var(--ink)',
+              color: 'var(--cream)',
+              opacity: hint === 'fading' ? 0 : 1,
+              transition: 'opacity 0.3s ease',
+            }}
+          >
+            <span>✂</span>
+            <span>Enter your desired hairstyle in the toolbox!</span>
+          </div>
+        )}
       </form>
       <div className="flex flex-col gap-4">
         <p className="font-mono text-[10px] text-[var(--smoke)] uppercase tracking-[0.18em]">Hair Parameters</p>
@@ -211,6 +245,7 @@ export default function StudioPage() {
   const [sunOpen, setSunOpen] = useState(false);
   const [hoveredDot, setHoveredDot] = useState<number | null>(null);
   const [pressingDot, setPressingDot] = useState<number | null>(null);
+  const [sunHovered, setSunHovered] = useState(false);
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
@@ -591,6 +626,8 @@ export default function StudioPage() {
             {/* Sun toggle button */}
             <button
               onClick={() => setSunOpen(v => !v)}
+              onMouseEnter={() => setSunHovered(true)}
+              onMouseLeave={() => setSunHovered(false)}
               title="Change background"
               style={{
                 width: 34,
@@ -603,7 +640,9 @@ export default function StudioPage() {
                 border: sunOpen ? '1.5px solid rgba(255,248,234,0.7)' : '1.5px solid rgba(255,248,234,0.3)',
                 backdropFilter: 'blur(6px)',
                 cursor: 'pointer',
-                transition: 'border 0.2s ease, background 0.2s ease',
+                // Smooth-lerp to 110% bigger once pressed open (stays enlarged), a touch bigger on hover.
+                transform: `scale(${sunOpen ? 2.1 : sunHovered ? 1.12 : 1})`,
+                transition: 'border 0.2s ease, background 0.2s ease, transform 0.32s cubic-bezier(0.34, 1.4, 0.5, 1)',
                 padding: 0,
               }}
             >
@@ -663,7 +702,7 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-hidden sidebar-in self-start h-[80vh]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
+        <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-y-auto cozy-scroll sidebar-in self-start h-[80vh]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
           <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"

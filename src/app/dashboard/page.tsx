@@ -141,7 +141,15 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
     sessionStorage.removeItem('preCheckoutCredits');
     const start = stored !== null ? parseInt(stored, 10) : 0;
     startCreditsRef.current = start;
-    setTimeout(() => setOpen(true), 300);
+    setTimeout(() => {
+      // Recompute the pill's position so the panel height is sized correctly
+      // before it lerps open (avoids clipping the bottom rows).
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setMenuPos({ top: rect.top, right: window.innerWidth - rect.right });
+      }
+      setOpen(true);
+    }, 300);
     animatingRef.current = true;
     // Remount ClockCounter at pre-purchase count (no animation), then count up
     setClockKey(k => k + 1);
@@ -198,7 +206,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   // Cap the open panel to the viewport so the bottom rows (settings / sign out)
   // stay reachable on short screens; the content area scrolls if it overflows.
   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const panelMaxH = menuPos ? Math.min(620, viewportH - menuPos.top - 24) : 620;
+  const panelMaxH = menuPos ? Math.min(660, viewportH - menuPos.top - 16) : 660;
 
   const handleCopyReferral = async () => {
     if (!referralStats?.referralCode) return;
@@ -258,12 +266,12 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
             </svg>
           </button>
           <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', maxHeight: open ? panelMaxH - 43 : 0, overflowY: open ? 'auto' : 'hidden', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
-            <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex items-center justify-between">
+            <div className="flex flex-col gap-4" style={{ padding: '8px 22px 20px' }}>
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>Plan</span>
                 <span className="font-sans text-[12px]" style={{ fontWeight: 700, color: planName === 'Free' ? 'var(--char)' : 'var(--ink)', background: 'var(--biscuit)', borderRadius: 999, padding: '3px 12px' }}>{planName}</span>
               </div>
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex flex-col gap-3">
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-3">
                 <div className="tokens-widget">
                   <div className="tokens-widget__row">
                     <span className="tokens-widget__label">Tokens</span>

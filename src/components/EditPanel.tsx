@@ -131,6 +131,9 @@ interface OrderResult {
 
 export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
+  // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
+  const [emptyHint, setEmptyHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
+  const emptyHintTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [history, setHistory] = useState<HairParams[]>([profile.currentStyle.params]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -210,9 +213,13 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         setIsRecovering(true);
         setLiveStatus('Reconnecting to your 3D render…');
       } else {
-        // Gemini phase: the API call can't be recovered, but we can restore the prompt
-        // so the user can re-send with one click. Don't block the UI.
-        if (saved.prompt) setPrompt(saved.prompt);
+        // Gemini phase: the in-flight request died with the page and its result is gone,
+        // so there's nothing to reconnect to. Restore the prompt and tell the user to retry
+        // rather than leaving a spinner up with no work behind it.
+        if (saved.prompt) {
+          setPrompt(saved.prompt);
+          setPipelineError('Your edit was interrupted by the refresh — tap send to try again.');
+        }
         sessionStorage.removeItem(key);
       }
     } catch { /* corrupt entry — ignore */ }
@@ -449,6 +456,25 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
   const isBusy = phase !== 'idle';
 
+  // Submit handler: nudge the user with a fading hint when the prompt is empty
+  // instead of disabling the Apply button.
+  const handleApply = () => {
+    if (isBusy) return;
+    if (!prompt.trim()) {
+      emptyHintTimers.current.forEach(clearTimeout);
+      setEmptyHint('shown');
+      emptyHintTimers.current = [
+        setTimeout(() => setEmptyHint('fading'), 2700),
+        setTimeout(() => setEmptyHint('hidden'), 3000),
+      ];
+      return;
+    }
+    runPromptPipeline(prompt);
+    setPrompt('');
+  };
+
+  useEffect(() => () => emptyHintTimers.current.forEach(clearTimeout), []);
+
   // ── Rotating placeholder + barber chatter ─────────────────────────
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   useEffect(() => {
@@ -554,7 +580,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   return (
     <>
     <div className="flex-shrink-0 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-    <aside className="relative flex flex-col gap-6 px-5 py-6 max-h-[78vh] overflow-y-auto cozy-scroll text-[var(--ink)]" aria-label="Hair editor controls">
+    <aside className="relative flex flex-col gap-6 px-5 py-6 text-[var(--ink)]" aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}
@@ -579,7 +605,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       </div>
 
       {/* Prompt */}
-      <form onSubmit={(e) => { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }} className="flex flex-col gap-3">
+      <form onSubmit={(e) => { e.preventDefault(); handleApply(); }} className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
           <span className="font-mono text-[10px] text-[var(--smoke)]">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
@@ -595,7 +621,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             maxLength={MAX_PROMPT_LENGTH}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runPromptPipeline(prompt); setPrompt(''); }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleApply(); }
             }}
           />
         </div>
@@ -634,10 +660,10 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             </svg>
           </button>
         </div>
-        <div className="flex gap-2">
+        <div className="relative flex gap-2">
           <button
             type="submit"
-            disabled={isBusy || !prompt.trim()}
+            disabled={isBusy}
             aria-label="Apply hair edit request"
             className="btn btn-tomato btn-snap flex-1"
             style={{ padding: '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
@@ -648,6 +674,21 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               '✂ Apply'
             )}
           </button>
+          {emptyHint !== 'hidden' && (
+            <div
+              role="status"
+              className="absolute left-0 right-0 -top-2 -translate-y-full z-20 flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm shadow-lg pointer-events-none"
+              style={{
+                background: 'var(--ink)',
+                color: 'var(--cream)',
+                opacity: emptyHint === 'fading' ? 0 : 1,
+                transition: 'opacity 0.3s ease',
+              }}
+            >
+              <span>✂</span>
+              <span>Enter your desired hairstyle in the toolbox!</span>
+            </div>
+          )}
         </div>
         <div className={`pipeline-collapse ${isBusy ? 'pipeline-collapse-open' : ''}`} aria-hidden={!isBusy}>
           <div className="pipeline-collapse-inner">
