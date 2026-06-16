@@ -37,27 +37,17 @@ export function ClockCounter({ value, className, style }: { value: number; class
   );
 }
 
-export function BarberMascot({ snap = false, size = 'full', isStatic = false, color = '#2a201a' }: { snap?: boolean; size?: 'full' | 'sm'; isStatic?: boolean; color?: string }) {
-  const bladeClass = isStatic ? '' : snap ? 'scissor-snap-left' : 'scissor-blade-left';
-  const bladeClassR = isStatic ? '' : snap ? 'scissor-snap-right' : 'scissor-blade-right';
+// Brand logo. Props kept for call-site compatibility; the logo is a fixed-color
+// image so `color`/`snap`/`isStatic` are intentionally ignored.
+export function BarberMascot(_props: { snap?: boolean; size?: 'full' | 'sm'; isStatic?: boolean; color?: string }) {
   return (
-    <svg
-      viewBox="0 0 200 360"
-      xmlns="http://www.w3.org/2000/svg"
-      className={`${size === 'sm' ? 'w-full h-auto' : 'w-full h-auto'} drop-shadow-lg scissor-mascot`}
-    >
-      <line x1="94" y1="188" x2="58" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
-      <line x1="106" y1="188" x2="142" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
-      <circle cx="52" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
-      <circle cx="148" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
-      <g className={bladeClass}>
-        <path d="M 108 172 L 88 188 L 32 28 L 48 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
-      </g>
-      <g className={bladeClassR}>
-        <path d="M 92 172 L 112 188 L 168 28 L 152 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
-      </g>
-      <circle cx="100" cy="180" r="13" fill={color} />
-    </svg>
+    <img
+      src="/shapeup_logo.png"
+      alt="ShapeUp"
+      draggable={false}
+      className="drop-shadow-lg scissor-mascot"
+      style={{ width: '100%', height: 'auto', display: 'block', userSelect: 'none' }}
+    />
   );
 }
 

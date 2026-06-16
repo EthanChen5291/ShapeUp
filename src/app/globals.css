@@ -558,6 +558,72 @@ body {
     inset 0 1px 0 rgba(255,255,255,0.18);
 }
 
+/* ── Refer CTA: bluish button beneath "Get more tokens", same raised
+     Duolingo-ledge press behaviour, just a different palette ─────────── */
+.btn-refer-cta {
+  display: block;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #6ea1cc 0%, #3a6b93 100%);
+  color: #fff8ea;
+  border: none;
+  border-radius: 11px;
+  padding: 10px 14px 9px;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 20, 'WONK' 0, 'opsz' 14;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    0 5px 0 0 #244863,
+    0 8px 20px -4px rgba(27, 54, 80, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+.btn-refer-cta__text {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+}
+.btn-refer-cta__hl {
+  color: var(--honey);
+  font-weight: 900;
+  white-space: nowrap;
+}
+.btn-refer-cta:hover:not(:disabled) {
+  background: linear-gradient(160deg, #7db0d9 0%, #427399 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 7px 0 0 #244863,
+    0 14px 28px -6px rgba(27, 54, 80, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.btn-refer-cta:active:not(:disabled) {
+  transform: translateY(5px);
+  box-shadow:
+    0 0 0 0 #244863,
+    0 3px 8px -2px rgba(27, 54, 80, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Referral popup accent badge */
+.refer-pop__badge {
+  align-self: flex-start;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #335f85;
+  background: rgba(110, 161, 204, 0.18);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
 .btn-cream {
   background: var(--cream);
   color: var(--ink);
@@ -1945,7 +2011,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
 
 /* ── Explore — dark mode overrides ─────────────────────────────── */
 html.dark .explore-ghost {
-  background: #252820;
+  background: #252528;
   box-shadow: 0 4px 18px rgba(0,0,0,0.35);
   outline: 1.5px solid rgba(252, 245, 228, 0.15);
 }
@@ -1953,18 +2019,18 @@ html.dark .explore-ghost:hover {
   box-shadow: 0 12px 36px rgba(0,0,0,0.5);
 }
 html.dark .explore-ghost-photo {
-  background: linear-gradient(160deg, #2e3129, #1e2119);
+  background: linear-gradient(160deg, #2e2e34, #1e1e21);
 }
 html.dark .explore-ghost-tag {
   color: rgba(252, 245, 228, 0.75);
 }
 html.dark .explore-ghost-stamp {
   color: rgba(252, 245, 228, 0.9);
-  background: #2e3129;
+  background: #2e2e34;
   border: 1.2px solid rgba(252, 245, 228, 0.55);
 }
 html.dark .explore-ticket {
-  background: #252820;
+  background: #252528;
   border: 1.5px solid rgba(252, 245, 228, 0.2);
   box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
@@ -1972,7 +2038,7 @@ html.dark .explore-ticket {
 html.dark .explore-ticket-label { color: rgba(252, 245, 228, 0.85); }
 html.dark .explore-marquee {
   border-top: 1.5px solid rgba(252, 245, 228, 0.1);
-  background: #181b17;
+  background: #1e1e21;
 }
 html.dark .explore-marquee-track {
   color: rgba(252, 245, 228, 0.55);
@@ -2870,6 +2936,11 @@ html.dark .tokens-widget__count {
 }
 html.dark .tokens-widget__label {
   color: #7a5920;
+}
+/* Collapsed profile pill keeps its yellow bg in dark mode, so force dark ink
+   on the token count (var(--ink) flips to near-white and disappears). */
+html.dark .pill-credits {
+  color: #2a201a;
 }
 
 html.dark .btn-tokens-cta {

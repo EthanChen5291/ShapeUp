@@ -461,7 +461,7 @@ export default function StudioPage() {
                   <Image src={imageUrl} alt="Your scan" fill className="object-cover" unoptimized onError={() => setPolaroidImgError(true)} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center" style={{ opacity: 0.18 }}>
-                    <div style={{ width: 60, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+                    <div style={{ width: 60 }}><BarberMascot isStatic /></div>
                   </div>
                 )}
               </div>
@@ -538,7 +538,7 @@ export default function StudioPage() {
                 <img key={polaroidKey} src={displayImg!} alt="scan" className="block w-full h-full object-cover cut-develop" onError={() => setPolaroidImgError(true)} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center" style={{ opacity: 0.18 }}>
-                  <div style={{ width: 40, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+                  <div style={{ width: 40 }}><BarberMascot isStatic /></div>
                 </div>
               )}
             </div>
@@ -713,7 +713,7 @@ export default function StudioPage() {
                 transition: 'background 0.3s, border-color 0.3s',
               }}
             >
-              ✦ <ClockCounter value={userQuery?.credits ?? 0} />
+              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '1.15em', height: '1.15em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.2em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.credits ?? 0} />
             </span>
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
             {paymentSuccess && (

@@ -12,11 +12,9 @@ import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
 import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { parseImageDataUrl, sanitizeOutputName } from '@/lib/imageDataUrl';
+import { getFaceliftHeaders, isFaceliftConfigured, resolveFaceliftUrl } from '@/lib/facelift';
 import fs from 'fs/promises';
 import path from 'path';
-
-const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
-const FACELIFT_SHARED_SECRET = process.env.FACELIFT_SHARED_SECRET ?? '';
 
 const SH_C0 = 0.28209479177387814;
 const MAX_FACELIFT_IMAGE_BYTES = 6 * 1024 * 1024;
@@ -114,14 +112,6 @@ function plyToSplat(plyBuf: Buffer): Buffer {
   return out;
 }
 
-function getFaceliftHeaders(): HeadersInit {
-  return {
-    'ngrok-skip-browser-warning': '1',
-    'User-Agent': 'shapeup',
-    ...(FACELIFT_SHARED_SECRET ? { 'X-ShapeUp-Facelift-Secret': FACELIFT_SHARED_SECRET } : {}),
-  };
-}
-
 function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
   if (typeof value !== 'string' || value.length === 0) return null;
   if (value.length > Math.ceil(maxBytes * 4 / 3) + 128) return null;
@@ -131,9 +121,9 @@ function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
 }
 
 export async function POST(req: NextRequest) {
-  if (!FACELIFT_URL) {
-    console.error('[facelift] POST: FACELIFT_URL not configured');
-    return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
+  if (!isFaceliftConfigured()) {
+    console.error('[facelift] POST: no FaceLift upstream configured (FACELIFT_URL / OSCAR_FACELIFT_URL)');
+    return NextResponse.json({ error: 'FaceLift upstream not configured' }, { status: 503 });
   }
 
   const authResult = await requireSignedIn();
@@ -237,10 +227,11 @@ export async function POST(req: NextRequest) {
   imageBytes.set(buffer);
   form.append('image', new Blob([imageBytes], { type: parsedImage.mimeType }), `face.${uploadExt}`);
 
-  console.log(`[facelift] POST: sending to Modal — ${buffer.length} bytes`);
+  const faceliftUrl = await resolveFaceliftUrl();
+  console.log(`[facelift] POST: sending to ${faceliftUrl} — ${buffer.length} bytes`);
   let upstream: Response;
   try {
-    upstream = await fetch(`${FACELIFT_URL}/process_image`, {
+    upstream = await fetch(`${faceliftUrl}/process_image`, {
       method: 'POST',
       headers: getFaceliftHeaders(),
       body:   form,

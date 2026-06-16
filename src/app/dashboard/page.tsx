@@ -86,7 +86,7 @@ function SignInModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ─── Profile Menu ─── */
-function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
+function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillVisible = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean; pillVisible?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [showSignIn, setShowSignIn] = useState(false);
@@ -110,6 +110,17 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   const [redeemMsg, setRedeemMsg] = useState('');
   const [redeemErr, setRedeemErr] = useState('');
   const [barberNote, setBarberNote] = useState(false);
+  const [showRefer, setShowRefer] = useState(false);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains('dark'));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!pulse) return;
@@ -247,62 +258,52 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
       style={{ width: 251, height: 43, flexShrink: 0 }}
     >
       {menuPos && createPortal(
+        <>
         <div style={{
           position: 'fixed', top: menuPos.top, right: menuPos.right,
           width: open ? 380 : 251, maxHeight: open ? `${panelMaxH}px` : '43px',
-          background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.12)',
+          background: open ? 'var(--cream)' : pillVisible ? 'var(--biscuit-lt)' : 'transparent',
+          border: open || pillVisible ? '1px solid rgba(42,32,26,0.12)' : '1px solid transparent',
           backdropFilter: 'blur(8px)', borderRadius: open ? 22 : 40,
-          boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
+          boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : pillVisible ? '0 2px 10px -3px rgba(42,32,26,0.18)' : 'none',
           overflow: 'hidden', zIndex: showPricing ? 10 : 9999,
           pointerEvents: showPricing ? 'none' : 'auto',
-          transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease',
+          transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease, background 240ms ease, border-color 240ms ease',
         }}>
           <button onClick={handleToggle} className="flex items-center gap-2 w-full" style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: 8, paddingRight: 15, height: 43 }}>
             <span className="avatar-initial">{initial}</span>
             <span className="font-sans text-[15px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-            <span className="pill-credits">✦ <ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
+            <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '1.15em', height: '1.15em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
             <svg width="12" height="12" viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', maxHeight: open ? panelMaxH - 43 : 0, overflowY: open ? 'auto' : 'hidden', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
-            <div className="flex flex-col gap-4" style={{ padding: '8px 22px 20px' }}>
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex items-center justify-between">
-                <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>Plan</span>
-                <span className="font-sans text-[12px]" style={{ fontWeight: 700, color: planName === 'Free' ? 'var(--char)' : 'var(--ink)', background: 'var(--biscuit)', borderRadius: 999, padding: '3px 12px' }}>{planName}</span>
-              </div>
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-3">
-                <div className="tokens-widget">
-                  <div className="tokens-widget__row">
-                    <span className="tokens-widget__label">Tokens</span>
-                    <span className="tokens-widget__count"><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
-                  </div>
-                  <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full">
-                    <span className="btn-tokens-cta__shimmer" />
-                    <span className="btn-tokens-cta__text">Get more tokens</span>
-                  </BouncyButton>
+            <div className="flex flex-col gap-3.5" style={{ padding: '10px 20px 18px' }}>
+              {/* ── Hero: plan + token balance + primary CTA ── */}
+              <div ref={heroRef} className="tokens-widget">
+                <div className="tokens-widget__row">
+                  <span className="tokens-widget__label">Tokens</span>
+                  <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#4a3a2e' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? 'rgba(74,58,46,0.10)' : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{planName} plan</span>
                 </div>
+                <span className="tokens-widget__count" style={{ marginTop: -2 }}><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
+                <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: 12 }}>
+                  <span className="btn-tokens-cta__shimmer" />
+                  <span className="btn-tokens-cta__text">Get more tokens</span>
+                </BouncyButton>
+                <BouncyButton onClick={() => setShowRefer(true)} className="btn-refer-cta w-full" style={{ marginTop: 8 }}>
+                  <span className="btn-refer-cta__text">Refer a friend for <span className="btn-refer-cta__hl">6 tokens</span></span>
+                </BouncyButton>
               </div>
 
-              {/* ── Refer a friend ── */}
-              <BouncyButton
-                onClick={handleCopyReferral}
-                disabled={!referralStats?.referralCode}
-                className="font-sans w-full"
-                style={{ background: 'var(--terracotta)', border: 'none', color: 'var(--offwhite)', borderRadius: 14, padding: '13px 18px', fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', boxShadow: '0 6px 18px -6px rgba(193,90,56,0.55)', opacity: referralStats?.referralCode ? 1 : 0.5 }}
-              >
-                {copied ? '✓ Invite link copied!' : '✦ Refer a friend for 6 tokens!'}
-              </BouncyButton>
-
-              {/* ── Redeem a code ── */}
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-2">
-                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Redeem a code</span>
+              {/* ── Redeem a code (secondary) ── */}
+              <div className="border-t border-dashed border-[var(--char)]/15 pt-3.5 flex flex-col gap-2.5">
                 <div className="flex gap-2">
                   <input
                     value={redeemValue}
                     onChange={e => { setRedeemValue(e.target.value.toUpperCase()); setRedeemErr(''); setRedeemMsg(''); }}
                     onKeyDown={e => { if (e.key === 'Enter') handleRedeem(); }}
-                    placeholder="ENTER CODE"
+                    placeholder="REDEEM A CODE"
                     className="flex-1 font-mono text-[13px] tracking-wider text-[var(--ink)] rounded-xl px-3 py-2.5"
                     style={{ background: 'var(--biscuit)', border: redeemErr ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none' }}
                   />
@@ -314,9 +315,9 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
                 {redeemErr && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{redeemErr}</span>}
               </div>
 
-              {/* ── Take to my barber ── */}
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-4 flex flex-col gap-1.5">
-                <BouncyButton onClick={handleBarber} className="font-sans text-[13px] w-full" style={{ background: 'none', border: '1px solid rgba(42,32,26,0.18)', color: 'var(--ink)', borderRadius: 12, padding: '9px 14px', fontWeight: 600 }}>
+              {/* ── Take to my barber (utility) ── */}
+              <div className="flex flex-col gap-1.5">
+                <BouncyButton onClick={handleBarber} className="font-sans text-[13px] w-full" style={{ background: 'none', border: '1px solid rgba(42,32,26,0.14)', color: 'var(--char)', borderRadius: 12, padding: '9px 14px', fontWeight: 600 }}>
                   ✂ Take to my barber
                 </BouncyButton>
                 {barberNote && <span className="font-sans text-[11px] text-center" style={{ color: 'var(--char)' }}>Coming soon — share your look with your barber.</span>}
@@ -328,18 +329,30 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
                     if (containerRef.current) setSettingsOriginRect(containerRef.current.getBoundingClientRect());
                     setShowSettings(true);
                   }}
-                  className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
+                  className="font-sans flex items-center gap-1.5 text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
                   style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
                 >
-                  <span style={{ fontSize: 32, display: 'block', lineHeight: 1 }}>⚙</span>
+                  <span style={{ fontSize: 20, display: 'block', lineHeight: 1 }}>⚙</span>
+                  <span className="font-sans text-[13px] uppercase tracking-wider">Settings</span>
                 </BouncyButton>
-                <BouncyButton onClick={() => { setOpen(false); signOut(); }} className="font-sans text-[15px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors" style={{ background: 'none', border: 'none', paddingRight: 2 }}>
+                <BouncyButton onClick={() => { setOpen(false); signOut(); }} className="font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors" style={{ background: 'none', border: 'none', paddingRight: 2 }}>
                   Sign out
                 </BouncyButton>
               </div>
             </div>
           </div>
-        </div>,
+        </div>
+
+        </>,
+        document.body
+      )}
+      {showRefer && createPortal(
+        <ReferralPopup
+          referralCode={referralStats?.referralCode ?? null}
+          copied={copied}
+          onCopy={handleCopyReferral}
+          onDismiss={() => setShowRefer(false)}
+        />,
         document.body
       )}
       {showPricing && createPortal(<PricingPopup onDismiss={() => setShowPricing(false)} />, document.body)}
@@ -347,6 +360,67 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
         <SettingsPopup onDismiss={() => { setShowSettings(false); setTimeout(() => setOpen(false), 500); }} onRescan={() => { setOpen(false); onRescan(); }} originRect={settingsOriginRect} />
       )}
     </div>
+  );
+}
+
+/* ─── Referral Popup ─── */
+function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCode: string | null; copied: boolean; onCopy: () => void; onDismiss: () => void }) {
+  const [phase, setPhase] = useState<'entering' | 'open' | 'closing'>('entering');
+  const link = referralCode && typeof window !== 'undefined' ? `${window.location.origin}/?ref=${referralCode}` : '';
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('open')));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const dismiss = () => { setPhase('closing'); setTimeout(onDismiss, 240); };
+  const isOpen = phase === 'open';
+
+  return (
+    <>
+      <div className="fixed inset-0" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 280ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
+      <div
+        className="fixed left-1/2 top-1/2"
+        style={{
+          zIndex: 10001, width: 420, maxWidth: 'calc(100vw - 32px)',
+          background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', borderRadius: 24,
+          boxShadow: '0 32px 90px -16px rgba(0,0,0,0.5)', overflow: 'hidden',
+          transform: `translate(-50%, -50%) scale(${isOpen ? 1 : 0.94})`,
+          opacity: isOpen ? 1 : 0,
+          transition: 'opacity 240ms ease, transform 280ms cubic-bezier(0.34, 1.3, 0.5, 1)',
+        }}
+      >
+        <div style={{ padding: '40px 36px 32px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
+
+          <div className="flex flex-col gap-2">
+            <span className="refer-pop__badge">✦ Refer a friend</span>
+            <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 26, lineHeight: 1.1 }}>
+              Get <span style={{ color: 'var(--terracotta)' }}>6 tokens</span> together
+            </h2>
+            <p className="font-sans text-[13px] leading-relaxed" style={{ color: 'var(--char)' }}>
+              Share your invite link. When a friend signs up and completes their first scan, <strong>you both get 3 tokens</strong> — 6 in total. There’s no limit, so invite as many friends as you like.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--caramel)' }}>Your invite link</span>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={link || 'Generating your link…'}
+                onFocus={e => e.currentTarget.select()}
+                className="flex-1 font-mono text-[12px] text-[var(--ink)] rounded-xl px-3 py-2.5"
+                style={{ background: 'var(--biscuit)', border: '1.5px solid transparent', outline: 'none', textOverflow: 'ellipsis' }}
+              />
+              <BouncyButton onClick={onCopy} disabled={!referralCode} className="btn-ink font-sans text-[13px]" style={{ padding: '8px 18px', whiteSpace: 'nowrap', opacity: referralCode ? 1 : 0.45 }}>
+                {copied ? '✓ Copied' : 'Copy'}
+              </BouncyButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -619,7 +693,7 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
       <div style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <div style={{ width: 52, transform: 'rotate(186deg)' }}><BarberMascot /></div>
+          <div style={{ width: 52 }}><BarberMascot /></div>
           <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Scan now!</h2>
           <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>Drop in the chair and start styling yourself in 3D!</p>
           <BouncyButton onClick={onLetsDo} className="btn btn-tomato w-full" style={{ padding: '20px 48px', fontSize: 26, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em' }}>Take Picture</BouncyButton>
@@ -640,7 +714,7 @@ function ProjectLimitPopup({ onDismiss }: { onDismiss: () => void }) {
       <div onClick={e => e.stopPropagation()} style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, maxWidth: 420, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <div style={{ width: 52, transform: 'rotate(186deg)' }}><BarberMascot /></div>
+          <div style={{ width: 52 }}><BarberMascot /></div>
           <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Chair&rsquo;s full!</h2>
           <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>You&rsquo;ve hit the limit of {MAX_PROJECTS_PER_USER} cuts. Delete one to make room for a fresh style.</p>
           <BouncyButton onClick={dismiss} className="btn btn-tomato w-full" style={{ padding: '14px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em' }}>Got it</BouncyButton>
@@ -1075,7 +1149,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
               )}
               {(phase === 'verify' || phase === 'processing') && !captured?.url && (
                 <div style={{ width: '100%', maxWidth: 460, aspectRatio: '1', borderRadius: 18, background: 'rgba(255,248,234,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ width: 60, opacity: 0.25, transform: 'rotate(186deg)' }}><BarberMascot isStatic /></div>
+                  <div style={{ width: 60, opacity: 0.25 }}><BarberMascot isStatic /></div>
                 </div>
               )}
 
@@ -1141,7 +1215,7 @@ function FlyingCard({ fromRect, toPoint, thumbnailUrl, onDone }: { fromRect: DOM
 
   return createPortal(
     <div ref={elRef} style={{ position: 'fixed', left: fromRect.left, top: fromRect.top, width: fromRect.width, height: fromRect.height, borderRadius: 16, overflow: 'hidden', zIndex: 9999, pointerEvents: 'none', boxShadow: '0 12px 40px rgba(0,0,0,0.35)', transformOrigin: 'center center', willChange: 'transform, opacity', border: '1.5px solid rgba(212,175,55,0.7)' }}>
-      {thumbnailUrl ? <img src={thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : <div style={{ width: '100%', height: '100%', background: 'var(--biscuit)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 40, opacity: 0.25, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+      {thumbnailUrl ? <img src={thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : <div style={{ width: '100%', height: '100%', background: 'var(--biscuit)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 40, opacity: 0.25 }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
     </div>,
     document.body
   );
@@ -1238,7 +1312,7 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave, onRename 
       </div>
       <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
         <div className="pcard-photo">
-          {(project.thumbnailS3Key || project.thumbnailUrl) && !imgError ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} onError={() => setImgError(true)} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {(project.thumbnailS3Key || project.thumbnailUrl) && !imgError ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} onError={() => setImgError(true)} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22 }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
@@ -1324,7 +1398,7 @@ function ExploreFloor() {
       <div className="explore-wall" style={{ justifyContent: 'center' }}>
         {TEASER_TAGS.map((tag, i) => (
           <div key={tag} className="explore-ghost" style={{ ['--eg-wonk' as string]: `${[-1.3, 0.9, -0.6, 1.2, -0.9, 0.7][i]}deg`, ['--eg-phase' as string]: `${i * -0.7}s` }}>
-            <div className="explore-ghost-photo"><div style={{ width: 34, opacity: 0.18, transform: 'rotate(186deg)' }}><BarberMascot isStatic color="var(--ink)" /></div></div>
+            <div className="explore-ghost-photo"><div style={{ width: 34, opacity: 0.18 }}><BarberMascot isStatic color="var(--ink)" /></div></div>
             <span className="font-display explore-ghost-tag">{tag}</span>
             <span className="font-mono explore-ghost-stamp">SOON</span>
           </div>
@@ -1449,6 +1523,18 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const rafRef = useRef<number>(0);
   const prevFloorRef = useRef(floorIndex);
 
+  // Fade the header backing pills in only once floor content scrolls up under
+  // the (transparent) top bar — i.e. when the logo/profile would otherwise sit
+  // over low-contrast scrolling cards instead of the plain page background.
+  const floor0ScrollRef = useRef<HTMLDivElement>(null);
+  const floor1ScrollRef = useRef<HTMLDivElement>(null);
+  const [headerScrolled, setHeaderScrolled] = useState(false);
+  const isDarkFloor = floorIndex === 1;
+  useEffect(() => {
+    const el = floorIndex === 0 ? floor0ScrollRef.current : floorIndex === 1 ? floor1ScrollRef.current : null;
+    setHeaderScrolled(!!el && el.scrollTop > 16);
+  }, [floorIndex]);
+
   useEffect(() => {
     if (!vpH) return;
     const floorSlider = floorSliderRef.current, sidebarDark = sidebarDarkRef.current;
@@ -1536,11 +1622,11 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
         {/* Left nav rail */}
         <aside style={{ borderRight: '2px solid rgba(42,32,26,0.22)', background: 'var(--biscuit)', zIndex: 2, position: 'relative', overflow: 'hidden' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', height: '100%', position: 'relative', zIndex: 1 }}>
-            <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.85 }}><BarberMascot isStatic color="var(--ink)" /></div>
+            <div style={{ marginBottom: 24, width: 30, opacity: 0.85 }}><BarberMascot isStatic color="var(--ink)" /></div>
             {navItems.map(n => <NavButton key={n.key} item={n} />)}
           </div>
-          <div ref={sidebarDarkRef} style={{ position: 'absolute', inset: 0, background: '#181b17', borderRight: '2px solid rgba(252,245,228,0.1)', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', clipPath: 'inset(0 0 100% 0)', zIndex: 2 }}>
-            <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.75 }}><BarberMascot isStatic color="#fcf5e4" /></div>
+          <div ref={sidebarDarkRef} style={{ position: 'absolute', inset: 0, background: isDark ? '#1e1e21' : '#181b17', borderRight: '2px solid rgba(252,245,228,0.1)', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', clipPath: 'inset(0 0 100% 0)', zIndex: 2 }}>
+            <div style={{ marginBottom: 24, width: 30, opacity: 0.75 }}><BarberMascot isStatic color="#fcf5e4" /></div>
             {navItems.map(n => <NavButton key={n.key} item={n} dark />)}
           </div>
         </aside>
@@ -1551,12 +1637,15 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
             <div style={{ padding: '24px 40px 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'} style={{ position: 'relative' }}>
-                  <div ref={wordmarkLightRef}><InlineWordmark /></div>
-                  <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0 }}><InlineWordmark cream /></div>
+                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'} style={{ position: 'relative', display: 'inline-block' }}>
+                  {/* Backing pills — centered on the wordmark, faded in only when content scrolls behind it */}
+                  <div style={{ position: 'absolute', inset: '-14px -18px -8px', borderRadius: 9999, background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.08)', boxShadow: '0 2px 10px -3px rgba(42,32,26,0.18)', opacity: headerScrolled && !isDarkFloor ? 1 : 0, transition: 'opacity 240ms ease', pointerEvents: 'none' }} />
+                  <div style={{ position: 'absolute', inset: '-14px -18px -8px', borderRadius: 9999, background: isDark ? '#1e1e21' : '#1b1c17', border: '1px solid rgba(252,245,228,0.1)', boxShadow: '0 2px 12px -3px rgba(0,0,0,0.4)', opacity: headerScrolled && isDarkFloor ? 1 : 0, transition: 'opacity 240ms ease', pointerEvents: 'none' }} />
+                  <div ref={wordmarkLightRef} style={{ position: 'relative' }}><InlineWordmark /></div>
+                  <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0, ...(isDark ? { ['--cream' as string]: '#fcf5e4' } : {}) }}><InlineWordmark cream /></div>
                 </div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} />
+                  <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} pillVisible={headerScrolled || isDarkFloor} />
                 </div>
               </div>
             </div>
@@ -1567,13 +1656,13 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
             <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
               {/* Floor 0 — Home */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px' }}>
+              <div ref={floor0ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <HomeTitle count={projects?.length} />
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248 }}>
-                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid var(--search-floor0-border)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.28)' : 'rgba(42,32,26,0.28)')} />
+                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: isDark ? 'rgba(245,241,234,0.6)' : 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid var(--search-floor0-border)', borderRadius: 9999, background: isDark ? 'rgba(245,241,234,0.05)' : 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.28)' : 'rgba(42,32,26,0.28)')} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
@@ -1595,15 +1684,19 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               </div>
 
               {/* Gap band: Home → Saved */}
-              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
-                <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
-                  <rect width="1440" height="320" fill="#fcf5e4" />
-                  <path d="M0,320 L0,180 C240,70 480,290 720,180 C960,70 1200,290 1440,180 L1440,320 Z" fill="#2b2e27" />
-                </svg>
-              </div>
+              {isDark ? (
+                <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: '#1e1e21' }} />
+              ) : (
+                <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
+                  <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
+                    <rect width="1440" height="320" fill="#fcf5e4" />
+                    <path d="M0,320 L0,180 C240,70 480,290 720,180 C960,70 1200,290 1440,180 L1440,320 Z" fill="#2b2e27" />
+                  </svg>
+                </div>
+              )}
 
               {/* Floor 1 — Saved */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#181b17' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px' }}>
+              <div ref={floor1ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
                   <SavedTitle count={savedProjects?.length} />
                   <div style={{ flex: 1 }} />
@@ -1639,7 +1732,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
               {/* Gap band: Saved → Explore */}
               {isDark ? (
-                <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: '#181b17' }} />
+                <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: '#1e1e21' }} />
               ) : (
                 <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none' }}>
                   <svg viewBox="0 0 1440 320" preserveAspectRatio="none" style={{ width: '100%', height: 320, display: 'block' }}>
@@ -1650,7 +1743,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               )}
 
               {/* Floor 2 — Explore */}
-              <div style={{ height: vpH || '100vh', position: 'relative', background: isDark ? '#181b17' : undefined }}><ExploreFloor /></div>
+              <div style={{ height: vpH || '100vh', position: 'relative', background: isDark ? '#1e1e21' : undefined }}><ExploreFloor /></div>
             </div>
           </div>
 

@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   title: 'ShapeUp',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
   icons: {
-    icon: '/tab_logo1.png',
+    icon: '/shapeup_logo.png',
   },
 };
 

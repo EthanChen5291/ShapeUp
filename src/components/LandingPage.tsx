@@ -845,7 +845,7 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
           zIndex: 1,
         }}>
           <div style={{ width: 22, height: 22, borderRadius: '50%', background: PHONE_CREAM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <div style={{ width: 12, transform: 'rotate(186deg)' }}>
+            <div style={{ width: 12 }}>
               <BarberMascot isStatic color={PHONE_TOMATO} />
             </div>
           </div>
@@ -1172,7 +1172,7 @@ function GlimpseSection() {
               justifyContent: 'center',
             }}
           >
-            <div style={{ width: 80, opacity: 0.18, transform: 'rotate(186deg)' }}>
+            <div style={{ width: 80, opacity: 0.18 }}>
               <BarberMascot isStatic />
             </div>
             <img
@@ -1228,7 +1228,7 @@ function GlimpseSection() {
               padding: '20px 18px',
             }}
           >
-            <div style={{ width: 32, opacity: 0.2, transform: 'rotate(186deg)', marginBottom: 'auto', alignSelf: 'flex-end', marginTop: 20 }}>
+            <div style={{ width: 32, opacity: 0.2, marginBottom: 'auto', alignSelf: 'flex-end', marginTop: 20 }}>
               <BarberMascot isStatic color="#2a201a" />
             </div>
             <p
@@ -1797,7 +1797,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                     background: plan.id === 'starter' ? 'rgba(248,200,24,0.18)' : plan.id === 'pro' ? 'rgba(240,70,130,0.18)' : plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{ width: 13, transform: 'rotate(186deg)' }}>
+                    <div style={{ width: 13 }}>
                       <BarberMascot isStatic color={plan.id === 'starter' ? 'rgba(248,200,24,0.9)' : plan.id === 'pro' ? 'rgba(240,70,130,0.9)' : plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'rgba(80,150,255,0.9)'} />
                     </div>
                   </div>

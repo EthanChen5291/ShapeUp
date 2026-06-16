@@ -5,18 +5,10 @@ import { useUser, useClerk } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-/* ── Scissors SVG (self-contained, no shared import) ── */
-function ScissorsMark({ color = '#2a201a', size = 28 }: { color?: string; size?: number }) {
+/* ── Brand logo mark (self-contained, no shared import) ── */
+function ScissorsMark({ size = 28 }: { color?: string; size?: number }) {
   return (
-    <svg viewBox="0 0 200 360" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: 'auto', display: 'block' }}>
-      <line x1="94" y1="188" x2="58" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
-      <line x1="106" y1="188" x2="142" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
-      <circle cx="52" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
-      <circle cx="148" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
-      <path d="M 108 172 L 88 188 L 32 28 L 48 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
-      <path d="M 92 172 L 112 188 L 168 28 L 152 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
-      <circle cx="100" cy="180" r="13" fill={color} />
-    </svg>
+    <img src="/shapeup_logo.png" alt="ShapeUp" draggable={false} style={{ width: size, height: 'auto', display: 'block' }} />
   );
 }
 
@@ -304,7 +296,7 @@ export default function PricingPage() {
                     background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(217,78,58,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{ width: 13, transform: 'rotate(186deg)' }}>
+                    <div style={{ width: 13 }}>
                       <ScissorsMark color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'var(--tomato)'} size={13} />
                     </div>
                   </div>

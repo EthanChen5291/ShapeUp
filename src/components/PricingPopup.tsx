@@ -396,7 +396,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
                       background: plan.accentBg,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <div style={{ width: 12, transform: 'rotate(186deg)' }}>
+                      <div style={{ width: 12 }}>
                         <BarberMascot isStatic color={plan.accentColor} />
                       </div>
                     </div>
