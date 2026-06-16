@@ -844,8 +844,8 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
           display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
           zIndex: 1,
         }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: PHONE_CREAM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <div style={{ width: 12 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: PHONE_CREAM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            <div style={{ width: 24 }}>
               <BarberMascot isStatic color={PHONE_TOMATO} />
             </div>
           </div>
@@ -1797,9 +1797,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                     background: plan.id === 'starter' ? 'rgba(248,200,24,0.18)' : plan.id === 'pro' ? 'rgba(240,70,130,0.18)' : plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{ width: 13 }}>
-                      <BarberMascot isStatic color={plan.id === 'starter' ? 'rgba(248,200,24,0.9)' : plan.id === 'pro' ? 'rgba(240,70,130,0.9)' : plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'rgba(80,150,255,0.9)'} />
-                    </div>
+                    <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: 26, height: 26, borderRadius: '50%', display: 'block' }} />
                   </div>
                   <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
                     {plan.tokenLabel}
@@ -2165,7 +2163,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             onMouseEnter={() => setLogoHover(true)}
             onMouseLeave={() => setLogoHover(false)}
           >
-            <div style={{ width: 28 }}><BarberMascot isStatic={!logoHover} snap={logoHover} color="#2a201a" /></div>
+            <div style={{ width: 46 }}><BarberMascot isStatic={!logoHover} snap={logoHover} color="#2a201a" /></div>
             <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)' }}>
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>

@@ -138,7 +138,7 @@ export default function PricingPage() {
       {/* ── Nav ── */}
       <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1160, margin: '0 auto 52px' }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ScissorsMark color="#2a201a" size={26} />
+          <ScissorsMark color="#2a201a" size={65} />
           <span style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 28, fontWeight: 900, color: 'var(--ink)', lineHeight: 1, letterSpacing: '-0.02em' }}>
             shape<em style={{ color: 'var(--tomato)' }}>up</em>
           </span>
@@ -296,9 +296,7 @@ export default function PricingPage() {
                     background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(217,78,58,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{ width: 13 }}>
-                      <ScissorsMark color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'var(--tomato)'} size={13} />
-                    </div>
+                    <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: 26, height: 26, borderRadius: '50%', display: 'block' }} />
                   </div>
                   <span style={{
                     fontFamily: 'var(--font-dmsans), sans-serif',

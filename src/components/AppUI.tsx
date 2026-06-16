@@ -57,7 +57,7 @@ export function InlineWordmark({ cream = false, small = false }: { cream?: boole
   const textSize = small ? 'text-[13px]' : 'text-[18px]';
   return (
     <div className={`wordmark-inline ${color} ${textSize}`}>
-      <span style={{ width: small ? 20 : 28, display: 'inline-block' }}>
+      <span style={{ width: small ? 50 : 46, display: 'inline-block' }}>
         <BarberMascot color={mascotColor} />
       </span>
       <span style={{ fontWeight: 700, letterSpacing: '0.06em' }}>

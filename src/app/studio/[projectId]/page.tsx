@@ -713,7 +713,7 @@ export default function StudioPage() {
                 transition: 'background 0.3s, border-color 0.3s',
               }}
             >
-              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '1.15em', height: '1.15em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.2em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.credits ?? 0} />
+              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.875em', height: '2.875em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.85em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.credits ?? 0} />
             </span>
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
             {paymentSuccess && (

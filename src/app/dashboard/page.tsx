@@ -273,7 +273,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillV
           <button onClick={handleToggle} className="flex items-center gap-2 w-full" style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: 8, paddingRight: 15, height: 43 }}>
             <span className="avatar-initial">{initial}</span>
             <span className="font-sans text-[15px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-            <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '1.15em', height: '1.15em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
+            <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.0125em', height: '2.0125em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
             <svg width="12" height="12" viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -286,7 +286,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillV
                   <span className="tokens-widget__label">Tokens</span>
                   <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#4a3a2e' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? 'rgba(74,58,46,0.10)' : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{planName} plan</span>
                 </div>
-                <span className="tokens-widget__count" style={{ marginTop: -2 }}><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
+                <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
                 <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: 12 }}>
                   <span className="btn-tokens-cta__shimmer" />
                   <span className="btn-tokens-cta__text">Get more tokens</span>

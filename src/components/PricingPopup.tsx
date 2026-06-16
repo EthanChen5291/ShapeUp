@@ -396,9 +396,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
                       background: plan.accentBg,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <div style={{ width: 12 }}>
-                        <BarberMascot isStatic color={plan.accentColor} />
-                      </div>
+                      <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: 24, height: 24, borderRadius: '50%', display: 'block' }} />
                     </div>
                     <span style={{
                       fontFamily: 'var(--font-dmsans), sans-serif',
