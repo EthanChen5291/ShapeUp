@@ -40,9 +40,6 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: 'ShapeUp',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
-  icons: {
-    icon: '/shapeup_logo.png',
-  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

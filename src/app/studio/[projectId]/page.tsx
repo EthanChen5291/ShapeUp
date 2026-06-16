@@ -251,6 +251,40 @@ export default function StudioPage() {
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
   const [polaroidKey, setPolaroidKey] = useState(0);
 
+  // ── Barber video (360° splat clip) ──────────────────────────
+  const [videoCaptureKey, setVideoCaptureKey] = useState(0);
+  const [videoState, setVideoState] = useState<'idle' | 'recording' | 'encoding' | 'ready' | 'error'>('idle');
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoExt, setVideoExt] = useState<'mp4' | 'webm'>('mp4');
+
+  const requestBarberVideo = useCallback(() => {
+    setVideoUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+    setVideoProgress(0);
+    setVideoState('recording');
+    setVideoCaptureKey(k => k + 1);
+  }, []);
+
+  const handleVideoProgress = useCallback((p: number) => {
+    setVideoProgress(p);
+    if (p >= 1) setVideoState('encoding');
+  }, []);
+
+  const handleVideoReady = useCallback((blob: Blob, ext: string) => {
+    const url = URL.createObjectURL(blob);
+    setVideoUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
+    setVideoExt(ext === 'webm' ? 'webm' : 'mp4');
+    setVideoState('ready');
+  }, []);
+
+  const handleVideoError = useCallback((err: unknown) => {
+    console.error('[studio] barber video capture failed:', err);
+    setVideoState('error');
+  }, []);
+
+  // Release the object URL on unmount.
+  useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
+
 
   const sceneControlsEnabled = process.env.NEXT_PUBLIC_SCENE_CONTROLS !== '0';
   const { stopLoading } = useNavLoading();
@@ -668,6 +702,10 @@ export default function StudioPage() {
             uiHidden={menuHidden}
             captureKey={thumbnailCaptureKey}
             renderQuality={renderQuality}
+            videoCaptureKey={videoCaptureKey}
+            onVideoProgress={handleVideoProgress}
+            onVideoReady={handleVideoReady}
+            onVideoError={handleVideoError}
             onThumbnailReady={
               (!project?.thumbnailS3Key || !project.thumbnailS3Key.startsWith('thumbnails/') || thumbnailCaptureKey > 0)
                 ? handleThumbnailReady
@@ -698,6 +736,35 @@ export default function StudioPage() {
               )}
             </div>
           </div>
+
+          {/* Capture overlay — masks the spinning canvas while recording the
+              360° clip. Pure DOM, so it never appears in the recording. */}
+          {(videoState === 'recording' || videoState === 'encoding') && (
+            <div
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4"
+              style={{ background: 'rgba(23,17,13,0.78)', backdropFilter: 'blur(3px)' }}
+              role="status"
+              aria-label="Rendering your barber video"
+            >
+              <div style={{ position: 'relative', width: 76, height: 76 }}>
+                <svg width="76" height="76" viewBox="0 0 76 76" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle cx="38" cy="38" r="33" fill="none" stroke="rgba(255,248,234,0.16)" strokeWidth="5" />
+                  <circle
+                    cx="38" cy="38" r="33" fill="none" stroke="var(--tomato)" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 33}
+                    strokeDashoffset={2 * Math.PI * 33 * (1 - videoProgress)}
+                    style={{ transition: 'stroke-dashoffset 0.15s linear' }}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center font-mono text-[13px] text-[var(--cream)]">
+                  {Math.round(videoProgress * 100)}%
+                </span>
+              </div>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/80">
+                {videoState === 'encoding' ? 'finishing up…' : 'rendering your cut…'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -776,6 +843,7 @@ export default function StudioPage() {
               paywallDisabled={paywallDisabled}
               isAllowlisted={isAllowlisted}
               projectId={projectId}
+              projectName={project?.name}
               onPlyReady={(url, splatKey) => {
                 if (url.startsWith('/')) {
                   setEditSplatSrc(url);
@@ -796,6 +864,11 @@ export default function StudioPage() {
                 setThumbnailCaptureKey(k => k + 1);
               }}
               onUncertain={() => setShowRecommendations(true)}
+              onRequestVideo={requestBarberVideo}
+              videoState={videoState}
+              videoProgress={videoProgress}
+              videoUrl={videoUrl}
+              videoExt={videoExt}
             />
         </aside>
       )}

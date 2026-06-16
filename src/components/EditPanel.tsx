@@ -6,16 +6,12 @@
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
-import { BarberOrder, computeZoneDeltas } from '@/lib/barberOrder';
-import { analyzeOrderFeasibility } from '@/lib/orderFeasibility';
-import { buildClarifyQuestions, answersToStyleContext, ClarifyQuestion } from '@/lib/orderClarify';
 import { EditReport, sanitizeEditReport } from '@/lib/editReport';
-import { ClarifyPanel } from '@/components/ClarifyPanel';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { HairParams, UserHeadProfile } from '@/types';
-import BarberOrderReceipt from '@/components/BarberOrderReceipt';
+import BarberVideoResult from '@/components/BarberVideoResult';
 import { PricingPopup } from '@/components/PricingPopup';
 
 
@@ -31,6 +27,14 @@ interface EditPanelProps {
   paywallDisabled?: boolean;
   isAllowlisted?: boolean;
   projectId?: string;
+  projectName?: string;
+  // Barber video (360° splat clip) — capture lives in the scene; this panel
+  // only triggers it and renders progress/result.
+  onRequestVideo?: () => void;
+  videoState?: 'idle' | 'recording' | 'encoding' | 'ready' | 'error';
+  videoProgress?: number;
+  videoUrl?: string | null;
+  videoExt?: 'mp4' | 'webm';
 }
 
 const UNCERTAIN_PATTERNS = [
@@ -87,15 +91,6 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// Tiny stable hash for the order cache key
-function djb2(s: string): string {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
-}
-
-const ORDER_CACHE_PREFIX = 'shapeup-order:';
-
 const PIPELINE_SESSION_PREFIX = 'shapeup-pipeline:';
 const PIPELINE_MAX_AGE_MS = 5 * 60 * 1000;
 
@@ -123,13 +118,7 @@ const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
   ],
 };
 
-interface OrderResult {
-  order: BarberOrder;
-  ticketNo: string;
-  text: string;
-}
-
-export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId }: EditPanelProps) {
+export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
   const [emptyHint, setEmptyHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
@@ -154,14 +143,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   // Set to true on beforeunload so the finally block skips cleanup (preserving sessionStorage for recovery)
   const isUnloadingRef = useRef(false);
 
-  const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
-  const [orderLoading, setOrderLoading] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
-  const [lastEditReport, setLastEditReport] = useState<EditReport | null>(null);
-  const [clarifyState, setClarifyState] = useState<{
-    questions: ClarifyQuestion[];
-    answers:   Record<string, string>;
-  } | null>(null);
+  // Kept for the edit pipeline's report capture; consumed by future order logic.
+  const [, setLastEditReport] = useState<EditReport | null>(null);
 
   // Trending-cut suggestion chips, paged by the refresh button
   const [chipPool] = useState(() => shuffle(TRENDING_CUTS));
@@ -275,7 +258,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     pipelineHadErrorRef.current = false;
     pendingPromptRef.current = submittedPrompt;
     setPipelineError(null);
-    setClarifyState(null);
     setPhase('gemini');
 
     // Always edit from the original selfie to prevent facial drift across iterations.
@@ -365,94 +347,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       }
     }
   };
-
-  // Cache key identifies the cut: same params + same image → same order
-  const orderCacheKey = () =>
-    `${ORDER_CACHE_PREFIX}${djb2(JSON.stringify(currentParams))}:${djb2(latestImageUrl ?? 'noimg')}`;
-
-  const handleGetOrder = async (force = false, styleContext?: string[]) => {
-    // Clarify gate — generate questions client-side before the first API call.
-    // Skip when force-reprinting or when styleContext is already resolved.
-    if (!force && styleContext === undefined) {
-      const workingProfile = { ...profile, currentStyle: { ...profile.currentStyle, params: currentParams } };
-      const ctx  = computeZoneDeltas(workingProfile);
-      const feas = analyzeOrderFeasibility(ctx, workingProfile, lastEditReport ? { editReport: lastEditReport } : undefined);
-      const questions = buildClarifyQuestions(ctx, feas, workingProfile);
-      if (questions.length > 0) {
-        const defaults: Record<string, string> = {};
-        for (const q of questions) defaults[q.id] = q.defaultValue;
-        setClarifyState({ questions, answers: defaults });
-        return;
-      }
-    }
-
-    const cacheKey = orderCacheKey();
-
-    // Only use the cache when no custom answers were provided.
-    if (!force && styleContext === undefined) {
-      try {
-        const hit = localStorage.getItem(cacheKey);
-        if (hit) {
-          const parsed = JSON.parse(hit) as OrderResult;
-          if (parsed?.order && parsed?.ticketNo && parsed?.text) {
-            setOrderError(null);
-            setOrderResult(parsed);
-            setLiveStatus('Barber order reprinted from your last visit.');
-            return;
-          }
-        }
-      } catch { /* corrupt cache entry — fall through to a fresh print */ }
-    }
-
-    setOrderLoading(true);
-    setOrderError(null);
-    try {
-      const res = await fetch('/api/barber-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile: buildCurrentProfilePayload({
-            ...profile,
-            currentStyle: { ...profile.currentStyle, params: currentParams },
-          }),
-          params: currentParams,
-          imageUrl: latestImageUrl ?? undefined,
-          styleContext: styleContext ?? [],
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok || !data.order) {
-        throw new Error(data.error ?? 'Order request failed');
-      }
-      const result: OrderResult = { order: data.order as BarberOrder, ticketNo: data.ticketNo as string, text: data.text as string };
-      setOrderResult(result);
-      setLiveStatus('Barber order printed.');
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(result));
-      } catch {
-        // Quota — evict older orders and retry once
-        try {
-          Object.keys(localStorage)
-            .filter(k => k.startsWith(ORDER_CACHE_PREFIX) && k !== cacheKey)
-            .forEach(k => localStorage.removeItem(k));
-          localStorage.setItem(cacheKey, JSON.stringify(result));
-        } catch { /* storage unavailable — order still shows, just not cached */ }
-      }
-    } catch (err) {
-      setOrderError(err instanceof Error ? err.message : 'Failed to print the order');
-      setLiveStatus('Barber order failed.');
-    } finally {
-      setOrderLoading(false);
-    }
-  };
-
-  const handleClarifyConfirm = useCallback(() => {
-    if (!clarifyState) return;
-    const styleCtx = answersToStyleContext(clarifyState.questions, clarifyState.answers);
-    setClarifyState(null);
-    handleGetOrder(false, styleCtx);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clarifyState]);
 
   const isBusy = phase !== 'idle';
 
@@ -598,9 +492,9 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
           <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
         </div>
-        <span className={`tb-status ml-auto ${isBusy || orderLoading ? 'tb-status-busy' : 'tb-status-open'}`}>
+        <span className={`tb-status ml-auto ${isBusy || videoState === 'recording' || videoState === 'encoding' ? 'tb-status-busy' : 'tb-status-open'}`}>
           <span className="tb-status-dot" />
-          {isBusy ? 'cutting' : orderLoading ? 'printing' : 'open'}
+          {isBusy ? 'cutting' : (videoState === 'recording' || videoState === 'encoding') ? 'filming' : 'open'}
         </span>
       </div>
 
@@ -798,56 +692,62 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     </aside>
     </div>
 
-    {/* Barber's Order — separate card */}
+    {/* Barber video — 360° clip of the cut */}
     <div className="flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3 mt-3" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
         <div className="flex items-center justify-between">
-          <span className="pill pill-tomato">take it to your barber</span>
-          {orderResult && !orderLoading && !clarifyState && (
+          <span className="pill pill-tomato">show your barber</span>
+          {videoState === 'ready' && (
             <button
-              onClick={() => handleGetOrder(true)}
-              aria-label="Write a fresh order for the latest cut"
+              onClick={() => onRequestVideo?.()}
+              aria-label="Record a fresh 360° video of the latest cut"
               className="font-mono text-[10px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
             >
-              ↻ re-print
+              ↻ re-film
             </button>
           )}
         </div>
 
-        {!orderResult && !orderLoading && !clarifyState && (
+        {videoState === 'idle' && (
           <button
-            onClick={() => handleGetOrder()}
-            aria-label="Write up the exact instructions to show your barber"
+            onClick={() => onRequestVideo?.()}
+            aria-label="Record a 360° video of your cut to show your barber"
             className="btn-cta-order"
           >
             <span className="btn-cta-order-beta" aria-label="beta">beta</span>
-            <span className="btn-cta-order-title"><span className="btn-order-icon" aria-hidden>✂</span> Show my barber</span>
-            <span className="btn-cta-order-sub">this cut, written up so they nail it first try</span>
+            <span className="btn-cta-order-title">
+              <svg className="btn-cta-order-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="9.25" />
+                <path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none" />
+              </svg>
+              Film my 360°
+            </span>
             <span className="btn-cta-order-sheen" aria-hidden />
           </button>
         )}
 
-
-        {orderLoading && (
-          <div className="receipt-stub" role="status" aria-label="Printing barber order">
+        {(videoState === 'recording' || videoState === 'encoding') && (
+          <div className="receipt-stub" role="status" aria-label="Recording barber video">
             <div className="receipt-stub-slot" />
             <div className="receipt-stub-paper">
               <div className="receipt-stub-line w-3/4" />
               <div className="receipt-stub-line w-1/2" />
               <div className="receipt-stub-line w-2/3" />
             </div>
-            <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--smoke)] receipt-stub-label">printing the order…</span>
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--smoke)] receipt-stub-label">
+              {videoState === 'encoding' ? 'finishing up…' : `filming your 360… ${Math.round(videoProgress * 100)}%`}
+            </span>
           </div>
         )}
 
-        {orderError && !orderLoading && (
+        {videoState === 'error' && (
           <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
             <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
-            {orderError} — <button onClick={() => handleGetOrder()} className="underline">try again</button>
+            couldn’t record the video — <button onClick={() => onRequestVideo?.()} className="underline">try again</button>
           </div>
         )}
 
-        {orderResult && !orderLoading && (
-          <BarberOrderReceipt order={orderResult.order} ticketNo={orderResult.ticketNo} text={orderResult.text} />
+        {videoState === 'ready' && videoUrl && (
+          <BarberVideoResult videoUrl={videoUrl} ext={videoExt} projectName={projectName} />
         )}
     </div>
 
@@ -855,20 +755,6 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       <PricingPopup
         onDismiss={() => setShowPricing(false)}
         returnUrl={projectId ? `/studio/${projectId}` : undefined}
-      />
-    )}
-
-    {/* Rendered outside the aside so position:fixed escapes overflow-hidden cleanly */}
-    {clarifyState && !orderLoading && (
-      <ClarifyPanel
-        questions={clarifyState.questions}
-        answers={clarifyState.answers}
-        onAnswer={(id, val) =>
-          setClarifyState(prev =>
-            prev ? { ...prev, answers: { ...prev.answers, [id]: val } } : null
-          )
-        }
-        onConfirm={handleClarifyConfirm}
       />
     )}
   </>
