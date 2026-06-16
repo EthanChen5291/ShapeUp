@@ -684,11 +684,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               }}
             >
               <div
-                className="flex items-center gap-3 rounded-2xl px-10 py-8 text-sm shadow-2xl"
+                className="flex items-center gap-3 rounded-2xl px-10 py-8 text-sm text-center shadow-2xl"
                 style={{ background: '#F5E6A3', color: 'var(--ink)' }}
               >
                 <span>✂</span>
-                <span>Enter your desired hairstyle in the toolbox!</span>
+                <span>
+                  Enter your desired hairstyle<br />
+                  in the toolbox!
+                </span>
               </div>
             </div>
           )}
