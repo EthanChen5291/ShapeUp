@@ -209,6 +209,8 @@ export default function StudioPage() {
     return isDark ? 0.5 : undefined;
   });
   const [sunOpen, setSunOpen] = useState(false);
+  const [hoveredDot, setHoveredDot] = useState<number | null>(null);
+  const [pressingDot, setPressingDot] = useState<number | null>(null);
   const [menuHidden, setMenuHidden] = useState(false);
   const [splatReady, setSplatReady] = useState(false);
   const [thumbnailCaptureKey, setThumbnailCaptureKey] = useState(0);
@@ -527,21 +529,34 @@ export default function StudioPage() {
           <div className="absolute z-20" style={{ top: 14, right: 14 }}>
             {/* Orbital palette dots — polar layout π to 3π/2, start as dots at sun, bloom outward */}
             {([
-              { src: '/preview_bg_white.jpg', bg: 'url(/preview_bg_white.jpg) center / 100% 100% no-repeat', brightness: 0.5 as number | undefined },
-              { src: '/preview_bg.jpg',       bg: 'url(/preview_bg.jpg) center / 100% 100% no-repeat',       brightness: undefined as number | undefined },
-              { src: '/preview_bg_dark.jpg',  bg: 'url(/preview_bg_dark.jpg) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
-              { src: null,                    bg: '#000000',                                                   brightness: 0.5 as number | undefined },
-            ]).map(({ src, bg, brightness }, idx) => {
+              { thumb: '/circle_white.jpg',   bg: 'url(/preview_bg_white.jpg) center / 100% 100% no-repeat', brightness: 0.5 as number | undefined },
+              { thumb: '/circle_default.jpg', bg: 'url(/preview_bg.jpg) center / 100% 100% no-repeat',       brightness: undefined as number | undefined },
+              { thumb: '/circle_dark.jpg',    bg: 'url(/preview_bg_dark.jpg) center / 100% 100% no-repeat',  brightness: 0.5 as number | undefined },
+              { thumb: '/circle_black.jpg',   bg: '#000000',                                                   brightness: 0.5 as number | undefined },
+            ]).map(({ thumb, bg, brightness }, idx) => {
               const angle = Math.PI + (idx / 3) * (Math.PI / 2);
               const r = 50;
               const dx = r * Math.cos(angle);
               const dy = -r * Math.sin(angle);
               const isSelected = sceneBackground === bg;
+              // Hover/press scale: hovered dot grows, siblings shrink, pressed dot dips (springs back = bounce).
+              const dotScale = pressingDot === idx
+                ? 0.82
+                : hoveredDot === idx
+                  ? 1.18
+                  : hoveredDot !== null
+                    ? 0.9
+                    : 1;
+              const isInteracting = hoveredDot !== null || pressingDot !== null;
               return (
                 <button
                   key={bg}
+                  onMouseEnter={() => setHoveredDot(idx)}
+                  onMouseLeave={() => { setHoveredDot(d => (d === idx ? null : d)); setPressingDot(p => (p === idx ? null : p)); }}
+                  onMouseDown={() => setPressingDot(idx)}
+                  onMouseUp={() => setPressingDot(p => (p === idx ? null : p))}
                   onClick={() => { setSceneBackground(bg); setSceneBgBrightness(brightness); }}
-                  title={src ?? bg}
+                  title={bg}
                   style={{
                     position: 'absolute',
                     top: 17,
@@ -549,20 +564,24 @@ export default function StudioPage() {
                     width: 22,
                     height: 22,
                     borderRadius: '50%',
-                    backgroundImage: src ? `url(${src})` : undefined,
+                    backgroundImage: `url(${thumb})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    background: src ? undefined : bg,
                     border: isSelected ? '2px solid rgba(255,248,234,0.92)' : '1.5px solid rgba(255,248,234,0.32)',
                     cursor: 'pointer',
                     boxShadow: 'inset 0 0 9px 3px rgba(0,0,0,0.38), inset 0 0 3px 1px rgba(255,255,255,0.06), 0 2px 8px rgba(0,0,0,0.45)',
                     padding: 0,
                     opacity: sunOpen ? 1 : 0,
+                    // Start as a tiny dot on the sun (scale 0.14) and lerp larger as it rotates out — no fade-in.
                     transform: sunOpen
-                      ? `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(1)`
-                      : `translate(-50%, -50%) translate(0px, 0px) scale(0)`,
+                      ? `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(${dotScale})`
+                      : `translate(-50%, -50%) translate(0px, 0px) scale(0.14)`,
                     transition: sunOpen
-                      ? `transform 0.44s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 0.07}s, opacity 0.2s ease ${idx * 0.07}s, border 0.18s ease`
+                      ? (isInteracting
+                          // Hover/press: fast spring on scale only (overshoot gives the press bounce). No opacity → no fade.
+                          ? `transform 0.26s cubic-bezier(0.34, 1.7, 0.5, 1), border 0.18s ease`
+                          // Bloom open: grow + rotate out from the sun, staggered. No opacity transition → no fade-in.
+                          : `transform 0.5s cubic-bezier(0.34, 1.4, 0.5, 1) ${idx * 0.07}s, border 0.18s ease`)
                       : `transform 0.3s ease-in ${(3 - idx) * 0.06}s, opacity 0.18s ease ${(3 - idx) * 0.06}s, border 0.18s ease`,
                     pointerEvents: sunOpen ? 'auto' : 'none',
                   }}

@@ -553,8 +553,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
   return (
     <>
-    <div className="flex-1 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-    <aside className="relative flex flex-col gap-6 px-5 py-6 h-full overflow-y-auto cozy-scroll text-[var(--ink)]" aria-label="Hair editor controls">
+    <div className="flex-shrink-0 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
+    <aside className="relative flex flex-col gap-6 px-5 py-6 max-h-[78vh] overflow-y-auto cozy-scroll text-[var(--ink)]" aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}
@@ -640,7 +640,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             disabled={isBusy || !prompt.trim()}
             aria-label="Apply hair edit request"
             className="btn btn-tomato btn-snap flex-1"
-            style={{ padding: '10px 16px', fontSize: 13 }}
+            style={{ padding: '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
           >
             {isBusy ? (
               <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
@@ -649,7 +649,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             )}
           </button>
         </div>
-        {isBusy && (
+        <div className={`pipeline-collapse ${isBusy ? 'pipeline-collapse-open' : ''}`} aria-hidden={!isBusy}>
+          <div className="pipeline-collapse-inner">
           <div
             className="pipeline-wrapper"
             role="status"
@@ -737,7 +738,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
               {chatter}
             </p>
           </div>
-        )}
+          </div>
+        </div>
         {pipelineError && (
           <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
             <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>

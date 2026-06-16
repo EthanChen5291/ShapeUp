@@ -962,6 +962,21 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 /* ── Pipeline progress bars ────────────────────────────── */
+/* Smoothly lerp the loading UI (and the Toolbox card) open/closed.
+   grid-template-rows 0fr→1fr animates an auto-height region. */
+.pipeline-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pipeline-collapse-open {
+  grid-template-rows: 1fr;
+}
+.pipeline-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .pipeline-wrapper {
   display: flex;
   flex-direction: column;
@@ -970,7 +985,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   border-radius: 14px;
   background: rgba(42, 32, 26, 0.04);
   border: 1px solid rgba(42, 32, 26, 0.09);
-  margin-top: 4px;
+  /* Spacing handled by the form's gap; the collapse wrapper owns the open/close. */
+  margin-top: 0;
 }
 
 .pipeline-stage {

@@ -1288,7 +1288,7 @@ const PRICING_PLANS = [
     sub: 'one-time',
     tokens: 8,
     perToken: '25¢',
-    tokenLabel: '8 AI looks',
+    tokenLabel: '8 haircut generations',
     line: '8 custom renders. Enough to test a fade, a crop, and a taper before your next appointment.',
     cta: 'Try 8 looks',
     featured: false,
@@ -1301,7 +1301,7 @@ const PRICING_PLANS = [
     sub: 'one-time',
     tokens: 30,
     perToken: '17¢',
-    tokenLabel: '30 AI looks',
+    tokenLabel: '30 haircut generations',
     line: '30 looks to explore. Find what works for your face shape, then walk in with a reference photo.',
     cta: 'Get 30 looks',
     featured: true,
@@ -1314,7 +1314,7 @@ const PRICING_PLANS = [
     sub: 'one-time',
     tokens: 100,
     perToken: '15¢',
-    tokenLabel: '100 AI looks',
+    tokenLabel: '100 haircut generations',
     line: 'Serious about your hair. 100 looks at 15¢ each — experiment until you find a signature style.',
     cta: 'Get 100 looks',
     featured: false,
@@ -1719,7 +1719,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
               borderRadius: 18, padding: '16px 32px', textAlign: 'center',
             }}>
               <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(82,202,120,0.9)', marginBottom: 8 }}>
-                1 AI look
+                1 haircut generation
               </div>
               <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: '#52ca78', lineHeight: 1, letterSpacing: '-0.03em' }}>
                 8¢
