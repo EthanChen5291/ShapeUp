@@ -195,6 +195,11 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
   const PLAN_LABEL: Record<string, string> = { starter: 'Starter', popular: 'Explorer', pro: 'Pro' };
   const planName = user?.topPlan ? PLAN_LABEL[user.topPlan] : 'Free';
 
+  // Cap the open panel to the viewport so the bottom rows (settings / sign out)
+  // stay reachable on short screens; the content area scrolls if it overflows.
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const panelMaxH = menuPos ? Math.min(620, viewportH - menuPos.top - 24) : 620;
+
   const handleCopyReferral = async () => {
     if (!referralStats?.referralCode) return;
     const link = `${window.location.origin}/?ref=${referralStats.referralCode}`;
@@ -236,7 +241,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
       {menuPos && createPortal(
         <div style={{
           position: 'fixed', top: menuPos.top, right: menuPos.right,
-          width: open ? 380 : 251, maxHeight: open ? '600px' : '43px',
+          width: open ? 380 : 251, maxHeight: open ? `${panelMaxH}px` : '43px',
           background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.12)',
           backdropFilter: 'blur(8px)', borderRadius: open ? 22 : 40,
           boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
@@ -252,7 +257,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-          <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
+          <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', maxHeight: open ? panelMaxH - 43 : 0, overflowY: open ? 'auto' : 'hidden', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
             <div className="flex flex-col gap-5" style={{ padding: '8px 22px 24px' }}>
               <div className="border-t border-dashed border-[var(--char)]/15 pt-5 flex items-center justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>Plan</span>

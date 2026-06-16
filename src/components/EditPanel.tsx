@@ -104,6 +104,8 @@ interface PipelineSessionState {
   geminiProgress: number;
   hairstepProgress: number;
   startedAt: number;
+  // Saved prompt lets us auto-restart a gemini-phase pipeline after a refresh
+  prompt?: string;
 }
 
 const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
@@ -146,6 +148,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const recoveryStartedAtRef = useRef<number | null>(null);
   // Carries restored progress into the phase useEffect so it doesn't reset to 0
   const restoredProgressRef = useRef<{ gemini: number; hairstep: number } | null>(null);
+  // Set to true on beforeunload so the finally block skips cleanup (preserving sessionStorage for recovery)
+  const isUnloadingRef = useRef(false);
 
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
@@ -197,25 +201,19 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
         sessionStorage.removeItem(key);
         return;
       }
-      // Carry saved progress into the phase useEffect so it doesn't reset to 0
-      restoredProgressRef.current = { gemini: saved.geminiProgress, hairstep: saved.hairstepProgress };
-      processingRef.current = true;
-      setPhase(saved.phase);
-
       if (saved.phase === 'hairstep') {
+        // Carry saved progress into the phase useEffect so it doesn't reset to 0
+        restoredProgressRef.current = { gemini: saved.geminiProgress, hairstep: saved.hairstepProgress };
+        processingRef.current = true;
+        setPhase('hairstep');
         recoveryStartedAtRef.current = saved.startedAt;
         setIsRecovering(true);
         setLiveStatus('Reconnecting to your 3D render…');
       } else {
-        // Gemini result is not persisted — show a brief error and reset
-        const t = setTimeout(() => {
-          processingRef.current = false;
-          pipelineHadErrorRef.current = true;
-          setPhase('idle');
-          setPipelineError('Your edit was interrupted by the page refresh. Please try again.');
-          sessionStorage.removeItem(key);
-        }, 3000);
-        return () => clearTimeout(t);
+        // Gemini phase: the API call can't be recovered, but we can restore the prompt
+        // so the user can re-send with one click. Don't block the UI.
+        if (saved.prompt) setPrompt(saved.prompt);
+        sessionStorage.removeItem(key);
       }
     } catch { /* corrupt entry — ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,6 +239,13 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     if (projectId) pipelineSessionKeyRef.current = `${PIPELINE_SESSION_PREFIX}${projectId}`;
   }, [projectId]);
 
+  // Mark unloading so the pipeline finally-block skips cleanup and sessionStorage survives the refresh.
+  useEffect(() => {
+    const onBeforeUnload = () => { isUnloadingRef.current = true; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
     if (!submittedPrompt.trim()) return;
@@ -261,6 +266,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
     processingRef.current = true;
     pipelineHadErrorRef.current = false;
+    pendingPromptRef.current = submittedPrompt;
     setPipelineError(null);
     setClarifyState(null);
     setPhase('gemini');
@@ -344,8 +350,12 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       // Cancel intervals immediately — don't wait for the useEffect round-trip
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
-      setPhase('idle');
-      processingRef.current = false;
+      // If the page is unloading (user refreshed), skip the phase reset so the sessionStorage
+      // entry survives and the recovery logic can restore the loading UI on the next load.
+      if (!isUnloadingRef.current) {
+        setPhase('idle');
+        processingRef.current = false;
+      }
     }
   };
 
@@ -461,6 +471,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const geminiIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hairstepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevPhaseRef = useRef<'idle' | 'gemini' | 'hairstep'>('idle');
+  // Tracks the prompt currently being processed so it can be saved to sessionStorage for recovery
+  const pendingPromptRef = useRef<string>('');
 
   useEffect(() => {
     const prev = prevPhaseRef.current;
@@ -479,15 +491,16 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       const initHairstep = restored?.hairstep ?? 0;
       setGeminiProgress(initGemini);
       setHairstepProgress(initHairstep);
+      const savedPrompt = pendingPromptRef.current;
       if (sessionKey) {
-        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: initGemini, hairstepProgress: initHairstep, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: initGemini, hairstepProgress: initHairstep, startedAt, prompt: savedPrompt } satisfies PipelineSessionState)); } catch { /* ignore */ }
       }
       // 400ms ticks, 2% per tick → ~88% over ~17.6s with 1.4s CSS ease-out transition for silk-smooth animation
       geminiIntervalRef.current = setInterval(() => {
         setGeminiProgress(p => {
           const next = p < 88 ? p + 2 : p;
           if (sessionKey) {
-            try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: next, hairstepProgress: 0, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+            try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: next, hairstepProgress: 0, startedAt, prompt: savedPrompt } satisfies PipelineSessionState)); } catch { /* ignore */ }
           }
           return next;
         });
