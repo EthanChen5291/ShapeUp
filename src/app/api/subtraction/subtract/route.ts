@@ -189,6 +189,13 @@ export interface SubtractOpts {
   scaleZ?:          number; // scale applied to bald PLY z coords before voxelizing (default 1.0)
   uniformScale?:    number; // multiplied with scaleX/Y/Z (default 1.0)
   voxelSizeOverride?: number; // if set, skips adaptive calculation (default undefined = auto)
+  // Morphological close: after subtraction, drop kept gaussians whose surrounding
+  // voxels are mostly inside the bald mask — these are face/skin gaussians that
+  // slipped through a grid gap (they render as "streaks" once the dense surface
+  // around them is removed). A kept gaussian is dropped when the fraction of its 26
+  // neighbour voxels that are in the bald set is ≥ this threshold.
+  // Range (0,1]. Lower = more aggressive. ≥1 disables the pass. Default 0.55.
+  maskCloseThreshold?: number;
 }
 
 // ─── BUILD VOXEL SET FROM PLY ─────────────────────────────────────────────────
@@ -299,12 +306,14 @@ export function subtractPly(
   voxelSize: number;
   retainedPct: number;
   overlapCount: number;
+  closedCount: number;
 } {
   const uni  = opts?.uniformScale ?? 1.0;
   const scX  = (opts?.scaleX ?? 1.0) * uni;
   const scY  = (opts?.scaleY ?? 1.0) * uni;
   const scZ  = (opts?.scaleZ ?? 1.0) * uni;
   const vsOv = opts?.voxelSizeOverride;
+  const closeThr = opts?.maskCloseThreshold ?? 0.55;
 
   dbg('='.repeat(60));
   dbg('subtractPly: ▶ START');
@@ -408,6 +417,53 @@ export function subtractPly(
     }
   }
 
+  // ── Morphological close: remove face/skin leakage that streaks across the model ──
+  // A real hair gaussian sits OUTSIDE the bald mask, so its neighbourhood is mostly
+  // empty/hair. A leaked face gaussian slipped through a grid gap but is surrounded
+  // by bald-region voxels. Drop kept gaussians whose neighbour voxels are ≥ closeThr
+  // bald. Disabled when closeThr ≥ 1.
+  let closedCount = 0;
+  if (closeThr < 1 && keptIndices.length > 0) {
+    dbg(`subtractPly:   mask-close pass — threshold=${closeThr} (drop kept gaussians embedded in bald region)...`);
+    const tC = Date.now();
+    const closedKept: number[] = [];
+    for (const idx of keptIndices) {
+      const base = oDataOffset + idx * stride;
+      const x = oBuf.readFloatLE(base + propOffset['x']);
+      const y = oBuf.readFloatLE(base + propOffset['y']);
+      const z = oBuf.readFloatLE(base + propOffset['z']);
+      const vx = Math.floor(x / voxelSize) | 0;
+      const vy = Math.floor(y / voxelSize) | 0;
+      const vz = Math.floor(z / voxelSize) | 0;
+
+      let baldNeighbours = 0;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            if (dx === 0 && dy === 0 && dz === 0) continue; // skip self (never bald by definition)
+            if (baldVoxels.has(`${vx + dx}_${vy + dy}_${vz + dz}`)) baldNeighbours++;
+          }
+        }
+      }
+      if (baldNeighbours / 26 >= closeThr) closedCount++;
+      else closedKept.push(idx);
+    }
+
+    const wouldRemovePct = keptIndices.length > 0 ? closedCount / keptIndices.length * 100 : 0;
+    // Safety: if the pass would nuke almost everything, the threshold/alignment is off —
+    // skip it rather than return an empty/near-empty result.
+    if (closedKept.length === 0 || wouldRemovePct > 90) {
+      dbg(`subtractPly:   mask-close SKIPPED — would have removed ${closedCount} (${wouldRemovePct.toFixed(1)}%), too aggressive; keeping unfiltered set`);
+      closedCount = 0;
+    } else {
+      keptIndices.length = 0;
+      for (const idx of closedKept) keptIndices.push(idx);
+      dbg(`subtractPly:   mask-close removed ${closedCount} streak gaussians (${wouldRemovePct.toFixed(1)}%) in ${Date.now() - tC}ms — ${keptIndices.length} remain`);
+    }
+  } else {
+    dbg(`subtractPly:   mask-close DISABLED (threshold=${closeThr})`);
+  }
+
   const keptCount   = keptIndices.length;
   const retainedPct = oCount > 0 ? parseFloat((keptCount / oCount * 100).toFixed(2)) : 0;
   const filterMs    = Date.now() - t3;
@@ -455,7 +511,7 @@ export function subtractPly(
   dbg('subtractPly: ◀ COMPLETE');
   dbg('='.repeat(60));
 
-  return { resultPly, keptCount, totalOriginal: oCount, totalBald: bald.vcount, voxelSize, retainedPct, overlapCount };
+  return { resultPly, keptCount, totalOriginal: oCount, totalBald: bald.vcount, voxelSize, retainedPct, overlapCount, closedCount };
 }
 
 // ─── TEST: subtractPly ────────────────────────────────────────────────────────
@@ -701,6 +757,7 @@ export async function POST(req: NextRequest) {
       scaleZ?:         number;
       uniformScale?:   number;
       voxelSizeOverride?: number;
+      maskCloseThreshold?: number;
     };
     originalPlyUrl = body.originalPlyUrl;
     baldPlyUrl     = body.baldPlyUrl;
@@ -710,6 +767,7 @@ export async function POST(req: NextRequest) {
       scaleZ:           body.scaleZ,
       uniformScale:     body.uniformScale,
       voxelSizeOverride: body.voxelSizeOverride,
+      maskCloseThreshold: body.maskCloseThreshold,
     };
   } catch {
     dbg('POST: invalid JSON body');
@@ -764,7 +822,7 @@ export async function POST(req: NextRequest) {
   try {
     const t0 = Date.now();
     subResult = subtractPly(originalPlyBuf, baldPlyBuf, subtractOpts);
-    dbg(`POST: subtraction done in ${Date.now() - t0}ms — keptCount=${subResult.keptCount}, retainedPct=${subResult.retainedPct}%, overlapCount=${subResult.overlapCount}`);
+    dbg(`POST: subtraction done in ${Date.now() - t0}ms — keptCount=${subResult.keptCount}, retainedPct=${subResult.retainedPct}%, overlapCount=${subResult.overlapCount}, closedCount=${subResult.closedCount}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     dbgErr(`POST: subtractPly failed: ${msg}`);
@@ -833,6 +891,7 @@ export async function POST(req: NextRequest) {
     totalBald:     subResult.totalBald,
     retainedPct:   subResult.retainedPct,
     overlapCount:  subResult.overlapCount,
+    closedCount:   subResult.closedCount,
     voxelSize:     subResult.voxelSize,
     processingMs:  totalMs,
     opts:          subtractOpts,

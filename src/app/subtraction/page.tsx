@@ -52,6 +52,7 @@ interface SubtractOpts {
   scaleZ?:            number;
   uniformScale?:      number;
   voxelSizeOverride?: number;
+  maskCloseThreshold?: number;
 }
 
 interface SubtractResult {
@@ -63,6 +64,7 @@ interface SubtractResult {
   totalBald:     number;
   retainedPct:   number;
   overlapCount:  number;
+  closedCount?:  number;
   voxelSize:     number;
   processingMs:  number;
   opts?:         SubtractOpts;
@@ -299,10 +301,14 @@ export default function SubtractionPage() {
   const [subScaleZ,         setSubScaleZ]         = useState(1.0);
   const [subUniformScale,   setSubUniformScale]   = useState(1.0);
   const [subVoxelOverride,  setSubVoxelOverride]  = useState('');   // empty = auto
+  const [subMaskClose,      setSubMaskClose]      = useState(0.55); // streak cleanup; 1 = off
   const [rerunning,         setRerunning]         = useState(false);
+
+  const [cameraFailed, setCameraFailed] = useState(false);
 
   const videoRef      = useRef<HTMLVideoElement>(null);
   const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
   const animFrameRef  = useRef<number | null>(null);
   const activeRef     = useRef(false);
   const debugEndRef   = useRef<HTMLDivElement>(null);
@@ -370,8 +376,9 @@ export default function SubtractionPage() {
         animFrameRef.current = requestAnimationFrame(drawFrame);
       } catch (err) {
         dbgErr('camera effect: getUserMedia failed:', err);
-        setFatalError(`Camera access denied: ${err instanceof Error ? err.message : String(err)}`);
-        setPhase('error');
+        setFatalError(`Camera unavailable: ${err instanceof Error ? err.message : String(err)}`);
+        setCameraFailed(true);
+        // Stay on 'camera' phase so the upload option remains accessible.
       }
     })();
 
@@ -440,6 +447,74 @@ export default function SubtractionPage() {
 
     // Kick off the pipeline
     runPipeline(dataUrl);
+  }
+
+  // ─── upload ──────────────────────────────────────────────────────────────────
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!e.target) return;
+    e.target.value = '';   // reset so same file can be re-selected
+    if (!file) return;
+
+    if (!isSignedIn) { openSignIn(); return; }
+
+    if (!hasBiometricConsent) {
+      if (!consentChecked) {
+        setFatalError('Please check the biometric consent box before scanning.');
+        return;
+      }
+      dbg('handleUpload: saving biometric consent...');
+      setConsentSaving(true);
+      try {
+        await recordBiometricConsent({ noticeVersion: 'biometric-notice-2026-06-08' });
+        dbg('handleUpload: consent saved');
+      } catch (err) {
+        dbgErr('handleUpload: consent save failed:', err);
+        setFatalError('Could not save consent. Please try again.');
+        return;
+      } finally {
+        setConsentSaving(false);
+      }
+    }
+
+    // Stop camera if running
+    activeRef.current = false;
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    const video = videoRef.current;
+    if (video) {
+      (video.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+
+    dbg(`handleUpload: reading file "${file.name}" (${file.size} bytes)`);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const W = 640, H = 640;
+        const ctx = canvas.getContext('2d')!;
+
+        // Center-crop to square then scale to 640×640
+        const crop = Math.min(img.naturalWidth, img.naturalHeight);
+        const cropX = (img.naturalWidth  - crop) / 2;
+        const cropY = (img.naturalHeight - crop) / 2;
+        ctx.drawImage(img, cropX, cropY, crop, crop, 0, 0, W, H);
+
+        const dataUrl = canvas.toDataURL('image/png');
+        drawOverlay(ctx, W, H, true);
+
+        dbg(`handleUpload: image drawn — ${W}×${H}, dataUrl length=${dataUrl.length}`);
+        setCapturedDataUrl(dataUrl);
+        updateStep('capture', { status: 'done', detail: `${file.name} (${W}×${H})` });
+        runPipeline(dataUrl);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   }
 
   // ─── MAIN PIPELINE ───────────────────────────────────────────────────────────
@@ -602,6 +677,7 @@ export default function SubtractionPage() {
     setBaldResult(null);
     setSubResult(null);
     setFatalError(null);
+    setCameraFailed(false);
     setDebugLines([]);
     setSteps(initialSteps());
     setSubScaleX(1.0);
@@ -609,6 +685,7 @@ export default function SubtractionPage() {
     setSubScaleZ(1.0);
     setSubUniformScale(1.0);
     setSubVoxelOverride('');
+    setSubMaskClose(0.55);
     setRerunning(false);
     setPhase('camera');
   }
@@ -627,6 +704,7 @@ export default function SubtractionPage() {
       scaleZ:            subScaleZ,
       uniformScale:      subUniformScale,
       voxelSizeOverride: vsOv,
+      maskCloseThreshold: subMaskClose,
     };
 
     pushLog('=== re-run subtraction ===');
@@ -691,17 +769,37 @@ export default function SubtractionPage() {
           {/* ── camera phase ── */}
           {phase === 'camera' && isSignedIn && (
             <div style={{ background: '#1c1510', border: '1px solid #2a2218' }}>
-              <video ref={videoRef} className="hidden" muted playsInline style={{ display: 'none' }} />
-              <canvas
-                ref={canvasRef}
-                width={640}
-                height={640}
-                style={{ width: '100%', aspectRatio: '1/1', display: 'block', background: '#0e0c09' }}
-              />
-              <div style={{ padding: '16px 20px', borderTop: '1px solid #2a2218' }}>
-                <p style={{ fontSize: 13, color: '#b0a090', marginBottom: 12 }}>
-                  Place your face inside the oval and take a photo. A &quot;bald&quot; version will be generated automatically and both will be fed to FaceLift. The PLY files will then be subtracted to isolate only the hair.
-                </p>
+              <video ref={videoRef} muted playsInline style={{ display: 'none' }} />
+
+              {/* Canvas — hidden when camera failed (nothing useful to show) */}
+              {!cameraFailed && (
+                <canvas
+                  ref={canvasRef}
+                  width={640}
+                  height={640}
+                  style={{ width: '100%', aspectRatio: '1/1', display: 'block', background: '#0e0c09' }}
+                />
+              )}
+              {/* Off-screen canvas when camera failed — still needed to draw the uploaded image */}
+              {cameraFailed && (
+                <canvas
+                  ref={canvasRef}
+                  width={640}
+                  height={640}
+                  style={{ display: 'none' }}
+                />
+              )}
+
+              <div style={{ padding: '16px 20px', borderTop: cameraFailed ? 'none' : '1px solid #2a2218' }}>
+                {cameraFailed ? (
+                  <p style={{ fontSize: 13, color: '#b0a090', marginBottom: 12 }}>
+                    Camera not available. Upload a photo of your face to continue.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 13, color: '#b0a090', marginBottom: 12 }}>
+                    Place your face inside the oval and take a photo, or upload one. A &quot;bald&quot; version will be generated automatically and both will be fed to FaceLift.
+                  </p>
+                )}
 
                 {!hasBiometricConsent && (
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, fontSize: 12, color: '#887', cursor: 'pointer', lineHeight: 1.5 }}>
@@ -725,23 +823,54 @@ export default function SubtractionPage() {
                   </div>
                 )}
 
-                <button
-                  onClick={handleCapture}
-                  disabled={consentSaving || (!hasBiometricConsent && !consentChecked)}
-                  style={{
-                    background: '#d63c2f',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '10px 28px',
-                    cursor: 'pointer',
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    opacity: consentSaving || (!hasBiometricConsent && !consentChecked) ? 0.45 : 1,
-                  }}
-                >
-                  {consentSaving ? 'Saving consent…' : '[ CAPTURE ]'}
-                </button>
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleUpload}
+                />
+
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {!cameraFailed && (
+                    <button
+                      onClick={handleCapture}
+                      disabled={consentSaving || (!hasBiometricConsent && !consentChecked)}
+                      style={{
+                        background: '#d63c2f',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '10px 28px',
+                        cursor: 'pointer',
+                        fontFamily: 'monospace',
+                        fontWeight: 700,
+                        fontSize: 14,
+                        opacity: consentSaving || (!hasBiometricConsent && !consentChecked) ? 0.45 : 1,
+                      }}
+                    >
+                      {consentSaving ? 'Saving consent…' : '[ CAPTURE ]'}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={consentSaving || (!hasBiometricConsent && !consentChecked)}
+                    style={{
+                      background: 'none',
+                      color: consentSaving || (!hasBiometricConsent && !consentChecked) ? '#443' : '#ffe39a',
+                      border: '1px solid',
+                      borderColor: consentSaving || (!hasBiometricConsent && !consentChecked) ? '#2a2218' : '#ffe39a',
+                      padding: '10px 20px',
+                      cursor: consentSaving || (!hasBiometricConsent && !consentChecked) ? 'not-allowed' : 'pointer',
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                      fontSize: 14,
+                    }}
+                  >
+                    ↑ upload image
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -858,6 +987,7 @@ export default function SubtractionPage() {
                 ['Original gaussians', subResult.totalOriginal.toLocaleString()],
                 ['Bald gaussians',     subResult.totalBald.toLocaleString()],
                 ['Overlap (removed)',  (subResult.overlapCount ?? 0).toLocaleString()],
+                ['Streaks removed',    (subResult.closedCount ?? 0).toLocaleString()],
                 ['Hair gaussians',     subResult.keptCount.toLocaleString()],
                 ['Retained %',        `${subResult.retainedPct}%`],
                 ['Voxel size',        subResult.voxelSize.toFixed(6)],
@@ -958,10 +1088,29 @@ export default function SubtractionPage() {
                 />
               </div>
 
+              {/* Streak cleanup (mask close) */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#887', marginBottom: 3 }}>
+                  <span>Streak cleanup <span style={{ color: '#554' }}>(removes face leakage)</span></span>
+                  <span style={{ color: '#ffe39a', fontFamily: 'monospace' }}>
+                    {subMaskClose >= 1 ? 'off' : subMaskClose.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range" min={0.3} max={1.0} step={0.05}
+                  value={subMaskClose}
+                  onChange={e => setSubMaskClose(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: '#d8956a' }}
+                />
+                <div style={{ fontSize: 9, color: '#554', marginTop: 2 }}>
+                  lower = more aggressive · 1.00 = disabled
+                </div>
+              </div>
+
               {/* Reset + Re-run */}
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  onClick={() => { setSubScaleX(1); setSubScaleY(1); setSubScaleZ(1); setSubUniformScale(1); setSubVoxelOverride(''); }}
+                  onClick={() => { setSubScaleX(1); setSubScaleY(1); setSubScaleZ(1); setSubUniformScale(1); setSubVoxelOverride(''); setSubMaskClose(0.55); }}
                   style={{ flex: 1, background: '#0e0c09', border: '1px solid #443', color: '#665', padding: '6px 0', cursor: 'pointer', fontFamily: 'monospace', fontSize: 10 }}
                 >
                   reset
