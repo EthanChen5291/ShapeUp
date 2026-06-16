@@ -9,6 +9,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { BarberMascot, BouncyButton, Reveal } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 /* ─────────────── Face Video Swiper ─────────────── */
 const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mp4`);
@@ -1001,6 +1002,7 @@ const GLIMPSE_ERUPTION_DURATION = 1900;
 const GLIMPSE_ORBIT_SPEED = 0.00022; // radians per ms, CCW
 
 function GlimpseSection() {
+  const isMobile = useIsMobile();
   const sectionRef = useRef<HTMLDivElement>(null);
   const satelliteRefs = useRef<(HTMLDivElement | null)[]>(Array(GLIMPSE_SATELLITE_COUNT).fill(null));
   const stateRef = useRef({ phase: 'idle' as 'idle' | 'erupting' | 'orbiting', eruptionStart: 0, orbitOffset: 0, lastTime: 0 });
@@ -1139,7 +1141,7 @@ function GlimpseSection() {
       {/* Orbit stage */}
       <div
         ref={sectionRef}
-        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(isMobile ? { height: 420, transform: 'scale(0.42)', transformOrigin: 'center center' } : {}) }}
       >
         {/* Center image */}
         <div
@@ -1676,6 +1678,7 @@ function TraceBorderCta({
 }
 
 function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingClick: (planId: string) => void; checkoutLoading: string | null }) {
+  const isMobile = useIsMobile();
   return (
     <div id="pricing" style={{ padding: '0 0 72px' }}>
       <Reveal>
@@ -1686,7 +1689,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
         overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+        <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16, ...(isMobile ? { padding: '36px 20px' } : {}) }}>
           <h2 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
             pricing
           </h2>
@@ -1729,7 +1732,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
         </div>
 
         {/* Plan cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           {PRICING_PLANS.map((plan) => {
             const isFeatured = plan.featured;
             return (
@@ -2021,6 +2024,7 @@ function NeonCornersOverlay({ color, seed }: { color: string; seed: number }) {
 }
 
 function LandingPage({ onEnter }: { onEnter: () => void }) {
+  const isMobile = useIsMobile();
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
 
@@ -2154,25 +2158,25 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         }}
       />
 
-      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '16px 56px 56px' }}>
+      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '16px 56px 56px', ...(isMobile ? { padding: '14px 20px 40px' } : {}) }}>
 
         {/* ── Nav ── */}
-        <nav className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
+        <nav className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5, ...(isMobile ? { gap: 10 } : {}) }}>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}
             onMouseEnter={() => setLogoHover(true)}
             onMouseLeave={() => setLogoHover(false)}
           >
             <div style={{ width: 46 }}><BarberMascot isStatic={!logoHover} snap={logoHover} color="#2a201a" /></div>
-            <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)' }}>
+            <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)', ...(isMobile ? { fontSize: 22 } : {}) }}>
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 36, ...(isMobile ? { gap: 14 } : {}) }}>
             <button
               onClick={scrollToHowItWorks}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 13 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -2181,7 +2185,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <button
               onClick={scrollToPricing}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 13 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -2206,6 +2210,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             alignItems: 'center',
             marginTop: 36,
             position: 'relative',
+            ...(isMobile ? { gridTemplateColumns: '1fr', gap: 24, marginTop: 24 } : {}),
           }}
         >
           {/* Left */}
@@ -2237,10 +2242,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* Right — blob visual */}
           <div
-            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
+            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', ...(isMobile ? { height: 'auto', justifyContent: 'center' } : {}) }}
             className="hero-blob-in"
           >
-            <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
+            <div style={{ position: 'relative', width: 624, zIndex: 1, ...(isMobile ? { width: '100%', maxWidth: 360 } : {}) }}>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
               <FaceVideoSwiper
                 onSwipeUp={() => swipeTriggerRef.current?.('up')}
@@ -2261,7 +2266,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%' }} />
 
       <div style={{ backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center', paddingBottom: 80 }}>
-      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px', ...(isMobile ? { padding: '0 20px' } : {}) }}>
 
         {/* ── Problem section ── */}
         <div style={{ padding: '58px 0 0' }}>
@@ -2288,7 +2293,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </Reveal>
 
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 0, ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
             {[
               {
                 stat: '~6 weeks',
@@ -2337,7 +2342,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         </div>
 
         {/* ── Value props bar ── */}
-        <div style={{ margin: '0 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div style={{ margin: '0 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           {([
             { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%' },
             { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '50%' },
@@ -2378,7 +2383,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%', transform: 'scaleY(-1)' }} />
 
-      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px 80px' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px 80px', ...(isMobile ? { padding: '0 20px 60px' } : {}) }}>
 
         {/* ── Steps ── */}
         <div id="how-it-works" style={{ marginTop: 48, paddingTop: 8 }}>
@@ -2395,7 +2400,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               This demo is live — send a message and try it yourself.
             </p>
           </Reveal>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
 
             {/* Step 1: Scan */}
             <Reveal wonk={-0.5} style={{ display: 'flex' }}>
@@ -2568,7 +2573,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
       {/* ── Dark charcoal section ── */}
       <div style={{ backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: '768px auto', backgroundRepeat: 'repeat', backgroundPosition: 'top left' }}>
-        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
+        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px', ...(isMobile ? { padding: '0 20px' } : {}) }}>
 
           {/* ── Glimpse orbit section ── */}
           <GlimpseSection />
@@ -2603,7 +2608,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </Reveal>
 
           {/* ── Trust Strip ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: '0 0 64px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: '0 0 64px', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
             {[
               { title: 'Your photo stays private', body: 'We never sell or share your scan. Delete your data anytime from settings.' },
               { title: 'AI trained on real cuts', body: '3D facial mesh and strand-level simulation built from real barbershop styles.' },

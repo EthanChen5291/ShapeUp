@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Fraunces, DM_Sans, JetBrains_Mono, Montserrat } from 'next/font/google';
 import { ConvexClerkProvider } from '@/components/ConvexClerkProvider';
@@ -40,6 +40,12 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: 'ShapeUp',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

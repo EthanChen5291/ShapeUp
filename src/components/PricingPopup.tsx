@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BarberMascot } from '@/components/AppUI';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const PLANS = [
   {
@@ -201,6 +202,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
 }) {
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 16);
@@ -254,6 +256,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
           transform: visible ? 'translateY(0)' : 'translateY(-110%)',
           opacity: visible ? 1 : 0,
           transition: 'transform 480ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease',
+          ...(isMobile ? { height: 'auto', minHeight: 'calc(100vh - 48px)' } : {}),
         }}>
           <div className="pricing-led-border" style={{
             borderRadius: 36,
@@ -274,6 +277,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', textAlign: 'center', gap: 12,
               flexShrink: 0,
+              ...(isMobile ? { padding: '40px 20px 28px' } : {}),
             }}>
               <button
                 onClick={dismiss}
@@ -322,6 +326,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
               gap: 12,
               padding: '16px 20px 20px',
               flex: 1,
+              ...(isMobile ? { gridTemplateColumns: '1fr', gap: 14 } : {}),
             }}>
               {PLANS.map((plan) => (
                 <div
@@ -431,6 +436,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
               borderTop: '1px solid rgba(255,248,234,0.13)',
               textAlign: 'center',
               flexShrink: 0,
+              ...(isMobile ? { padding: '16px 20px 20px' } : {}),
             }}>
               <span style={{
                 fontFamily: 'var(--font-jetbrains), monospace',

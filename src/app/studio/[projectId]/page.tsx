@@ -18,6 +18,7 @@ import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/comp
 import { useSearchParams } from 'next/navigation';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const HairScene = dynamic(() => import('@/components/HairScene'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
@@ -196,6 +197,7 @@ export default function StudioPage() {
   const searchParams = useSearchParams();
   const projectId = params.projectId as Id<'projects'>;
   const { renderQuality } = useSettings();
+  const isMobile = useIsMobile();
 
   const saveProject = useMutation(api.projects.save);
   const project = useQuery(api.projects.get, { projectId });
@@ -463,7 +465,7 @@ export default function StudioPage() {
   // ── Hair edit loop (splat building) ──
   if (!faceliftReady && imageUrl) {
     return (
-      <main className="flex fixed inset-0 overflow-hidden" style={{ background: '#1e1e1e' }}>
+      <main className={`fixed inset-0 overflow-hidden flex ${isMobile ? 'flex-col' : ''}`} style={{ background: '#1e1e1e' }}>
         <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
           <button
             onClick={() => router.push('/dashboard')}
@@ -478,11 +480,11 @@ export default function StudioPage() {
           <InlineWordmark cream small />
         </div>
         <div className="flex-1 min-w-0 relative" style={{ backgroundImage: 'url(/preview_bg.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}>
-          <div className="w-full h-full flex flex-col items-center justify-center gap-8 p-8">
+          <div className={`w-full h-full flex flex-col items-center justify-center ${isMobile ? 'gap-4 p-4 pt-20' : 'gap-8 p-8'}`}>
             <div
               className={`polaroid ${previewExpanded ? '' : 'wonky-sm-l'}`}
               style={{
-                width: previewExpanded ? 'min(60vh, 54vw)' : '340px',
+                width: previewExpanded ? 'min(60vh, 54vw)' : (isMobile ? 'min(260px, 72vw)' : '340px'),
                 transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
                 cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
               }}
@@ -506,7 +508,7 @@ export default function StudioPage() {
             <FaceliftLoader demoStatus={demoStatus} />
           </div>
         </div>
-        <aside className="w-80 flex-shrink-0 flex flex-col p-4 gap-4 relative overflow-hidden self-start h-[70vh]">
+        <aside className={`flex flex-col p-4 gap-4 relative overflow-hidden ${isMobile ? 'w-full flex-shrink-0 max-h-[48vh]' : 'w-80 flex-shrink-0 self-start h-[70vh]'}`}>
           <div className="flex items-center justify-between">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
             <div className="flex items-center gap-2">
@@ -534,7 +536,7 @@ export default function StudioPage() {
 
   // ── 3D Studio ──
   return (
-    <main className="flex fixed inset-0 overflow-hidden bg-tomato-shop">
+    <main className={`fixed inset-0 overflow-hidden bg-tomato-shop flex ${isMobile ? 'flex-col' : ''}`}>
       <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
         <button
           onClick={() => router.push('/dashboard')}
@@ -550,15 +552,15 @@ export default function StudioPage() {
       </div>
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center">
-        <h2 className="type-chonk text-[var(--cream)]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', opacity: 0.96 }}>
+        <h2 className="type-chonk text-[var(--cream)]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', opacity: 0.96, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>
           THE <em style={{ color: 'var(--butter)' }}>studio</em>
         </h2>
       </div>
 
-      <div className="flex-1 min-w-0 relative flex items-center justify-center p-6 pt-24">
+      <div className={`flex-1 min-w-0 relative flex items-center justify-center ${isMobile ? 'p-3 pt-16' : 'p-6 pt-24'}`}>
         {(displayImageUrl ?? imageUrl) && (() => { const displayImg = displayImageUrl ?? imageUrl; return (
           <div
-            className={`absolute top-24 left-6 z-10 polaroid ${previewExpanded ? '' : 'wonky-l'}`}
+            className={`absolute z-10 polaroid ${isMobile ? 'top-14 left-3' : 'top-24 left-6'} ${previewExpanded ? '' : 'wonky-l'}`}
             style={{
               width: previewExpanded ? 'min(55vh, 46vw)' : 100,
               padding: '6px 6px 22px',
@@ -769,8 +771,8 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-y-auto cozy-scroll sidebar-in self-start max-h-[calc(100vh-0.75rem)]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
-          <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
+        <aside className={`flex flex-col px-4 pb-4 gap-3 relative overflow-y-auto cozy-scroll sidebar-in ${isMobile ? 'w-full flex-shrink-0 max-h-[48vh]' : 'w-80 flex-shrink-0 self-start max-h-[calc(100vh-0.75rem)]'}`} style={{ paddingTop: isMobile ? '0.75rem' : 'calc(6rem - 4vh)', zIndex: 50 }}>
+          <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: isMobile ? 'none' : 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
               style={{
