@@ -12,6 +12,8 @@ import { buildClarifyQuestions, answersToStyleContext, ClarifyQuestion } from '@
 import { EditReport, sanitizeEditReport } from '@/lib/editReport';
 import { ClarifyPanel } from '@/components/ClarifyPanel';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '@convex/_generated/api';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberOrderReceipt from '@/components/BarberOrderReceipt';
 import { PricingPopup } from '@/components/PricingPopup';
@@ -94,6 +96,16 @@ function djb2(s: string): string {
 
 const ORDER_CACHE_PREFIX = 'shapeup-order:';
 
+const PIPELINE_SESSION_PREFIX = 'shapeup-pipeline:';
+const PIPELINE_MAX_AGE_MS = 5 * 60 * 1000;
+
+interface PipelineSessionState {
+  phase: 'gemini' | 'hairstep';
+  geminiProgress: number;
+  hairstepProgress: number;
+  startedAt: number;
+}
+
 const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
   gemini: [
     'Sketching the cut…',
@@ -129,6 +141,12 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   const [liveStatus, setLiveStatus] = useState('');
   const [freshCut, setFreshCut] = useState(false);
 
+  // Recovery state: true while we're polling Convex after a mid-hairstep refresh
+  const [isRecovering, setIsRecovering] = useState(false);
+  const recoveryStartedAtRef = useRef<number | null>(null);
+  // Carries restored progress into the phase useEffect so it doesn't reset to 0
+  const restoredProgressRef = useRef<{ gemini: number; hairstep: number } | null>(null);
+
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -148,6 +166,12 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
 
   const currentParams = history[historyIndex];
 
+  // Only subscribed when recovering from a mid-hairstep refresh
+  const latestFacelift = useQuery(
+    api.facelifts.getLatestByUser,
+    isRecovering ? {} : 'skip'
+  );
+
   const pushParams = useCallback(
     (next: HairParams) => {
       const newHistory = [...history.slice(0, historyIndex + 1), next];
@@ -159,6 +183,63 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     [history, historyIndex, onParamsChange]
   );
   void pushParams; // retained for slider/param flows
+
+  // ── Pipeline session persistence & refresh recovery ───────────────
+  // On mount: restore loading UI if a pipeline was in-flight when the page refreshed.
+  useEffect(() => {
+    if (!projectId) return;
+    const key = `${PIPELINE_SESSION_PREFIX}${projectId}`;
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as PipelineSessionState;
+      if (Date.now() - saved.startedAt > PIPELINE_MAX_AGE_MS) {
+        sessionStorage.removeItem(key);
+        return;
+      }
+      // Carry saved progress into the phase useEffect so it doesn't reset to 0
+      restoredProgressRef.current = { gemini: saved.geminiProgress, hairstep: saved.hairstepProgress };
+      processingRef.current = true;
+      setPhase(saved.phase);
+
+      if (saved.phase === 'hairstep') {
+        recoveryStartedAtRef.current = saved.startedAt;
+        setIsRecovering(true);
+        setLiveStatus('Reconnecting to your 3D render…');
+      } else {
+        // Gemini result is not persisted — show a brief error and reset
+        const t = setTimeout(() => {
+          processingRef.current = false;
+          pipelineHadErrorRef.current = true;
+          setPhase('idle');
+          setPipelineError('Your edit was interrupted by the page refresh. Please try again.');
+          sessionStorage.removeItem(key);
+        }, 3000);
+        return () => clearTimeout(t);
+      }
+    } catch { /* corrupt entry — ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // When Convex delivers a fresh facelift result after recovery, deliver it.
+  useEffect(() => {
+    if (!isRecovering || !latestFacelift || recoveryStartedAtRef.current === null || !projectId) return;
+    if (latestFacelift._creationTime < recoveryStartedAtRef.current) return;
+    const splatUrl = `/api/proxy-ply?key=${encodeURIComponent(latestFacelift.splatS3Key)}`;
+    onPlyReady(splatUrl, latestFacelift.splatS3Key);
+    setLiveStatus('3D hairstyle render is ready. Fresh cut.');
+    processingRef.current = false;
+    setPhase('idle');
+    setIsRecovering(false);
+    recoveryStartedAtRef.current = null;
+    sessionStorage.removeItem(`${PIPELINE_SESSION_PREFIX}${projectId}`);
+  }, [latestFacelift, isRecovering, projectId, onPlyReady]);
+
+  // Persist phase + progress to sessionStorage so a refresh can restore it.
+  const pipelineSessionKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (projectId) pipelineSessionKeyRef.current = `${PIPELINE_SESSION_PREFIX}${projectId}`;
+  }, [projectId]);
 
   const runPromptPipeline = async (submittedPrompt: string) => {
     if (processingRef.current) return;
@@ -385,27 +466,63 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     const prev = prevPhaseRef.current;
     prevPhaseRef.current = phase;
 
+    // Consume any restored progress values (set before setPhase() on refresh recovery)
+    const restored = restoredProgressRef.current;
+    if (restored) restoredProgressRef.current = null;
+
+    const sessionKey = pipelineSessionKeyRef.current;
+    const startedAt = Date.now();
+
     if (phase === 'gemini') {
       if (geminiIntervalRef.current) clearInterval(geminiIntervalRef.current);
-      setGeminiProgress(0);
-      setHairstepProgress(0);
+      const initGemini = restored?.gemini ?? 0;
+      const initHairstep = restored?.hairstep ?? 0;
+      setGeminiProgress(initGemini);
+      setHairstepProgress(initHairstep);
+      if (sessionKey) {
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: initGemini, hairstepProgress: initHairstep, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+      }
       // 400ms ticks, 2% per tick → ~88% over ~17.6s with 1.4s CSS ease-out transition for silk-smooth animation
       geminiIntervalRef.current = setInterval(() => {
-        setGeminiProgress(p => p < 88 ? p + 2 : p);
+        setGeminiProgress(p => {
+          const next = p < 88 ? p + 2 : p;
+          if (sessionKey) {
+            try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: next, hairstepProgress: 0, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+          }
+          return next;
+        });
       }, 400);
     } else if (phase === 'hairstep') {
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       setGeminiProgress(100);
       if (hairstepIntervalRef.current) clearInterval(hairstepIntervalRef.current);
-      setHairstepProgress(0);
+      const initHairstep = restored?.hairstep ?? 0;
+      setHairstepProgress(initHairstep);
+      // Use the startedAt already in sessionStorage if recovering (don't overwrite it)
+      if (sessionKey && !restored) {
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', geminiProgress: 100, hairstepProgress: initHairstep, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+      }
       // 800ms ticks, 0.8% per tick → ~84% over ~84s; facelift typically 20–60s so bar is mid-range when done
       hairstepIntervalRef.current = setInterval(() => {
-        setHairstepProgress(p => p < 84 ? p + 0.8 : p);
+        setHairstepProgress(p => {
+          const next = p < 84 ? p + 0.8 : p;
+          if (sessionKey) {
+            try {
+              const raw = sessionStorage.getItem(sessionKey);
+              const prev2 = raw ? (JSON.parse(raw) as PipelineSessionState) : null;
+              sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', geminiProgress: 100, hairstepProgress: next, startedAt: prev2?.startedAt ?? startedAt } satisfies PipelineSessionState));
+            } catch { /* ignore */ }
+          }
+          return next;
+        });
       }, 800);
     } else if (phase === 'idle' && prev !== 'idle') {
       // Intervals were already killed in the finally block; kill again defensively
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
+      if (sessionKey) {
+        try { sessionStorage.removeItem(sessionKey); } catch { /* ignore */ }
+      }
       if (pipelineHadErrorRef.current) {
         const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2200);
         return () => clearTimeout(t);
