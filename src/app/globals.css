@@ -2972,3 +2972,21 @@ html.dark .fresh-sheet {
   75%  { transform: scale(1.07); }
   100% { transform: scale(1.1); }
 }
+
+/* ============================================================
+   MOBILE SUPPORT (<= 768px only — desktop is untouched)
+   See NOTES.md "Mobile Support — Mechanism".
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Prevent accidental horizontal scroll from fixed/absolute desktop layouts. */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  /* Honor notch / home-indicator safe areas on the page body. */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
