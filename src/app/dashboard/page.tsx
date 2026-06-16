@@ -21,6 +21,7 @@ import { PricingPopup } from '@/components/PricingPopup';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings, type Theme, type RenderQuality } from '@/contexts/SettingsContext';
 import { captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from '@/lib/referral';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const ScanCamera = dynamic(() => import('@/components/LiveScanCamera'), { ssr: false });
 
@@ -89,6 +90,7 @@ function SignInModal({ onClose }: { onClose: () => void }) {
 function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { signOut } = useClerk();
+  const isMobile = useIsMobile();
   const [showSignIn, setShowSignIn] = useState(false);
   const userQuery = useQuery(api.users.getMe);
   const [open, setOpen] = useState(false);
@@ -249,7 +251,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false }: { o
       {menuPos && createPortal(
         <div style={{
           position: 'fixed', top: menuPos.top, right: menuPos.right,
-          width: open ? 380 : 251, maxHeight: open ? `${panelMaxH}px` : '43px',
+          width: open ? (isMobile ? 'calc(100vw - 24px)' : 380) : 251, maxHeight: open ? `${panelMaxH}px` : '43px',
           background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.12)',
           backdropFilter: 'blur(8px)', borderRadius: open ? 22 : 40,
           boxShadow: open ? '0 20px 60px -12px rgba(0,0,0,0.28)' : 'none',
@@ -370,7 +372,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
-  const PANEL_W = 600, PANEL_H = 680;
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('open')));
@@ -435,6 +437,8 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   const isOpen = phase === 'open';
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const PANEL_W = isMobile ? Math.min(600, vw - 24) : 600;
+  const PANEL_H = isMobile ? vh - 32 : 680;
   const lerpEase = 'cubic-bezier(0.32, 0.72, 0, 1)';
   const lerpDur = isOpen ? '480ms' : '240ms';
   const panelTransition = phase === 'entering' ? 'none' : `top ${lerpDur} ${lerpEase}, left ${lerpDur} ${lerpEase}, width ${lerpDur} ${lerpEase}, height ${lerpDur} ${lerpEase}, border-radius ${lerpDur} ${lerpEase}, box-shadow 300ms ease`;
@@ -464,7 +468,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
     <>
       <div className="fixed inset-0" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
       <div style={{ position: 'fixed', zIndex: 10001, top: isOpen ? Math.max(24, (vh - PANEL_H) / 2) : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? Math.min(PANEL_H, vh - 48) : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
-        <div style={{ position: 'absolute', inset: 0, padding: '44px 52px 44px', display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease' }}>
+        <div style={{ position: 'absolute', inset: 0, padding: '44px 52px 44px', display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease', ...(isMobile ? { padding: '40px 22px 32px' } : {}) }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
           <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 28 }}>Settings</h2>
 
@@ -797,6 +801,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
   onNoTokens?: () => void;
   needsUsername?: boolean;
 }) {
+  const isMobile = useIsMobile();
   const panelRef = useRef<HTMLDivElement>(null);
   const wasFirstScanRef = useRef(needsUsername);
   const setUsernameMutation = useMutation(api.users.setUsername);
@@ -995,12 +1000,12 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         aria-labelledby="scan-popup-title"
         aria-describedby="scan-popup-status"
         onClick={e => e.stopPropagation()}
-        style={{ position: 'absolute', left: '5vw', top: '5vh', height: '90vh', width: (collapsing || exiting) ? '30vw' : expanded ? '90vw' : '30vw', transform: panelTransform, transition: panelTransition, background: '#201a13', borderRadius: 28, boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+        style={{ position: 'absolute', left: '5vw', top: '5vh', height: '90vh', width: (collapsing || exiting) ? '30vw' : expanded ? '90vw' : '30vw', transform: panelTransform, transition: panelTransition, background: '#201a13', borderRadius: 28, boxShadow: '0 40px 100px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,248,234,0.08)', overflow: 'hidden', display: 'flex', flexDirection: 'column', ...(isMobile && !exiting && !collapsing ? { width: '92vw', left: '4vw' } : {}) }}
       >
         <div id="scan-popup-status" className="sr-only" aria-live="polite" aria-atomic="true">{scanStatusMessage}</div>
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          {/* Left panel */}
-          <div style={{ width: (expanded && !collapsing && !exiting) ? '40vw' : '0vw', overflow: 'hidden', flexShrink: 0, transition: 'width 750ms cubic-bezier(.2,.85,.2,1)', borderRight: '1px solid rgba(255,248,234,0.07)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: (expanded && !collapsing && !exiting) ? '40px 52px' : '0' }}>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0, ...(isMobile ? { flexDirection: 'column' } : {}) }}>
+          {/* Left panel — side checklist on desktop; stacked above (processing only) on mobile */}
+          <div style={{ width: (expanded && !collapsing && !exiting) ? '40vw' : '0vw', overflow: 'hidden', flexShrink: 0, transition: 'width 750ms cubic-bezier(.2,.85,.2,1)', borderRight: '1px solid rgba(255,248,234,0.07)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: (expanded && !collapsing && !exiting) ? '40px 52px' : '0', ...(isMobile ? { width: '100%', height: phase === 'processing' ? 'auto' : 0, padding: phase === 'processing' ? '24px 24px' : 0, borderRight: 'none', borderBottom: phase === 'processing' ? '1px solid rgba(255,248,234,0.07)' : 'none', transition: 'none' } : {}) }}>
             {phase !== 'processing' && showRequirements && <LiveChecklist checks={liveChecks} />}
             {phase === 'processing' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', maxWidth: 320 }}>
@@ -1336,19 +1341,19 @@ function ExploreFloor() {
 }
 
 /* ─── Floor headers ─── */
-function HomeTitle({ count }: { count?: number }) {
+function HomeTitle({ count, compact = false }: { count?: number; compact?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 18 }}>
-      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88 }}>My{' '}<span className="hl-swipe-wrap"><span className="hl-swipe" aria-hidden /><span style={{ position: 'relative' }}>Cuts</span></span></h1>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, ...(compact ? { gap: 12 } : {}) }}>
+      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, ...(compact ? { fontSize: '2.9rem' } : {}) }}>My{' '}<span className="hl-swipe-wrap"><span className="hl-swipe" aria-hidden /><span style={{ position: 'relative' }}>Cuts</span></span></h1>
       {count !== undefined && <span key={count} className="font-mono count-ticket">№ {String(count).padStart(2, '0')}</span>}
     </div>
   );
 }
 
-function SavedTitle({ count }: { count?: number }) {
+function SavedTitle({ count, compact = false }: { count?: number; compact?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 18 }}>
-      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: '#fcf5e4', lineHeight: 0.88, position: 'relative', display: 'inline-block' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, ...(compact ? { gap: 12 } : {}) }}>
+      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: '#fcf5e4', lineHeight: 0.88, position: 'relative', display: 'inline-block', ...(compact ? { fontSize: '2.9rem' } : {}) }}>
         Saved
         <svg className="gold-scribble" viewBox="0 0 220 18" preserveAspectRatio="none" aria-hidden><path d="M4 12 C 40 4, 72 16, 110 9 S 185 4, 216 11" fill="none" stroke="rgba(212,175,55,0.85)" strokeWidth="4" strokeLinecap="round" pathLength="1" /></svg>
       </h1>
@@ -1389,6 +1394,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean; isSignedIn?: boolean | null;
 }) {
   const [showSignIn, setShowSignIn] = useState(false);
+  const isMobile = useIsMobile();
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
   const toggleSaveProject = useMutation(api.projects.toggleSave);
@@ -1532,9 +1538,9 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
   return (
     <main className="relative overflow-hidden" style={{ height: '100vh', background: 'var(--biscuit-lt)' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr', height: '100vh', opacity: menuVisible ? 1 : 0, transition: 'opacity 400ms ease' }}>
-        {/* Left nav rail */}
-        <aside style={{ borderRight: '2px solid rgba(42,32,26,0.22)', background: 'var(--biscuit)', zIndex: 2, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr', height: '100vh', opacity: menuVisible ? 1 : 0, transition: 'opacity 400ms ease', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
+        {/* Left nav rail (hidden on mobile — replaced by bottom nav) */}
+        <aside style={{ borderRight: '2px solid rgba(42,32,26,0.22)', background: 'var(--biscuit)', zIndex: 2, position: 'relative', overflow: 'hidden', ...(isMobile ? { display: 'none' } : {}) }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', height: '100%', position: 'relative', zIndex: 1 }}>
             <div style={{ marginBottom: 24, width: 30, transform: 'rotate(186deg)', opacity: 0.85 }}><BarberMascot isStatic color="var(--ink)" /></div>
             {navItems.map(n => <NavButton key={n.key} item={n} />)}
@@ -1549,9 +1555,9 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
         <div className="min-w-0" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative' }}>
           {/* Top bar — transparent overlay so floor content shows through */}
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
-            <div style={{ padding: '24px 40px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'} style={{ position: 'relative' }}>
+            <div style={{ padding: '24px 40px 0', ...(isMobile ? { padding: '16px 16px 0' } : {}) }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, ...(isMobile ? { justifyContent: 'flex-end' } : {}) }}>
+                <div className={logoVisible ? 'slide-in-left' : 'opacity-0'} style={{ position: 'relative', ...(isMobile ? { display: 'none' } : {}) }}>
                   <div ref={wordmarkLightRef}><InlineWordmark /></div>
                   <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0 }}><InlineWordmark cream /></div>
                 </div>
@@ -1567,11 +1573,11 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
             <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
               {/* Floor 0 — Home */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
-                  <HomeTitle count={projects?.length} />
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
+                  <HomeTitle count={projects?.length} compact={isMobile} />
                   <div style={{ flex: 1 }} />
-                  <div style={{ position: 'relative', width: 248 }}>
+                  <div style={{ position: 'relative', width: 248, ...(isMobile ? { width: '100%' } : {}) }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
                     <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid var(--search-floor0-border)', borderRadius: 9999, background: 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.28)' : 'rgba(42,32,26,0.28)')} />
                   </div>
@@ -1579,7 +1585,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
                   {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
                   <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
                   {homeProjects?.map((p, i) => (
                     <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
@@ -1603,11 +1609,11 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               </div>
 
               {/* Floor 1 — Saved */}
-              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#181b17' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28 }}>
-                  <SavedTitle count={savedProjects?.length} />
+              <div className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#181b17' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
+                  <SavedTitle count={savedProjects?.length} compact={isMobile} />
                   <div style={{ flex: 1 }} />
-                  <div style={{ position: 'relative', width: 248 }}>
+                  <div style={{ position: 'relative', width: 248, ...(isMobile ? { width: '100%' } : {}) }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(252,245,228,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
                     <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(252,245,228,0.45)', borderRadius: 9999, background: 'rgba(252,245,228,0.08)', fontSize: 14, color: '#fcf5e4', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.6)')} onBlur={e => (e.target.style.borderColor = 'rgba(252,245,228,0.45)')} />
                   </div>
@@ -1627,7 +1633,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                     {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
                   </div>
                 ) : savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
                         <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
@@ -1657,6 +1663,13 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
           {flyingCard && <FlyingCard fromRect={flyingCard.fromRect} toPoint={flyingCard.toPoint} thumbnailUrl={flyingCard.thumbnailUrl} onDone={() => setFlyingCard(null)} />}
         </div>
       </div>
+
+      {/* Mobile bottom nav — replaces the left rail below the breakpoint */}
+      {isMobile && (
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 8px calc(8px + env(safe-area-inset-bottom))', background: floorIndex === 1 ? '#181b17' : 'var(--biscuit)', borderTop: floorIndex === 1 ? '1px solid rgba(252,245,228,0.12)' : '2px solid rgba(42,32,26,0.18)', boxShadow: '0 -6px 20px -8px rgba(0,0,0,0.25)', transition: 'background 220ms ease, border-color 220ms ease' }}>
+          {navItems.map(n => <NavButton key={n.key} item={n} dark={floorIndex === 1} />)}
+        </nav>
+      )}
     </main>
   );
 }
