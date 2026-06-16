@@ -702,7 +702,7 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-y-auto cozy-scroll sidebar-in self-start h-[80vh]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
+        <aside className="w-80 flex-shrink-0 flex flex-col px-4 pb-4 gap-3 relative overflow-y-auto cozy-scroll sidebar-in self-start max-h-[calc(100vh-0.75rem)]" style={{ paddingTop: 'calc(6rem - 4vh)', zIndex: 50 }}>
           <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"

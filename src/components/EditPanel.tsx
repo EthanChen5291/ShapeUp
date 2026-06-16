@@ -677,16 +677,19 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
           {emptyHint !== 'hidden' && (
             <div
               role="status"
-              className="absolute left-0 right-0 -top-2 -translate-y-full z-20 flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm shadow-lg pointer-events-none"
+              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
               style={{
-                background: 'var(--ink)',
-                color: 'var(--cream)',
                 opacity: emptyHint === 'fading' ? 0 : 1,
                 transition: 'opacity 0.3s ease',
               }}
             >
-              <span>✂</span>
-              <span>Enter your desired hairstyle in the toolbox!</span>
+              <div
+                className="flex items-center gap-3 rounded-2xl px-10 py-8 text-sm shadow-2xl"
+                style={{ background: '#F5E6A3', color: 'var(--ink)' }}
+              >
+                <span>✂</span>
+                <span>Enter your desired hairstyle in the toolbox!</span>
+              </div>
             </div>
           )}
         </div>
