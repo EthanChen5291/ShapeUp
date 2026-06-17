@@ -35,7 +35,7 @@ export async function POST(request: Request) {
           product_data: {
             name: config.name,
             description: config.description,
-            images: [`${origin}/logo.PNG`],
+            images: [`${origin}/shapeup_logo.png`],
           },
         },
         quantity: 1,
