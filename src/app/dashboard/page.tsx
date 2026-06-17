@@ -612,7 +612,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
                 )}
               </div>
               <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
-                {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It's stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
+                {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It&apos;s stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
               </p>
               {(consentDate && !consentRevoked) && (
                 <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11px] self-start mt-1" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 8, padding: '4px 12px', opacity: revokingConsent ? 0.5 : 1 }}>
@@ -693,6 +693,38 @@ function ProjectLimitPopup({ onDismiss }: { onDismiss: () => void }) {
           <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Chair&rsquo;s full!</h2>
           <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>You&rsquo;ve hit the limit of {MAX_PROJECTS_PER_USER} cuts. Delete one to make room for a fresh style.</p>
           <BouncyButton onClick={dismiss} className="btn btn-tomato w-full" style={{ padding: '14px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em' }}>Got it</BouncyButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Reuse Scan Popup ─── */
+// Shown on "Add Project" when the user already has a saved scan. Lets them spin
+// up a new project from that scan instantly (free, no GPU rebuild) or capture a
+// fresh selfie. "Ask each time" — we never auto-pick for them.
+function ReuseScanPopup({ onReuse, onNewSelfie, onDismiss, creating }: { onReuse: () => void; onNewSelfie: () => void; onDismiss: () => void; creating: boolean }) {
+  const [show, setShow] = useState(false);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
+  const dismiss = () => { if (creating) return; setClosing(true); setTimeout(onDismiss, 420); };
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }} onClick={dismiss}>
+      <div onClick={e => e.stopPropagation()} style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
+        <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, maxWidth: 440, padding: '44px 44px 40px' }}>
+          <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
+          <div style={{ width: 52 }}><BarberMascot /></div>
+          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>New project</h2>
+          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>Start from your saved scan, or take a fresh selfie.</p>
+          <div className="flex flex-col gap-3 w-full" style={{ marginTop: 4 }}>
+            <BouncyButton onClick={onReuse} disabled={creating} className="btn btn-tomato w-full" style={{ padding: '16px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em', opacity: creating ? 0.7 : 1 }}>
+              {creating ? 'Setting up…' : '✂ Reuse my scan'}
+            </BouncyButton>
+            <BouncyButton onClick={onNewSelfie} disabled={creating} className="btn btn-cream w-full" style={{ padding: '13px 32px', fontSize: 15, fontWeight: 700, opacity: creating ? 0.5 : 1 }}>
+              Take a new selfie
+            </BouncyButton>
+          </div>
+          <p className="font-sans text-center" style={{ fontSize: 11, color: 'var(--caramel)', margin: 0 }}>Reusing your scan is free — no token spent.</p>
         </div>
       </div>
     </div>
@@ -840,7 +872,7 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 
 /* ─── Scan Popup ─── */
 function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false }: {
-  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string) => void;
+  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string, splatS3Key?: string) => void;
   onDismiss: () => void;
   onNoTokens?: () => void;
   needsUsername?: boolean;
@@ -1000,7 +1032,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         return;
       }
       if (!submitRes.ok) { const body = await submitRes.text().catch(() => ''); throw new Error(`Couldn't start 3D build (${submitRes.status})${body ? ': ' + body : ''}`); }
-      const { splatUrl } = await submitRes.json() as { jobId?: string; splatUrl?: string };
+      const { splatUrl, splatS3Key } = await submitRes.json() as { jobId?: string; splatUrl?: string; splatS3Key?: string };
       if (!splatUrl) throw new Error('Server did not return a 3D result URL');
       if (!splatUrl || abort.signal.aborted) return;
       setFaceliftStatus('done');
@@ -1009,7 +1041,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
         setExiting(true);
-        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!); }, 600);
+        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!, splatS3Key); }, 600);
       }, 900);
     } catch (err) {
       if (abort.signal.aborted) return;
@@ -1785,6 +1817,7 @@ export default function DashboardPage() {
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
+  const setDefaultScan = useMutation(api.users.setDefaultScan);
   const markAccessed = useMutation(api.projects.markAccessed);
   const meUser = useQuery(api.users.getMe);
   const allProjects = useQuery(api.projects.list);
@@ -1832,6 +1865,8 @@ export default function DashboardPage() {
   };
 
   const [showScanPopup, setShowScanPopup] = useState(false);
+  const [showReusePopup, setShowReusePopup] = useState(false);
+  const [reuseCreating, setReuseCreating] = useState(false);
   const [showLimitReached, setShowLimitReached] = useState(false);
   const [showOutOfTokens, setShowOutOfTokens] = useState(false);
   const [showScanResult, setShowScanResult] = useState(false);
@@ -1853,6 +1888,7 @@ export default function DashboardPage() {
     fromRect?: DOMRect,
     isFirstScan?: boolean,
     splatUrl?: string,
+    splatS3Key?: string,
   ) => {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setHasScanEver(true);
@@ -1884,6 +1920,19 @@ export default function DashboardPage() {
         lastProfile: profileToSave,
         lastHairParams: profileWithMeasurements.currentStyle.params,
         lastSplatUrl: splatUrl ?? undefined,
+        splatS3Key: splatS3Key ?? undefined,
+      });
+      // Cache this scan as the reusable "default scan" so future "Add Project"
+      // can reuse it without re-scanning. The project above keeps its own copy,
+      // so overwriting the default later never mutates existing projects.
+      await setDefaultScan({
+        lastImageS3Key: scanS3Key ?? undefined,
+        lastImageUrl: url ?? undefined,
+        thumbnailS3Key: scanS3Key ?? undefined,
+        splatS3Key: splatS3Key ?? undefined,
+        lastSplatUrl: splatUrl ?? undefined,
+        lastProfile: profileToSave,
+        lastHairParams: profileWithMeasurements.currentStyle.params,
       });
     } catch (err) {
       console.error('[Dashboard] Failed to create project:', err);
@@ -1911,7 +1960,27 @@ export default function DashboardPage() {
   const handleAddProject = () => {
     if (!isSignedIn) { openAuthPopup(); return; }
     if (atProjectLimit) { setShowLimitReached(true); return; }
+    // Returning users with a saved scan get the reuse-or-rescan fork; first-timers
+    // (no default scan yet) go straight to the camera as before.
+    if (meUser?.defaultScan) { setShowReusePopup(true); return; }
     setShowScanPopup(true);
+  };
+
+  // Reuse path: spin up a project seeded from the saved scan — no camera, no GPU
+  // build, no token. Each project keeps its own copy, so it's an independent fork.
+  const handleReuseScan = async () => {
+    if (reuseCreating) return;
+    setReuseCreating(true);
+    try {
+      const projectId = await createProject({ name: generateUniqueCutName(allProjects ?? []), seedFromDefaultScan: true });
+      setShowReusePopup(false);
+      markAccessed({ projectId }).catch(() => {});
+      startLoading();
+      router.push(`/studio/${projectId}`);
+    } catch (err) {
+      console.error('[Dashboard] Failed to reuse scan:', err);
+      setReuseCreating(false);
+    }
   };
   const handleOpenProject = (project: ProjectDoc) => {
     // Fire-and-forget: record the access for "recent" ordering without blocking nav.
@@ -1939,6 +2008,14 @@ export default function DashboardPage() {
           onDismiss={() => setShowScanPopup(false)}
           onNoTokens={() => setShowOutOfTokens(true)}
           needsUsername={needsUsername}
+        />
+      )}
+      {showReusePopup && (
+        <ReuseScanPopup
+          creating={reuseCreating}
+          onReuse={handleReuseScan}
+          onNewSelfie={() => { setShowReusePopup(false); setShowScanPopup(true); }}
+          onDismiss={() => setShowReusePopup(false)}
         />
       )}
       {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}

@@ -24,6 +24,23 @@ export default defineSchema({
     // (incl. dismissals); Submitted = last time a rating was actually sent.
     lastFeedbackPromptAt: v.optional(v.number()),
     lastFeedbackSubmittedAt: v.optional(v.number()),
+    // The user's most recent completed scan, kept as a reusable "source" so a new
+    // project can be spun up without re-capturing + rebuilding the same head.
+    // Projects SNAPSHOT (copy) these keys at creation — see projects.create
+    // ({ seedFromDefaultScan }) — so updating this later never mutates existing
+    // projects. Fields mirror the projects table (v.any() for profile/params).
+    defaultScan: v.optional(
+      v.object({
+        lastImageS3Key: v.optional(v.string()),
+        lastImageUrl: v.optional(v.string()),
+        thumbnailS3Key: v.optional(v.string()),
+        splatS3Key: v.optional(v.string()),
+        lastSplatUrl: v.optional(v.string()),
+        lastProfile: v.optional(v.any()),
+        lastHairParams: v.optional(v.any()),
+        updatedAt: v.number(),
+      }),
+    ),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])

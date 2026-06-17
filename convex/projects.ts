@@ -28,7 +28,10 @@ export const list = query({
 });
 
 export const create = mutation({
-  args: { name: v.string() },
+  // seedFromDefaultScan: copy the user's saved scan (image/splat/profile) into the
+  // new project so it opens straight into the studio with no re-scan or GPU build.
+  // The copy lives on the project, so later edits to the default scan don't touch it.
+  args: { name: v.string(), seedFromDefaultScan: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthenticated");
@@ -43,11 +46,33 @@ export const create = mutation({
     }
     const isFirstProject = existing.length === 0;
     const now = Date.now();
+
+    let seed: Record<string, unknown> = {};
+    if (args.seedFromDefaultScan) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+        .unique();
+      const ds = user?.defaultScan;
+      if (ds) {
+        seed = {
+          lastImageS3Key: ds.lastImageS3Key,
+          lastImageUrl: ds.lastImageUrl,
+          thumbnailS3Key: ds.thumbnailS3Key,
+          splatS3Key: ds.splatS3Key,
+          lastSplatUrl: ds.lastSplatUrl,
+          lastProfile: ds.lastProfile,
+          lastHairParams: ds.lastHairParams,
+        };
+      }
+    }
+
     const projectId = await ctx.db.insert("projects", {
       tokenIdentifier: identity.tokenIdentifier,
       name: args.name,
       createdAt: now,
       updatedAt: now,
+      ...seed,
     });
 
     // A referred user's first project unlocks the referral reward for both parties.

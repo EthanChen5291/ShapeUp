@@ -39,7 +39,7 @@ export const legalPages: Record<string, LegalPage> = {
         <p>
           Depending on where you live, you may have rights to access, export, correct, delete, or restrict processing of
           personal information. Use <Link href="/delete-my-data">Delete my data</Link> or contact us at{' '}
-          <a href="mailto:privacy@shapeup.app">privacy@shapeup.app</a>.
+          <a href="mailto:shapeup.ai@gmail.com">shapeup.ai@gmail.com</a>.
         </p>
       </>
     ),

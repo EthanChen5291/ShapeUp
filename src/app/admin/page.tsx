@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 
 const PlyViewerModal = dynamic(() => import('@/components/PlyViewerModal'), { ssr: false });
 
@@ -73,9 +74,9 @@ export default function AdminS3Page() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-mono p-6">
       <div className="flex items-center gap-4 mb-1">
         <h1 className="text-2xl font-bold tracking-tight">S3 Admin</h1>
-        <a href="/admin/feedback" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
+        <Link href="/admin/feedback" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
           Feedback →
-        </a>
+        </Link>
       </div>
       <p className="text-neutral-500 text-sm mb-6">
         {loading ? 'Loading…' : `${results.length} of ${total} shown`}

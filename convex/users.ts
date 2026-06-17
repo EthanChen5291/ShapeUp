@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { validateUsernameBusinessRules } from "./lib/contentFilter";
 import { enforceMutationRateLimit } from "./lib/rateLimit";
 import { maybeAttachReferral, uniqueReferralCode } from "./lib/referrals";
+import { hairParamsValidator, lastProfileValidator } from "./validators";
 
 // Plan ranking — higher index = more premium. Drives the displayed plan tier.
 const PLAN_RANK = ["starter", "popular", "pro"] as const;
@@ -302,6 +303,13 @@ export const deleteCurrentUserData = mutation({
       await ctx.db.delete(project._id);
     }
 
+    if (user.defaultScan) {
+      pushKey(s3Keys, user.defaultScan.lastImageS3Key);
+      pushKey(s3Keys, user.defaultScan.lastImageUrl);
+      pushKey(s3Keys, user.defaultScan.splatS3Key);
+      pushKey(s3Keys, user.defaultScan.lastSplatUrl);
+    }
+
     await ctx.db.delete(user._id);
 
     return {
@@ -336,6 +344,33 @@ export const updateSettings = mutation({
   },
 });
 
+// Records the user's latest completed scan as the reusable "default scan".
+// Called after a real scan+3D build finishes. Projects copy these keys at
+// creation (snapshot), so overwriting this never touches existing projects.
+export const setDefaultScan = mutation({
+  args: {
+    lastImageS3Key: v.optional(v.string()),
+    lastImageUrl: v.optional(v.string()),
+    thumbnailS3Key: v.optional(v.string()),
+    splatS3Key: v.optional(v.string()),
+    lastSplatUrl: v.optional(v.string()),
+    lastProfile: v.optional(lastProfileValidator),
+    lastHairParams: v.optional(hairParamsValidator),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (!user) throw new Error("User not found");
+    await ctx.db.patch(user._id, {
+      defaultScan: { ...args, updatedAt: Date.now() },
+    });
+  },
+});
+
 export const revokeBiometricConsent = mutation({
   args: {},
   handler: async (ctx) => {
@@ -361,7 +396,18 @@ export const revokeBiometricConsent = mutation({
       await ctx.db.delete(session._id);
     }
 
-    await ctx.db.patch(user._id, { biometricConsentAt: undefined, biometricConsentVersion: undefined });
+    // The reusable default scan caches the raw scan image key — drop it (and queue
+    // it for S3 deletion) so revocation doesn't leave a biometric pointer behind.
+    if (user.defaultScan) {
+      pushKey(s3Keys, user.defaultScan.lastImageS3Key);
+      pushKey(s3Keys, user.defaultScan.lastImageUrl);
+    }
+
+    await ctx.db.patch(user._id, {
+      biometricConsentAt: undefined,
+      biometricConsentVersion: undefined,
+      defaultScan: undefined,
+    });
 
     return { s3Keys: [...s3Keys] };
   },

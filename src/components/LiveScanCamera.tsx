@@ -135,6 +135,8 @@ export default function LiveScanCamera({
   const [flash, setFlash]     = useState(false);
   const [shot, setShot]       = useState<string | null>(null); // dataUrl after capture
   const [uploading, setUploading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false); // "checks not met" guard
+  const [confirmFails, setConfirmFails] = useState<CheckKey[]>([]); // frozen at popup-open
 
   /* frame-loop scratch (refs to avoid re-render churn) */
   const passStreak = useRef<Record<CheckKey, number>>({ face: 0, distance: 0, facing: 0, light: 0, still: 0 });
@@ -144,6 +146,7 @@ export default function LiveScanCamera({
   const lastPublished = useRef<ChecksMap>(FRESH_CHECKS());
   const lastReady = useRef(false);
   const capturedRef = useRef(false);
+  const pendingShotRef = useRef<string | null>(null); // frozen frame awaiting confirm
   const lastDetect = useRef(0);
 
   const checksUpRef = useRef(onChecksChange);
@@ -338,28 +341,36 @@ export default function LiveScanCamera({
   }, [engine, camError, shot]);
 
   /* ── Shutter ────────────────────────────────────────────────── */
-  const fireShutter = () => {
-    if (capturedRef.current) return;
+  /* Grab the current video frame as a square, mirrored dataUrl — a pure
+     snapshot with no side effects, so the moment the user presses the
+     button is the moment that gets frozen and (later) processed. */
+  const captureFrame = (): string | null => {
     const v = videoRef.current;
-    if (!v || v.readyState < 2) return;
-    capturedRef.current = true;
-
-    setFlash(true);
-    setTimeout(() => setFlash(false), 160);
-
+    if (!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight) return null;
     if (!shotCanvas.current) shotCanvas.current = document.createElement('canvas');
     const c = shotCanvas.current;
     const side = Math.min(v.videoWidth, v.videoHeight);
     c.width = side; c.height = side;
     const ctx = c.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
     /* center-crop square, mirrored to match the preview the user saw */
     ctx.save();
     ctx.translate(side, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, side, side);
     ctx.restore();
-    const dataUrl = c.toDataURL('image/jpeg', 0.92);
+    return c.toDataURL('image/jpeg', 0.92);
+  };
+
+  /* Commit an already-captured frame: flash, develop, and run the upload
+     pipeline. Takes the dataUrl so the frozen frame is what gets processed. */
+  const commitShot = (dataUrl: string) => {
+    if (capturedRef.current) return;
+    capturedRef.current = true;
+
+    setFlash(true);
+    setTimeout(() => setFlash(false), 160);
+
     onDataUrlReady?.(dataUrl);
     setShot(dataUrl);
 
@@ -380,9 +391,40 @@ export default function LiveScanCamera({
     }, 950); // let the develop animation breathe first
   };
 
-  const handleManualShutter = () => {
+  const fireShutter = () => {
     if (capturedRef.current) return;
+    const dataUrl = captureFrame();
+    if (!dataUrl) return;
+    commitShot(dataUrl);
+  };
+
+  const handleManualShutter = () => {
+    if (capturedRef.current || confirmOpen) return;
+    /* When detection is live but the checklist isn't fully met, the shutter
+       isn't "armed" (red). Freeze the frame and the unmet checks right now,
+       then ask the user to confirm before processing that exact selfie. */
+    if (detecting && !allPass) {
+      const dataUrl = captureFrame();
+      if (!dataUrl) return;
+      pendingShotRef.current = dataUrl;
+      setConfirmFails(CHECK_ORDER.filter(k => checks[k] !== 'pass'));
+      setConfirmOpen(true);
+      return;
+    }
     fireShutter();
+  };
+
+  const confirmCapture = () => {
+    setConfirmOpen(false);
+    const frozen = pendingShotRef.current;
+    pendingShotRef.current = null;
+    if (frozen) commitShot(frozen);
+    else fireShutter();
+  };
+
+  const cancelConfirm = () => {
+    setConfirmOpen(false);
+    pendingShotRef.current = null;
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -506,6 +548,30 @@ export default function LiveScanCamera({
             onClick={() => fileInputRef.current?.click()}
             disabled={engine === 'booting'}
           />
+        </div>
+      )}
+
+      {/* ── checks-not-met confirmation ── */}
+      {confirmOpen && (
+        <div className="lsc-confirm-veil" role="dialog" aria-modal="true" onClick={() => setConfirmOpen(false)}>
+          <div className="lsc-confirm-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display lsc-confirm-title">Take it anyway?</h3>
+            <p className="lsc-confirm-body">
+              A few of the recommendations aren&rsquo;t met yet
+              {CHECK_ORDER.some(k => checks[k] === 'fail') && (
+                <> — <strong>{CHECK_ORDER.filter(k => checks[k] === 'fail').map(k => CHECK_META[k].label.toLowerCase()).join(', ')}</strong></>
+              )}
+              . Capturing now can lower the quality of your scan.
+            </p>
+            <div className="lsc-confirm-actions">
+              <button type="button" className="lsc-confirm-cancel" onClick={() => setConfirmOpen(false)}>
+                Keep adjusting
+              </button>
+              <button type="button" className="lsc-confirm-go font-display" onClick={confirmCapture}>
+                Take it anyway
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
