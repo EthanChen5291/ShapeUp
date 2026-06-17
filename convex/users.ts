@@ -346,7 +346,24 @@ export const revokeBiometricConsent = mutation({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
     if (!user) throw new Error("User not found");
+
+    // Revoking consent must delete the raw facial scans (the biometric identifier).
+    // Generated 3D models are kept. The S3 objects themselves are deleted by the
+    // calling API route using the keys returned below (Convex can't reach S3 directly).
+    const s3Keys = new Set<string>();
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_user_id", (q) => q.eq("userId", identity.tokenIdentifier))
+      .take(200);
+    for (const session of sessions) {
+      pushKey(s3Keys, session.scanS3Key);
+      pushKey(s3Keys, session.imageUrl);
+      await ctx.db.delete(session._id);
+    }
+
     await ctx.db.patch(user._id, { biometricConsentAt: undefined, biometricConsentVersion: undefined });
+
+    return { s3Keys: [...s3Keys] };
   },
 });
 

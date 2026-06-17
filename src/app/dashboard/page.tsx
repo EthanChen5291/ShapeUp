@@ -425,7 +425,6 @@ function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCo
 function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const userQuery = useQuery(api.users.getMe);
   const setUsernameMutation = useMutation(api.users.setUsername);
-  const revokeBiometricConsentMutation = useMutation(api.users.revokeBiometricConsent);
   const deleteAccountMutation = useMutation(api.users.deleteCurrentUserData);
   const { theme, renderQuality, language, aiTrainingOptOut, updateTheme, updateRenderQuality, updateLanguage, updateAiTrainingOptOut } = useSettings();
 
@@ -453,7 +452,10 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const handleRevokeConsent = async () => {
     setRevokingConsent(true);
     try {
-      await revokeBiometricConsentMutation();
+      // Route through the API so the raw scan S3 objects are actually deleted,
+      // not just the consent flags cleared.
+      const res = await fetch('/api/biometric/revoke', { method: 'POST' });
+      if (!res.ok) throw new Error('revoke failed');
       setConsentRevoked(true);
     } catch { /* non-fatal */ }
     finally { setRevokingConsent(false); }
@@ -609,14 +611,14 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
                 )}
               </div>
               <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
-                {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — facial scan data stored for 3D model generation.
+                {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It's stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
               </p>
               {(consentDate && !consentRevoked) && (
                 <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11px] self-start mt-1" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 8, padding: '4px 12px', opacity: revokingConsent ? 0.5 : 1 }}>
                   {revokingConsent ? '…' : 'Revoke consent'}
                 </BouncyButton>
               )}
-              {consentRevoked && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>✓ Consent revoked. Your scan data will be cleared.</span>}
+              {consentRevoked && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>✓ Consent revoked. Your facial scans have been deleted.</span>}
             </div>
 
             {/* Download data */}

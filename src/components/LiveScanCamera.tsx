@@ -21,7 +21,7 @@
        pipeline goes (the part that returns profile/sessionId/url).
    ════════════════════════════════════════════════════════════════ */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UserHeadProfile } from '@/types';
 
 /* ── Check model ─────────────────────────────────────────────── */
@@ -77,99 +77,38 @@ export interface LiveScanCameraProps {
 /* ── Upload an Image hover button ───────────────────────────── */
 function UploadImageButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   const [hovered, setHovered] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [dims, setDims] = useState({ w: 0, h: 0 });
-
-  useLayoutEffect(() => {
-    if (!btnRef.current) return;
-    const update = () => {
-      if (!btnRef.current) return;
-      const r = btnRef.current.getBoundingClientRect();
-      setDims({ w: r.width, h: r.height });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(btnRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  const BR = 8;
-  const TRACE_INSET = 2;
-  const STROKE_W = 1.5;
-  const rx = Math.max(2, BR - TRACE_INSET);
-  const rw = Math.max(0, dims.w - TRACE_INSET * 2);
-  const rh = Math.max(0, dims.h - TRACE_INSET * 2);
-  const perimeter = dims.w > 0
-    ? 2 * ((rw - 2 * rx) + (rh - 2 * rx)) + 2 * Math.PI * rx
-    : 0;
-
   const isHov = hovered && !disabled;
 
   return (
     <button
-      ref={btnRef}
       type="button"
       onClick={onClick}
       disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className="font-display"
       style={{
-        position: 'relative',
-        overflow: 'hidden',
-        background: 'none',
         border: 'none',
-        borderRadius: BR,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        padding: '7px 12px',
-        fontFamily: 'var(--font-fraunces), Georgia, serif',
-        fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
-        fontWeight: 700,
+        alignSelf: 'center',
+        width: 'fit-content',
+        padding: '9px 19px',
+        borderRadius: 17,
+        background: 'var(--butter, #ffe7b0)',
+        color: 'var(--char, #1a1410)',
         fontSize: 15,
-        letterSpacing: '-0.01em',
-        color: isHov ? 'var(--char)' : 'rgba(255,248,234,0.85)',
+        fontWeight: 600,
+        letterSpacing: '0.01em',
+        lineHeight: 1.3,
+        boxShadow: '0 6px 18px -8px rgba(0, 0, 0, 0.45)',
         opacity: disabled ? 0.38 : 1,
-        transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1), color 200ms ease',
+        transformOrigin: 'center',
         transform: isHov ? 'scale(1.06)' : 'scale(1)',
+        transition: 'transform 360ms cubic-bezier(0.16,1,0.3,1)',
         marginTop: 4,
       }}
     >
-      {/* Amber fill — grows from center on hover */}
-      <span aria-hidden style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(255,232,170,0.93)',
-        clipPath: isHov ? `inset(0% round ${BR}px)` : `inset(50% round ${rx}px)`,
-        transition: 'clip-path 560ms cubic-bezier(0.16,1,0.3,1)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-
-      {/* White SVG trace — draws around border on hover */}
-      {perimeter > 0 && (
-        <svg
-          aria-hidden
-          viewBox={`0 0 ${dims.w} ${dims.h}`}
-          style={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            pointerEvents: 'none', zIndex: 1,
-            filter: isHov ? 'drop-shadow(0 0 4px rgba(255,255,255,0.5))' : undefined,
-            transition: 'filter 200ms ease',
-          }}
-        >
-          <rect
-            x={TRACE_INSET} y={TRACE_INSET}
-            width={rw} height={rh}
-            rx={rx} ry={rx}
-            fill="none"
-            stroke="rgba(255,255,255,0.88)"
-            strokeWidth={STROKE_W}
-            strokeDasharray={perimeter}
-            strokeDashoffset={isHov ? 0 : perimeter}
-            style={{ transition: `stroke-dashoffset ${isHov ? '680ms' : '140ms'} cubic-bezier(0.16,1,0.3,1)` }}
-          />
-        </svg>
-      )}
-
-      <span style={{ position: 'relative', zIndex: 2 }}>Upload an Image</span>
+      Upload an Image
     </button>
   );
 }
@@ -490,16 +429,6 @@ export default function LiveScanCamera({
   const ringTone = allPass ? 'ready' : anyFail ? 'coach' : 'idle';
   const ringColor = ringTone === 'ready' ? 'var(--butter)' : ringTone === 'coach' ? 'var(--tomato)' : 'rgba(255,248,234,0.45)';
 
-  /* first failing check decides the coaching line */
-  const firstIssue = CHECK_ORDER.find(k => checks[k] !== 'pass');
-  const coachLine = !detecting
-    ? (engine === 'booting' ? 'warming up the chair…' : 'line yourself up, then tap the shutter')
-    : allPass
-    ? 'looking sharp — tap the shutter'
-    : firstIssue
-    ? CHECK_META[firstIssue].coach
-    : 'line yourself up…';
-
   /* ════════════════════ RENDER ════════════════════ */
   return (
     <div className="lsc-root">
@@ -554,8 +483,7 @@ export default function LiveScanCamera({
         )}
       </div>
 
-      {/* ── caption + shutter ── */}
-      <p className="lsc-caption font-display" key={coachLine}>{coachLine}</p>
+      {/* ── shutter ── */}
       <div className="lsc-shutter-row">
         <button
           type="button"
@@ -578,9 +506,6 @@ export default function LiveScanCamera({
             onClick={() => fileInputRef.current?.click()}
             disabled={engine === 'booting'}
           />
-          <div className="lsc-upload-hint font-display" role="status">
-            Upload your own selfie if you’d like!
-          </div>
         </div>
       )}
     </div>
