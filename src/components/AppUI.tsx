@@ -185,7 +185,7 @@ export function AddTokensButton({
         background: hovered ? 'var(--butter)' : 'rgba(255,248,234,0.12)',
         border: `1px solid ${hovered ? 'var(--butter)' : 'rgba(255,248,234,0.28)'}`,
         boxShadow: hovered ? '0 0 14px rgba(248,200,24,0.5)' : 'none',
-        transform: hovered ? 'scale(1.3)' : 'scale(1)',
+        transform: hovered ? 'scale(1.15)' : 'scale(1)',
         // Pin the origin and composite on its own layer so the scale doesn't
         // re-snap the centered "+" to the pixel grid (which reads as a slide).
         transformOrigin: 'center center',

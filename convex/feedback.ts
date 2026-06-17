@@ -2,6 +2,7 @@ import { mutation, query, internalAction } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { requireConvexAdmin } from "./lib/adminAuth";
 
 // How long we wait before re-asking the same user, after a submission or a
 // dismissal. The client also suppresses a re-prompt within the same session.
@@ -18,13 +19,12 @@ async function currentUser(ctx: QueryCtx | MutationCtx) {
     .unique();
 }
 
-// Admin: most recent feedback, newest first. Requires an authenticated
-// identity; the calling /api/admin-feedback route restricts that to admins.
+// Admin: most recent feedback, newest first. Enforces admin directly (in
+// addition to the /api/admin-feedback route's own check).
 export const listRecent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthenticated");
+    await requireConvexAdmin(ctx);
     const limit = Math.min(args.limit ?? 100, 500);
     return await ctx.db.query("feedback").order("desc").take(limit);
   },

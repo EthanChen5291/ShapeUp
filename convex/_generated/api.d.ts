@@ -12,6 +12,7 @@ import type * as facelifts from "../facelifts.js";
 import type * as feedback from "../feedback.js";
 import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
+import type * as lib_adminAuth from "../lib/adminAuth.js";
 import type * as lib_contentFilter from "../lib/contentFilter.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_referrals from "../lib/referrals.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   feedback: typeof feedback;
   gpuUsage: typeof gpuUsage;
   http: typeof http;
+  "lib/adminAuth": typeof lib_adminAuth;
   "lib/contentFilter": typeof lib_contentFilter;
   "lib/rateLimit": typeof lib_rateLimit;
   "lib/referrals": typeof lib_referrals;

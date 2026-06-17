@@ -184,12 +184,11 @@ export default function BarberVideoCard({
               aria-label="Record a fresh 360° video of the latest cut"
               className="font-mono text-[10px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors inline-flex items-center gap-1"
             >
-              {/* refresh icon, sized 40% larger than the 10px label text */}
+              {/* refresh icon — refilm */}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21 12a9 9 0 1 1-2.64-6.36" />
                 <path d="M21 4v5h-5" />
               </svg>
-              re-film
             </button>
             <button
               type="button"

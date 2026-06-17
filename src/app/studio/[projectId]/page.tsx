@@ -418,6 +418,17 @@ export default function StudioPage() {
     if (effectiveSplatUrl) setSplatReady(true);
   }, [effectiveSplatUrl]);
 
+  // Inference disclaimer badge: show once, the first time this project's model
+  // is generated. Persisted per-project so it never reappears on refresh.
+  const [showInferenceNote, setShowInferenceNote] = useState(false);
+  useEffect(() => {
+    if (!effectiveSplatUrl || !projectId) return;
+    const key = `inferenceNoteSeen_${projectId}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    setShowInferenceNote(true);
+  }, [effectiveSplatUrl, projectId]);
+
   // Generate thumbnail from front-facing splat render when splat first loads
   const splatThumbnailTriggered = useRef(false);
   useEffect(() => {
@@ -755,9 +766,9 @@ export default function StudioPage() {
             }
           />
 
-          {!menuHidden && (
+          {!menuHidden && showInferenceNote && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-              <InferenceNote variant="model" tone="badge" />
+              <InferenceNote variant="model" tone="badge" fadeAfterMs={8400} />
             </div>
           )}
 
