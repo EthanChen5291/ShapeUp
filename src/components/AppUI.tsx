@@ -116,12 +116,16 @@ export function BouncyButton({
   style,
   disabled,
   children,
+  onMouseEnter,
+  onMouseLeave,
 }: {
   onClick?: () => void;
   className?: string;
   style?: React.CSSProperties;
   disabled?: boolean;
   children: React.ReactNode;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }) {
   const [bouncing, setBouncing] = useState(false);
   const handleClick = () => {
@@ -134,6 +138,8 @@ export function BouncyButton({
     <button
       onClick={handleClick}
       disabled={disabled}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className={`${className} ${bouncing ? 'btn-bouncing' : ''} transition-transform hover:scale-[1.04] active:scale-95`}
       style={style}
     >

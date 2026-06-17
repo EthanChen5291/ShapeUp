@@ -473,7 +473,7 @@ export default function LiveScanCamera({
 
         {/* engine pip */}
         <div className="lsc-pip font-mono">
-          {engine === 'booting' ? 'loading lens…' : detecting ? '● live face tracking' : '○ manual mode'}
+          {engine === 'booting' ? 'loading lens…' : detecting ? '● live' : '○ manual mode'}
         </div>
 
         {camError && (

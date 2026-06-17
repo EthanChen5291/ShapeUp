@@ -13,6 +13,7 @@ import { api } from '@convex/_generated/api';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberVideoCard from '@/components/BarberVideoCard';
 import { PricingPopup } from '@/components/PricingPopup';
+import InferenceNote from '@/components/InferenceNote';
 
 
 interface EditPanelProps {
@@ -590,6 +591,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             </div>
           )}
         </div>
+        <InferenceNote variant="edit" className="px-0.5" />
         <div className={`pipeline-collapse ${isBusy ? 'pipeline-collapse-open' : ''}`} aria-hidden={!isBusy}>
           <div className="pipeline-collapse-inner">
           <div

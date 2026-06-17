@@ -71,7 +71,12 @@ export default function AdminS3Page() {
     <>
       {viewingPly && <PlyViewerModal src={viewingPly} onClose={() => setViewingPly(null)} />}
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-mono p-6">
-      <h1 className="text-2xl font-bold mb-1 tracking-tight">S3 Admin</h1>
+      <div className="flex items-center gap-4 mb-1">
+        <h1 className="text-2xl font-bold tracking-tight">S3 Admin</h1>
+        <a href="/admin/feedback" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
+          Feedback →
+        </a>
+      </div>
       <p className="text-neutral-500 text-sm mb-6">
         {loading ? 'Loading…' : `${results.length} of ${total} shown`}
       </p>

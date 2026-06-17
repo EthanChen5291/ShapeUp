@@ -438,6 +438,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deleteHover, setDeleteHover] = useState(false);
 
   const handleSaveUsername = async () => {
     if (usernameValue.trim().length < 2) return;
@@ -639,7 +640,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
                   <span className="font-sans text-[13px] font-semibold" style={{ color: 'var(--cherry)' }}>Delete account</span>
                   <span className="font-sans text-[11px] text-[var(--char)]">Permanently removes your data. This cannot be undone.</span>
                 </div>
-                <BouncyButton onClick={handleDeleteAccount} disabled={deleting} className="font-sans text-[12px] flex-shrink-0" style={{ background: deleteConfirm ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: deleteConfirm ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '7px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms, color 200ms' }}>
+                <BouncyButton onClick={handleDeleteAccount} disabled={deleting} onMouseEnter={() => setDeleteHover(true)} onMouseLeave={() => setDeleteHover(false)} className="font-sans text-[12px] flex-shrink-0" style={{ background: (deleteConfirm || deleteHover) ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: (deleteConfirm || deleteHover) ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '7px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms ease, color 200ms ease' }}>
                   {deleting ? '…' : deleteConfirm ? 'Confirm delete' : 'Delete'}
                 </BouncyButton>
               </div>
@@ -1085,7 +1086,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
               <h2 id="scan-popup-title" className="type-chonk text-[var(--cream)] select-none" style={{ fontSize: 'clamp(1.8rem, 3.5vw, 3rem)', lineHeight: 1 }}>
                 {phase === 'username' ? "Let's meet you" : 'Take a selfie!'}
               </h2>
-              <button type="button" aria-label="Close scan dialog" onClick={dismiss} className="absolute right-7 w-9 h-9 flex items-center justify-center rounded-full transition-all" style={{ color: 'rgba(255,248,234,0.5)', background: 'rgba(255,248,234,0.07)' }}>✕</button>
+              <button type="button" aria-label="Close scan dialog" onClick={dismiss} className="absolute right-7 w-9 h-9 flex items-center justify-center transition-all" style={{ color: 'rgba(255,248,234,0.5)', fontSize: '2em' }}>✕</button>
             </div>
 
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px', position: 'relative', minHeight: 0, opacity: contentVisible ? 1 : 0, transition: 'opacity 280ms ease' }}>

@@ -20,6 +20,10 @@ export default defineSchema({
     referredBy: v.optional(v.string()),
     // Highest-ranked plan ever purchased; drives the displayed plan tier.
     topPlan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("pro"))),
+    // Feedback-prompt throttling. Prompted = last time the star toast was shown
+    // (incl. dismissals); Submitted = last time a rating was actually sent.
+    lastFeedbackPromptAt: v.optional(v.number()),
+    lastFeedbackSubmittedAt: v.optional(v.number()),
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])
@@ -128,5 +132,21 @@ export default defineSchema({
   })
     .index("by_token", ["tokenIdentifier"])
     .index("by_token_and_updated", ["tokenIdentifier", "updatedAt"]),
+
+  // In-product satisfaction ratings (1–5 stars + optional note), solicited at
+  // success moments in the studio. ≤2★ fans out to Discord — see feedback.ts.
+  feedback: defineTable({
+    tokenIdentifier: v.string(),
+    rating: v.number(), // 1–5
+    comment: v.optional(v.string()),
+    route: v.optional(v.string()), // surface that triggered the prompt
+    projectId: v.optional(v.string()),
+    editCount: v.optional(v.number()), // completed edits this session
+    email: v.optional(v.string()),
+    username: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_token", ["tokenIdentifier"])
+    .index("by_rating", ["rating"]),
 
 });

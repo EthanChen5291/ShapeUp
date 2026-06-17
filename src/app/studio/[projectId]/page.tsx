@@ -12,6 +12,9 @@ import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
+import FeedbackToast from '@/components/FeedbackToast';
+import InferenceNote from '@/components/InferenceNote';
+import { useFeedbackPrompt } from '@/hooks/useFeedbackPrompt';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { BarberMascot, LogoHomeLink, BouncyButton, ClockCounter, AddTokensButton } from '@/components/AppUI';
@@ -44,6 +47,11 @@ function FaceliftLoader({ demoStatus }: { demoStatus: string }) {
         <span className="font-mono text-[10px] text-[var(--butter)] opacity-85">Error — check console</span>
       ) : (
         <span className="font-serif italic text-xs text-[var(--cream)]" style={{ opacity: 0.5 }}>Building your 3D model…</span>
+      )}
+      {!frozen && (
+        <span className="font-sans text-[10px] text-center text-[var(--cream)]" style={{ opacity: 0.4, maxWidth: 240, lineHeight: 1.4 }}>
+          We infer shape, hairline &amp; proportions from your photos — a great likeness, not a measurement.
+        </span>
       )}
     </div>
   );
@@ -204,6 +212,7 @@ export default function StudioPage() {
   const project = useQuery(api.projects.get, { projectId });
   const userQuery = useQuery(api.users.getMe);
   const isAllowlisted = useQuery(api.users.isAllowlisted) ?? false;
+  const feedbackPrompt = useFeedbackPrompt();
   const [paywallDisabled, setPaywallDisabled] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
@@ -279,7 +288,8 @@ export default function StudioPage() {
     setVideoUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
     setVideoExt(ext === 'webm' ? 'webm' : 'mp4');
     setVideoState('ready');
-  }, []);
+    feedbackPrompt.registerMilestone(); // exporting a barber clip is a high-intent success moment
+  }, [feedbackPrompt]);
 
   const handleVideoError = useCallback((err: unknown) => {
     console.error('[studio] barber video capture failed:', err);
@@ -745,6 +755,12 @@ export default function StudioPage() {
             }
           />
 
+          {!menuHidden && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
+              <InferenceNote variant="model" tone="badge" />
+            </div>
+          )}
+
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
             <div className="flex items-center gap-2">
@@ -827,6 +843,7 @@ export default function StudioPage() {
               sessionId={sessionId}
               latestImageUrl={imageUrl}
               onImageUpdated={(url) => {
+                feedbackPrompt.registerEdit(); // success moment — Nth edit may surface the rating toast
                 setDisplayImageUrl(url);
                 setPreviewExpanded(false);
                 setPolaroidImgError(false);
@@ -914,6 +931,14 @@ export default function StudioPage() {
           onDismiss={() => setShowPricing(false)}
         />
       )}
+
+      <FeedbackToast
+        open={feedbackPrompt.open}
+        onClose={feedbackPrompt.close}
+        route="studio"
+        projectId={projectId}
+        editCount={feedbackPrompt.editCount}
+      />
     </main>
   );
 }

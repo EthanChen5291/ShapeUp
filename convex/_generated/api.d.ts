@@ -9,6 +9,7 @@
  */
 
 import type * as facelifts from "../facelifts.js";
+import type * as feedback from "../feedback.js";
 import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
 import type * as lib_contentFilter from "../lib/contentFilter.js";
@@ -31,6 +32,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   facelifts: typeof facelifts;
+  feedback: typeof feedback;
   gpuUsage: typeof gpuUsage;
   http: typeof http;
   "lib/contentFilter": typeof lib_contentFilter;
