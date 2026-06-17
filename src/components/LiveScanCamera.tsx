@@ -513,22 +513,6 @@ export default function LiveScanCamera({
         onChange={handleUpload}
       />
 
-      {/* ── tilt reminder ── */}
-      <div className="lsc-tilt-note">
-        <svg
-          className="lsc-tilt-diamond"
-          viewBox="0 0 12 12"
-          width="12"
-          height="12"
-          aria-hidden
-        >
-          <path d="M6 0.5 L11.5 6 L6 11.5 L0.5 6 Z" />
-        </svg>
-        <span className="font-mono">
-          Keep your head straight and level — don’t tilt it to either side.
-        </span>
-      </div>
-
       {/* ── viewfinder ── */}
       <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
         <video ref={videoRef} playsInline muted className="lsc-video" />
@@ -592,13 +576,13 @@ export default function LiveScanCamera({
 
       {!shot && !uploading && (
         <div className="lsc-upload-cluster">
-          <div className="lsc-upload-hint font-mono" role="status">
-            Upload your own selfie if you’d like!
-          </div>
           <UploadImageButton
             onClick={() => fileInputRef.current?.click()}
             disabled={engine === 'booting'}
           />
+          <div className="lsc-upload-hint font-mono" role="status">
+            Upload your own selfie if you’d like!
+          </div>
         </div>
       )}
     </div>

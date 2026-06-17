@@ -15,14 +15,14 @@ export const list = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .order("desc")
       .take(50);
-    return Promise.all(rows.map(async ({ _id, _creationTime, name, thumbnailS3Key, thumbnailStorageId, createdAt, updatedAt, savedAt, splatS3Key }) => {
+    return Promise.all(rows.map(async ({ _id, _creationTime, name, thumbnailS3Key, thumbnailStorageId, createdAt, updatedAt, savedAt, lastAccessedAt, splatS3Key }) => {
       // Resolve thumbnail: S3 key is served fresh via /api/img on the client;
       // Convex storageId is resolved here at query time so the URL is always valid.
       // Old thumbnailUrl (stored time-limited URL) is intentionally omitted.
       const thumbnailUrl = !thumbnailS3Key && thumbnailStorageId
         ? (await ctx.storage.getUrl(thumbnailStorageId)) ?? undefined
         : undefined;
-      return { _id, _creationTime, name, thumbnailUrl, thumbnailS3Key, createdAt, updatedAt, savedAt, splatS3Key };
+      return { _id, _creationTime, name, thumbnailUrl, thumbnailS3Key, createdAt, updatedAt, savedAt, lastAccessedAt, splatS3Key };
     }));
   },
 });
@@ -114,6 +114,21 @@ export const toggleSave = mutation({
     await ctx.db.patch(args.projectId, {
       savedAt: project.savedAt ? undefined : Date.now(),
     });
+  },
+});
+
+// Records that a project was opened, so the dashboard's "recent" tab can sort
+// by most-recently-accessed. Persisted server-side, so the order survives refresh.
+export const markAccessed = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.tokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Not found");
+    }
+    await ctx.db.patch(args.projectId, { lastAccessedAt: Date.now() });
   },
 });
 

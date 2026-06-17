@@ -123,6 +123,7 @@ export default defineSchema({
     lastSplatUrl: v.optional(v.string()),
     splatS3Key: v.optional(v.string()),
     savedAt: v.optional(v.number()),
+    lastAccessedAt: v.optional(v.number()),
     bgBrightness: v.optional(v.number()),
   })
     .index("by_token", ["tokenIdentifier"])

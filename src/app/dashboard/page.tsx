@@ -1162,6 +1162,7 @@ interface ProjectDoc {
   thumbnailS3Key?: string;
   updatedAt: number;
   savedAt?: number;
+  lastAccessedAt?: number;
   splatS3Key?: string;
 }
 
@@ -1553,11 +1554,17 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     return () => cancelAnimationFrame(rafRef.current);
   }, [floorIndex, vpH]);
 
+  // Most-recently-accessed first; falls back to last edit / creation so projects
+  // never opened still order sensibly. lastAccessedAt is persisted server-side,
+  // so this ordering is remembered across refreshes.
+  const byRecency = (a: ProjectDoc, b: ProjectDoc) =>
+    (b.lastAccessedAt ?? b.updatedAt) - (a.lastAccessedAt ?? a.updatedAt);
+
   const homeProjects = (() => {
     if (!projects) return undefined;
     let list = [...projects];
     if (searchQuery) { const q = searchQuery.toLowerCase(); list = list.filter(p => p.name.toLowerCase().includes(q)); }
-    if (activeTab === 'recent') list = list.slice(0, 6);
+    if (activeTab === 'recent') list = list.sort(byRecency).slice(0, 6);
     return list;
   })();
 
@@ -1565,7 +1572,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     if (!projects) return undefined;
     let list = projects.filter(p => !!p.savedAt);
     if (searchQuery) { const q = searchQuery.toLowerCase(); list = list.filter(p => p.name.toLowerCase().includes(q)); }
-    if (activeTab === 'recent') list = list.slice(0, 6);
+    if (activeTab === 'recent') list = list.sort(byRecency).slice(0, 6);
     return list;
   })();
 
@@ -1776,6 +1783,7 @@ export default function DashboardPage() {
   const getOrCreate = useMutation(api.users.getOrCreate);
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
+  const markAccessed = useMutation(api.projects.markAccessed);
   const meUser = useQuery(api.users.getMe);
   const allProjects = useQuery(api.projects.list);
 
@@ -1904,6 +1912,8 @@ export default function DashboardPage() {
     setShowScanPopup(true);
   };
   const handleOpenProject = (project: ProjectDoc) => {
+    // Fire-and-forget: record the access for "recent" ordering without blocking nav.
+    markAccessed({ projectId: project._id }).catch(() => {});
     startLoading();
     router.push(`/studio/${project._id}`);
   };
