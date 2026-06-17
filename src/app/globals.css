@@ -2282,14 +2282,15 @@ html.dark .explore-marquee-track {
   animation: lsc-upload-hint-in 460ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
   animation-delay: 1500ms;   /* fade in after ~1.5s */
 }
-/* diagonal tail poking out toward the top-left corner */
+/* tail poking up out of the bubble's flat top edge (clear of the rounded corners) */
 .lsc-upload-hint::before {
   content: '';
   position: absolute;
-  top: -7px; left: -2px;
-  width: 17px; height: 17px;
+  top: -5px; left: 24px;
+  width: 14px; height: 14px;
   background: inherit;
-  border-bottom-right-radius: 17px;   /* curves into the bubble; sharp tip points up-left */
+  border-top-left-radius: 4px;
+  transform: rotate(45deg);   /* diamond; bottom half tucks behind the bubble so it reads as one shape */
   z-index: -1;
 }
 @keyframes lsc-upload-hint-in {

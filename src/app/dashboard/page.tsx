@@ -809,7 +809,6 @@ function LiveChecklist({ checks }: { checks: ChecksMap | null }) {
           </div>
         );
       })}
-      <p className="font-display lchk-footnote">the oval turns <span style={{ color: 'var(--butter)' }}>butter</span> when you&rsquo;re ready ✂</p>
     </div>
   );
 }

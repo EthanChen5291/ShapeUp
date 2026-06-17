@@ -3,8 +3,8 @@
 /* ════════════════════════════════════════════════════════════════
    LiveScanCamera — the looking glass, now actually looking back.
 
-   Real-time face tracking drives six live requirement checks:
-     one face · centered · distance · facing forward · light · still
+   Real-time face tracking drives five live requirement checks:
+     one face · distance · facing forward · light · still
    The oval guide reacts (ink → tomato while coaching → butter when
    ready). The user fires the shutter themselves:
      flash → polaroid develop → verify.
@@ -25,23 +25,22 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { UserHeadProfile } from '@/types';
 
 /* ── Check model ─────────────────────────────────────────────── */
-export type CheckKey = 'face' | 'center' | 'distance' | 'facing' | 'light' | 'still';
+export type CheckKey = 'face' | 'distance' | 'facing' | 'light' | 'still';
 export type CheckState = 'idle' | 'fail' | 'pass';
 export type ChecksMap = Record<CheckKey, CheckState>;
 
 export const CHECK_META: Record<CheckKey, { label: string; coach: string }> = {
   face:     { label: 'One face in frame',      coach: 'step into the frame…' },
-  center:   { label: 'Centered in the oval',   coach: 'find the middle of the oval' },
   distance: { label: 'Arm\u2019s length away', coach: 'a touch closer…' },
   facing:   { label: 'Facing forward',         coach: 'look straight at yourself' },
   light:    { label: 'Good, even light',       coach: 'find some light' },
   still:    { label: 'Holding still',          coach: 'hold it right there…' },
 };
 
-export const CHECK_ORDER: CheckKey[] = ['face', 'center', 'distance', 'facing', 'light', 'still'];
+export const CHECK_ORDER: CheckKey[] = ['face', 'distance', 'facing', 'light', 'still'];
 
 const FRESH_CHECKS = (): ChecksMap => ({
-  face: 'idle', center: 'idle', distance: 'idle', facing: 'idle', light: 'idle', still: 'idle',
+  face: 'idle', distance: 'idle', facing: 'idle', light: 'idle', still: 'idle',
 });
 
 /* Hysteresis: a check must agree for N consecutive frames to flip. */
@@ -199,8 +198,8 @@ export default function LiveScanCamera({
   const [uploading, setUploading] = useState(false);
 
   /* frame-loop scratch (refs to avoid re-render churn) */
-  const passStreak = useRef<Record<CheckKey, number>>({ face: 0, center: 0, distance: 0, facing: 0, light: 0, still: 0 });
-  const failStreak = useRef<Record<CheckKey, number>>({ face: 0, center: 0, distance: 0, facing: 0, light: 0, still: 0 });
+  const passStreak = useRef<Record<CheckKey, number>>({ face: 0, distance: 0, facing: 0, light: 0, still: 0 });
+  const failStreak = useRef<Record<CheckKey, number>>({ face: 0, distance: 0, facing: 0, light: 0, still: 0 });
   const liveChecks = useRef<ChecksMap>(FRESH_CHECKS());
   const lastCenters = useRef<Array<{ t: number; x: number; y: number }>>([]);
   const lastPublished = useRef<ChecksMap>(FRESH_CHECKS());
@@ -363,7 +362,6 @@ export default function LiveScanCamera({
         if (!manual && obs) {
           judge('face', obs.count === 1);
           if (obs.count === 1) {
-            judge('center', Math.abs(obs.cx - 0.5) < 0.13 && Math.abs(obs.cy - 0.46) < 0.15);
             judge('distance', obs.h > 0.30 && obs.h < 0.68);
             judge('facing', obs.yawRatio === null ? true : obs.yawRatio > 0.62 && obs.yawRatio < 1.62);
             /* stillness over a 600ms window */
@@ -374,7 +372,7 @@ export default function LiveScanCamera({
             for (let i = 1; i < pts.length; i++) drift += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
             judge('still', pts.length > 3 && drift < 0.055);
           } else {
-            (['center', 'distance', 'facing', 'still'] as CheckKey[]).forEach(k => judge(k, false));
+            (['distance', 'facing', 'still'] as CheckKey[]).forEach(k => judge(k, false));
           }
         }
         if (luma !== null) judge('light', luma > 58 && luma < 215);
@@ -580,7 +578,7 @@ export default function LiveScanCamera({
             onClick={() => fileInputRef.current?.click()}
             disabled={engine === 'booting'}
           />
-          <div className="lsc-upload-hint font-mono" role="status">
+          <div className="lsc-upload-hint font-display" role="status">
             Upload your own selfie if you’d like!
           </div>
         </div>
