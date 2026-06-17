@@ -695,7 +695,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     {/* Barber video — 360° clip of the cut */}
     <div className="flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3 mt-3" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
         <div className="flex items-center justify-between">
-          <span className="pill pill-tomato">show your barber</span>
+          <span className="pill pill-tomato">NEW: Show your barber!</span>
           {videoState === 'ready' && (
             <button
               onClick={() => onRequestVideo?.()}
@@ -719,7 +719,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
                 <circle cx="12" cy="12" r="9.25" />
                 <path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none" />
               </svg>
-              Film my 360°
+              Get my 360°
             </span>
             <span className="btn-cta-order-sheen" aria-hidden />
           </button>

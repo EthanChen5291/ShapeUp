@@ -30,6 +30,10 @@ const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 interface SplatVideoCaptureProps {
   captureKey: number;
   orbitRef: React.RefObject<{ target: THREE.Vector3; enabled: boolean; update: () => void } | null>;
+  /** Default camera position to reset to before the 360° sweep (defines radius + polar angle). */
+  defaultCameraPos?: [number, number, number];
+  /** Default orbit target to sweep around. */
+  defaultTarget?: [number, number, number];
   /** CSS-style background string (#hex, rgb(...), or url(...)) to bake into the clip. */
   captureBackground?: string;
   onProgress?: (p: number) => void;
@@ -50,6 +54,8 @@ function resolveBackground(value: string | undefined): THREE.Color | THREE.Textu
 export default function SplatVideoCapture({
   captureKey,
   orbitRef,
+  defaultCameraPos = [0, 0, 7.8],
+  defaultTarget = [0, 0, 0],
   captureBackground,
   onProgress,
   onReady,
@@ -67,16 +73,19 @@ export default function SplatVideoCapture({
 
     let bakedBg: THREE.Texture | null = null;
     const controls = orbitRef.current;
-    const target = controls?.target.clone() ?? new THREE.Vector3(0, 0, 0);
 
     // Save state to restore afterwards.
     const savedCamPos = camera.position.clone();
     const savedQuat = camera.quaternion.clone();
+    const savedTarget = controls?.target.clone() ?? null;
     const savedBg = scene.background;
     const savedControlsEnabled = controls?.enabled ?? true;
 
-    // Orbit geometry: keep the user's current radius + polar angle, sweep azimuth.
-    const offset = camera.position.clone().sub(target);
+    // Reset to the default orbit framing before sweeping, so a zoomed-in or
+    // elevated live view doesn't produce a bad 360° clip. We ignore the live
+    // camera/target entirely and orbit at the default radius + polar angle.
+    const target = new THREE.Vector3(...defaultTarget);
+    const offset = new THREE.Vector3(...defaultCameraPos).sub(target);
     const startSph = new THREE.Spherical().setFromVector3(offset);
 
     // Offscreen encode target — even dims, capped resolution.
@@ -153,6 +162,7 @@ export default function SplatVideoCapture({
         camera.quaternion.copy(savedQuat);
         camera.updateMatrixWorld();
         if (controls) {
+          if (savedTarget) controls.target.copy(savedTarget);
           controls.enabled = savedControlsEnabled;
           controls.update();
         }
@@ -160,7 +170,7 @@ export default function SplatVideoCapture({
     };
 
     run();
-  }, [captureKey, gl, scene, camera, orbitRef, captureBackground, onProgress, onReady, onError]);
+  }, [captureKey, gl, scene, camera, orbitRef, defaultCameraPos, defaultTarget, captureBackground, onProgress, onReady, onError]);
 
   return null;
 }

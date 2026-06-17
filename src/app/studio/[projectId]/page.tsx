@@ -14,7 +14,8 @@ import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
+import { BarberMascot, LogoHomeLink, BouncyButton, ClockCounter, AddTokensButton } from '@/components/AppUI';
+import { PricingPopup } from '@/components/PricingPopup';
 import { useSearchParams } from 'next/navigation';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -205,6 +206,7 @@ export default function StudioPage() {
   const isAllowlisted = useQuery(api.users.isAllowlisted) ?? false;
   const [paywallDisabled, setPaywallDisabled] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
 
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(d => setPaywallDisabled(d.paywallDisabled ?? false)).catch(() => {});
@@ -467,17 +469,7 @@ export default function StudioPage() {
     return (
       <main className={`fixed inset-0 overflow-hidden flex ${isMobile ? 'flex-col' : ''}`} style={{ background: '#1e1e1e' }}>
         <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
-          <button
-            onClick={() => router.push('/dashboard')}
-            aria-label="Back to dashboard"
-            className="btn-tomato"
-            style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 20, outline: '2px solid #ffffff', outlineOffset: 2, color: '#ffffff', boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.1)' }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-            </svg>
-          </button>
-          <InlineWordmark cream small />
+          <LogoHomeLink cream small label="Back to home" onClick={() => router.push('/dashboard')} />
         </div>
         <div className="flex-1 min-w-0 relative" style={{ backgroundImage: 'url(/preview_bg.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}>
           <div className={`w-full h-full flex flex-col items-center justify-center ${isMobile ? 'gap-4 p-4 pt-20' : 'gap-8 p-8'}`}>
@@ -538,17 +530,7 @@ export default function StudioPage() {
   return (
     <main className={`fixed inset-0 overflow-hidden bg-tomato-shop flex ${isMobile ? 'flex-col' : ''}`}>
       <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
-        <button
-          onClick={() => router.push('/dashboard')}
-          aria-label="Back to dashboard"
-          className="btn-ink"
-          style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '2px solid #ffffff', color: '#ffffff' }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-          </svg>
-        </button>
-        <InlineWordmark cream small />
+        <LogoHomeLink cream small label="Back to home" onClick={() => router.push('/dashboard')} />
       </div>
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center">
@@ -782,8 +764,9 @@ export default function StudioPage() {
                 transition: 'background 0.3s, border-color 0.3s',
               }}
             >
-              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.875em', height: '2.875em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.85em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.credits ?? 0} />
+              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.156em', height: '2.156em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.6em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.credits ?? 0} />
             </span>
+            <AddTokensButton onClick={() => setShowPricing(true)} />
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
             {paymentSuccess && (
               <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
@@ -873,6 +856,13 @@ export default function StudioPage() {
               videoExt={videoExt}
             />
         </aside>
+      )}
+
+      {showPricing && (
+        <PricingPopup
+          returnUrl={`/studio/${projectId}`}
+          onDismiss={() => setShowPricing(false)}
+        />
       )}
     </main>
   );

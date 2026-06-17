@@ -71,6 +71,12 @@ const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 
 const ORBIT_SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.5, 4.0];
 
+// Default orbit camera framing — matches the <Canvas camera> below and the
+// orbit target. The 360° capture resets to this so a zoomed-in/elevated live
+// view doesn't produce a bad clip.
+const DEFAULT_CAMERA_POS: [number, number, number] = [0, 0, 7.8];
+const DEFAULT_ORBIT_TARGET: [number, number, number] = [0, 0, 0];
+
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
 type HairLayer = { id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
@@ -347,6 +353,8 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
       <SplatVideoCapture
         captureKey={videoCaptureKey ?? 0}
         orbitRef={orbitRef}
+        defaultCameraPos={DEFAULT_CAMERA_POS}
+        defaultTarget={DEFAULT_ORBIT_TARGET}
         captureBackground={captureBackground}
         onProgress={onVideoProgress}
         onReady={onVideoReady}
@@ -548,7 +556,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           preserveDrawingBuffer: true,
           alpha: true,
         }}
-        camera={{ position: [0, 0, 7.8], fov: 45 }}
+        camera={{ position: DEFAULT_CAMERA_POS, fov: 45 }}
         style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: useCssBg ? 'transparent' : background }}
       >
         <Scene

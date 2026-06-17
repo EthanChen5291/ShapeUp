@@ -51,6 +51,49 @@ export function BarberMascot(_props: { snap?: boolean; size?: 'full' | 'sm'; isS
   );
 }
 
+// Clickable brand logo with the home icon overlaid directly onto it (no square
+// chrome). Hover smoothly lerps the logo a bit larger; pressing it fires a subtle
+// bounce. The wordmark text is intentionally outside the hover/bounce target.
+export function LogoHomeLink({
+  onClick,
+  cream = false,
+  small = false,
+  label = 'Go home',
+}: { onClick?: () => void; cream?: boolean; small?: boolean; label?: string }) {
+  const [bouncing, setBouncing] = useState(false);
+  const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
+  const mascotColor = cream ? 'rgba(245,241,234,0.88)' : 'currentColor';
+  const textSize = small ? 'text-[13px]' : 'text-[18px]';
+  const logoSize = Math.round((small ? 50 : 46) * 1.15);
+
+  const handleClick = () => {
+    setBouncing(true);
+    setTimeout(() => setBouncing(false), 400);
+    onClick?.();
+  };
+
+  return (
+    <div className={`wordmark-inline ${color} ${textSize}`}>
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label={label}
+        className="logo-home"
+        style={{ width: logoSize }}
+      >
+        <span className={`logo-home-inner ${bouncing ? 'logo-home-bounce' : ''}`}>
+          <span className="logo-home-frame">
+            <BarberMascot color={mascotColor} />
+          </span>
+        </span>
+      </button>
+      <span style={{ fontWeight: 700, letterSpacing: '0.06em' }}>
+        Shape <span style={{ display: 'inline' }}>Up</span>
+      </span>
+    </div>
+  );
+}
+
 export function InlineWordmark({ cream = false, small = false }: { cream?: boolean; small?: boolean }) {
   const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
   const mascotColor = cream ? 'rgba(245,241,234,0.88)' : 'currentColor';
@@ -95,6 +138,62 @@ export function BouncyButton({
       style={style}
     >
       {children}
+    </button>
+  );
+}
+
+// Small circular "+" button used beside the token count to top up tokens.
+// Hover smoothly lerps it a touch larger; pressing fires a quick bounce before
+// the click handler runs (e.g. opening the pricing popup).
+export function AddTokensButton({
+  onClick,
+  label = 'Buy more tokens',
+}: { onClick?: () => void; label?: string }) {
+  const [hovered, setHovered] = useState(false);
+  const [bouncing, setBouncing] = useState(false);
+
+  const handleClick = () => {
+    setBouncing(true);
+    setTimeout(() => setBouncing(false), 400);
+    onClick?.();
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-label={label}
+      title={label}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 37,
+        height: 37,
+        flexShrink: 0,
+        borderRadius: '50%',
+        cursor: 'pointer',
+        color: hovered ? 'var(--char)' : 'var(--cream)',
+        background: hovered ? 'var(--butter)' : 'rgba(255,248,234,0.12)',
+        border: `1px solid ${hovered ? 'var(--butter)' : 'rgba(255,248,234,0.28)'}`,
+        boxShadow: hovered ? '0 0 14px rgba(248,200,24,0.5)' : 'none',
+        transform: hovered ? 'scale(1.3)' : 'scale(1)',
+        // Pin the origin and composite on its own layer so the scale doesn't
+        // re-snap the centered "+" to the pixel grid (which reads as a slide).
+        transformOrigin: 'center center',
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+        // Smooth lerp on the scale; quick fade on the colors.
+        transition: 'transform 240ms cubic-bezier(0.16,1,0.3,1), background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease',
+      }}
+    >
+      <span className={bouncing ? 'btn-bouncing' : ''} style={{ display: 'inline-flex', lineHeight: 0 }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </span>
     </button>
   );
 }
