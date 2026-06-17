@@ -11,7 +11,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { HairParams, UserHeadProfile } from '@/types';
-import BarberVideoResult from '@/components/BarberVideoResult';
+import BarberVideoCard from '@/components/BarberVideoCard';
 import { PricingPopup } from '@/components/PricingPopup';
 
 
@@ -693,68 +693,14 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     </div>
 
     {/* Barber video — 360° clip of the cut */}
-    <div className="flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3 mt-3" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-        <div className="flex items-center justify-between">
-          <span className="pill pill-tomato">NEW: Show your barber!</span>
-          {videoState === 'ready' && (
-            <button
-              onClick={() => onRequestVideo?.()}
-              aria-label="Record a fresh 360° video of the latest cut"
-              className="font-mono text-[10px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--ink)] transition-colors inline-flex items-center gap-1"
-            >
-              {/* refresh icon, sized 40% larger than the 10px label text */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                <path d="M21 4v5h-5" />
-              </svg>
-              re-film
-            </button>
-          )}
-        </div>
-
-        {videoState === 'idle' && (
-          <button
-            onClick={() => onRequestVideo?.()}
-            aria-label="Record a 360° video of your cut to show your barber"
-            className="btn-cta-order"
-          >
-            <span className="btn-cta-order-beta" aria-label="beta">beta</span>
-            <span className="btn-cta-order-title">
-              <svg className="btn-cta-order-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <circle cx="12" cy="12" r="9.25" />
-                <path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none" />
-              </svg>
-              Get my 360°
-            </span>
-            <span className="btn-cta-order-sheen" aria-hidden />
-          </button>
-        )}
-
-        {(videoState === 'recording' || videoState === 'encoding') && (
-          <div className="receipt-stub" role="status" aria-label="Recording barber video">
-            <div className="receipt-stub-slot" />
-            <div className="receipt-stub-paper">
-              <div className="receipt-stub-line w-3/4" />
-              <div className="receipt-stub-line w-1/2" />
-              <div className="receipt-stub-line w-2/3" />
-            </div>
-            <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--smoke)] receipt-stub-label">
-              {videoState === 'encoding' ? 'finishing up…' : `filming your 360… ${Math.round(videoProgress * 100)}%`}
-            </span>
-          </div>
-        )}
-
-        {videoState === 'error' && (
-          <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
-            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
-            couldn’t record the video — <button onClick={() => onRequestVideo?.()} className="underline">try again</button>
-          </div>
-        )}
-
-        {videoState === 'ready' && videoUrl && (
-          <BarberVideoResult videoUrl={videoUrl} ext={videoExt} projectName={projectName} />
-        )}
-    </div>
+    <BarberVideoCard
+      onRequestVideo={onRequestVideo}
+      videoState={videoState}
+      videoProgress={videoProgress}
+      videoUrl={videoUrl}
+      videoExt={videoExt}
+      projectName={projectName}
+    />
 
     {showPricing && (
       <PricingPopup

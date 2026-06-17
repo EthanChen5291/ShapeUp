@@ -87,7 +87,7 @@ function SignInModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ─── Profile Menu ─── */
-function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillVisible = false }: { onRescan: () => void; pulse?: boolean; celebratePurchase?: boolean; pillVisible?: boolean }) {
+function ProfileMenu({ onRescan, onOpenSettings, pulse = false, celebratePurchase = false, pillVisible = false }: { onRescan: () => void; onOpenSettings: () => void; pulse?: boolean; celebratePurchase?: boolean; pillVisible?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const isMobile = useIsMobile();
@@ -96,8 +96,6 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillV
   const [open, setOpen] = useState(false);
   const [swallowing, setSwallowing] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [settingsOriginRect, setSettingsOriginRect] = useState<DOMRect | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [displayCredits, setDisplayCredits] = useState<number | null>(null);
@@ -327,10 +325,7 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillV
 
               <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
                 <BouncyButton
-                  onClick={() => {
-                    if (containerRef.current) setSettingsOriginRect(containerRef.current.getBoundingClientRect());
-                    setShowSettings(true);
-                  }}
+                  onClick={() => { setOpen(false); onOpenSettings(); }}
                   className="font-sans flex items-center gap-1.5 text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
                   style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
                 >
@@ -358,9 +353,6 @@ function ProfileMenu({ onRescan, pulse = false, celebratePurchase = false, pillV
         document.body
       )}
       {showPricing && createPortal(<PricingPopup onDismiss={() => setShowPricing(false)} />, document.body)}
-      {showSettings && settingsOriginRect && (
-        <SettingsPopup onDismiss={() => { setShowSettings(false); setTimeout(() => setOpen(false), 500); }} onRescan={() => { setOpen(false); onRescan(); }} originRect={settingsOriginRect} />
-      )}
     </div>
   );
 }
@@ -426,15 +418,17 @@ function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCo
   );
 }
 
-/* ─── Settings Popup ─── */
-function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => void; onRescan: () => void; originRect: DOMRect }) {
+/* ─── Settings Floor ─── */
+// Rendered as its own level inside the dashboard floor slider (not a popup), so
+// it lerps into view past the other floors. No close affordance — you leave it
+// by selecting another tab, exactly like the other levels.
+function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const userQuery = useQuery(api.users.getMe);
   const setUsernameMutation = useMutation(api.users.setUsername);
   const revokeBiometricConsentMutation = useMutation(api.users.revokeBiometricConsent);
   const deleteAccountMutation = useMutation(api.users.deleteCurrentUserData);
   const { theme, renderQuality, language, aiTrainingOptOut, updateTheme, updateRenderQuality, updateLanguage, updateAiTrainingOptOut } = useSettings();
 
-  const [phase, setPhase] = useState<'entering' | 'open' | 'closing'>('entering');
   const [usernameValue, setUsernameValue] = useState(userQuery?.username ?? '');
   const [usernameError, setUsernameError] = useState('');
   const [usernameLoading, setUsernameLoading] = useState(false);
@@ -445,15 +439,6 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-
-  const isMobile = useIsMobile();
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('open')));
-    return () => cancelAnimationFrame(id);
-  }, []);
-
-  const dismiss = () => { setPhase('closing'); setTimeout(onDismiss, 270); };
 
   const handleSaveUsername = async () => {
     if (usernameValue.trim().length < 2) return;
@@ -500,22 +485,12 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
     setDeleting(true); setDeleteError('');
     try {
       await deleteAccountMutation();
-      dismiss();
       window.location.href = '/';
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Something went wrong');
       setDeleting(false);
     }
   };
-
-  const isOpen = phase === 'open';
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const PANEL_W = isMobile ? Math.min(600, vw - 24) : 600;
-  const PANEL_H = isMobile ? vh - 32 : 680;
-  const lerpEase = 'cubic-bezier(0.32, 0.72, 0, 1)';
-  const lerpDur = isOpen ? '480ms' : '240ms';
-  const panelTransition = phase === 'entering' ? 'none' : `top ${lerpDur} ${lerpEase}, left ${lerpDur} ${lerpEase}, width ${lerpDur} ${lerpEase}, height ${lerpDur} ${lerpEase}, border-radius ${lerpDur} ${lerpEase}, box-shadow 300ms ease`;
 
   const SectionLabel = ({ children }: { children: React.ReactNode }) => (
     <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>{children}</span>
@@ -538,13 +513,9 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
     ? new Date(userQuery.biometricConsentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
 
-  return createPortal(
-    <>
-      <div className="fixed inset-0" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.55)', opacity: isOpen ? 1 : 0, transition: 'opacity 320ms ease', pointerEvents: isOpen ? 'auto' : 'none' }} onClick={dismiss} />
-      <div style={{ position: 'fixed', zIndex: 10001, top: isOpen ? Math.max(24, (vh - PANEL_H) / 2) : originRect.top, left: isOpen ? (vw - PANEL_W) / 2 : originRect.left, width: isOpen ? PANEL_W : originRect.width, height: isOpen ? Math.min(PANEL_H, vh - 48) : originRect.height, borderRadius: isOpen ? 24 : 18, overflow: 'hidden', background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: isOpen ? '0 32px 90px -16px rgba(0,0,0,0.5)' : '0 20px 50px -12px rgba(0,0,0,0.3)', transition: panelTransition }}>
-        <div style={{ position: 'absolute', inset: 0, padding: '44px 52px 44px', display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', opacity: isOpen ? 1 : 0, transition: isOpen ? 'opacity 180ms 280ms ease' : 'opacity 100ms ease', ...(isMobile ? { padding: '40px 22px 32px' } : {}) }}>
-          <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 28 }}>Settings</h2>
+  return (
+      <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>Settings</h2>
 
           {/* ── Account ── */}
           <div className="flex flex-col gap-3">
@@ -606,7 +577,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
             <SectionLabel>3D Scan</SectionLabel>
             <div className="flex items-center justify-between gap-4">
               <p className="font-sans text-[13px] text-[var(--char)] leading-snug" style={{ flex: 1 }}>Rebuild your 3D head model from a new photo.</p>
-              <BouncyButton onClick={() => { setPhase('closing'); setTimeout(() => { onDismiss(); onRescan(); }, 270); }} className="btn btn-cream" style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>✂ Rescan</BouncyButton>
+              <BouncyButton onClick={onRescan} className="btn btn-cream" style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>✂ Rescan</BouncyButton>
             </div>
           </div>
 
@@ -679,10 +650,7 @@ function SettingsPopup({ onDismiss, onRescan, originRect }: { onDismiss: () => v
               {deleteError && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{deleteError}</span>}
             </div>
           </div>
-        </div>
       </div>
-    </>,
-    document.body
   );
 }
 
@@ -1485,6 +1453,10 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const [logoVisible, setLogoVisible] = useState(false);
   const [rightVisible, setRightVisible] = useState(false);
   const [activeNav, setActiveNav] = useState('home');
+  // Settings is its own floor (the highest level); opening it just navigates the
+  // floor slider there, lerping up past the other levels.
+  const settingsActive = activeNav === 'settings';
+  const openSettings = () => setActiveNav('settings');
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [flyingCard, setFlyingCard] = useState<{ fromRect: DOMRect; toPoint: { x: number; y: number }; thumbnailUrl?: string } | null>(null);
@@ -1521,7 +1493,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     prevFlipPositions.current = new Map();
   });
 
-  const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : 2;
+  const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : activeNav === 'explore' ? 2 : 3;
   const floorSliderRef = useRef<HTMLDivElement>(null);
   const sidebarDarkRef = useRef<HTMLDivElement>(null);
   const wordmarkLightRef = useRef<HTMLDivElement>(null);
@@ -1622,17 +1594,27 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     );
   };
 
+  const SettingsNavButton = ({ dark = false }: { dark?: boolean }) => (
+    <button
+      onClick={openSettings}
+      style={{ border: 'none', cursor: 'pointer', background: settingsActive ? (dark ? 'rgba(232,97,77,0.18)' : 'rgba(232,97,77,0.1)') : 'transparent', color: settingsActive ? 'var(--coral)' : dark ? 'rgba(252,245,228,0.7)' : 'var(--ink)', padding: '10px 0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, width: 66, fontSize: 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: settingsActive ? `1.5px solid rgba(232,97,77,${dark ? '0.35' : '0.28'})` : '1.5px solid transparent', transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+      <span>settings</span>
+    </button>
+  );
+
   return (
     <main className="relative overflow-hidden" style={{ height: '100vh', background: 'var(--biscuit-lt)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr', height: '100vh', opacity: menuVisible ? 1 : 0, transition: 'opacity 400ms ease', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
         {/* Left nav rail (hidden on mobile — replaced by bottom nav) */}
         <aside style={{ borderRight: '2px solid rgba(42,32,26,0.22)', background: 'var(--biscuit)', zIndex: 2, position: 'relative', overflow: 'hidden', ...(isMobile ? { display: 'none' } : {}) }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', height: '100%', position: 'relative', zIndex: 1 }}>
-            <div style={{ marginBottom: 24, width: 30, opacity: 0.85 }}><BarberMascot isStatic color="var(--ink)" /></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '16px 10px', height: '100%', position: 'relative', zIndex: 1 }}>
+            <SettingsNavButton />
             {navItems.map(n => <NavButton key={n.key} item={n} />)}
           </div>
-          <div ref={sidebarDarkRef} style={{ position: 'absolute', inset: 0, background: isDark ? '#1e1e21' : '#181b17', borderRight: '2px solid rgba(252,245,228,0.1)', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '24px 10px', clipPath: 'inset(0 0 100% 0)', zIndex: 2 }}>
-            <div style={{ marginBottom: 24, width: 30, opacity: 0.75 }}><BarberMascot isStatic color="#fcf5e4" /></div>
+          <div ref={sidebarDarkRef} style={{ position: 'absolute', inset: 0, background: isDark ? '#1e1e21' : '#181b17', borderRight: '2px solid rgba(252,245,228,0.1)', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', padding: '16px 10px', clipPath: 'inset(0 0 100% 0)', zIndex: 2 }}>
+            <SettingsNavButton dark />
             {navItems.map(n => <NavButton key={n.key} item={n} dark />)}
           </div>
         </aside>
@@ -1651,7 +1633,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0, ...(isDark ? { ['--cream' as string]: '#fcf5e4' } : {}) }}><InlineWordmark cream /></div>
                 </div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} pulse={profilePillPulse} celebratePurchase={celebratePurchase} pillVisible={headerScrolled || isDarkFloor} />
+                  <ProfileMenu onRescan={onRescan} onOpenSettings={openSettings} pulse={profilePillPulse} celebratePurchase={celebratePurchase} pillVisible={headerScrolled || isDarkFloor} />
                 </div>
               </div>
             </div>
@@ -1659,7 +1641,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
           {/* Floor slider */}
           <div ref={vpRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-            <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${floorIndex === 0 ? 0 : floorIndex === 1 ? -(vpH + 320) : -(2 * vpH + 640)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
+            <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${-floorIndex * (vpH + 320)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
               {/* Floor 0 — Home */}
               <div ref={floor0ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
@@ -1750,6 +1732,14 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
               {/* Floor 2 — Explore */}
               <div style={{ height: vpH || '100vh', position: 'relative', background: isDark ? '#1e1e21' : undefined }}><ExploreFloor /></div>
+
+              {/* Gap band: Explore → Settings */}
+              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: isDark ? '#1e1e21' : 'linear-gradient(var(--biscuit-lt), var(--cream))' }} />
+
+              {/* Floor 3 — Settings */}
+              <div onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : 'var(--cream)', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+                <SettingsPopup onRescan={onRescan} />
+              </div>
             </div>
           </div>
 
@@ -1763,6 +1753,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
           {navItems.map(n => <NavButton key={n.key} item={n} dark={floorIndex === 1} />)}
         </nav>
       )}
+
     </main>
   );
 }
