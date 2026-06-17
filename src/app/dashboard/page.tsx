@@ -888,14 +888,21 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const dismiss = () => {
+  // Unconditional close + exit animation. Used programmatically (e.g. out-of-tokens).
+  const closePopup = () => {
     if (isDismissing.current) return;
-    if (phase === 'processing') return;
     isDismissing.current = true;
     faceliftAbortRef.current?.abort();
     setCollapsing(true);
     setTimeout(() => setExiting(true), 350);
     setTimeout(onDismiss, 850);
+  };
+
+  // User-initiated dismiss (backdrop, close button). Guarded so an in-flight
+  // 3D build isn't accidentally cancelled by a stray click.
+  const dismiss = () => {
+    if (phase === 'processing') return;
+    closePopup();
   };
 
   const handleUsernameSubmit = async (e: React.FormEvent) => {
@@ -974,7 +981,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
     try {
       const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl }), signal: abort.signal });
       if (submitRes.status === 402) {
-        dismiss();
+        closePopup();
         setTimeout(() => onNoTokens?.(), 900);
         return;
       }
