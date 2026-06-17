@@ -553,18 +553,19 @@ export default function LiveScanCamera({
 
       {/* ── checks-not-met confirmation ── */}
       {confirmOpen && (
-        <div className="lsc-confirm-veil" role="dialog" aria-modal="true" onClick={() => setConfirmOpen(false)}>
+        <div className="lsc-confirm-veil" role="dialog" aria-modal="true" onClick={cancelConfirm}>
           <div className="lsc-confirm-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display lsc-confirm-title">Take it anyway?</h3>
             <p className="lsc-confirm-body">
-              A few of the recommendations aren&rsquo;t met yet
-              {CHECK_ORDER.some(k => checks[k] === 'fail') && (
-                <> — <strong>{CHECK_ORDER.filter(k => checks[k] === 'fail').map(k => CHECK_META[k].label.toLowerCase()).join(', ')}</strong></>
-              )}
-              . Capturing now can lower the quality of your scan.
+              These recommendations aren&rsquo;t met yet. Capturing now can lower the quality of your scan:
             </p>
+            <ul className="lsc-confirm-list">
+              {confirmFails.map((k) => (
+                <li key={k}>{CHECK_META[k].label}</li>
+              ))}
+            </ul>
             <div className="lsc-confirm-actions">
-              <button type="button" className="lsc-confirm-cancel" onClick={() => setConfirmOpen(false)}>
+              <button type="button" className="lsc-confirm-cancel" onClick={cancelConfirm}>
                 Keep adjusting
               </button>
               <button type="button" className="lsc-confirm-go font-display" onClick={confirmCapture}>

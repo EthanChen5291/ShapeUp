@@ -91,7 +91,7 @@ export const legalPages: Record<string, LegalPage> = {
         </ul>
         <h2>Report An Issue</h2>
         <p>
-          Contact us at <a href="mailto:accessibility@shapeup.app">accessibility@shapeup.app</a> with the page URL,
+          Contact us at <a href="mailto:shapeup.ai@gmail.com">shapeup.ai@gmail.com</a> with the page URL,
           assistive technology used, browser, and a brief description of the issue.
         </p>
       </>
@@ -115,7 +115,7 @@ export const legalPages: Record<string, LegalPage> = {
         <p>
           ShapeUp may reject inputs, rate limit requests, suspend accounts, remove data, or block access where abuse is
           detected. To appeal an enforcement action, contact us at{' '}
-          <a href="mailto:appeals@shapeup.app">appeals@shapeup.app</a>.
+          <a href="mailto:shapeup.ai@gmail.com">shapeup.ai@gmail.com</a>.
         </p>
       </>
     ),

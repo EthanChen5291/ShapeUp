@@ -2278,10 +2278,36 @@ html.dark .explore-marquee-track {
   font-weight: 600;
 }
 .lsc-confirm-body {
-  margin: 0 0 18px;
+  margin: 0 0 12px;
   font-size: 13.5px;
   line-height: 1.45;
   color: rgba(26, 20, 16, 0.78);
+}
+.lsc-confirm-list {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.lsc-confirm-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--char, #1a1410);
+}
+.lsc-confirm-list li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.5em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tomato, #e4572e);
 }
 .lsc-confirm-actions {
   display: flex;
