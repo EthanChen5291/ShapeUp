@@ -1493,7 +1493,8 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     prevFlipPositions.current = new Map();
   });
 
-  const floorIndex = activeNav === 'home' ? 0 : activeNav === 'saved' ? 1 : activeNav === 'explore' ? 2 : 3;
+  // Stack order, top → bottom: settings(0), home(1), saved(2), explore(3).
+  const floorIndex = activeNav === 'settings' ? 0 : activeNav === 'home' ? 1 : activeNav === 'saved' ? 2 : 3;
   const floorSliderRef = useRef<HTMLDivElement>(null);
   const sidebarDarkRef = useRef<HTMLDivElement>(null);
   const wordmarkLightRef = useRef<HTMLDivElement>(null);
@@ -1507,9 +1508,9 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const floor0ScrollRef = useRef<HTMLDivElement>(null);
   const floor1ScrollRef = useRef<HTMLDivElement>(null);
   const [headerScrolled, setHeaderScrolled] = useState(false);
-  const isDarkFloor = floorIndex === 1;
+  const isDarkFloor = floorIndex === 2;
   useEffect(() => {
-    const el = floorIndex === 0 ? floor0ScrollRef.current : floorIndex === 1 ? floor1ScrollRef.current : null;
+    const el = floorIndex === 1 ? floor0ScrollRef.current : floorIndex === 2 ? floor1ScrollRef.current : null;
     setHeaderScrolled(!!el && el.scrollTop > 16);
   }, [floorIndex]);
 
@@ -1520,23 +1521,25 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     if (!floorSlider || !sidebarDark) return;
     cancelAnimationFrame(rafRef.current);
     const prevFloor = prevFloorRef.current; prevFloorRef.current = floorIndex;
-    if (floorIndex !== 1 && prevFloor !== 1) {
+    if (floorIndex !== 2 && prevFloor !== 2) {
       sidebarDark.style.clipPath = 'inset(100% 0 0 0)';
       if (wLight) wLight.style.opacity = '1';
       if (wDark) wDark.style.opacity = '0';
       return;
     }
-    const step1 = vpH + 320, step2 = 2 * vpH + 640;
+    // Charcoal peaks at the Saved floor (index 2) and fades to 0 at the floors
+    // on either side (Home below it, Explore above it).
+    const span = vpH + 320, pSaved = 2 * span;
     let lastP = -1, stableFrames = 0;
     const tick = () => {
       const matrix = new DOMMatrix(window.getComputedStyle(floorSlider).transform);
       const p = -matrix.m42;
-      let charcoalAmount = p <= step1 ? p / step1 : 1 - (p - step1) / (step2 - step1);
+      let charcoalAmount = 1 - Math.abs(p - pSaved) / span;
       charcoalAmount = Math.max(0, Math.min(1, charcoalAmount / 0.732051));
       sidebarDark.style.clipPath = `inset(${(1 - charcoalAmount) * 100}% 0 0 0)`;
       if (wLight) wLight.style.opacity = String(1 - charcoalAmount);
       if (wDark) wDark.style.opacity = String(charcoalAmount);
-      if (Math.abs(p - lastP) < 0.5) { stableFrames++; if (stableFrames > 4) { const isAtSaved = floorIndex === 1; sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`; if (wLight) wLight.style.opacity = isAtSaved ? '0' : '1'; if (wDark) wDark.style.opacity = isAtSaved ? '1' : '0'; return; } } else { stableFrames = 0; }
+      if (Math.abs(p - lastP) < 0.5) { stableFrames++; if (stableFrames > 4) { const isAtSaved = floorIndex === 2; sidebarDark.style.clipPath = `inset(${isAtSaved ? 0 : 100}% 0 0 0)`; if (wLight) wLight.style.opacity = isAtSaved ? '0' : '1'; if (wDark) wDark.style.opacity = isAtSaved ? '1' : '0'; return; } } else { stableFrames = 0; }
       lastP = p; rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -1643,7 +1646,15 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
           <div ref={vpRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${-floorIndex * (vpH + 320)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
-              {/* Floor 0 — Home */}
+              {/* Floor 0 — Settings (top level, above Home) */}
+              <div onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : 'var(--cream)', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+                <SettingsPopup onRescan={onRescan} />
+              </div>
+
+              {/* Gap band: Settings → Home */}
+              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: isDark ? '#1e1e21' : 'linear-gradient(var(--cream), var(--biscuit-lt))' }} />
+
+              {/* Floor 1 — Home */}
               <div ref={floor0ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
                   <HomeTitle count={projects?.length} compact={isMobile} />
@@ -1683,7 +1694,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 </div>
               )}
 
-              {/* Floor 1 — Saved */}
+              {/* Floor 2 — Saved */}
               <div ref={floor1ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
                   <SavedTitle count={savedProjects?.length} compact={isMobile} />
@@ -1730,16 +1741,8 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 </div>
               )}
 
-              {/* Floor 2 — Explore */}
+              {/* Floor 3 — Explore */}
               <div style={{ height: vpH || '100vh', position: 'relative', background: isDark ? '#1e1e21' : undefined }}><ExploreFloor /></div>
-
-              {/* Gap band: Explore → Settings */}
-              <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: isDark ? '#1e1e21' : 'linear-gradient(var(--biscuit-lt), var(--cream))' }} />
-
-              {/* Floor 3 — Settings */}
-              <div onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : 'var(--cream)', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
-                <SettingsPopup onRescan={onRescan} />
-              </div>
             </div>
           </div>
 
@@ -1749,8 +1752,8 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
       {/* Mobile bottom nav — replaces the left rail below the breakpoint */}
       {isMobile && (
-        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 8px calc(8px + env(safe-area-inset-bottom))', background: floorIndex === 1 ? '#181b17' : 'var(--biscuit)', borderTop: floorIndex === 1 ? '1px solid rgba(252,245,228,0.12)' : '2px solid rgba(42,32,26,0.18)', boxShadow: '0 -6px 20px -8px rgba(0,0,0,0.25)', transition: 'background 220ms ease, border-color 220ms ease' }}>
-          {navItems.map(n => <NavButton key={n.key} item={n} dark={floorIndex === 1} />)}
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 8px calc(8px + env(safe-area-inset-bottom))', background: floorIndex === 2 ? '#181b17' : 'var(--biscuit)', borderTop: floorIndex === 2 ? '1px solid rgba(252,245,228,0.12)' : '2px solid rgba(42,32,26,0.18)', boxShadow: '0 -6px 20px -8px rgba(0,0,0,0.25)', transition: 'background 220ms ease, border-color 220ms ease' }}>
+          {navItems.map(n => <NavButton key={n.key} item={n} dark={floorIndex === 2} />)}
         </nav>
       )}
 

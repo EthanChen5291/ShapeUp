@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 /* ── Brand logo mark (self-contained, no shared import) ── */
 function ScissorsMark({ size = 28 }: { color?: string; size?: number }) {
   return (
-    <img src="/shapeup_logo.png" alt="ShapeUp" draggable={false} style={{ width: size, height: 'auto', display: 'block' }} />
+    <img src="/shapeup_logo.png?v=2" alt="ShapeUp" draggable={false} style={{ width: size, height: 'auto', display: 'block' }} />
   );
 }
 

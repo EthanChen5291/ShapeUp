@@ -16,6 +16,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import BarberVideoResult from '@/components/BarberVideoResult';
 
 interface BarberVideoCardProps {
@@ -180,16 +181,11 @@ export default function BarberVideoCard({
     }
   }
 
-  return (
-    <>
-      {/* Always-in-flow slot: hosts the card at rest, becomes a fixed-height
-          spacer (and the unscaled measuring target) while the card floats.
-          The card itself stays mounted here so the <video> never reloads. */}
-      <div
-        ref={slotRef}
-        className="flex-shrink-0 mt-3"
-        style={popped && rect ? { height: rect.height } : undefined}
-      >
+  // The card UI — hosted in the slot at rest, and lifted into a body-level
+  // portal while floating so its position:fixed geometry resolves against the
+  // viewport instead of the Studio panel's transformed / scroll-clipped
+  // ancestors, which otherwise swallow the expanded "fullscreen" card entirely.
+  const card = (
         <div
           ref={floatRef}
           className={CARD_CLASS}
@@ -278,18 +274,37 @@ export default function BarberVideoCard({
             <BarberVideoResult videoUrl={videoUrl} ext={videoExt} projectName={projectName} />
           )}
         </div>
+  );
+
+  return (
+    <>
+      {/* Always-in-flow slot: hosts the card at rest, becomes a fixed-height
+          spacer (and the unscaled measuring target) while the card floats in a
+          body-level portal. */}
+      <div
+        ref={slotRef}
+        className="flex-shrink-0 mt-3"
+        style={popped && rect ? { height: rect.height } : undefined}
+      >
+        {!popped && card}
       </div>
 
-      {popped && centered && (
-        <div
-          onClick={collapse}
-          aria-hidden
-          style={{
-            position: 'fixed', inset: 0, zIndex: 60,
-            background: 'rgba(20,14,10,0.62)', backdropFilter: 'blur(3px)',
-            animation: 'fadeIn 240ms ease',
-          }}
-        />
+      {popped && typeof document !== 'undefined' && createPortal(
+        <>
+          {centered && (
+            <div
+              onClick={collapse}
+              aria-hidden
+              style={{
+                position: 'fixed', inset: 0, zIndex: 60,
+                background: 'rgba(20,14,10,0.62)', backdropFilter: 'blur(3px)',
+                animation: 'fadeIn 240ms ease',
+              }}
+            />
+          )}
+          {card}
+        </>,
+        document.body,
       )}
     </>
   );

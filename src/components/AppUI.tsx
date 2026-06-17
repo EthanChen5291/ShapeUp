@@ -42,7 +42,7 @@ export function ClockCounter({ value, className, style }: { value: number; class
 export function BarberMascot(_props: { snap?: boolean; size?: 'full' | 'sm'; isStatic?: boolean; color?: string }) {
   return (
     <img
-      src="/shapeup_logo.png"
+      src="/shapeup_logo.png?v=2"
       alt="ShapeUp"
       draggable={false}
       className="drop-shadow-lg scissor-mascot"
