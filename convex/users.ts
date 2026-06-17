@@ -154,6 +154,20 @@ function getBypassEmails(): Set<string> {
   );
 }
 
+/**
+ * True when the signed-in account is on the demo/dev email allowlist.
+ * Falls back to the JWT email claim so it works even before the `users`
+ * row has its email backfilled (otherwise allowlisted users with no
+ * credits get charged + paywalled despite being on the list).
+ */
+function isOnEmailAllowlist(
+  user: { email?: string } | null,
+  identity: { email?: string | null },
+): boolean {
+  const email = user?.email ?? identity.email ?? undefined;
+  return Boolean(email && getBypassEmails().has(email.toLowerCase()));
+}
+
 export const deductCredit = mutation({
   args: {},
   handler: async (ctx) => {
@@ -166,8 +180,9 @@ export const deductCredit = mutation({
       .unique();
     if (!user) throw new ConvexError("Couldn't find your account. Please reload and try again.");
 
-    // Dev/demo allowlist: bypass the paywall entirely for whitelisted emails.
-    if (user.email && getBypassEmails().has(user.email.toLowerCase())) {
+    // Dev/demo allowlist: bypass the paywall entirely for allowlisted emails,
+    // even when they have no credits.
+    if (isOnEmailAllowlist(user, identity)) {
       return user.credits;
     }
 
@@ -188,9 +203,7 @@ export const isAllowlisted = query({
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
-    // Fall back to the JWT email claim if the user row isn't created yet.
-    const email = user?.email ?? identity.email ?? undefined;
-    return Boolean(email && getBypassEmails().has(email.toLowerCase()));
+    return isOnEmailAllowlist(user, identity);
   },
 });
 

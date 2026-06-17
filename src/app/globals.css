@@ -1373,7 +1373,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
   margin: 0 auto;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.9);
-  padding: 4px;
+  padding: 0;
   box-sizing: border-box;
 }
 .logo-home-bounce { animation: logo-home-press 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
