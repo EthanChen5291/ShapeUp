@@ -2346,7 +2346,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           {([
             { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%' },
             { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '50%' },
-            { stat: '$2', label: 'FOR 20 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '100%' },
+            { stat: '$2', label: 'FOR 8 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 8 different cuts.', bgPos: '100%' },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
               <div className="value-card" style={{ '--card-wonk': `${[-0.6, 0.6, -0.4][i]}deg` } as React.CSSProperties}>

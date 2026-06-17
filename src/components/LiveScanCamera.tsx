@@ -6,8 +6,8 @@
    Real-time face tracking drives six live requirement checks:
      one face · centered · distance · facing forward · light · still
    The oval guide reacts (ink → tomato while coaching → butter when
-   ready), then a 3-2-1 Fraunces countdown auto-fires the shutter:
-   flash → polaroid develop → verify.
+   ready). The user fires the shutter themselves:
+     flash → polaroid develop → verify.
 
    Detection ladder:
      1. MediaPipe FaceLandmarker (CDN, GPU)   — full checks
@@ -47,8 +47,6 @@ const FRESH_CHECKS = (): ChecksMap => ({
 /* Hysteresis: a check must agree for N consecutive frames to flip. */
 const PASS_FRAMES = 4;
 const FAIL_FRAMES = 6;
-const ALL_PASS_HOLD_MS = 750;   // dwell before countdown starts
-const COUNTDOWN_TICK_MS = 720;
 
 type Engine = 'mediapipe' | 'native' | 'manual';
 
@@ -196,7 +194,6 @@ export default function LiveScanCamera({
   const [camError, setCamError] = useState<string | null>(null);
   const [checks, setChecks]   = useState<ChecksMap>(FRESH_CHECKS);
   const [allPass, setAllPass] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash]     = useState(false);
   const [shot, setShot]       = useState<string | null>(null); // dataUrl after capture
   const [uploading, setUploading] = useState(false);
@@ -206,10 +203,8 @@ export default function LiveScanCamera({
   const failStreak = useRef<Record<CheckKey, number>>({ face: 0, center: 0, distance: 0, facing: 0, light: 0, still: 0 });
   const liveChecks = useRef<ChecksMap>(FRESH_CHECKS());
   const lastCenters = useRef<Array<{ t: number; x: number; y: number }>>([]);
-  const allPassSince = useRef<number | null>(null);
   const lastPublished = useRef<ChecksMap>(FRESH_CHECKS());
   const lastReady = useRef(false);
-  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const capturedRef = useRef(false);
   const lastDetect = useRef(0);
 
@@ -397,19 +392,6 @@ export default function LiveScanCamera({
           setAllPass(ready);
           checksUpRef.current?.(snapshot, ready);
         }
-
-        /* auto-capture orchestration (detection engines only) */
-        if (!manual) {
-          if (ready) {
-            if (allPassSince.current === null) allPassSince.current = now;
-            else if (now - allPassSince.current > ALL_PASS_HOLD_MS && countdownTimer.current === null && !capturedRef.current) {
-              startCountdown();
-            }
-          } else {
-            allPassSince.current = null;
-            if (countdownTimer.current !== null) cancelCountdown();
-          }
-        }
       }
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -418,22 +400,7 @@ export default function LiveScanCamera({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, camError, shot]);
 
-  /* ── Countdown + shutter ────────────────────────────────────── */
-  const cancelCountdown = () => {
-    if (countdownTimer.current !== null) { clearInterval(countdownTimer.current); countdownTimer.current = null; }
-    setCountdown(null);
-  };
-
-  const startCountdown = () => {
-    let n = 3;
-    setCountdown(3);
-    countdownTimer.current = setInterval(() => {
-      n -= 1;
-      if (n <= 0) { cancelCountdown(); fireShutter(); }
-      else setCountdown(n);
-    }, COUNTDOWN_TICK_MS);
-  };
-
+  /* ── Shutter ────────────────────────────────────────────────── */
   const fireShutter = () => {
     if (capturedRef.current) return;
     const v = videoRef.current;
@@ -477,7 +444,7 @@ export default function LiveScanCamera({
   };
 
   const handleManualShutter = () => {
-    if (countdownTimer.current !== null || capturedRef.current) return;
+    if (capturedRef.current) return;
     fireShutter();
   };
 
@@ -487,8 +454,6 @@ export default function LiveScanCamera({
     e.target.value = '';
     if (capturedRef.current) return;
     capturedRef.current = true;
-
-    cancelCountdown();
 
     try {
       const bitmap = await createImageBitmap(file);
@@ -531,10 +496,8 @@ export default function LiveScanCamera({
   const firstIssue = CHECK_ORDER.find(k => checks[k] !== 'pass');
   const coachLine = !detecting
     ? (engine === 'booting' ? 'warming up the chair…' : 'line yourself up, then tap the shutter')
-    : countdown !== null
-    ? `looking sharp — ${countdown}`
     : allPass
-    ? 'hold it right there…'
+    ? 'looking sharp — tap the shutter'
     : firstIssue
     ? CHECK_META[firstIssue].coach
     : 'line yourself up…';
@@ -549,6 +512,23 @@ export default function LiveScanCamera({
         className="hidden"
         onChange={handleUpload}
       />
+
+      {/* ── tilt reminder ── */}
+      <div className="lsc-tilt-note">
+        <svg
+          className="lsc-tilt-diamond"
+          viewBox="0 0 12 12"
+          width="12"
+          height="12"
+          aria-hidden
+        >
+          <path d="M6 0.5 L11.5 6 L6 11.5 L0.5 6 Z" />
+        </svg>
+        <span className="font-mono">
+          Keep your head straight and level — don’t tilt it to either side.
+        </span>
+      </div>
+
       {/* ── viewfinder ── */}
       <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
         <video ref={videoRef} playsInline muted className="lsc-video" />
@@ -569,11 +549,6 @@ export default function LiveScanCamera({
             style={{ transition: 'stroke 280ms ease, stroke-width 280ms ease' }}
           />
         </svg>
-
-        {/* countdown numeral */}
-        {countdown !== null && (
-          <div key={countdown} className="lsc-count font-display">{countdown}</div>
-        )}
 
         {/* shutter flash */}
         <div className="lsc-flash" style={{ opacity: flash ? 1 : 0, transition: flash ? 'none' : 'opacity 160ms ease-out' }} aria-hidden />
@@ -616,10 +591,15 @@ export default function LiveScanCamera({
       )}
 
       {!shot && !uploading && (
-        <UploadImageButton
-          onClick={() => fileInputRef.current?.click()}
-          disabled={engine === 'booting'}
-        />
+        <div className="lsc-upload-cluster">
+          <div className="lsc-upload-hint font-mono" role="status">
+            Upload your own selfie if you’d like!
+          </div>
+          <UploadImageButton
+            onClick={() => fileInputRef.current?.click()}
+            disabled={engine === 'booting'}
+          />
+        </div>
       )}
     </div>
   );

@@ -3,16 +3,24 @@
 // ============================================================
 // BarberVideoCard — the "Show your barber!" 360° panel card.
 //
-// In the `ready` state the entire card (pill, re-film, the looping clip, and
-// the save button) can pop out of its panel slot and smoothly lerp to a large,
-// centered overlay — literally the same UI, just scaled up uniformly. On first
-// success it auto-opens; a toggle button switches between the fullscreen /
-// exit-fullscreen icons, and collapsing lerps it right back into its slot.
+// In the `ready` state the card (pill, re-film, the looping clip, and the save
+// button) can pop out of its panel slot and smoothly grow to a large, centered
+// overlay. On first success it auto-opens; the fullscreen toggle expands it, and
+// the icon flips to exit-fullscreen to shrink it right back into its slot.
 //
-// Geometry: the card is enlarged with a transform-origin:0 0 scale, so a single
-// captured slot rect drives both the position lerp and the uniform zoom. A slot
-// <div> stays in flow as a spacer (and as the unscaled measuring target — a
-// ResizeObserver keeps its height in sync as the async clip lays out).
+// Two things make this feel native:
+//
+//  1. Never-reload video. The card markup lives in a single persistent host node
+//     that is *physically re-parented* (appendChild) between the slot and a
+//     body-level overlay — React only ever portals into that one host, so the
+//     <video> element is never unmounted and the loop never stutters.
+//
+//  2. Crisp growth via real layout — exactly like the Studio's expanding
+//     polaroid. The overlay animates its `width` (and glides its centre from the
+//     slot to the viewport centre); the card re-lays-out at the new width every
+//     frame, so the clip and chrome stay razor sharp — no zoomed bitmap. The
+//     overlay portals to <body> so its position:fixed escapes the Studio panel's
+//     transformed / scroll-clipped ancestors, which would otherwise swallow it.
 // ============================================================
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -30,8 +38,12 @@ interface BarberVideoCardProps {
 
 interface Rect { top: number; left: number; width: number; height: number; }
 
-// Smooth lerp easing for the pop-out / collapse glide.
-const GLIDE = 'top 560ms cubic-bezier(0.22,1,0.3,1), left 560ms cubic-bezier(0.22,1,0.3,1), transform 560ms cubic-bezier(0.22,1,0.3,1)';
+// Matches the polaroid's expand feel (width 0.4s, gentle overshoot).
+const DUR = 420;
+const EASE = 'cubic-bezier(0.34,1.2,0.64,1)';
+// Enlarged size — bounded to the viewport so it can never run off-screen.
+const BIG_WIDTH = 'min(560px, 92vw)';
+const BIG_VIDEO_MAX_H = '64vh';
 
 // Four arrows pointing outward — "go fullscreen / expand".
 function ExpandIcon() {
@@ -57,24 +69,9 @@ function CollapseIcon() {
   );
 }
 
-// Scale that grows the collapsed card to a comfortably-larger centered size
-// (~50% of viewport width), clamped so it never overflows the screen.
-function computeScale(c: Rect): number {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const maxW = Math.min(vw * 0.5, 680);
-  const maxH = vh * 0.84;
-  let s = maxW / c.width;
-  if (c.height * s > maxH) s = maxH / c.height;
-  return Math.max(1, s);
-}
-
 const CARD_CLASS = 'flex-shrink-0 rounded-2xl px-5 py-4 flex flex-col gap-3';
-const CARD_STYLE: React.CSSProperties = {
-  background: 'var(--biscuit-lt)',
-  border: '1px solid rgba(42,32,26,0.1)',
-  boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)',
-};
+const REST_SHADOW = '0 30px 60px -24px rgba(0,0,0,0.45)';
+const BIG_SHADOW = '0 40px 90px -30px rgba(0,0,0,0.7)';
 
 export default function BarberVideoCard({
   onRequestVideo,
@@ -84,16 +81,30 @@ export default function BarberVideoCard({
   videoExt = 'mp4',
   projectName,
 }: BarberVideoCardProps) {
-  const slotRef = useRef<HTMLDivElement>(null);  // always in flow (card host / spacer)
-  const floatRef = useRef<HTMLDivElement>(null); // the fixed, scaled card
-  const [popped, setPopped] = useState(false);    // out of flow (fixed)
-  const [centered, setCentered] = useState(false); // at center+scaled vs. slot
-  const [rect, setRect] = useState<Rect | null>(null); // collapsed slot rect (unscaled)
-  const [, setTick] = useState(0); // re-render on resize to recompute center
+  const slotRef = useRef<HTMLDivElement>(null);     // in-flow at-rest mount / spacer
+  const overlayRef = useRef<HTMLDivElement>(null);  // fixed positioner in the body portal
+  // Persistent host the card markup is portaled into. It is re-parented between
+  // the slot and the overlay so the <video> never unmounts. display:contents so
+  // the host adds no box of its own — the card lays out as a direct child.
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  if (typeof document !== 'undefined' && !hostRef.current) {
+    hostRef.current = document.createElement('div');
+    hostRef.current.style.display = 'contents';
+  }
+
+  const [popped, setPopped] = useState(false);     // out of flow (fixed overlay)
+  const [centered, setCentered] = useState(false); // enlarged + centred vs. at slot
+  const [rect, setRect] = useState<Rect | null>(null); // collapsed slot rect
+  // True once the clip's intrinsic size is known. We hold the auto-open until
+  // then so the slot is measured at the card's real (loaded) height — otherwise
+  // the spacer freezes short and the toolbox only catches up after the preview
+  // has already settled back into its corner.
+  const [dimsReady, setDimsReady] = useState(false);
   const autoOpened = useRef(false);
   const isReady = videoState === 'ready';
 
-  // Read the unscaled slot rect (the in-flow wrapper is never transformed).
+  // Read the collapsed card rect from the slot (host lives there at rest; the
+  // slot is a fixed-height spacer while floating — a clean measuring target).
   const measure = useCallback((): Rect | null => {
     const el = slotRef.current;
     if (!el) return null;
@@ -115,34 +126,34 @@ export default function BarberVideoCard({
     setCentered(false);
   }, [measure]);
 
-  // First time the clip is ready, pop it out to center automatically.
+  // Re-parent the persistent host into the slot (at rest) or the overlay (popped)
+  // synchronously, before paint — moving the node keeps the <video> alive.
   useLayoutEffect(() => {
-    if (!isReady || autoOpened.current) return;
+    const host = hostRef.current;
+    const target = popped ? overlayRef.current : slotRef.current;
+    if (host && target && host.parentNode !== target) target.appendChild(host);
+  });
+
+  // First time the clip is ready *and* measured, pop it out to center. Waiting
+  // for dimsReady means the slot already holds the full-height card, so the
+  // toolbox rides up while the preview animates — not after it lands.
+  useLayoutEffect(() => {
+    if (!isReady || !dimsReady || autoOpened.current) return;
     autoOpened.current = true;
     expand();
-  }, [isReady, expand]);
+  }, [isReady, dimsReady, expand]);
 
   // If we leave the ready state (e.g. a re-film starts), drop back to the slot.
   useEffect(() => {
     if (!isReady) {
       autoOpened.current = false;
+      setDimsReady(false);
       if (popped) { setPopped(false); setCentered(false); }
     }
   }, [isReady, popped]);
 
-  // Keep the slot height + centered geometry correct as the async clip lays out
-  // and across viewport resizes. offsetHeight is the untransformed layout size,
-  // so the scale never feeds back into the measurement.
-  useEffect(() => {
-    if (!popped) return;
-    const el = floatRef.current;
-    const sync = () => setRect((prev) => (prev && el ? { ...prev, height: el.offsetHeight, width: el.offsetWidth } : prev));
-    const ro = el ? new ResizeObserver(sync) : null;
-    if (el && ro) ro.observe(el);
-    const onResize = () => { measure(); setTick((t) => t + 1); };
-    window.addEventListener('resize', onResize);
-    return () => { ro?.disconnect(); window.removeEventListener('resize', onResize); };
-  }, [popped, measure]);
+  // A fresh clip arrives — re-arm the dimension gate for the new video.
+  useEffect(() => { setDimsReady(false); }, [videoUrl]);
 
   // Lock body scroll while the overlay is open.
   useEffect(() => {
@@ -152,48 +163,16 @@ export default function BarberVideoCard({
     return () => { document.body.style.overflow = prev; };
   }, [centered]);
 
-  const scale = popped && rect ? computeScale(rect) : 1;
-
-  // While floating, position the card with fixed top/left + a transform-origin
-  // top-left scale, so it lerps from the slot to a uniformly-larger center.
-  let floatStyle: React.CSSProperties = {};
-  if (popped && rect) {
-    const base: React.CSSProperties = {
-      position: 'fixed',
-      width: rect.width,
-      zIndex: 70,
-      transformOrigin: '0 0',
-      transition: GLIDE,
-      willChange: 'top, left, transform',
-    };
-    if (centered) {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      floatStyle = {
-        ...base,
-        top: Math.max(16, (vh - rect.height * scale) / 2),
-        left: (vw - rect.width * scale) / 2,
-        transform: `scale(${scale})`,
-        boxShadow: '0 40px 90px -30px rgba(0,0,0,0.7)',
-      };
-    } else {
-      floatStyle = { ...base, top: rect.top, left: rect.left, transform: 'scale(1)' };
-    }
-  }
-
-  // The card UI — hosted in the slot at rest, and lifted into a body-level
-  // portal while floating so its position:fixed geometry resolves against the
-  // viewport instead of the Studio panel's transformed / scroll-clipped
-  // ancestors, which otherwise swallow the expanded "fullscreen" card entirely.
-  const card = (
-        <div
-          ref={floatRef}
-          className={CARD_CLASS}
-          style={{ ...CARD_STYLE, ...floatStyle }}
-          onTransitionEnd={(e) => {
-        // Once the collapse glide lands, return the card to normal flow so it
-        // scrolls with the panel again.
-        if (e.target === e.currentTarget && e.propertyName === 'top' && !centered) setPopped(false);
+  // The card markup. It fills whatever container it currently sits in (slot or
+  // overlay), so growth comes entirely from the overlay's animated width.
+  const cardMarkup = (
+    <div
+      className={CARD_CLASS}
+      style={{
+        background: 'var(--biscuit-lt)',
+        border: '1px solid rgba(42,32,26,0.1)',
+        boxShadow: centered ? BIG_SHADOW : REST_SHADOW,
+        transition: `box-shadow ${DUR}ms ease`,
       }}
     >
       <div className="flex items-center justify-between">
@@ -270,25 +249,47 @@ export default function BarberVideoCard({
         </div>
       )}
 
-          {isReady && videoUrl && (
-            <BarberVideoResult videoUrl={videoUrl} ext={videoExt} projectName={projectName} />
-          )}
-        </div>
+      {isReady && videoUrl && (
+        <BarberVideoResult
+          videoUrl={videoUrl}
+          ext={videoExt}
+          projectName={projectName}
+          videoMaxHeight={centered ? BIG_VIDEO_MAX_H : undefined}
+          onDimensions={() => setDimsReady(true)}
+        />
+      )}
+    </div>
   );
+
+  // Fixed overlay positioner. Centred via translate(-50%,-50%), so we only glide
+  // its centre-point (slot centre → viewport centre) and animate its width.
+  const overlayStyle: React.CSSProperties = popped && rect ? {
+    position: 'fixed',
+    zIndex: 70,
+    transform: 'translate(-50%, -50%)',
+    transition: `top ${DUR}ms ${EASE}, left ${DUR}ms ${EASE}, width ${DUR}ms ${EASE}`,
+    willChange: 'top, left, width',
+    ...(centered
+      ? { top: '50%', left: '50%', width: BIG_WIDTH }
+      : { top: rect.top + rect.height / 2, left: rect.left + rect.width / 2, width: rect.width }),
+  } : {};
 
   return (
     <>
       {/* Always-in-flow slot: hosts the card at rest, becomes a fixed-height
-          spacer (and the unscaled measuring target) while the card floats in a
-          body-level portal. */}
+          spacer (and measuring target) while the card floats in the portal. */}
       <div
         ref={slotRef}
         className="flex-shrink-0 mt-3"
         style={popped && rect ? { height: rect.height } : undefined}
-      >
-        {!popped && card}
-      </div>
+      />
 
+      {/* The card markup lives permanently in the persistent host. */}
+      {hostRef.current && createPortal(cardMarkup, hostRef.current)}
+
+      {/* Body-level overlay so position:fixed escapes the Studio panel's
+          transformed / scroll-clipped ancestors. The host is re-parented into
+          the positioner imperatively (see the layout effect above). */}
       {popped && typeof document !== 'undefined' && createPortal(
         <>
           {centered && (
@@ -302,7 +303,15 @@ export default function BarberVideoCard({
               }}
             />
           )}
-          {card}
+          <div
+            ref={overlayRef}
+            style={overlayStyle}
+            onTransitionEnd={(e) => {
+              // Once the shrink glide lands, drop back to normal flow so the card
+              // scrolls with the panel again.
+              if (e.target === e.currentTarget && e.propertyName === 'width' && !centered) setPopped(false);
+            }}
+          />
         </>,
         document.body,
       )}

@@ -12,6 +12,12 @@ interface BarberVideoResultProps {
   videoUrl: string;
   ext: string;
   projectName?: string;
+  // Caps the clip's height when the card is enlarged so a tall (e.g. 9:16)
+  // video never pushes the overlay past the viewport.
+  videoMaxHeight?: string;
+  // Fires once the clip's intrinsic dimensions are known. The parent waits for
+  // this before auto-opening so the slot is measured at the card's true height.
+  onDimensions?: (aspectRatio: number) => void;
 }
 
 // Strip characters that are illegal in filenames, keeping spaces and '#'.
@@ -29,8 +35,11 @@ function DownloadIcon() {
   );
 }
 
-export default function BarberVideoResult({ videoUrl, ext, projectName }: BarberVideoResultProps) {
+export default function BarberVideoResult({ videoUrl, ext, projectName, videoMaxHeight, onDimensions }: BarberVideoResultProps) {
   const [saved, setSaved] = useState(false);
+  // Lock the box's aspect ratio as soon as it's known so the card never reflows
+  // (and shoves the toolbox) when the first frame paints.
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   // shapeup-[project-name] #NNN — the random 3-digit tag is fixed per recording
   // (re-derived only when a fresh clip arrives) so the name is stable on save.
@@ -58,7 +67,20 @@ export default function BarberVideoResult({ videoUrl, ext, projectName }: Barber
           muted
           playsInline
           aria-label="360° preview of your cut"
-          style={{ display: 'block', width: '100%', height: 'auto' }}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) {
+              const ar = v.videoWidth / v.videoHeight;
+              setAspectRatio(ar);
+              onDimensions?.(ar);
+            }
+          }}
+          style={{
+            display: 'block', width: '100%', height: 'auto',
+            transition: 'max-height 420ms cubic-bezier(0.34,1.2,0.64,1)',
+            ...(aspectRatio ? { aspectRatio: String(aspectRatio) } : {}),
+            ...(videoMaxHeight ? { maxHeight: videoMaxHeight, objectFit: 'contain' } : {}),
+          }}
         />
       </div>
 

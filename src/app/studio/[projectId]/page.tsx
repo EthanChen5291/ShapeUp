@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -288,6 +288,54 @@ export default function StudioPage() {
 
   // Release the object URL on unmount.
   useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
+
+  // ── Toolbox auto-fit ────────────────────────────────────────
+  // The toolbox column sits a comfortable distance down the page (a big top
+  // padding) so the card breathes when it's the only thing there. Once the 360°
+  // preview drops in, the column would overflow its max-height and the preview's
+  // bottom gets clipped — forcing a scroll. Instead, we smoothly lerp the top
+  // padding *down* by exactly the overflow so the whole stack rides up and the
+  // preview's bottom lands flush with the bottom of the scene. No scroll needed.
+  const toolboxAsideRef = useRef<HTMLElement | null>(null);
+  // Inner content wrapper inside the aside. We measure THIS (not the padded
+  // aside) so the height we read is independent of the paddingTop we animate.
+  const toolboxContentRef = useRef<HTMLDivElement | null>(null);
+  const TOOLBOX_BASE_PAD = isMobile ? 12 : Math.max(0, 96 - 0.04 * (typeof window !== 'undefined' ? window.innerHeight : 0));
+  const TOOLBOX_MIN_PAD = isMobile ? 8 : 16;
+  // A little breathing room so the fitted stack rides slightly lower than dead
+  // flush with the scene bottom, rather than jammed all the way up.
+  const TOOLBOX_FIT_OFFSET = isMobile ? 2 : 2;
+  const [toolboxPadTop, setToolboxPadTop] = useState(TOOLBOX_BASE_PAD);
+
+  useLayoutEffect(() => {
+    const aside = toolboxAsideRef.current;
+    const content = toolboxContentRef.current;
+    if (!aside || !content) return;
+    const basePad = isMobile ? 12 : Math.max(0, 96 - 0.04 * window.innerHeight);
+    const recompute = () => {
+      // Solve for the largest paddingTop (capped at base) that keeps the whole
+      // stack within the column's max-height. We measure the inner content
+      // wrapper's own height — which the aside's animating paddingTop does NOT
+      // affect — plus the aside's bottom padding. Measuring the *padded* aside
+      // instead would feed the live (animating) padding back into the next
+      // target every ResizeObserver tick, restarting the 420ms transition each
+      // frame and walking the padding up pixel-by-pixel. With the wrapper the
+      // observer only fires on real content changes (e.g. the clip loading), so
+      // the CSS transition runs as one clean lerp. The +OFFSET nudges it lower.
+      const availHeight = isMobile ? window.innerHeight * 0.48 : window.innerHeight - 12;
+      const padBottom = parseFloat(getComputedStyle(aside).paddingBottom) || 0;
+      const contentNoPad = content.offsetHeight + padBottom;
+      const target = Math.max(TOOLBOX_MIN_PAD, Math.min(basePad, availHeight - contentNoPad + TOOLBOX_FIT_OFFSET));
+      // Ignore sub-pixel churn so we never re-fire the transition for noise.
+      setToolboxPadTop(prev => Math.abs(target - prev) > 0.5 ? target : prev);
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(content);
+    window.addEventListener('resize', recompute);
+    return () => { ro.disconnect(); window.removeEventListener('resize', recompute); };
+    // videoState/videoUrl drive the content height; re-run when they change.
+  }, [isMobile, videoState, videoUrl, TOOLBOX_MIN_PAD, TOOLBOX_FIT_OFFSET]);
 
 
   const sceneControlsEnabled = process.env.NEXT_PUBLIC_SCENE_CONTROLS !== '0';
@@ -659,7 +707,7 @@ export default function StudioPage() {
                 backdropFilter: 'blur(6px)',
                 cursor: 'pointer',
                 // Smooth-lerp to 110% bigger once pressed open (stays enlarged), a touch bigger on hover.
-                transform: `scale(${sunOpen ? 2.1 : sunHovered ? 1.12 : 1})`,
+                transform: `scale(${sunOpen ? 1.68 : sunHovered ? 1.12 : 1})`,
                 transition: 'border 0.2s ease, background 0.2s ease, transform 0.32s cubic-bezier(0.34, 1.4, 0.5, 1)',
                 padding: 0,
               }}
@@ -753,7 +801,8 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside className={`flex flex-col px-4 pb-4 gap-3 relative overflow-y-auto cozy-scroll sidebar-in ${isMobile ? 'w-full flex-shrink-0 max-h-[48vh]' : 'w-80 flex-shrink-0 self-start max-h-[calc(100vh-0.75rem)]'}`} style={{ paddingTop: isMobile ? '0.75rem' : 'calc(6rem - 4vh)', zIndex: 50 }}>
+        <aside ref={toolboxAsideRef} className={`flex flex-col px-4 pb-4 relative overflow-y-auto cozy-scroll sidebar-in ${isMobile ? 'w-full flex-shrink-0 max-h-[48vh]' : 'w-80 flex-shrink-0 self-start max-h-[calc(100vh-0.75rem)]'}`} style={{ paddingTop: toolboxPadTop, transition: 'padding-top 420ms cubic-bezier(0.4,0,0.2,1)', zIndex: 50 }}>
+          <div ref={toolboxContentRef} className="flex flex-col gap-3">
           <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: isMobile ? 'none' : 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
@@ -855,6 +904,7 @@ export default function StudioPage() {
               videoUrl={videoUrl}
               videoExt={videoExt}
             />
+          </div>
         </aside>
       )}
 
