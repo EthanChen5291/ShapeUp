@@ -47,6 +47,9 @@ const FRESH_CHECKS = (): ChecksMap => ({
 const PASS_FRAMES = 4;
 const FAIL_FRAMES = 6;
 
+/* Head-tilt tolerance: eye-line more than this many degrees off level reads as tilted. */
+const TILT_DEG = 8;
+
 type Engine = 'mediapipe' | 'native' | 'manual';
 
 interface FaceObservation {
@@ -54,12 +57,13 @@ interface FaceObservation {
   cx: number; cy: number;       // face box center
   w: number; h: number;         // face box size
   yawRatio: number | null;      // |nose→Leye| / |nose→Reye|, null if unknown
+  roll: number | null;          // eye-line angle off horizontal in degrees, null if unknown
   count: number;                // faces seen
 }
 
 export interface LiveScanCameraProps {
   hairType: string;
-  onScanComplete: (profile: UserHeadProfile, sessionId: string | null, url: string | null) => void;
+  onScanComplete: (profile: UserHeadProfile, sessionId: string | null, url: string | null, scanS3Key: string | null) => void;
   onDataUrlReady?: (dataUrl: string) => void;
   onChecksChange?: (checks: ChecksMap, allPass: boolean) => void;
   onDismiss?: () => void;
@@ -70,7 +74,7 @@ export interface LiveScanCameraProps {
      captured dataUrl, run your existing /api scan pipeline, and
      resolve with what handleCapture in ScanPopup expects.       */
   processCapture?: (dataUrl: string) => Promise<{
-    profile: UserHeadProfile; sessionId: string | null; url: string | null;
+    profile: UserHeadProfile; sessionId: string | null; url: string | null; scanS3Key: string | null;
   }>;
 }
 
@@ -135,6 +139,7 @@ export default function LiveScanCamera({
   const [flash, setFlash]     = useState(false);
   const [shot, setShot]       = useState<string | null>(null); // dataUrl after capture
   const [uploading, setUploading] = useState(false);
+  const [tilted, setTilted]   = useState(false);  // head rolled off level → side message
   const [confirmOpen, setConfirmOpen] = useState(false); // "checks not met" guard
   const [confirmFails, setConfirmFails] = useState<CheckKey[]>([]); // frozen at popup-open
 
@@ -148,6 +153,10 @@ export default function LiveScanCamera({
   const capturedRef = useRef(false);
   const pendingShotRef = useRef<string | null>(null); // frozen frame awaiting confirm
   const lastDetect = useRef(0);
+  /* tilt debounce — flip the side message only after a few agreeing frames */
+  const tiltStreak = useRef(0);
+  const levelStreak = useRef(0);
+  const tiltedRef = useRef(false);
 
   const checksUpRef = useRef(onChecksChange);
   checksUpRef.current = onChecksChange;
@@ -224,7 +233,7 @@ export default function LiveScanCamera({
       try { res = landmarkerRef.current.detectForVideo(v, now); }
       catch { return null; }
       const faces = res.faceLandmarks ?? [];
-      if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, count: 0 };
+      if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, roll: null, count: 0 };
       const pts = faces[0];
       let minX = 1, minY = 1, maxX = 0, maxY = 0;
       for (const p of pts) {
@@ -234,10 +243,13 @@ export default function LiveScanCamera({
       const nose = pts[1], lEye = pts[33], rEye = pts[263];
       const dl = Math.hypot(nose.x - lEye.x, nose.y - lEye.y);
       const dr = Math.hypot(nose.x - rEye.x, nose.y - rEye.y);
+      /* roll = angle of the eye line off horizontal; magnitude is mirror-invariant */
+      const roll = Math.atan2(rEye.y - lEye.y, rEye.x - lEye.x) * 180 / Math.PI;
       return {
         cx: (minX + maxX) / 2, cy: (minY + maxY) / 2,
         w: maxX - minX, h: maxY - minY,
         yawRatio: dr > 0.0001 ? dl / dr : null,
+        roll,
         count: faces.length,
       };
     }
@@ -245,13 +257,14 @@ export default function LiveScanCamera({
     if (eng === 'native' && nativeRef.current) {
       try {
         const faces = await nativeRef.current.detect(v);
-        if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, count: 0 };
+        if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, roll: null, count: 0 };
         const b = faces[0].boundingBox;
         return {
           cx: (b.x + b.width / 2) / v.videoWidth,
           cy: (b.y + b.height / 2) / v.videoHeight,
           w: b.width / v.videoWidth, h: b.height / v.videoHeight,
           yawRatio: null,
+          roll: null,
           count: faces.length,
         };
       } catch { return null; }
@@ -378,12 +391,12 @@ export default function LiveScanCamera({
       setUploading(true);
       try {
         if (processCapture) {
-          const { profile, sessionId, url } = await processCapture(dataUrl);
-          onScanComplete(profile, sessionId, url);
+          const { profile, sessionId, url, scanS3Key } = await processCapture(dataUrl);
+          onScanComplete(profile, sessionId, url, scanS3Key);
         } else {
           /* TODO: replace with your old ScanCamera upload pipeline.
              Until wired, hand the raw dataUrl up so the flow still moves. */
-          onScanComplete({} as UserHeadProfile, null, dataUrl);
+          onScanComplete({} as UserHeadProfile, null, dataUrl, null);
         }
       } finally {
         setUploading(false);
@@ -451,10 +464,10 @@ export default function LiveScanCamera({
         setUploading(true);
         try {
           if (processCapture) {
-            const { profile, sessionId, url } = await processCapture(dataUrl);
-            onScanComplete(profile, sessionId, url);
+            const { profile, sessionId, url, scanS3Key } = await processCapture(dataUrl);
+            onScanComplete(profile, sessionId, url, scanS3Key);
           } else {
-            onScanComplete({} as UserHeadProfile, null, dataUrl);
+            onScanComplete({} as UserHeadProfile, null, dataUrl, null);
           }
         } finally {
           setUploading(false);
@@ -565,10 +578,10 @@ export default function LiveScanCamera({
               ))}
             </ul>
             <div className="lsc-confirm-actions">
-              <button type="button" className="lsc-confirm-cancel" onClick={cancelConfirm}>
+              <button type="button" className="lsc-confirm-cancel font-display" onClick={cancelConfirm}>
                 Keep adjusting
               </button>
-              <button type="button" className="lsc-confirm-go font-display" onClick={confirmCapture}>
+              <button type="button" className="lsc-confirm-go" onClick={confirmCapture}>
                 Take it anyway
               </button>
             </div>

@@ -777,6 +777,36 @@ function ArtistSpinner() {
   );
 }
 
+/* ─── Rotating build subtitle ─── */
+// Cycles through the build-stage names (and a few extra one-liners so it doesn't
+// feel repetitive) underneath the spinner, advancing one phrase every 4s.
+const BUILD_PHRASES = [
+  'Building model',
+  'Drawing blueprint',
+  'Mapping your features',
+  'Sculpting in 3D',
+  'Tracing every angle',
+  'Shaping the geometry',
+  'Adding depth',
+  'Refining the mesh',
+  'Smoothing the surface',
+  'Polishing details',
+  'Aligning the lighting',
+  'Almost there',
+];
+function BuildSubtitle() {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => i + 1), 4000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <p key={idx} className="chatter-line" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, fontWeight: 600, color: 'rgba(255,248,234,0.8)', marginTop: 4, fontStyle: 'italic', textAlign: 'center' }}>
+      {BUILD_PHRASES[idx % BUILD_PHRASES.length]}…
+    </p>
+  );
+}
+
 type ScanPhase = 'username' | 'camera' | 'verify' | 'main-selfie' | 'processing';
 const BIOMETRIC_CONSENT_VERSION = 'biometric-notice-2026-06-08';
 
@@ -848,7 +878,7 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 
 /* ─── Scan Popup ─── */
 function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false, askMainSelfie = false }: {
-  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string, splatS3Key?: string, makeMainSelfie?: boolean) => void;
+  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string, splatS3Key?: string, makeMainSelfie?: boolean, scanS3Key?: string | null) => void;
   onDismiss: () => void;
   onNoTokens?: () => void;
   needsUsername?: boolean;
@@ -867,7 +897,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
   const [usernameLoading, setUsernameLoading] = useState(false);
   const [phase, setPhase] = useState<ScanPhase>(needsUsername ? 'username' : 'camera');
   const [cameraKey, setCameraKey] = useState(0);
-  const [captured, setCaptured] = useState<{ profile: UserHeadProfile; sid: string | null; url: string | null } | null>(null);
+  const [captured, setCaptured] = useState<{ profile: UserHeadProfile; sid: string | null; url: string | null; scanS3Key: string | null } | null>(null);
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
   const [showVerifyBtns, setShowVerifyBtns] = useState(false);
   const [collapsing, setCollapsing] = useState(false);
@@ -931,7 +961,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
     } catch (err: unknown) { setUsernameError(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Please try again.'); setUsernameLoading(false); }
   };
 
-  const processCapture = useCallback(async (dataUrl: string): Promise<{ profile: UserHeadProfile; sessionId: string | null; url: string | null }> => {
+  const processCapture = useCallback(async (dataUrl: string): Promise<{ profile: UserHeadProfile; sessionId: string | null; url: string | null; scanS3Key: string | null }> => {
     const profile: UserHeadProfile = {
       headProportions: { width: 1.6, height: 2.0, crownY: 1.0 },
       anchors: { earLeft: [-0.85, 0, 0], earRight: [0.85, 0, 0] },
@@ -946,6 +976,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
     };
     let sessionId: string | null = null;
     let url: string | null = null;
+    let scanS3Key: string | null = null;
     if (hasConsent) {
       try {
         const res = await fetch('/api/save-scan', {
@@ -956,13 +987,14 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         const data = await res.json();
         sessionId = data.sessionId ?? null;
         url = data.downloadUrl ?? null;
+        scanS3Key = data.scanS3Key ?? null;
       } catch { /* non-fatal */ }
     }
-    return { profile, sessionId, url: url ?? dataUrl };
+    return { profile, sessionId, url: url ?? dataUrl, scanS3Key };
   }, [hasConsent]);
 
-  const handleCapture = (p: UserHeadProfile, sid: string | null, url: string | null) => {
-    setCaptured({ profile: p, sid, url }); setPhase('verify'); setTimeout(() => setShowVerifyBtns(true), 200);
+  const handleCapture = (p: UserHeadProfile, sid: string | null, url: string | null, scanS3Key: string | null = null) => {
+    setCaptured({ profile: p, sid, url, scanS3Key }); setPhase('verify'); setTimeout(() => setShowVerifyBtns(true), 200);
   };
 
   const handleRetake = () => {
@@ -979,6 +1011,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
     // Save scan now if consent was missing at capture time
     let sid = captured.sid;
     let scanUrl = captured.url;
+    let scanS3Key = captured.scanS3Key;
     if (!sid) {
       try {
         const res = await fetch('/api/save-scan', {
@@ -989,6 +1022,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         const data = await res.json();
         sid = data.sessionId ?? null;
         scanUrl = data.downloadUrl ?? scanUrl;
+        scanS3Key = data.scanS3Key ?? scanS3Key;
       } catch { /* non-fatal */ }
     }
 
@@ -1022,7 +1056,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
         setExiting(true);
-        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!, splatS3Key, makeMainSelfieRef.current); }, 600);
+        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!, splatS3Key, makeMainSelfieRef.current, scanS3Key); }, 600);
       }, 900);
     } catch (err) {
       if (abort.signal.aborted) return;
@@ -1100,7 +1134,12 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
                   {faceliftStatus === 'error' ? 'Something went wrong' : 'Analyzing your look...'}
                 </p>
                 {faceliftStatus !== 'error' && <ArtistSpinner />}
-                {faceliftStatus === 'processing' && <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'rgba(255,248,234,0.35)', marginTop: 4, fontStyle: 'italic', textAlign: 'center' }}>Building your 3D model — this takes about 2 minutes</p>}
+                {faceliftStatus === 'processing' && (
+                  <>
+                    <BuildSubtitle />
+                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'rgba(255,248,234,0.35)', marginTop: 2, fontStyle: 'italic', textAlign: 'center' }}>Please allow up to 2 minutes while we build your 3D model</p>
+                  </>
+                )}
                 {faceliftStatus === 'error' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
                     <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'rgba(255,100,80,0.8)', lineHeight: 1.4, wordBreak: 'break-word' }}>{faceliftError ?? 'Unknown error'}</p>
@@ -1962,6 +2001,7 @@ export default function DashboardPage() {
     splatUrl?: string,
     splatS3Key?: string,
     makeMainSelfie: boolean = true,
+    scanS3Key: string | null = null,
   ) => {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setHasScanEver(true);
@@ -1972,9 +2012,13 @@ export default function DashboardPage() {
     if (sid) sessionStorage.setItem('studio_sessionId', sid);
     if (splatUrl) sessionStorage.setItem('studio_splatUrl', splatUrl);
 
-    // Derive the permanent S3 key from sessionId (matches save-scan key path).
-    // Only set if S3 upload succeeded — fallback url starts with "data:" if it failed.
-    const scanS3Key = sid && url && !url.startsWith('data:') ? `pictures/${sid}/scan.png` : null;
+    // `scanS3Key` is the real key save-scan uploaded to: a CSPRNG-UUID path
+    // (pictures/<uuid>/scan.png) the client CANNOT reconstruct from sessionId.
+    // An earlier version derived `pictures/${sid}/scan.png`, which stopped
+    // matching once save-scan switched to random UUIDs, so lastImageS3Key /
+    // thumbnailS3Key pointed at a nonexistent object: 404s from /api/img (black
+    // polaroid) and "Could not load source image" from gemini-hair-edit.
+    // It's null when upload failed (save-scan then returns the data: URL in `url`).
 
     // Create a Convex project for this scan
     let projectId: Id<'projects'>;

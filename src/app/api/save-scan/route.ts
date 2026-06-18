@@ -93,6 +93,14 @@ export async function POST(req: NextRequest) {
   }
 
   console.log('[save-scan] done — sessionId:', sessionId);
-  // Fall back to the original data URL if S3 upload failed so the session still works
-  return NextResponse.json({ ok: true, sessionId, downloadUrl: downloadUrl ?? imageDataUrl });
+  // Fall back to the original data URL if S3 upload failed so the session still works.
+  // Return the real scanS3Key (a CSPRNG-UUID path the client cannot reconstruct) so
+  // callers persist the key the bytes actually live at. Only when upload succeeded —
+  // downloadUrl is null on S3 failure, in which case there is no object to point to.
+  return NextResponse.json({
+    ok: true,
+    sessionId,
+    downloadUrl: downloadUrl ?? imageDataUrl,
+    scanS3Key: downloadUrl ? scanS3Key : null,
+  });
 }

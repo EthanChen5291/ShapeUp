@@ -639,7 +639,10 @@ body {
   border-radius: 9px;
   background: rgba(107, 140, 79, 0.16);
   color: var(--moss);
-  transition: transform 520ms cubic-bezier(.34, 1.1, .64, 1), color 180ms ease, background 180ms ease;
+  transition: color 180ms ease, background 180ms ease;
+}
+.btn-barber360__icon svg {
+  transition: transform 520ms cubic-bezier(.34, 1.1, .64, 1);
 }
 .btn-barber360__text {
   flex: 1;
@@ -662,9 +665,12 @@ body {
 }
 .btn-barber360:hover .btn-barber360__icon,
 .btn-barber360:focus-visible .btn-barber360__icon {
-  transform: rotate(-360deg);               /* a wink at "360", on intent only */
   background: rgba(107, 140, 79, 0.24);
   color: #3f5530;
+}
+.btn-barber360:hover .btn-barber360__icon svg,
+.btn-barber360:focus-visible .btn-barber360__icon svg {
+  transform: rotate(-360deg);               /* a wink at "360", on intent only */
 }
 .btn-barber360:hover .btn-barber360__chev,
 .btn-barber360:focus-visible .btn-barber360__chev {
@@ -677,9 +683,9 @@ body {
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .btn-barber360__icon { transition: color 180ms ease, background 180ms ease; }
-  .btn-barber360:hover .btn-barber360__icon,
-  .btn-barber360:focus-visible .btn-barber360__icon { transform: none; }
+  .btn-barber360__icon svg { transition: none; }
+  .btn-barber360:hover .btn-barber360__icon svg,
+  .btn-barber360:focus-visible .btn-barber360__icon svg { transform: none; }
 }
 
 /* Referral popup accent badge */
@@ -2459,12 +2465,13 @@ html.dark .explore-marquee-track {
   transition: transform 140ms ease, opacity 140ms ease;
 }
 .lsc-confirm-cancel {
-  background: rgba(26, 20, 16, 0.07);
-  color: var(--char, #1a1410);
+  background: rgb(40, 100, 210);
+  color: #ffffff;
+  box-shadow: 0 8px 22px -8px rgba(40, 100, 210, 0.55);
 }
 .lsc-confirm-go {
-  background: var(--tomato, #e4572e);
-  color: var(--cream, #fff8ea);
+  background: rgba(26, 20, 16, 0.07);
+  color: var(--char, #1a1410);
 }
 .lsc-confirm-cancel:hover,
 .lsc-confirm-go:hover { transform: scale(1.04); }
