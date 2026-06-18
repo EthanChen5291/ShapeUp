@@ -4,7 +4,7 @@ import { isDisposableEmailDomain } from "./lib/disposableEmail";
 
 // Loose per-IP cap on free generations — shared offices, dorms, and CGNAT mean
 // many legit users can share one IP, so this is a backstop, not the main gate.
-const FREE_GEN_IP_CAP = 3;
+const FREE_GEN_IP_CAP = 5;
 const FREE_GEN_IP_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
 
 /**
@@ -51,10 +51,14 @@ export const consumeGeneration = mutation({
     }
 
     // Require a verified, non-disposable email so throwaway inboxes can't farm.
-    // `emailVerified` is only blocked when explicitly false — the claim may be
-    // absent on older JWT templates (see auth.config.ts), and we'd rather not
-    // hard-block legit users until that claim is guaranteed present.
-    if (identity.emailVerified === false) {
+    // We only block when the claim is *explicitly* unverified — if the JWT
+    // template doesn't emit `email_verified` at all (claim absent → undefined),
+    // we fail open rather than hard-block legit users. The claim can arrive as a
+    // real boolean or a "false" string depending on how Clerk renders the
+    // shortcode, so accept both. See convex/auth.config.ts + the Clerk JWT
+    // template ({{user.email_verified}}).
+    const emailVerified = identity.emailVerified as boolean | string | undefined;
+    if (emailVerified === false || emailVerified === "false") {
       throw new ConvexError("Please verify your email to use your free generation.");
     }
     const email = (user.email ?? identity.email ?? "").toLowerCase();

@@ -5,6 +5,7 @@
 'use client';
 
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import { getVisitorId } from '@/lib/visitorId';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
 import { EditReport, sanitizeEditReport } from '@/lib/editReport';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -307,10 +308,11 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       setPhase('hairstep');
 
       // newImageUrl is already a data:image/png;base64,… URL — pass directly to facelift.
+      const fingerprint = await getVisitorId();
       const faceliftRes = await fetch('/api/facelift', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ imageDataUrl: newImageUrl, outputName: 'edit-output' }),
+        body:    JSON.stringify({ imageDataUrl: newImageUrl, outputName: 'edit-output', fingerprint }),
       });
       const faceliftRaw = await faceliftRes.text();
       let faceliftData: { splatUrl?: string; error?: string; splatS3Key?: string };
