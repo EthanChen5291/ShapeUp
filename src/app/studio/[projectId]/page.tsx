@@ -310,8 +310,10 @@ export default function StudioPage() {
   // Inner content wrapper inside the aside. We measure THIS (not the padded
   // aside) so the height we read is independent of the paddingTop we animate.
   const toolboxContentRef = useRef<HTMLDivElement | null>(null);
-  const TOOLBOX_BASE_PAD = isMobile ? 12 : Math.max(0, 96 - 0.04 * (typeof window !== 'undefined' ? window.innerHeight : 0));
-  const TOOLBOX_MIN_PAD = isMobile ? 8 : 16;
+  // Mobile keeps ≥22px up top so the "Toolbox" tab can poke above the card edge
+  // without being clipped by the column's paddingTop region.
+  const TOOLBOX_BASE_PAD = isMobile ? 22 : Math.max(0, 96 - 0.04 * (typeof window !== 'undefined' ? window.innerHeight : 0));
+  const TOOLBOX_MIN_PAD = isMobile ? 22 : 16;
   // A little breathing room so the fitted stack rides slightly lower than dead
   // flush with the scene bottom, rather than jammed all the way up.
   const TOOLBOX_FIT_OFFSET = isMobile ? 2 : 2;
@@ -321,7 +323,7 @@ export default function StudioPage() {
     const aside = toolboxAsideRef.current;
     const content = toolboxContentRef.current;
     if (!aside || !content) return;
-    const basePad = isMobile ? 12 : Math.max(0, 96 - 0.04 * window.innerHeight);
+    const basePad = isMobile ? 22 : Math.max(0, 96 - 0.04 * window.innerHeight);
     const recompute = () => {
       // Solve for the largest paddingTop (capped at base) that keeps the whole
       // stack within the column's max-height. We measure the inner content
@@ -332,7 +334,7 @@ export default function StudioPage() {
       // frame and walking the padding up pixel-by-pixel. With the wrapper the
       // observer only fires on real content changes (e.g. the clip loading), so
       // the CSS transition runs as one clean lerp. The +OFFSET nudges it lower.
-      const availHeight = isMobile ? window.innerHeight * 0.48 : window.innerHeight - 12;
+      const availHeight = isMobile ? window.innerHeight * 0.52 : window.innerHeight - 12;
       const padBottom = parseFloat(getComputedStyle(aside).paddingBottom) || 0;
       const contentNoPad = content.offsetHeight + padBottom;
       const target = Math.max(TOOLBOX_MIN_PAD, Math.min(basePad, availHeight - contentNoPad + TOOLBOX_FIT_OFFSET));
@@ -618,22 +620,46 @@ export default function StudioPage() {
   // ── 3D Studio ──
   return (
     <main className={`fixed inset-0 overflow-hidden bg-tomato-shop flex ${isMobile ? 'flex-col' : ''}`}>
-      <div className="absolute top-5 left-6 z-20 flex items-center gap-3">
-        <LogoHomeLink cream small label="Back to home" onClick={() => router.push('/dashboard')} />
+      <div className={`absolute z-20 flex items-center gap-3 ${isMobile ? 'top-4 left-4' : 'top-5 left-6'}`}>
+        <LogoHomeLink cream small label="Back to home" onClick={() => router.push('/dashboard')} homeIcon={isMobile} textScale={isMobile ? 1.2 : 1} />
       </div>
 
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center">
+      {isMobile && (
+        <div className="absolute top-4 right-3 z-30 flex items-center gap-2">
+          <span
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-sm"
+            style={{
+              background: (userQuery?.credits ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
+              border: (userQuery?.credits ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
+              color: (userQuery?.credits ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
+            }}
+          >
+            <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '1.7em', height: '1.7em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.5em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.credits ?? 0} />
+          </span>
+          <AddTokensButton onClick={() => setShowPricing(true)} />
+        </div>
+      )}
+
+      <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center ${isMobile ? 'hidden' : ''}`}>
         <h2 className="type-chonk text-[var(--cream)]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', opacity: 0.96, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>
           THE <em style={{ color: 'var(--butter)' }}>studio</em>
         </h2>
       </div>
 
-      <div className={`flex-1 min-w-0 relative flex items-center justify-center ${isMobile ? 'p-3 pt-16' : 'p-6 pt-24'}`}>
+      <div className={`min-w-0 relative flex items-center justify-center ${isMobile ? 'h-[46vh] flex-shrink-0 p-2 pt-20' : 'flex-1 p-6 pt-24'}`}>
         {(displayImageUrl ?? imageUrl) && (() => { const displayImg = displayImageUrl ?? imageUrl; return (
           <div
-            className={`absolute z-10 polaroid ${isMobile ? 'top-14 left-3' : 'top-24 left-6'} ${previewExpanded ? '' : 'wonky-l'}`}
+            className={`absolute z-10 polaroid ${isMobile ? 'top-20 left-2' : 'top-24 left-6'} ${previewExpanded ? '' : 'wonky-l'}`}
             style={{
-              width: previewExpanded ? 'min(55vh, 46vw)' : 100,
+              // `.polaroid` sets position:relative (unlayered, beats the Tailwind
+              // `absolute` class), which would put the polaroid in-flow and steal a
+              // column. Force absolute on mobile so it overlays the scene's corner
+              // and the render fills the full width.
+              ...(isMobile ? { position: 'absolute' as const } : {}),
+              // Thin outline on the unexpanded polaroid (mobile) so it reads as a
+              // tappable profile button against the render behind it.
+              ...(isMobile && !previewExpanded ? { outline: '1px solid rgba(42,32,26,0.35)', outlineOffset: 0 } : {}),
+              width: previewExpanded ? 'min(55vh, 46vw)' : (isMobile ? 156 : 100),
               padding: '6px 6px 22px',
               transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
               cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
@@ -874,9 +900,10 @@ export default function StudioPage() {
       </div>
 
       {!menuHidden && (
-        <aside ref={toolboxAsideRef} className={`flex flex-col px-4 pb-4 relative overflow-y-auto cozy-scroll sidebar-in ${isMobile ? 'w-full flex-shrink-0 max-h-[48vh]' : 'w-80 flex-shrink-0 self-start max-h-[calc(100vh-0.75rem)]'}`} style={{ paddingTop: toolboxPadTop, transition: 'padding-top 420ms cubic-bezier(0.4,0,0.2,1)', zIndex: 50 }}>
+        <aside ref={toolboxAsideRef} className={`flex flex-col px-4 pb-4 relative overflow-y-auto cozy-scroll sidebar-in ${isMobile ? 'w-full flex-shrink-0 max-h-[52vh]' : 'w-80 flex-shrink-0 self-start max-h-[calc(100vh-0.75rem)]'}`} style={{ paddingTop: toolboxPadTop, transition: 'padding-top 420ms cubic-bezier(0.4,0,0.2,1)', zIndex: 50 }}>
           <div ref={toolboxContentRef} className="flex flex-col gap-3">
-          <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: isMobile ? 'none' : 'translateY(-12px)' }}>
+          {!isMobile && (
+          <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
               style={{
@@ -894,7 +921,9 @@ export default function StudioPage() {
               <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
             )}
           </div>
+          )}
           <EditPanel
+              isMobile={isMobile}
               profile={profile ?? mockUserHeadProfile}
               onParamsChange={handleParamsChange}
               sessionId={sessionId}

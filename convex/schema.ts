@@ -25,6 +25,10 @@ export default defineSchema({
     referredBy: v.optional(v.string()),
     // Highest-ranked plan ever purchased; drives the displayed plan tier.
     topPlan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("pro"))),
+    // When this account consumed its one-time free generation. A per-account
+    // flag is only as strong as the cost of a new account, so it's paired with
+    // the device/IP signals in freeGenGrants — see convex/freeGen.ts.
+    freeGenUsedAt: v.optional(v.number()),
     // Feedback-prompt throttling. Prompted = last time the star toast was shown
     // (incl. dismissals); Submitted = last time a rating was actually sent.
     lastFeedbackPromptAt: v.optional(v.number()),
@@ -125,6 +129,17 @@ export default defineSchema({
     windowStart: v.number(),
     count: v.number(),
   }).index("by_key", ["key"]),
+
+  // Permanent ledger of free-generation grants, keyed by an anti-Sybil signal
+  // (a hashed device fingerprint or hashed IP). Lets us cap free GPU runs per
+  // physical device / network even when a user spins up many accounts.
+  // See convex/freeGen.ts.
+  freeGenGrants: defineTable({
+    signalType: v.union(v.literal("fingerprint"), v.literal("ip")),
+    signalHash: v.string(),
+    userId: v.id("users"),
+    grantedAt: v.number(),
+  }).index("by_signal", ["signalType", "signalHash"]),
 
   // Denormalized GPU-seconds counter, one row per monthly bucket ("YYYY-MM").
   // Used to cap demo Modal spend — see convex/gpuUsage.ts.

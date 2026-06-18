@@ -179,10 +179,12 @@ export async function POST(req: NextRequest) {
 
   let imageDataUrl: string | undefined;
   let outputName = 'edit-output';
+  let fingerprint: string | undefined;
   try {
-    ({ imageDataUrl, outputName = 'edit-output' } = await req.json() as {
+    ({ imageDataUrl, outputName = 'edit-output', fingerprint } = await req.json() as {
       imageDataUrl?: string;
       outputName?: string;
+      fingerprint?: string;
     });
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -210,12 +212,24 @@ export async function POST(req: NextRequest) {
     console.error('[facelift] POST: GPU budget check failed (allowing request):', err);
   }
 
-  if (process.env.DISABLE_PAYWALL !== '1') {
+  // Spend an entitlement: a paid credit if the user has one, otherwise their
+  // one-time free generation (gated by the anti-Sybil checks in freeGen.ts).
+  // Allowlisted demo/dev accounts bypass billing entirely.
+  if (process.env.DISABLE_PAYWALL !== '1' && !isDemoUser) {
     try {
-      await convex.mutation(api.users.deductCredit, {});
+      await convex.mutation(api.freeGen.consumeGeneration, {
+        ipHash: hashIdentifier(ip),
+        fingerprintHash: typeof fingerprint === 'string' && fingerprint.length > 0
+          ? hashIdentifier(fingerprint)
+          : undefined,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const status = msg.includes('out of credits') || msg.includes('No credits') ? 402 : 400;
+      // Entitlement failures (out of credits, free gen exhausted/blocked) are a
+      // payment-required signal; anything else is a bad request.
+      const status = /out of credits|free generation|verify your email|permanent email|this device|this network/i.test(msg)
+        ? 402
+        : 400;
       return NextResponse.json({ error: msg }, { status });
     }
   }

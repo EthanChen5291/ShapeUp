@@ -28,6 +28,7 @@ import { createPortal } from 'react-dom';
 import BarberVideoResult from '@/components/BarberVideoResult';
 
 interface BarberVideoCardProps {
+  isMobile?: boolean;
   onRequestVideo?: () => void;
   videoState?: 'idle' | 'recording' | 'encoding' | 'ready' | 'error';
   videoProgress?: number;
@@ -74,6 +75,7 @@ const REST_SHADOW = '0 30px 60px -24px rgba(0,0,0,0.45)';
 const BIG_SHADOW = '0 40px 90px -30px rgba(0,0,0,0.7)';
 
 export default function BarberVideoCard({
+  isMobile = false,
   onRequestVideo,
   videoState = 'idle',
   videoProgress = 0,
@@ -165,18 +167,23 @@ export default function BarberVideoCard({
 
   // The card markup. It fills whatever container it currently sits in (slot or
   // overlay), so growth comes entirely from the overlay's animated width.
+  // On mobile at-rest the card is seamless inside the shared toolbox rectangle:
+  // no background/border/shadow/rounding, tighter padding. When popped to the
+  // centered overlay it always wears full card chrome.
+  const merged = isMobile && !centered;
   const cardMarkup = (
     <div
-      className={CARD_CLASS}
+      className={merged ? 'flex-shrink-0 px-4 pt-0 pb-3 flex flex-col gap-2' : CARD_CLASS}
       style={{
-        background: 'var(--biscuit-lt)',
-        border: '1px solid rgba(42,32,26,0.1)',
-        boxShadow: centered ? BIG_SHADOW : REST_SHADOW,
+        background: merged ? 'transparent' : 'var(--biscuit-lt)',
+        border: merged ? 'none' : '1px solid rgba(42,32,26,0.1)',
+        boxShadow: merged ? 'none' : centered ? BIG_SHADOW : REST_SHADOW,
         transition: `box-shadow ${DUR}ms ease`,
       }}
     >
+      {(!isMobile || isReady) && (
       <div className="flex items-center justify-between">
-        <span className="pill pill-tomato">NEW: Show your barber!</span>
+        {!isMobile && <span className="pill pill-tomato">NEW: Show your barber!</span>}
         {isReady && (
           <div className="flex items-center gap-2">
             <button
@@ -208,14 +215,16 @@ export default function BarberVideoCard({
           </div>
         )}
       </div>
+      )}
 
       {videoState === 'idle' && (
         <button
           onClick={() => onRequestVideo?.()}
           aria-label="Record a 360° video of your cut to show your barber"
           className="btn-cta-order"
+          style={isMobile ? { paddingTop: 10, paddingBottom: 10 } : undefined}
         >
-          <span className="btn-cta-order-beta" aria-label="beta">beta</span>
+          <span className="btn-cta-order-beta" aria-label="beta" style={isMobile ? { fontSize: '0.72rem', padding: '3px 8px' } : undefined}>beta</span>
           <span className="btn-cta-order-title">
             <svg className="btn-cta-order-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="12" cy="12" r="9.25" />

@@ -330,7 +330,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
 }
 
 /* ─────────────── Scroll Arrows ─────────────── */
-function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTriggerRef: React.MutableRefObject<((dir: 'up' | 'down') => void) | null>; onClickUp?: () => void; onClickDown?: () => void }) {
+function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown, isMobile }: { swipeTriggerRef: React.MutableRefObject<((dir: 'up' | 'down') => void) | null>; onClickUp?: () => void; onClickDown?: () => void; isMobile?: boolean }) {
   const upContainerRef = useRef<HTMLDivElement>(null);
   const downContainerRef = useRef<HTMLDivElement>(null);
   const [upHovered, setUpHovered] = useState(false);
@@ -402,10 +402,19 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
     return () => { cancelAnimationFrame(rafId); swipeTriggerRef.current = null; };
   }, [swipeTriggerRef]);
 
-  const SH = 78;
-  const SW = 140;
+  const SH = isMobile ? 54 : 78;
+  const SW = isMobile ? 96 : 140;
   // left: 30 + 200% of SW (170) = 370; tops derived from centered pair ± vertical shifts
   const arrowLeft = 218.5;
+
+  // On mobile the sprite container shrinks (max 360px wide), so the arrows are
+  // sized down and centered horizontally, anchored close to the sprite edges.
+  const upPos: React.CSSProperties = isMobile
+    ? { left: `calc(50% - ${SW / 2}px)`, top: '3%' }
+    : { left: arrowLeft, top: 'calc(50% - 314.4px)' };
+  const downPos: React.CSSProperties = isMobile
+    ? { left: `calc(50% - ${SW / 2}px)`, bottom: '2%' }
+    : { left: arrowLeft, top: 'calc(50% + 258px)' };
 
   return (
     <>
@@ -414,7 +423,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
         onMouseEnter={() => setUpHovered(true)}
         onMouseLeave={() => setUpHovered(false)}
         onClick={onClickUp}
-        style={{ position: 'absolute', left: arrowLeft, top: 'calc(50% - 314.4px)', width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
+        style={{ position: 'absolute', ...upPos, width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={upHovered ? "/arrows/arrowup_highlighted.png" : "/arrows/arrowup.png"} alt="scroll up" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: upHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
@@ -424,7 +433,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
         onMouseEnter={() => setDownHovered(true)}
         onMouseLeave={() => setDownHovered(false)}
         onClick={onClickDown}
-        style={{ position: 'absolute', left: arrowLeft, top: 'calc(50% + 258px)', width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
+        style={{ position: 'absolute', ...downPos, width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={downHovered ? "/arrows/arrowdown_highlighted.png" : "/arrows/arrowdown.png"} alt="scroll down" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: downHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
@@ -1141,7 +1150,7 @@ function GlimpseSection() {
       {/* Orbit stage */}
       <div
         ref={sectionRef}
-        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(isMobile ? { height: 420, transform: 'scale(0.42)', transformOrigin: 'center center' } : {}) }}
+        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(isMobile ? { height: 'calc((100vw - 16px) / 868 * 960)', transform: 'scale(calc((100vw - 16px) / 868))', transformOrigin: 'center center' } : {}) }}
       >
         {/* Center image */}
         <div
@@ -1347,6 +1356,7 @@ function PricingCTAButton({
   const [animKey, setAnimKey] = useState(0);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [btnSize, setBtnSize] = useState({ w: 260, h: 46 });
+  const isMobile = useIsMobile();
 
   useLayoutEffect(() => {
     if (!btnRef.current) return;
@@ -1403,9 +1413,9 @@ function PricingCTAButton({
         disabled={disabled}
         style={{
           position: 'relative', overflow: 'hidden',
-          width: '100%', padding: variant === 'pro' ? '12px 15px' : '13px 16px',
+          width: '100%', padding: isMobile ? '18px 16px' : (variant === 'pro' ? '12px 15px' : '13px 16px'),
           fontFamily: 'var(--font-dmsans), sans-serif',
-          fontSize: variant === 'pro' ? 12 : 13, fontWeight: 700, borderRadius: LT_BR,
+          fontSize: isMobile ? 16 : (variant === 'pro' ? 12 : 13), fontWeight: 700, borderRadius: LT_BR,
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.6 : 1,
           display: 'block',
@@ -2172,20 +2182,21 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 36, ...(isMobile ? { gap: 14 } : {}) }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, ...(isMobile ? { gap: 12 } : {}) }}>
             <button
               onClick={scrollToHowItWorks}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 13 } : {}) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 19, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
               how it works
             </button>
+            <span aria-hidden style={{ width: 1, height: 18, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
             <button
               onClick={scrollToPricing}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 13 } : {}) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 19, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -2215,13 +2226,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         >
           {/* Left */}
           <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
-            <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '5px 14px', marginTop: 8 }}>
-              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10 }}>✦</span>
-              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8 }}>Free to try · No credit card · 3D preview in ~60 sec</span>
+            <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '8px 20px', marginTop: 8 }}>
+              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 12 }}>✦</span>
+              <span className="font-mono" style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--char)', opacity: 0.8 }}>Free to try · No credit card · 3D preview in ~60 sec</span>
             </div>
             <div
               className="type-chonk"
-              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05 }}
+              style={{ fontSize: 'clamp(2.5rem, 4.8vw, 3.7rem)', marginTop: 26, color: 'var(--ink)', lineHeight: 1.1 }}
             >
               <div className="hero-rise delay-100">see it first.</div>
               <div className="hero-rise delay-200"><em style={{ color: 'var(--tomato)' }}>love</em> it more.</div>
@@ -2229,7 +2240,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
             <p
               className="font-serif italic hero-rise delay-300"
-              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '22px auto 0', lineHeight: 1.5 }}
+              style={{ fontSize: 21, color: 'var(--char)', maxWidth: 520, margin: '28px auto 0', lineHeight: 1.62 }}
             >
               Take one selfie. See 10+ haircuts on your actual 3D face.
               <br />Walk into the barber knowing exactly what you want.
@@ -2256,6 +2267,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 swipeTriggerRef={swipeTriggerRef}
                 onClickUp={() => faceScrollRef.current?.goPrev()}
                 onClickDown={() => faceScrollRef.current?.goNext()}
+                isMobile={isMobile}
               />
             </div>
           </div>
@@ -2504,9 +2516,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </div>
             </Reveal>
 
-            {/* ── Connector badges — the pipeline, made visible ── */}
+            {/* ── Connector badges — the pipeline, made visible (horizontal layout only) ── */}
             {/* 1 → 2: quiet, sequence only */}
-            <Reveal delay={460} style={{ position: 'absolute', left: 'calc(33.333% - 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5 }}>
+            <Reveal delay={460} style={{ position: 'absolute', left: 'calc(33.333% - 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5, ...(isMobile ? { display: 'none' } : {}) }}>
               <div style={{
                 width: 34, height: 34, borderRadius: '50%',
                 background: 'var(--cream)', border: '1.5px solid rgba(42,32,26,0.18)',
@@ -2519,7 +2531,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               </div>
             </Reveal>
             {/* 2 → 3: tomato, re-pops on every send — this link is live */}
-            <Reveal delay={560} style={{ position: 'absolute', left: 'calc(66.667% + 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5 }}>
+            <Reveal delay={560} style={{ position: 'absolute', left: 'calc(66.667% + 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5, ...(isMobile ? { display: 'none' } : {}) }}>
               <div
                 key={describeActiveIdx ?? -1}
                 className={describeActiveIdx !== undefined ? 'popup-in' : ''}

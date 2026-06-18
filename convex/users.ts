@@ -19,10 +19,23 @@ export const getMe = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return ctx.db
+    const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
+    if (!user) return null;
+
+    // The unused one-time free generation behaves like a trailing credit in the
+    // UI: paid credits are always spent first, so `availableGenerations` is what
+    // the user can actually run right now. Allowlisted demo accounts bypass
+    // billing entirely, so they're effectively unlimited (surfaced as 1 here so
+    // gates don't lock them out). See convex/freeGen.ts.
+    const freeGenRemaining = user.freeGenUsedAt ? 0 : 1;
+    return {
+      ...user,
+      freeGenRemaining,
+      availableGenerations: user.credits + freeGenRemaining,
+    };
   },
 });
 
@@ -111,6 +124,53 @@ export const hasBiometricConsent = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
     return Boolean(user?.biometricConsentAt);
+  },
+});
+
+// Confirms the signed-in user owns a given S3 image key. Used by /api/img to
+// gate access to sensitive per-user assets (scans / edited face images) so a
+// leaked or guessed key can't be fetched by another account. Checks the user's
+// own sessions, projects, and saved defaultScan — all keys the user legitimately
+// references. Returns false for anyone else (and the unauthenticated case).
+export const ownsImageKey = query({
+  args: { key: v.string() },
+  handler: async (ctx, { key }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return false;
+    const token = identity.tokenIdentifier;
+
+    // Sessions (raw scan uploads) — indexed by owner.
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_user_id", (q) => q.eq("userId", token))
+      .collect();
+    if (sessions.some((s) => s.scanS3Key === key || s.imageUrl === key)) return true;
+
+    // Projects (snapshots: scan + edit image + thumbnail) — indexed by owner.
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", token))
+      .collect();
+    if (
+      projects.some(
+        (p) =>
+          p.lastImageS3Key === key ||
+          p.lastEditImageS3Key === key ||
+          p.thumbnailS3Key === key,
+      )
+    ) {
+      return true;
+    }
+
+    // The reusable default scan stored on the user doc.
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", token))
+      .unique();
+    const ds = user?.defaultScan;
+    if (ds && (ds.lastImageS3Key === key || ds.thumbnailS3Key === key)) return true;
+
+    return false;
   },
 });
 

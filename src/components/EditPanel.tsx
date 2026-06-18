@@ -17,6 +17,7 @@ import InferenceNote from '@/components/InferenceNote';
 
 
 interface EditPanelProps {
+  isMobile?: boolean;
   profile: UserHeadProfile;
   onParamsChange: (params: HairParams) => void;
   sessionId: string | null;
@@ -119,7 +120,7 @@ const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
   ],
 };
 
-export default function EditPanel({ profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
+export default function EditPanel({ isMobile = false, profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
   const [emptyHint, setEmptyHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
@@ -472,10 +473,42 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
     }
   }, [phase]);
 
+  const promptTextarea = (
+    <textarea
+      id="hair-edit-prompt"
+      aria-describedby="hair-edit-prompt-chips"
+      className={`input-soft w-full rounded-xl px-3 py-2 text-sm resize-none placeholder:text-[var(--smoke)] ${isMobile ? 'h-16' : 'h-20'}`}
+      style={{ fontStyle: 'italic' }}
+      placeholder={PROMPT_PLACEHOLDERS[placeholderIdx]}
+      value={prompt}
+      maxLength={MAX_PROMPT_LENGTH}
+      onChange={(e) => setPrompt(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleApply(); }
+      }}
+    />
+  );
+
+  const applyButton = (
+    <button
+      type="submit"
+      disabled={isBusy}
+      aria-label="Apply hair edit request"
+      className="btn btn-tomato btn-snap flex-1"
+      style={{ padding: isMobile ? '10px 12px' : '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
+    >
+      {isBusy ? (
+        <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
+      ) : (
+        '✂ Apply'
+      )}
+    </button>
+  );
+
   return (
     <>
-    <div className="flex-shrink-0 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-    <aside className="relative flex flex-col gap-6 px-5 pt-6 pb-2 text-[var(--ink)]" aria-label="Hair editor controls">
+    <div className={`flex-shrink-0 rounded-2xl ${isMobile ? 'overflow-visible relative' : 'overflow-hidden'}`} style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
+    <aside className={`relative flex flex-col text-[var(--ink)] ${isMobile ? 'gap-3 px-4 pt-8 pb-3' : 'gap-6 px-5 pt-6 pb-2'}`} aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}
@@ -487,39 +520,59 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       )}
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <span className="inline-block w-2 h-7 barber-pole" />
-        <div>
-          <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
-          <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
+      {isMobile ? (
+        // A raised "Toolbox" tab whose top half pokes out above the card's top edge.
+        <div
+          className="flex items-center gap-2"
+          style={{
+            position: 'absolute',
+            top: -19,
+            left: 14,
+            zIndex: 3,
+            background: 'var(--chalk)',
+            border: '1px solid rgba(42,32,26,0.12)',
+            borderRadius: 14,
+            boxShadow: '0 9px 20px -10px rgba(0,0,0,0.45)',
+            padding: '8px 16px',
+          }}
+        >
+          <span className="inline-block w-2 h-7 barber-pole" />
+          <h2 className="font-display italic text-[var(--ink)] leading-none" style={{ fontWeight: 500, fontSize: '1.625rem' }}>Toolbox</h2>
         </div>
-        <span className={`tb-status ml-auto ${isBusy || videoState === 'recording' || videoState === 'encoding' ? 'tb-status-busy' : 'tb-status-open'}`}>
-          <span className="tb-status-dot" />
-          {isBusy ? 'cutting' : (videoState === 'recording' || videoState === 'encoding') ? 'filming' : 'open'}
-        </span>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <span className="inline-block w-2 h-7 barber-pole" />
+          <div>
+            <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
+            <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
+          </div>
+          <span className={`tb-status ml-auto ${isBusy || videoState === 'recording' || videoState === 'encoding' ? 'tb-status-busy' : 'tb-status-open'}`}>
+            <span className="tb-status-dot" />
+            {isBusy ? 'cutting' : (videoState === 'recording' || videoState === 'encoding') ? 'filming' : 'open'}
+          </span>
+        </div>
+      )}
 
       {/* Prompt */}
-      <form onSubmit={(e) => { e.preventDefault(); handleApply(); }} className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
-        </div>
-        <div className="prompt-frame">
-          <textarea
-            id="hair-edit-prompt"
-            aria-describedby="hair-edit-prompt-chips"
-            className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
-            style={{ fontStyle: 'italic' }}
-            placeholder={PROMPT_PLACEHOLDERS[placeholderIdx]}
-            value={prompt}
-            maxLength={MAX_PROMPT_LENGTH}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleApply(); }
-            }}
-          />
-        </div>
+      <form onSubmit={(e) => { e.preventDefault(); handleApply(); }} className={`flex flex-col ${isMobile ? 'gap-2' : 'gap-3'}`}>
+        {!isMobile && (
+          <div className="flex items-center justify-between">
+            <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
+            <span className="font-mono text-[10px] text-[var(--smoke)]">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
+          </div>
+        )}
+        {isMobile ? (
+          <div className="flex gap-2 items-stretch">
+            <div className="prompt-frame" style={{ flex: '0 0 50%', minWidth: 0 }}>
+              {promptTextarea}
+            </div>
+            {applyButton}
+          </div>
+        ) : (
+          <div className="prompt-frame">
+            {promptTextarea}
+          </div>
+        )}
         <div id="hair-edit-prompt-chips" className="flex items-start gap-1.5">
           <div key={chipPage} className="flex flex-wrap gap-1.5 flex-1 min-w-0">
             {chips.map((chip, i) => (
@@ -555,20 +608,8 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             </svg>
           </button>
         </div>
-        <div className="relative flex gap-2">
-          <button
-            type="submit"
-            disabled={isBusy}
-            aria-label="Apply hair edit request"
-            className="btn btn-tomato btn-snap flex-1"
-            style={{ padding: '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
-          >
-            {isBusy ? (
-              <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
-            ) : (
-              '✂ Apply'
-            )}
-          </button>
+        <div className={isMobile ? 'contents' : 'relative flex gap-2'}>
+          {!isMobile && applyButton}
           {emptyHint !== 'hidden' && (
             <div
               role="status"
@@ -591,7 +632,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
             </div>
           )}
         </div>
-        <InferenceNote variant="edit" className="px-0.5" />
+        {!isMobile && <InferenceNote variant="edit" className="px-0.5" />}
         <div className={`pipeline-collapse ${isBusy ? 'pipeline-collapse-open' : ''}`} aria-hidden={!isBusy}>
           <div className="pipeline-collapse-inner">
           <div
@@ -692,17 +733,31 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
       </form>
 
     </aside>
+    {/* On mobile the 360° card lives inside the same toolbox rectangle. */}
+    {isMobile && (
+      <BarberVideoCard
+        isMobile
+        onRequestVideo={onRequestVideo}
+        videoState={videoState}
+        videoProgress={videoProgress}
+        videoUrl={videoUrl}
+        videoExt={videoExt}
+        projectName={projectName}
+      />
+    )}
     </div>
 
-    {/* Barber video — 360° clip of the cut */}
-    <BarberVideoCard
-      onRequestVideo={onRequestVideo}
-      videoState={videoState}
-      videoProgress={videoProgress}
-      videoUrl={videoUrl}
-      videoExt={videoExt}
-      projectName={projectName}
-    />
+    {/* Barber video — 360° clip of the cut (desktop: its own card) */}
+    {!isMobile && (
+      <BarberVideoCard
+        onRequestVideo={onRequestVideo}
+        videoState={videoState}
+        videoProgress={videoProgress}
+        videoUrl={videoUrl}
+        videoExt={videoExt}
+        projectName={projectName}
+      />
+    )}
 
     {showPricing && (
       <PricingPopup

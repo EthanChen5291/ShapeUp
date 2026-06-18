@@ -59,10 +59,13 @@ export function LogoHomeLink({
   cream = false,
   small = false,
   label = 'Go home',
-}: { onClick?: () => void; cream?: boolean; small?: boolean; label?: string }) {
+  homeIcon = false,
+  textScale = 1,
+}: { onClick?: () => void; cream?: boolean; small?: boolean; label?: string; homeIcon?: boolean; textScale?: number }) {
   const [bouncing, setBouncing] = useState(false);
   const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
   const mascotColor = cream ? 'rgba(245,241,234,0.88)' : 'currentColor';
+  const baseTextPx = small ? 13 : 18;
   const textSize = small ? 'text-[13px]' : 'text-[18px]';
   const logoSize = Math.round((small ? 50 : 46) * 1.15);
 
@@ -83,11 +86,20 @@ export function LogoHomeLink({
       >
         <span className={`logo-home-inner ${bouncing ? 'logo-home-bounce' : ''}`}>
           <span className="logo-home-frame">
-            <BarberMascot color={mascotColor} />
+            {homeIcon ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', aspectRatio: '1', padding: '22%' }}>
+                <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke={mascotColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 9.5 12 3l9 6.5" />
+                  <path d="M5 10v10h5v-6h4v6h5V10" />
+                </svg>
+              </span>
+            ) : (
+              <BarberMascot color={mascotColor} />
+            )}
           </span>
         </span>
       </button>
-      <span style={{ fontWeight: 700, letterSpacing: '0.06em' }}>
+      <span style={{ fontWeight: 700, letterSpacing: '0.06em', fontSize: textScale !== 1 ? baseTextPx * textScale : undefined }}>
         Shape <span style={{ display: 'inline' }}>Up</span>
       </span>
     </div>

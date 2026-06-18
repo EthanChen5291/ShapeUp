@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { HairParams, UserHeadProfile } from '@/types';
 import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import { getVisitorId } from '@/lib/visitorId';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import ImproveShapeUpDialog from '@/components/ImproveShapeUpDialog';
 import dynamic from 'next/dynamic';
@@ -217,7 +218,15 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
   // Cap the open panel to the viewport so the bottom rows (settings / sign out)
   // stay reachable on short screens; the content area scrolls if it overflows.
   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const panelMaxH = menuPos ? Math.min(660, viewportH - menuPos.top - 16) : 660;
+  // Mobile gets a taller, airier panel — raise the cap so the roomier rows aren't
+  // squeezed back into a scroll.
+  const panelCap = isMobile ? 960 : 660;
+  const panelMaxH = menuPos ? Math.min(panelCap, viewportH - menuPos.top - 16) : panelCap;
+
+  // Mobile: condense the collapsed pill (less dead space between username and
+  // token) while scaling the pill itself a touch larger.
+  const collapsedW = isMobile ? 232 : 251;
+  const collapsedH = isMobile ? 54 : 43;
 
   const handleCopyReferral = async () => {
     if (!referralStats?.referralCode) return;
@@ -257,13 +266,13 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
       id="profile-menu-pill"
       ref={containerRef}
       className={`relative ${swallowing ? 'profile-pill-swallow' : ''}`}
-      style={{ width: 251, height: 43, flexShrink: 0 }}
+      style={{ width: collapsedW, height: collapsedH, flexShrink: 0 }}
     >
       {menuPos && createPortal(
         <>
         <div style={{
           position: 'fixed', top: menuPos.top, right: menuPos.right,
-          width: open ? (isMobile ? 'calc(100vw - 24px)' : 380) : 251, maxHeight: open ? `${panelMaxH}px` : '43px',
+          width: open ? (isMobile ? 'calc(100vw - 24px)' : 380) : collapsedW, maxHeight: open ? `${panelMaxH}px` : `${collapsedH}px`,
           background: open ? 'var(--cream)' : pillVisible ? 'var(--biscuit-lt)' : 'transparent',
           border: open || pillVisible ? '1px solid rgba(42,32,26,0.12)' : '1px solid transparent',
           backdropFilter: 'blur(8px)', borderRadius: open ? 22 : 40,
@@ -272,44 +281,44 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
           pointerEvents: showPricing ? 'none' : 'auto',
           transition: 'width 340ms cubic-bezier(.08,.82,.17,1), max-height 340ms cubic-bezier(.08,.82,.17,1), border-radius 340ms cubic-bezier(.08,.82,.17,1), box-shadow 300ms ease, background 240ms ease, border-color 240ms ease',
         }}>
-          <button onClick={handleToggle} className="flex items-center gap-2 w-full" style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: 8, paddingRight: 15, height: 43 }}>
-            <span className="avatar-initial">{initial}</span>
-            <span className="font-sans text-[15px] flex-1 text-left" style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-            <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.0125em', height: '2.0125em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
-            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
+          <button onClick={handleToggle} className={`flex items-center w-full ${isMobile ? 'gap-1.5' : 'gap-2'}`} style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: isMobile ? 9 : 8, paddingRight: isMobile ? 13 : 15, height: collapsedH }}>
+            <span className="avatar-initial" style={isMobile ? { width: 34, height: 34, fontSize: 16 } : undefined}>{initial}</span>
+            <span className="font-sans flex-1 text-left" style={{ fontSize: isMobile ? 17 : 15, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
+            <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, ...(isMobile ? { fontSize: 15 } : {}) }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.0125em', height: '2.0125em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
+            <svg width={isMobile ? 14 : 12} height={isMobile ? 14 : 12} viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-          <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', maxHeight: open ? panelMaxH - 43 : 0, overflowY: open ? 'auto' : 'hidden', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
-            <div className="flex flex-col gap-3.5" style={{ padding: '10px 20px 18px' }}>
+          <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', maxHeight: open ? panelMaxH - collapsedH : 0, overflowY: open ? 'auto' : 'hidden', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
+            <div className={`flex flex-col ${isMobile ? 'gap-6' : 'gap-3.5'}`} style={{ padding: isMobile ? '16px 22px 30px' : '10px 20px 18px' }}>
               {/* ── Hero: plan + token balance + primary CTA ── */}
-              <div ref={heroRef} className="tokens-widget">
+              <div ref={heroRef} className="tokens-widget" style={isMobile ? { gap: 14, padding: '16px 16px 18px' } : undefined}>
                 <div className="tokens-widget__row">
                   <span className="tokens-widget__label">Tokens</span>
                   <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{planName} plan</span>
                 </div>
                 <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
-                <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: 12 }}>
+                <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: isMobile ? 16 : 12, ...(isMobile ? { padding: '22px 16px 21px', fontSize: 19 } : {}) }}>
                   <span className="btn-tokens-cta__shimmer" />
                   <span className="btn-tokens-cta__text">Get more tokens</span>
                 </BouncyButton>
-                <BouncyButton onClick={() => setShowRefer(true)} className="btn-refer-cta w-full" style={{ marginTop: 8 }}>
+                <BouncyButton onClick={() => setShowRefer(true)} className="btn-refer-cta w-full" style={{ marginTop: isMobile ? 12 : 8, ...(isMobile ? { padding: '15px 14px 14px', fontSize: 16 } : {}) }}>
                   <span className="btn-refer-cta__text">Refer a friend for <span className="btn-refer-cta__hl">6 tokens</span></span>
                 </BouncyButton>
               </div>
 
               {/* ── Redeem a code (secondary) ── */}
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-3.5 flex flex-col gap-2.5">
+              <div className={`border-t border-dashed border-[var(--char)]/15 flex flex-col ${isMobile ? 'pt-5 gap-3.5' : 'pt-3.5 gap-2.5'}`}>
                 <div className="flex gap-2">
                   <input
                     value={redeemValue}
                     onChange={e => { setRedeemValue(e.target.value.toUpperCase()); setRedeemErr(''); setRedeemMsg(''); }}
                     onKeyDown={e => { if (e.key === 'Enter') handleRedeem(); }}
                     placeholder="REDEEM A CODE"
-                    className="flex-1 font-mono text-[13px] tracking-wider text-[var(--ink)] rounded-xl px-3 py-2.5"
+                    className={`flex-1 font-mono tracking-wider text-[var(--ink)] rounded-xl px-3 ${isMobile ? 'text-[15px] py-3.5' : 'text-[13px] py-2.5'}`}
                     style={{ background: 'var(--biscuit)', border: redeemErr ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none' }}
                   />
-                  <BouncyButton onClick={handleRedeem} disabled={redeeming || !redeemValue.trim()} className="btn-ink font-sans text-[13px]" style={{ padding: '8px 18px', opacity: redeeming || !redeemValue.trim() ? 0.45 : 1 }}>
+                  <BouncyButton onClick={handleRedeem} disabled={redeeming || !redeemValue.trim()} className={`btn-ink font-sans ${isMobile ? 'text-[15px]' : 'text-[13px]'}`} style={{ padding: isMobile ? '12px 22px' : '8px 18px', opacity: redeeming || !redeemValue.trim() ? 0.45 : 1 }}>
                     {redeeming ? '…' : 'Redeem'}
                   </BouncyButton>
                 </div>
@@ -318,7 +327,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
               </div>
 
               {/* ── Show my barber a 360° — quiet tertiary utility row ── */}
-              <button onClick={handleBarber} className="btn-barber360" aria-label="Show my barber a 360 degree view of your cut">
+              <button onClick={handleBarber} className="btn-barber360" aria-label="Show my barber a 360 degree view of your cut" style={isMobile ? { paddingTop: 15, paddingBottom: 15 } : undefined}>
                 <span className="btn-barber360__icon" aria-hidden>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v5h-5" /></svg>
                 </span>
@@ -328,16 +337,16 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                 </span>
               </button>
 
-              <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
+              <div className={`border-t border-dashed border-[var(--char)]/15 flex items-center justify-between ${isMobile ? 'pt-4' : 'pt-3'}`}>
                 <BouncyButton
                   onClick={() => { setOpen(false); onOpenSettings(); }}
                   className="font-sans flex items-center gap-1.5 text-[var(--smoke)] hover:text-[var(--ink)] transition-colors"
-                  style={{ background: 'none', border: 'none', padding: '4px 2px', lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', padding: isMobile ? '6px 2px' : '4px 2px', lineHeight: 1 }}
                 >
-                  <span style={{ fontSize: 20, display: 'block', lineHeight: 1 }}>⚙</span>
-                  <span className="font-sans text-[13px] uppercase tracking-wider">Settings</span>
+                  <span style={{ fontSize: isMobile ? 24 : 20, display: 'block', lineHeight: 1 }}>⚙</span>
+                  <span className={`font-sans uppercase tracking-wider ${isMobile ? 'text-[15px]' : 'text-[13px]'}`}>Settings</span>
                 </BouncyButton>
-                <BouncyButton onClick={() => { setOpen(false); signOut(); }} className="font-sans text-[13px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors" style={{ background: 'none', border: 'none', paddingRight: 2 }}>
+                <BouncyButton onClick={() => { setOpen(false); signOut(); }} className={`font-sans uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors ${isMobile ? 'text-[15px]' : 'text-[13px]'}`} style={{ background: 'none', border: 'none', paddingRight: 2 }}>
                   Sign out
                 </BouncyButton>
               </div>
@@ -381,7 +390,7 @@ function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCo
       <div
         className="fixed left-1/2 top-1/2"
         style={{
-          zIndex: 10001, width: 420, maxWidth: 'calc(100vw - 32px)',
+          zIndex: 10001, width: 588, maxWidth: 'calc(100vw - 32px)',
           background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', borderRadius: 24,
           boxShadow: '0 32px 90px -16px rgba(0,0,0,0.5)', overflow: 'hidden',
           transform: `translate(-50%, -50%) scale(${isOpen ? 1 : 0.94})`,
@@ -1030,7 +1039,8 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
     }
 
     try {
-      const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl }), signal: abort.signal });
+      const fingerprint = await getVisitorId();
+      const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl, fingerprint }), signal: abort.signal });
       if (submitRes.status === 402) {
         closePopup();
         setTimeout(() => onNoTokens?.(), 900);
@@ -1484,8 +1494,8 @@ function ExploreFloor() {
 function HomeTitle({ count, compact = false }: { count?: number; compact?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, ...(compact ? { gap: 12 } : {}) }}>
-      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, ...(compact ? { fontSize: '2.9rem' } : {}) }}>My{' '}<span className="hl-swipe-wrap"><span className="hl-swipe" aria-hidden /><span style={{ position: 'relative' }}>Cuts</span></span></h1>
-      {count !== undefined && <span key={count} className="font-mono count-ticket">№ {String(count).padStart(2, '0')}</span>}
+      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, ...(compact ? { fontSize: '3.8rem' } : {}) }}>My{' '}<span className="hl-swipe-wrap"><span className="hl-swipe" aria-hidden /><span style={{ position: 'relative' }}>Cuts</span></span></h1>
+      {count !== undefined && !compact && <span key={count} className="font-mono count-ticket">№ {String(count).padStart(2, '0')}</span>}
     </div>
   );
 }
@@ -1704,13 +1714,16 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     { key: 'explore', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg> },
   ];
 
-  const NavButton = ({ item, dark = false }: { item: typeof navItems[0]; dark?: boolean }) => {
+  const NavButton = ({ item, dark = false, big = false }: { item: typeof navItems[0]; dark?: boolean; big?: boolean }) => {
     const isActive = item.key === activeNav;
     return (
       <button key={item.key} data-nav={item.key} onClick={() => setActiveNav(item.key)}
-        style={{ border: 'none', cursor: 'pointer', background: isActive ? (dark ? 'rgba(232,97,77,0.18)' : 'rgba(232,97,77,0.1)') : 'transparent', color: isActive ? 'var(--coral)' : dark ? 'rgba(252,245,228,0.7)' : 'var(--ink)', padding: '10px 0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, width: 66, fontSize: 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: isActive ? `1.5px solid rgba(232,97,77,${dark ? '0.35' : '0.28'})` : '1.5px solid transparent', transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
+        style={{ border: 'none', cursor: 'pointer', background: isActive ? (dark ? 'rgba(232,97,77,0.18)' : 'rgba(232,97,77,0.1)') : 'transparent', color: isActive ? 'var(--coral)' : dark ? 'rgba(252,245,228,0.7)' : 'var(--ink)', padding: big ? '14px 0' : '10px 0', borderRadius: big ? 16 : 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: big ? 8 : 5, width: big ? 99 : 66, fontSize: big ? 14 : 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: isActive ? `${big ? 2 : 1.5}px solid rgba(232,97,77,${dark ? '0.35' : '0.28'})` : `${big ? 2 : 1.5}px solid transparent`, transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
       >
-        {item.icon}<span>{item.key}</span>
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...(big ? { width: 30, height: 30 } : {}) }}>
+          <span style={{ display: 'flex', ...(big ? { transform: 'scale(1.5)', transformOrigin: 'center' } : {}) }}>{item.icon}</span>
+        </span>
+        <span>{item.key}</span>
       </button>
     );
   };
@@ -1771,7 +1784,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
             <div ref={floorSliderRef} style={{ transform: vpH ? `translateY(${-floorIndex * (vpH + 320)}px)` : 'translateY(0)', transition: vpH ? 'transform 486ms cubic-bezier(0.34, 1.08, 0.64, 1)' : 'none', willChange: 'transform' }}>
 
               {/* Floor 0 — Settings (top level, above Home) */}
-              <div onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : 'var(--cream)', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+              <div onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : 'var(--cream)', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 128px' } : {}) }}>
                 <SettingsPopup onRescan={onRescan} />
               </div>
 
@@ -1779,7 +1792,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               <div style={{ height: 320, flexShrink: 0, pointerEvents: 'none', background: isDark ? '#1e1e21' : 'linear-gradient(var(--cream), var(--biscuit-lt))' }} />
 
               {/* Floor 1 — Home */}
-              <div ref={floor0ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+              <div ref={floor0ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 128px' } : {}) }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
                   <HomeTitle count={projects?.length} compact={isMobile} />
                   <div style={{ flex: 1 }} />
@@ -1819,7 +1832,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               )}
 
               {/* Floor 2 — Saved */}
-              <div ref={floor1ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 110px' } : {}) }}>
+              <div ref={floor1ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', background: isDark ? '#1e1e21' : undefined, backgroundImage: isDark ? undefined : 'url(/dark_charcoal.png)', backgroundSize: isDark ? undefined : 'cover', backgroundPosition: isDark ? undefined : 'center', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 128px' } : {}) }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
                   <SavedTitle count={savedProjects?.length} compact={isMobile} />
                   <div style={{ flex: 1 }} />
@@ -1876,8 +1889,8 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
       {/* Mobile bottom nav — replaces the left rail below the breakpoint */}
       {isMobile && (
-        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '8px 8px calc(8px + env(safe-area-inset-bottom))', background: floorIndex === 2 ? '#181b17' : 'var(--biscuit)', borderTop: floorIndex === 2 ? '1px solid rgba(252,245,228,0.12)' : '2px solid rgba(42,32,26,0.18)', boxShadow: '0 -6px 20px -8px rgba(0,0,0,0.25)', transition: 'background 220ms ease, border-color 220ms ease' }}>
-          {navItems.map(n => <NavButton key={n.key} item={n} dark={floorIndex === 2} />)}
+        <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '11px 8px calc(11px + env(safe-area-inset-bottom))', background: floorIndex === 2 ? '#181b17' : 'var(--biscuit)', borderTop: floorIndex === 2 ? '1px solid rgba(252,245,228,0.12)' : '2px solid rgba(42,32,26,0.18)', boxShadow: '0 -6px 20px -8px rgba(0,0,0,0.25)', transition: 'background 220ms ease, border-color 220ms ease' }}>
+          {navItems.map(n => <NavButton key={n.key} item={n} dark={floorIndex === 2} big />)}
         </nav>
       )}
 
