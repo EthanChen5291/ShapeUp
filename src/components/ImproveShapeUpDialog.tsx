@@ -98,7 +98,7 @@ export default function ImproveShapeUpDialog({ onChoice }: ImproveShapeUpDialogP
               cursor: saving ? 'default' : 'pointer',
             }}
           >
-            Sure, I&rsquo;ll help
+            Okay
           </button>
         </div>
       </div>

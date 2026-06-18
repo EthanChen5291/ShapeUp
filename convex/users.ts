@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { validateUsernameBusinessRules } from "./lib/contentFilter";
 import { enforceMutationRateLimit } from "./lib/rateLimit";
 import { maybeAttachReferral, uniqueReferralCode } from "./lib/referrals";
+import { isOnEmailAllowlist } from "./lib/allowlist";
 import { hairParamsValidator, lastProfileValidator } from "./validators";
 
 // Plan ranking — higher index = more premium. Drives the displayed plan tier.
@@ -226,29 +227,6 @@ export const setImproveShapeUp = mutation({
     });
   },
 });
-
-function getBypassEmails(): Set<string> {
-  return new Set(
-    (process.env.DEMO_BYPASS_EMAILS ?? "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-/**
- * True when the signed-in account is on the demo/dev email allowlist.
- * Falls back to the JWT email claim so it works even before the `users`
- * row has its email backfilled (otherwise allowlisted users with no
- * credits get charged + paywalled despite being on the list).
- */
-function isOnEmailAllowlist(
-  user: { email?: string } | null,
-  identity: { email?: string | null },
-): boolean {
-  const email = user?.email ?? identity.email ?? undefined;
-  return Boolean(email && getBypassEmails().has(email.toLowerCase()));
-}
 
 export const deductCredit = mutation({
   args: {},

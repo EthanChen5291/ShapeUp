@@ -2,8 +2,12 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { hairParamsValidator, lastProfileValidator } from "./validators";
 import { grantReferralReward } from "./lib/referrals";
+import { isOnEmailAllowlist } from "./lib/allowlist";
 
 export const MAX_PROJECTS_PER_USER = 5;
+// Allowlisted demo/dev accounts get a much higher cap so a single shared demo
+// account doesn't fill up after 5 cuts mid-presentation.
+export const MAX_PROJECTS_DEMO = 50;
 
 export const list = query({
   args: {},
@@ -35,13 +39,21 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthenticated");
+
+    // Fetched once and reused for the cap check, seeding, and referral reward.
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    const cap = isOnEmailAllowlist(user, identity) ? MAX_PROJECTS_DEMO : MAX_PROJECTS_PER_USER;
     const existing = await ctx.db
       .query("projects")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .take(MAX_PROJECTS_PER_USER + 1);
-    if (existing.length >= MAX_PROJECTS_PER_USER) {
+      .take(cap + 1);
+    if (existing.length >= cap) {
       throw new ConvexError(
-        `You've reached the limit of ${MAX_PROJECTS_PER_USER} projects. Delete one to make room for a new cut.`,
+        `You've reached the limit of ${cap} projects. Delete one to make room for a new cut.`,
       );
     }
     const isFirstProject = existing.length === 0;
@@ -49,10 +61,6 @@ export const create = mutation({
 
     let seed: Record<string, unknown> = {};
     if (args.seedFromDefaultScan) {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-        .unique();
       const ds = user?.defaultScan;
       if (ds) {
         seed = {
@@ -76,12 +84,8 @@ export const create = mutation({
     });
 
     // A referred user's first project unlocks the referral reward for both parties.
-    if (isFirstProject) {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-        .unique();
-      if (user) await grantReferralReward(ctx, user._id);
+    if (isFirstProject && user) {
+      await grantReferralReward(ctx, user._id);
     }
 
     return projectId;

@@ -14,6 +14,7 @@ import type * as freeGen from "../freeGen.js";
 import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
 import type * as lib_adminAuth from "../lib/adminAuth.js";
+import type * as lib_allowlist from "../lib/allowlist.js";
 import type * as lib_contentFilter from "../lib/contentFilter.js";
 import type * as lib_disposableEmail from "../lib/disposableEmail.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   gpuUsage: typeof gpuUsage;
   http: typeof http;
   "lib/adminAuth": typeof lib_adminAuth;
+  "lib/allowlist": typeof lib_allowlist;
   "lib/contentFilter": typeof lib_contentFilter;
   "lib/disposableEmail": typeof lib_disposableEmail;
   "lib/rateLimit": typeof lib_rateLimit;
