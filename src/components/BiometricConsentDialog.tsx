@@ -18,7 +18,7 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-[10050] flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.7)' }}
     >
       <div

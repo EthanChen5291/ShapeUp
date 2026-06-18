@@ -87,7 +87,7 @@ function SignInModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ─── Profile Menu ─── */
-function ProfileMenu({ onRescan, onOpenSettings, pulse = false, celebratePurchase = false, pillVisible = false }: { onRescan: () => void; onOpenSettings: () => void; pulse?: boolean; celebratePurchase?: boolean; pillVisible?: boolean }) {
+function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celebratePurchase = false, pillVisible = false }: { onRescan: () => void; onOpenSettings: () => void; onPick360: () => void; pulse?: boolean; celebratePurchase?: boolean; pillVisible?: boolean }) {
   const { user: clerkUser, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const isMobile = useIsMobile();
@@ -109,7 +109,6 @@ function ProfileMenu({ onRescan, onOpenSettings, pulse = false, celebratePurchas
   const [redeeming, setRedeeming] = useState(false);
   const [redeemMsg, setRedeemMsg] = useState('');
   const [redeemErr, setRedeemErr] = useState('');
-  const [barberNote, setBarberNote] = useState(false);
   const [showRefer, setShowRefer] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const [isDark, setIsDark] = useState(false);
@@ -246,8 +245,10 @@ function ProfileMenu({ onRescan, onOpenSettings, pulse = false, celebratePurchas
   };
 
   const handleBarber = () => {
-    setBarberNote(true);
-    setTimeout(() => setBarberNote(false), 2400);
+    // Close the profile panel and hand off to the dashboard's project picker,
+    // which shakes the cards so the user can choose which cut to 360.
+    setOpen(false);
+    onPick360();
   };
 
   return (
@@ -315,12 +316,11 @@ function ProfileMenu({ onRescan, onOpenSettings, pulse = false, celebratePurchas
                 {redeemErr && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{redeemErr}</span>}
               </div>
 
-              {/* ── Take to my barber (utility) ── */}
+              {/* ── Show my barber a 360° (utility) ── */}
               <div className="flex flex-col gap-1.5">
                 <BouncyButton onClick={handleBarber} className="font-sans text-[13px] w-full" style={{ background: 'none', border: '1px solid rgba(42,32,26,0.14)', color: 'var(--char)', borderRadius: 12, padding: '9px 14px', fontWeight: 600 }}>
-                  ✂ Take to my barber
+                  ✂ Show my barber a 360°
                 </BouncyButton>
-                {barberNote && <span className="font-sans text-[11px] text-center" style={{ color: 'var(--char)' }}>Coming soon — share your look with your barber.</span>}
               </div>
 
               <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
@@ -426,12 +426,13 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const userQuery = useQuery(api.users.getMe);
   const setUsernameMutation = useMutation(api.users.setUsername);
   const deleteAccountMutation = useMutation(api.users.deleteCurrentUserData);
-  const { theme, renderQuality, language, aiTrainingOptOut, updateTheme, updateRenderQuality, updateLanguage, updateAiTrainingOptOut } = useSettings();
+  const { theme, renderQuality, aiTrainingOptOut, updateTheme, updateRenderQuality, updateAiTrainingOptOut } = useSettings();
 
   const [usernameValue, setUsernameValue] = useState(userQuery?.username ?? '');
   const [usernameError, setUsernameError] = useState('');
   const [usernameLoading, setUsernameLoading] = useState(false);
   const [usernameSaved, setUsernameSaved] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
 
   const [revokingConsent, setRevokingConsent] = useState(false);
   const [consentRevoked, setConsentRevoked] = useState(false);
@@ -445,7 +446,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
     setUsernameError(''); setUsernameLoading(true);
     try {
       await setUsernameMutation({ username: usernameValue.trim() });
-      setUsernameSaved(true); setTimeout(() => setUsernameSaved(false), 2000);
+      setUsernameSaved(true); setEditingUsername(false); setTimeout(() => setUsernameSaved(false), 2000);
     } catch (err) { setUsernameError(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Please try again.'); }
     finally { setUsernameLoading(false); }
   };
@@ -500,16 +501,19 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   );
   const Divider = () => <div style={{ borderTop: '1px dashed rgba(74,58,46,0.15)', margin: '0 0' }} />;
 
-  const themeOptions: { value: Theme; label: string; icon: string }[] = [
-    { value: 'light', label: 'Light', icon: '☀' },
-    { value: 'system', label: 'System', icon: '⬤' },
-    { value: 'dark', label: 'Dark', icon: '◐' },
+  // `on` is a fixed (mode-independent) foreground that contrasts with the
+  // accent fill — dark text on the light/yellow accents, light text on the
+  // dark ones. Avoids using --cream/--ink, which flip in dark mode.
+  const themeOptions: { value: Theme; label: string; icon: string; color: string; on: string }[] = [
+    { value: 'light', label: 'Light', icon: '☀', color: 'var(--mustard)', on: '#3d2e0c' },
+    { value: 'system', label: 'System', icon: '◐', color: 'var(--caramel)', on: '#fff8ea' },
+    { value: 'dark', label: 'Dark', icon: '☾', color: 'var(--denim)', on: '#fff8ea' },
   ];
 
-  const qualityOptions: { value: RenderQuality; label: string; desc: string }[] = [
-    { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device' },
-    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens' },
-    { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition' },
+  const qualityOptions: { value: RenderQuality; label: string; desc: string; color: string; on: string }[] = [
+    { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device', color: 'var(--moss)', on: '#fff8ea' },
+    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens', color: 'var(--mustard)', on: '#3d2e0c' },
+    { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition', color: 'var(--terracotta)', on: '#fff8ea' },
   ];
 
   const consentDate = userQuery?.biometricConsentAt
@@ -524,20 +528,22 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
           <div className="flex flex-col gap-3">
             <SectionLabel>Account</SectionLabel>
             <div className="flex gap-3">
-              <input type="text" value={usernameValue} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="flex-1 font-sans text-[15px] text-[var(--ink)] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none' }} />
-              <BouncyButton onClick={handleSaveUsername} disabled={usernameLoading || usernameValue.trim().length < 2} className="btn-ink font-sans text-[13px]" style={{ padding: '10px 20px', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1 }}>
-                {usernameSaved ? '✓ Saved' : usernameLoading ? '…' : 'Save'}
+              <div className="relative flex-1">
+                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="w-full font-sans text-[15px] text-[var(--ink)] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'opacity 280ms ease' }} />
+                {/* Gray scrim shown while the field is locked */}
+                <div aria-hidden style={{ position: 'absolute', inset: 0, borderRadius: 12, background: 'rgba(120,120,120,0.14)', opacity: editingUsername ? 0 : 1, transition: 'opacity 280ms ease', pointerEvents: 'none' }} />
+              </div>
+              <BouncyButton onClick={() => { if (!editingUsername) setEditingUsername(true); }} className="btn-ink font-sans text-[13px]" style={{ padding: '10px 20px' }}>
+                Edit
               </BouncyButton>
+              {/* Save lerps in to the right of Edit once the field is unlocked */}
+              <div style={{ overflow: 'hidden', display: 'flex', maxWidth: editingUsername ? 140 : 0, opacity: editingUsername ? 1 : 0, transform: editingUsername ? 'translateX(0)' : 'translateX(-8px)', transition: 'max-width 320ms cubic-bezier(0.34,1.08,0.64,1), opacity 280ms ease, transform 320ms cubic-bezier(0.34,1.08,0.64,1)' }}>
+                <BouncyButton onClick={handleSaveUsername} disabled={usernameLoading || usernameValue.trim().length < 2} className="font-sans text-[13px]" style={{ height: '100%', padding: '0 22px', borderRadius: 6, background: 'var(--terracotta)', color: 'var(--cream)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', border: 'none', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1 }}>
+                  {usernameSaved ? '✓ Saved' : usernameLoading ? '…' : 'Save'}
+                </BouncyButton>
+              </div>
             </div>
             {usernameError && <span className="font-sans text-[13px] text-[var(--tomato)]">{usernameError}</span>}
-            <div className="flex items-center gap-3 mt-1">
-              <label className="font-sans text-[13px] text-[var(--char)]" style={{ minWidth: 68 }}>Language</label>
-              <select value={language} onChange={e => updateLanguage(e.target.value)} className="settings-lang-select font-sans text-[13px] text-[var(--ink)] rounded-lg px-3 py-2" style={{ background: 'var(--biscuit)', border: '1.5px solid transparent', outline: 'none', cursor: 'pointer' }}>
-                <option value="en">English</option>
-                <option value="es" disabled>Español (soon)</option>
-                <option value="fr" disabled>Français (soon)</option>
-              </select>
-            </div>
           </div>
 
           <Divider />
@@ -547,8 +553,8 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <SectionLabel>Appearance</SectionLabel>
             <div className="flex gap-2">
               {themeOptions.map(opt => (
-                <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? 'var(--ink)' : 'var(--biscuit)', color: theme === opt.value ? 'var(--cream)' : 'var(--char)', border: theme === opt.value ? '1.5px solid transparent' : '1.5px solid transparent', fontWeight: theme === opt.value ? 600 : 400 }}>
-                  <span style={{ fontSize: 16 }}>{opt.icon}</span>
+                <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? opt.color : 'var(--biscuit)', color: theme === opt.value ? opt.on : 'var(--char)', border: theme === opt.value ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 22%, transparent)`, fontWeight: theme === opt.value ? 600 : 400 }}>
+                  <span style={{ fontSize: opt.value === 'system' ? 16 : 19.2, color: theme === opt.value ? opt.on : opt.color }}>{opt.icon}</span>
                   {opt.label}
                 </button>
               ))}
@@ -562,8 +568,8 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <SectionLabel>Render Quality</SectionLabel>
             <div className="flex flex-col gap-2">
               {qualityOptions.map(opt => (
-                <button key={opt.value} onClick={() => updateRenderQuality(opt.value)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all" style={{ background: renderQuality === opt.value ? 'var(--ink)' : 'var(--biscuit)', color: renderQuality === opt.value ? 'var(--cream)' : 'var(--ink)' }}>
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? 'var(--butter)' : 'var(--smoke)', transition: 'background 200ms' }} />
+                <button key={opt.value} onClick={() => updateRenderQuality(opt.value)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all" style={{ background: renderQuality === opt.value ? opt.color : 'var(--biscuit)', color: renderQuality === opt.value ? opt.on : 'var(--ink)', border: renderQuality === opt.value ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 22%, transparent)` }}>
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? opt.on : opt.color, transition: 'background 200ms' }} />
                   <div className="flex flex-col">
                     <span className="font-sans text-[13px] font-semibold">{opt.label}</span>
                     <span className="font-sans text-[11px]" style={{ opacity: 0.8 }}>{opt.desc}</span>
@@ -628,7 +634,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Download my data</span>
                 <span className="font-sans text-[11px] text-[var(--char)]">Export your account info as JSON (GDPR / CCPA).</span>
               </div>
-              <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12px] flex-shrink-0" style={{ background: 'var(--biscuit)', border: '1px solid rgba(42,32,26,0.2)', color: 'var(--ink)', borderRadius: 10, padding: '7px 14px', opacity: !userQuery ? 0.4 : 1 }}>
+              <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12px] flex-shrink-0" style={{ background: 'rgba(58,107,147,0.1)', border: '1px solid var(--denim)', color: 'var(--denim)', borderRadius: 10, padding: '7px 14px', opacity: !userQuery ? 0.4 : 1 }}>
                 ↓ Export
               </BouncyButton>
             </div>
@@ -689,8 +695,6 @@ function ProjectLimitPopup({ onDismiss }: { onDismiss: () => void }) {
       <div onClick={e => e.stopPropagation()} style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, maxWidth: 420, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <div style={{ width: 52 }}><BarberMascot /></div>
-          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Chair&rsquo;s full!</h2>
           <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>You&rsquo;ve hit the limit of {MAX_PROJECTS_PER_USER} cuts. Delete one to make room for a fresh style.</p>
           <BouncyButton onClick={dismiss} className="btn btn-tomato w-full" style={{ padding: '14px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em' }}>Got it</BouncyButton>
         </div>
@@ -718,9 +722,10 @@ function ReuseScanPopup({ onReuse, onNewSelfie, onDismiss, creating }: { onReuse
           <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>Start from your saved scan, or take a fresh selfie.</p>
           <div className="flex flex-col gap-3 w-full" style={{ marginTop: 4 }}>
             <BouncyButton onClick={onReuse} disabled={creating} className="btn btn-tomato w-full" style={{ padding: '16px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em', opacity: creating ? 0.7 : 1 }}>
-              {creating ? 'Setting up…' : '✂ Reuse my scan'}
+              {creating ? 'Setting up…' : '✂ Use my selfie'}
             </BouncyButton>
-            <BouncyButton onClick={onNewSelfie} disabled={creating} className="btn btn-cream w-full" style={{ padding: '13px 32px', fontSize: 15, fontWeight: 700, opacity: creating ? 0.5 : 1 }}>
+            <BouncyButton onClick={onNewSelfie} disabled={creating} className="btn btn-cream w-full" style={{ position: 'relative', padding: '13px 32px', fontSize: 15, fontWeight: 700, opacity: creating ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ position: 'absolute', left: 16, width: '1.1em', height: '1.1em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} />
               Take a new selfie
             </BouncyButton>
           </div>
@@ -801,7 +806,7 @@ function OrganicBar({ label, active = false, segments, holdAt88 = false, complet
   );
 }
 
-type ScanPhase = 'username' | 'camera' | 'verify' | 'processing';
+type ScanPhase = 'username' | 'camera' | 'verify' | 'main-selfie' | 'processing';
 const BIOMETRIC_CONSENT_VERSION = 'biometric-notice-2026-06-08';
 
 /* ─── Letter Fade ─── */
@@ -871,15 +876,20 @@ function SelfieFlightOverlay({ imageUrl, onDone }: { imageUrl: string; onDone: (
 }
 
 /* ─── Scan Popup ─── */
-function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false }: {
-  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string, splatS3Key?: string) => void;
+function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = false, askMainSelfie = false }: {
+  onScanComplete: (p: UserHeadProfile, sid: string | null, url: string | null, fromRect?: DOMRect, isFirstScan?: boolean, splatUrl?: string, splatS3Key?: string, makeMainSelfie?: boolean) => void;
   onDismiss: () => void;
   onNoTokens?: () => void;
   needsUsername?: boolean;
+  askMainSelfie?: boolean;
 }) {
   const isMobile = useIsMobile();
   const panelRef = useRef<HTMLDivElement>(null);
   const wasFirstScanRef = useRef(needsUsername);
+  // Whether the captured selfie should overwrite the user's saved "main" scan.
+  // Defaults to true so first scans / rescans keep their existing behavior; only
+  // the "take a new selfie" fork (askMainSelfie) lets the user opt out.
+  const makeMainSelfieRef = useRef(true);
   const setUsernameMutation = useMutation(api.users.setUsername);
   const [usernameValue, setUsernameValue] = useState('');
   const [usernameError, setUsernameError] = useState('');
@@ -1041,7 +1051,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         isDismissing.current = true;
         const fromRect = panelRef.current?.getBoundingClientRect() ?? undefined;
         setExiting(true);
-        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!, splatS3Key); }, 600);
+        setTimeout(() => { onScanComplete(captured.profile, sid, scanUrl, fromRect, wasFirstScanRef.current, splatUrl!, splatS3Key, makeMainSelfieRef.current); }, 600);
       }, 900);
     } catch (err) {
       if (abort.signal.aborted) return;
@@ -1052,8 +1062,29 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
 
   const handleProceed = async () => {
     if (!captured || !capturedDataUrl) return;
+    // "Take a new selfie" fork: before building, ask whether this should replace
+    // the saved main selfie. Fade the photo + verify buttons out, fade the
+    // question in.
+    if (askMainSelfie) {
+      setShowVerifyBtns(false);
+      setContentVisible(false);
+      setTimeout(() => { setPhase('main-selfie'); setContentVisible(true); }, 300);
+      return;
+    }
+    await proceedToBuild();
+  };
+
+  const proceedToBuild = async () => {
+    if (!captured || !capturedDataUrl) return;
     if (!hasConsent) { setShowConsentDialog(true); return; }
     await runFacelift();
+  };
+
+  // Answer to "Do you want to make this your main selfie?" — records the choice,
+  // then continues the normal build flow.
+  const handleMainSelfieChoice = async (makeMain: boolean) => {
+    makeMainSelfieRef.current = makeMain;
+    await proceedToBuild();
   };
 
   const panelTransform = exiting
@@ -1070,6 +1101,8 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         ? 'Camera scan is ready.'
         : phase === 'verify'
           ? 'Photo captured. Retake or proceed to build your 3D model.'
+          : phase === 'main-selfie'
+          ? 'Do you want to make this your main selfie?'
           : faceliftStatus === 'error'
             ? `3D model build failed. ${faceliftError ?? 'Unknown error'}`
             : 'Building your 3D model. This takes about two minutes.';
@@ -1173,6 +1206,21 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
                   <BouncyButton onClick={handleProceed} className="btn btn-tomato" style={{ padding: '13px 30px', fontSize: 14 }}>✓ Proceed</BouncyButton>
                 </div>
               )}
+
+              {phase === 'main-selfie' && (
+                <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, textAlign: 'center' }}>
+                  <h2 className="type-chonk text-[var(--cream)] select-none" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', lineHeight: 1.1, margin: 0 }}>
+                    Make this your main selfie?
+                  </h2>
+                  <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, color: 'rgba(255,248,234,0.55)', margin: 0, lineHeight: 1.5, maxWidth: 320 }}>
+                    Your main selfie is the one new projects start from. You can keep your current one if you prefer.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <BouncyButton onClick={() => handleMainSelfieChoice(false)} className="btn btn-cream" style={{ padding: '13px 36px', fontSize: 14 }}>No</BouncyButton>
+                    <BouncyButton onClick={() => handleMainSelfieChoice(true)} className="btn btn-tomato" style={{ padding: '13px 36px', fontSize: 14 }}>Yes</BouncyButton>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1274,7 +1322,7 @@ function DeleteConfirmPopup({ projectName, onConfirm, onCancel }: { projectName:
 }
 
 /* ─── Project Card ─── */
-function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave, onRename }: { project: ProjectDoc; onClick: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void; onRename?: (name: string) => void }) {
+function ProjectCard({ project, onClick, pickMode = false, onPick, rotate = 0, onDelete, onSave, onRename }: { project: ProjectDoc; onClick: () => void; pickMode?: boolean; onPick?: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void; onRename?: (name: string) => void }) {
   const [zooming, setZooming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1308,9 +1356,9 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave, onRename 
   }, [drawerOpen]);
 
   return (
-    <div ref={cardRef} className={`pcard ${zooming ? 'project-zoom' : ''} ${isDeleting ? 'pcard-crumple' : ''}`}
+    <div ref={cardRef} className={`pcard ${zooming ? 'project-zoom' : ''} ${isDeleting ? 'pcard-crumple' : ''} ${pickMode ? 'pcard-shake' : ''}`}
       onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}
-      style={{ transform: isDeleting ? undefined : isHovered ? 'rotate(0deg) translateY(-5px) scale(1.015)' : `rotate(${rotate}deg)`, ['--pcard-wonk' as string]: `${rotate}deg`, boxShadow: isHovered ? '0 22px 44px -14px rgba(42,32,26,0.32)' : 'var(--shadow-md)', outline: isSaved ? '1.5px solid rgba(212,175,55,0.45)' : '1.5px solid rgba(42,32,26,0.14)', pointerEvents: isDeleting ? 'none' : 'auto' }}
+      style={{ transform: isDeleting ? undefined : isHovered ? 'rotate(0deg) translateY(-5px) scale(1.015)' : `rotate(${rotate}deg)`, ['--pcard-wonk' as string]: `${rotate}deg`, boxShadow: isHovered ? '0 22px 44px -14px rgba(42,32,26,0.32)' : 'var(--shadow-md)', outline: pickMode ? '2px solid rgba(232,97,77,0.7)' : isSaved ? '1.5px solid rgba(212,175,55,0.45)' : '1.5px solid rgba(42,32,26,0.14)', pointerEvents: isDeleting ? 'none' : 'auto' }}
     >
       <div className={`pcard-tape ${isSaved ? 'pcard-tape-gold' : ''}`} aria-hidden style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px) rotate(-7deg)` : 'rotate(-7deg)', transition: `transform ${DUR} ${EASE}, background 320ms ease, border-color 320ms ease` }} />
       <div className="pcard-tray" style={{ height: DRAWER_H }}>
@@ -1325,9 +1373,10 @@ function ProjectCard({ project, onClick, rotate = 0, onDelete, onSave, onRename 
         </button>
         <span className="font-mono pcard-tray-label">edit · this cut</span>
       </div>
-      <div onClick={() => { if (drawerOpen) return; setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}` }}>
+      <div onClick={() => { if (drawerOpen) return; if (pickMode) { setZooming(true); setTimeout(() => onPick?.(), 320); return; } setZooming(true); setTimeout(onClick, 320); }} className="pcard-content" style={{ transform: drawerOpen ? `translateY(-${DRAWER_H}px)` : 'translateY(0)', transition: `transform ${DUR} ${EASE}`, cursor: pickMode ? 'pointer' : undefined }}>
         <div className="pcard-photo">
           {(project.thumbnailS3Key || project.thumbnailUrl) && !imgError ? <img src={project.thumbnailS3Key ? `/api/img?key=${encodeURIComponent(project.thumbnailS3Key)}` : project.thumbnailUrl} alt={project.name} className="pcard-img" style={{ transform: isHovered ? 'scale(1.045)' : 'scale(1)' }} onError={() => setImgError(true)} /> : <div className="pcard-placeholder"><div style={{ width: 42, opacity: 0.22 }}><BarberMascot isStatic color="var(--ink)" /></div></div>}
+          {pickMode && <span className="pcard-360-badge" aria-hidden>360°</span>}
           <span key={isHovered ? 'on' : 'off'} className={isHovered ? 'pcard-sheen' : ''} aria-hidden />
         </div>
         <div className="pcard-caption">
@@ -1501,6 +1550,20 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const openSettings = () => setActiveNav('settings');
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  // "Show my barber a 360°" picker: the profile menu flips this on, every cut
+  // card shakes, and clicking one hands off to the studio to auto-record a 360.
+  const [barberPickMode, setBarberPickMode] = useState(false);
+  const handlePick360 = (project: ProjectDoc) => {
+    setBarberPickMode(false);
+    sessionStorage.setItem('studio_autoBarber', '1');
+    onOpenProject(project);
+  };
+  useEffect(() => {
+    if (!barberPickMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setBarberPickMode(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [barberPickMode]);
   const [flyingCard, setFlyingCard] = useState<{ fromRect: DOMRect; toPoint: { x: number; y: number }; thumbnailUrl?: string } | null>(null);
   const cardWrapRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevFlipPositions = useRef<Map<string, { top: number; left: number }>>(new Map());
@@ -1657,6 +1720,12 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
 
   return (
     <main className="relative overflow-hidden" style={{ height: '100vh', background: 'var(--biscuit-lt)' }}>
+      {barberPickMode && (
+        <div className="barber-pick-banner" style={{ position: 'fixed', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 10000, display: 'flex', alignItems: 'center', gap: 14, background: 'var(--ink)', color: 'var(--cream)', padding: '10px 12px 10px 18px', borderRadius: 9999, boxShadow: '0 14px 40px -10px rgba(0,0,0,0.45)' }}>
+          <span className="font-sans text-[13px]" style={{ fontWeight: 600 }}>✂ Pick a cut to show your barber a 360°</span>
+          <button onClick={() => setBarberPickMode(false)} className="font-sans text-[12px]" style={{ background: 'rgba(252,245,228,0.14)', color: 'var(--cream)', border: 'none', borderRadius: 9999, padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr', height: '100vh', opacity: menuVisible ? 1 : 0, transition: 'opacity 400ms ease', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
         {/* Left nav rail (hidden on mobile — replaced by bottom nav) */}
         <aside style={{ borderRight: '2px solid rgba(42,32,26,0.22)', background: 'var(--biscuit)', zIndex: 2, position: 'relative', overflow: 'hidden', ...(isMobile ? { display: 'none' } : {}) }}>
@@ -1684,7 +1753,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div ref={wordmarkDarkRef} style={{ position: 'absolute', inset: 0, opacity: 0, ...(isDark ? { ['--cream' as string]: '#fcf5e4' } : {}) }}><InlineWordmark cream /></div>
                 </div>
                 <div className={`flex items-center gap-3 ${rightVisible ? 'slide-in-right' : 'opacity-0'}`}>
-                  <ProfileMenu onRescan={onRescan} onOpenSettings={openSettings} pulse={profilePillPulse} celebratePurchase={celebratePurchase} pillVisible={headerScrolled || isDarkFloor} />
+                  <ProfileMenu onRescan={onRescan} onOpenSettings={openSettings} onPick360={() => { setActiveNav('home'); setBarberPickMode(true); }} pulse={profilePillPulse} celebratePurchase={celebratePurchase} pillVisible={headerScrolled || isDarkFloor} />
                 </div>
               </div>
             </div>
@@ -1719,7 +1788,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
                   {homeProjects?.map((p, i) => (
                     <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                      <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
+                      <ProjectCard project={p} onClick={() => onOpenProject(p)} pickMode={barberPickMode} onPick={() => handlePick360(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                     </div>
                   ))}
                 </div>
@@ -1770,7 +1839,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                        <ProjectCard project={p} onClick={() => onOpenProject(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
+                        <ProjectCard project={p} onClick={() => onOpenProject(p)} pickMode={barberPickMode} onPick={() => handlePick360(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                       </div>
                     ))}
                   </div>
@@ -1865,6 +1934,9 @@ export default function DashboardPage() {
   };
 
   const [showScanPopup, setShowScanPopup] = useState(false);
+  // True only for the "take a new selfie" fork (user already has a saved scan),
+  // which asks whether the fresh selfie should replace their main one.
+  const [scanAskMainSelfie, setScanAskMainSelfie] = useState(false);
   const [showReusePopup, setShowReusePopup] = useState(false);
   const [reuseCreating, setReuseCreating] = useState(false);
   const [showLimitReached, setShowLimitReached] = useState(false);
@@ -1889,10 +1961,12 @@ export default function DashboardPage() {
     isFirstScan?: boolean,
     splatUrl?: string,
     splatS3Key?: string,
+    makeMainSelfie: boolean = true,
   ) => {
     const profileWithMeasurements = ensureMeasurementSnapshot(p);
     setHasScanEver(true);
     setShowScanPopup(false);
+    setScanAskMainSelfie(false);
 
     // Store transient session data for studio to pick up
     if (sid) sessionStorage.setItem('studio_sessionId', sid);
@@ -1925,15 +1999,18 @@ export default function DashboardPage() {
       // Cache this scan as the reusable "default scan" so future "Add Project"
       // can reuse it without re-scanning. The project above keeps its own copy,
       // so overwriting the default later never mutates existing projects.
-      await setDefaultScan({
-        lastImageS3Key: scanS3Key ?? undefined,
-        lastImageUrl: url ?? undefined,
-        thumbnailS3Key: scanS3Key ?? undefined,
-        splatS3Key: splatS3Key ?? undefined,
-        lastSplatUrl: splatUrl ?? undefined,
-        lastProfile: profileToSave,
-        lastHairParams: profileWithMeasurements.currentStyle.params,
-      });
+      // Skipped when the user declined to make this their main selfie.
+      if (makeMainSelfie) {
+        await setDefaultScan({
+          lastImageS3Key: scanS3Key ?? undefined,
+          lastImageUrl: url ?? undefined,
+          thumbnailS3Key: scanS3Key ?? undefined,
+          splatS3Key: splatS3Key ?? undefined,
+          lastSplatUrl: splatUrl ?? undefined,
+          lastProfile: profileToSave,
+          lastHairParams: profileWithMeasurements.currentStyle.params,
+        });
+      }
     } catch (err) {
       console.error('[Dashboard] Failed to create project:', err);
       return;
@@ -2005,16 +2082,17 @@ export default function DashboardPage() {
       {showScanPopup && (
         <ScanPopup
           onScanComplete={handleScanComplete}
-          onDismiss={() => setShowScanPopup(false)}
+          onDismiss={() => { setShowScanPopup(false); setScanAskMainSelfie(false); }}
           onNoTokens={() => setShowOutOfTokens(true)}
           needsUsername={needsUsername}
+          askMainSelfie={scanAskMainSelfie}
         />
       )}
       {showReusePopup && (
         <ReuseScanPopup
           creating={reuseCreating}
           onReuse={handleReuseScan}
-          onNewSelfie={() => { setShowReusePopup(false); setShowScanPopup(true); }}
+          onNewSelfie={() => { setShowReusePopup(false); setScanAskMainSelfie(true); setShowScanPopup(true); }}
           onDismiss={() => setShowReusePopup(false)}
         />
       )}

@@ -439,6 +439,20 @@ export default function StudioPage() {
     return () => clearTimeout(t);
   }, [effectiveSplatUrl]);
 
+  // Auto-fire the 360° barber clip when arriving from the dashboard's
+  // "Show my barber a 360°" picker. The flag is a one-shot sessionStorage
+  // handoff set right before navigation (mirrors studio_splatUrl). We wait for
+  // the splat to download + render before sweeping, matching the thumbnail delay.
+  const autoBarberTriggered = useRef(false);
+  useEffect(() => {
+    if (autoBarberTriggered.current || !effectiveSplatUrl) return;
+    if (typeof window === 'undefined' || sessionStorage.getItem('studio_autoBarber') !== '1') return;
+    autoBarberTriggered.current = true;
+    sessionStorage.removeItem('studio_autoBarber');
+    const t = setTimeout(() => requestBarberVideo(), 10000);
+    return () => clearTimeout(t);
+  }, [effectiveSplatUrl, requestBarberVideo]);
+
   // Auto-save every 30s
   useEffect(() => {
     if (!projectId || !imageUrl) return;

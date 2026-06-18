@@ -1277,6 +1277,31 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .card-wiggle { animation: card-wiggle 320ms cubic-bezier(.36,.07,.19,.97) both; }
 
+/* ── "Show my barber a 360°" picker: shake every cut, badge the target ── */
+@keyframes pcard-shake {
+  0%, 100% { transform: rotate(var(--pcard-wonk, 0deg)); }
+  25%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 2.2deg)) translateY(-1px); }
+  50%      { transform: rotate(calc(var(--pcard-wonk, 0deg) + 2.2deg)); }
+  75%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 1.4deg)) translateY(-1px); }
+}
+.pcard-shake {
+  /* desync each card off the grid index that's already in scope (--settle-i) */
+  animation: pcard-shake 360ms ease-in-out infinite;
+  animation-delay: calc(var(--settle-i, 0) * -73ms);
+}
+.pcard-360-badge {
+  position: absolute; top: 9px; right: 9px; z-index: 3;
+  font-family: var(--font-dmsans); font-weight: 800; font-size: 12px; letter-spacing: 0.03em;
+  background: var(--coral); color: var(--offwhite);
+  padding: 4px 9px; border-radius: 9999px;
+  box-shadow: 0 4px 14px -3px rgba(232, 97, 77, 0.6);
+  pointer-events: none;
+}
+.barber-pick-banner { animation: bounce-in 360ms cubic-bezier(.34,1.56,.64,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .pcard-shake { animation: none; }
+}
+
 /* ── Empty-state add-button physics sequence ──────────────── */
 @keyframes empty-text-drop {
   /* text starts far above the card and falls all the way to center */
@@ -3075,6 +3100,19 @@ html.dark .tokens-widget__label {
    on the token count (var(--ink) flips to near-white and disappears). */
 html.dark .pill-credits {
   color: #2a201a;
+}
+
+/* Prompt-suggestion chips + refresh button: the warm cream bg stays nearly
+   opaque in dark mode, leaving light text on a light fill. Darken the fill and
+   lighten the outline so they read against the charcoal background. */
+html.dark .chip-suggest,
+html.dark .chip-refresh {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+html.dark .chip-suggest:hover:not(:disabled),
+html.dark .chip-refresh:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 html.dark .btn-tokens-cta {
