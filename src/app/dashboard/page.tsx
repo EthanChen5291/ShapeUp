@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
@@ -850,6 +850,19 @@ function LiveChecklist({ checks }: { checks: ChecksMap | null }) {
           </div>
         );
       })}
+      <p
+        className="font-sans"
+        style={{
+          marginTop: 22,
+          paddingTop: 18,
+          borderTop: '1px solid rgba(255,248,234,0.08)',
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: 'rgba(255,248,234,0.55)',
+        }}
+      >
+        Sit against a plain, solid-color wall with no bright window or lamp behind your head — it keeps your hair sharp for the 3D model!
+      </p>
     </div>
   );
 }
@@ -1330,7 +1343,7 @@ function DeleteConfirmPopup({ projectName, onConfirm, onCancel }: { projectName:
 }
 
 /* ─── Project Card ─── */
-function ProjectCard({ project, onClick, pickMode = false, onPick, rotate = 0, onDelete, onSave, onRename }: { project: ProjectDoc; onClick: () => void; pickMode?: boolean; onPick?: () => void; rotate?: number; onDelete?: () => void; onSave?: (cardRect: DOMRect) => void; onRename?: (name: string) => void }) {
+function ProjectCard({ project, onClick, pickMode = false, onPick, rotate = 0, onDelete, onDeleted, onSave, onRename }: { project: ProjectDoc; onClick: () => void; pickMode?: boolean; onPick?: () => void; rotate?: number; onDelete?: () => void; onDeleted?: () => void; onSave?: (cardRect: DOMRect) => void; onRename?: (name: string) => void }) {
   const [zooming, setZooming] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1412,7 +1425,14 @@ function ProjectCard({ project, onClick, pickMode = false, onPick, rotate = 0, o
       {showDeleteConfirm && (
         <DeleteConfirmPopup
           projectName={project.name}
-          onConfirm={() => { setShowDeleteConfirm(false); setTimeout(() => { setIsDeleting(true); setTimeout(() => onDelete?.(), 420); }, 280); }}
+          onConfirm={() => {
+            setShowDeleteConfirm(false);
+            // Delete the project right away so its slot frees up immediately — the
+            // user can add a new cut without waiting for the crumple to finish. The
+            // parent keeps this card mounted as a ghost until the animation ends.
+            onDelete?.();
+            setTimeout(() => { setIsDeleting(true); setTimeout(() => onDeleted?.(), 420); }, 280);
+          }}
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
@@ -1538,6 +1558,28 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
   const isMobile = useIsMobile();
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
   const removeProject = useMutation(api.projects.remove);
+  // Projects mid delete-animation. The actual delete mutation fires the instant
+  // the user confirms (so the slot frees up right away), but we keep the card
+  // mounted as a "ghost" at its old spot until its crumple animation finishes.
+  const [deletingIds, setDeletingIds] = useState<Set<Id<'projects'>>>(() => new Set());
+  const ghostsRef = useRef<Map<Id<'projects'>, { doc: ProjectDoc; index: number }>>(new Map());
+  // `projects` drops a deleted project as soon as the mutation resolves, which
+  // would unmount its card mid-crumple. `displayProjects` re-inserts any
+  // still-animating ghost at its original slot so the animation plays out. It's
+  // computed (not state) so dropping a ghost happens in a single render — keeping
+  // the FLIP snapshot in sync with the layout change.
+  const displayProjects = useMemo(() => {
+    if (projects === undefined) return undefined;
+    if (deletingIds.size === 0) return projects;
+    const live = new Set(projects.map(p => p._id));
+    const merged = [...projects];
+    deletingIds.forEach(id => {
+      if (live.has(id)) return; // server hasn't dropped it yet — real card still shows
+      const g = ghostsRef.current.get(id);
+      if (g) merged.splice(Math.min(g.index, merged.length), 0, g.doc);
+    });
+    return merged;
+  }, [projects, deletingIds]);
   const toggleSaveProject = useMutation(api.projects.toggleSave);
   const renameProject = useMutation(api.projects.rename);
   const [isDark, setIsDark] = useState(false);
@@ -1590,6 +1632,23 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     prevFlipPositions.current = new Map();
     cardWrapRefs.current.forEach((el, id) => { const r = el.getBoundingClientRect(); prevFlipPositions.current.set(id, { top: r.top, left: r.left }); });
     pendingFlip.current = true;
+  };
+
+  // Fire the delete immediately and mark the card as a ghost so it keeps rendering
+  // through its crumple animation even after the query drops it. We stash the doc
+  // and its current slot so the ghost can be re-inserted in place.
+  const handleDeleteProject = (p: ProjectDoc) => {
+    const index = projects ? projects.findIndex(x => x._id === p._id) : -1;
+    ghostsRef.current.set(p._id, { doc: p, index: index < 0 ? (projects?.length ?? 0) : index });
+    setDeletingIds(prev => { const next = new Set(prev); next.add(p._id); return next; });
+    removeProject({ projectId: p._id });
+  };
+  // Animation finished: snapshot positions for the FLIP reflow, then drop the ghost
+  // so the surrounding cards slide in to fill the gap.
+  const handleDeleteAnimationDone = (id: Id<'projects'>) => {
+    snapshotForFlip();
+    ghostsRef.current.delete(id);
+    setDeletingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
   };
 
   useLayoutEffect(() => {
@@ -1666,16 +1725,16 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     (b.lastAccessedAt ?? b.updatedAt) - (a.lastAccessedAt ?? a.updatedAt);
 
   const homeProjects = (() => {
-    if (!projects) return undefined;
-    let list = [...projects];
+    if (!displayProjects) return undefined;
+    let list = [...displayProjects];
     if (searchQuery) { const q = searchQuery.toLowerCase(); list = list.filter(p => p.name.toLowerCase().includes(q)); }
     if (activeTab === 'recent') list = list.sort(byRecency).slice(0, 6);
     return list;
   })();
 
   const savedProjects = (() => {
-    if (!projects) return undefined;
-    let list = projects.filter(p => !!p.savedAt);
+    if (!displayProjects) return undefined;
+    let list = displayProjects.filter(p => !!p.savedAt);
     if (searchQuery) { const q = searchQuery.toLowerCase(); list = list.filter(p => p.name.toLowerCase().includes(q)); }
     if (activeTab === 'recent') list = list.sort(byRecency).slice(0, 6);
     return list;
@@ -1785,7 +1844,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
               {/* Floor 1 — Home */}
               <div ref={floor0ScrollRef} onScroll={e => setHeaderScrolled(e.currentTarget.scrollTop > 16)} className="cozy-scroll" style={{ height: vpH || '100vh', overflowY: 'auto', padding: '56px 40px 80px', ...(isMobile ? { padding: '70px 16px 128px' } : {}) }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 32, marginTop: 28, ...(isMobile ? { flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 4 } : {}) }}>
-                  <HomeTitle count={projects?.length} compact={isMobile} />
+                  <HomeTitle count={displayProjects?.length} compact={isMobile} />
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248, ...(isMobile ? { width: '100%' } : {}) }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: isDark ? 'rgba(245,241,234,0.6)' : 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
@@ -1796,14 +1855,14 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : (isDark ? 'rgba(245,241,234,0.28)' : 'rgba(42,32,26,0.28)')}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : (isDark ? 'rgba(245,241,234,0.7)' : 'rgba(42,32,26,0.7)'), letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
-                  <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />
+                  <AddProjectButton onClick={onAdd} isEmpty={displayProjects !== undefined && displayProjects.length === 0} />
                   {homeProjects?.map((p, i) => (
                     <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                      <ProjectCard project={p} onClick={() => onOpenProject(p)} pickMode={barberPickMode} onPick={() => handlePick360(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
+                      <ProjectCard project={p} onClick={() => onOpenProject(p)} pickMode={barberPickMode} onPick={() => handlePick360(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => handleDeleteProject(p)} onDeleted={() => handleDeleteAnimationDone(p._id)} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                     </div>
                   ))}
                 </div>
-                {showScanNow && !(projects && projects.length > 0) && (
+                {showScanNow && !(displayProjects && displayProjects.length > 0) && (
                   <div className="mt-8 flex justify-center scan-btn-pop">
                     <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)' }}>✂ Scan now</BouncyButton>
                   </div>
@@ -1850,7 +1909,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
                     {savedProjects?.map((p, i) => (
                       <div key={p._id} ref={el => { if (el) cardWrapRefs.current.set(p._id, el); else cardWrapRefs.current.delete(p._id); }} className="grid-settle" style={{ ['--settle-i' as string]: i }}>
-                        <ProjectCard project={p} onClick={() => onOpenProject(p)} pickMode={barberPickMode} onPick={() => handlePick360(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => { snapshotForFlip(); removeProject({ projectId: p._id }); }} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
+                        <ProjectCard project={p} onClick={() => onOpenProject(p)} pickMode={barberPickMode} onPick={() => handlePick360(p)} rotate={[-1.4, 0.8, -0.6, 1.2, -0.8][i % 5]} onDelete={() => handleDeleteProject(p)} onDeleted={() => handleDeleteAnimationDone(p._id)} onSave={(cardRect) => handleSaveProject(p, cardRect)} onRename={(name) => renameProject({ projectId: p._id, name })} />
                       </div>
                     ))}
                   </div>
