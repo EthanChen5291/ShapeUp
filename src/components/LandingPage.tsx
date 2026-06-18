@@ -2186,17 +2186,17 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <button
               onClick={scrollToHowItWorks}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 19, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
               how it works
             </button>
-            <span aria-hidden style={{ width: 1, height: 18, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
+            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />
             <button
               onClick={scrollToPricing}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 19, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -2227,12 +2227,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           {/* Left */}
           <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
             <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '8px 20px', marginTop: 8 }}>
-              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 12 }}>✦</span>
-              <span className="font-mono" style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--char)', opacity: 0.8 }}>Free to try · No credit card · 3D preview in ~60 sec</span>
+              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10, ...(isMobile ? { fontSize: 12 } : {}) }}>✦</span>
+              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8, ...(isMobile ? { fontSize: 13, letterSpacing: '0.14em' } : {}) }}>Free to try · No credit card · 3D preview in ~60 sec</span>
             </div>
             <div
               className="type-chonk"
-              style={{ fontSize: 'clamp(2.5rem, 4.8vw, 3.7rem)', marginTop: 26, color: 'var(--ink)', lineHeight: 1.1 }}
+              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05, ...(isMobile ? { fontSize: 'clamp(2.5rem, 4.8vw, 3.7rem)', marginTop: 26, lineHeight: 1.1 } : {}) }}
             >
               <div className="hero-rise delay-100">see it first.</div>
               <div className="hero-rise delay-200"><em style={{ color: 'var(--tomato)' }}>love</em> it more.</div>
@@ -2240,7 +2240,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
             <p
               className="font-serif italic hero-rise delay-300"
-              style={{ fontSize: 21, color: 'var(--char)', maxWidth: 520, margin: '28px auto 0', lineHeight: 1.62 }}
+              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '22px auto 0', lineHeight: 1.5, ...(isMobile ? { fontSize: 21, maxWidth: 520, margin: '28px auto 0', lineHeight: 1.62 } : {}) }}
             >
               Take one selfie. See 10+ haircuts on your actual 3D face.
               <br />Walk into the barber knowing exactly what you want.

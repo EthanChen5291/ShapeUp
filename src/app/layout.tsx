@@ -50,7 +50,17 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider publishableKey={clerkPublishableKey}>
+    <ClerkProvider
+      publishableKey={clerkPublishableKey}
+      // Point Clerk at our own routes (which render <SignUpWidget />) so any time
+      // Clerk needs to send the user to "sign in / sign up" — e.g. the fallback
+      // during the Google OAuth callback — it uses our UI instead of Clerk's
+      // hosted Account Portal.
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+    >
       <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrains.variable} ${montserrat.variable}`}>
         <body style={{ fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
           <style>{`
