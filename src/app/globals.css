@@ -610,12 +610,12 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
-/* ── "Show my barber a 360°" — quiet tertiary utility row ────────────────
-   Sits beneath the loud token/refer CTAs. Deliberately flat: no fill, no
-   raised ledge, no shimmer, neutral ink tones (never coral/amber/blue, which
-   are reserved for the primary CTAs + active states). A calm "this exists"
-   affordance that stays out of the attention contest. The only flourish — the
-   icon spinning a full 360° — fires on hover/focus intent, not at rest. */
+/* ── "Show my barber a 360°" — tertiary utility row, moss accent ─────────
+   Sits beneath the loud token (amber/coral) + refer (blue) CTAs. It carries
+   its own colour — a soft moss green — so it's clearly visible, but moss is
+   unused by either primary button, so it never competes or reads as a rival
+   CTA: still flat (no raised ledge, no shimmer), just gently tinted. The one
+   flourish — the icon spinning a full 360° — fires on hover/focus, not at rest. */
 .btn-barber360 {
   display: flex;
   align-items: center;
@@ -623,8 +623,8 @@ body {
   width: 100%;
   min-height: 44px;                         /* a11y touch target */
   padding: 8px 12px;
-  background: transparent;
-  border: 1px solid rgba(42, 32, 26, 0.12);
+  background: rgba(107, 140, 79, 0.08);
+  border: 1px solid rgba(107, 140, 79, 0.34);
   border-radius: 12px;
   cursor: pointer;
   text-align: left;
@@ -637,8 +637,8 @@ body {
   width: 28px; height: 28px;
   flex-shrink: 0;
   border-radius: 9px;
-  background: rgba(42, 32, 26, 0.06);
-  color: var(--smoke);
+  background: rgba(107, 140, 79, 0.16);
+  color: var(--moss);
   transition: transform 520ms cubic-bezier(.34, 1.1, .64, 1), color 180ms ease, background 180ms ease;
 }
 .btn-barber360__text {
@@ -647,33 +647,33 @@ body {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.004em;
-  color: var(--char);
+  color: #46612f;                           /* deep moss — 4.5:1 on the tint */
 }
 .btn-barber360__chev {
   display: inline-flex;
   flex-shrink: 0;
-  color: rgba(42, 32, 26, 0.3);
+  color: rgba(107, 140, 79, 0.6);
   transition: transform 180ms ease, color 180ms ease;
 }
 .btn-barber360:hover,
 .btn-barber360:focus-visible {
-  background: rgba(42, 32, 26, 0.035);
-  border-color: rgba(42, 32, 26, 0.2);
+  background: rgba(107, 140, 79, 0.15);
+  border-color: rgba(107, 140, 79, 0.5);
 }
 .btn-barber360:hover .btn-barber360__icon,
 .btn-barber360:focus-visible .btn-barber360__icon {
   transform: rotate(-360deg);               /* a wink at "360", on intent only */
-  background: rgba(42, 32, 26, 0.1);
-  color: var(--ink);
+  background: rgba(107, 140, 79, 0.24);
+  color: #3f5530;
 }
 .btn-barber360:hover .btn-barber360__chev,
 .btn-barber360:focus-visible .btn-barber360__chev {
   transform: translateX(2px);
-  color: rgba(42, 32, 26, 0.55);
+  color: var(--moss);
 }
 .btn-barber360:active { transform: scale(0.985); }
 .btn-barber360:focus-visible {
-  outline: 2px solid rgba(232, 97, 77, 0.5);
+  outline: 2px solid rgba(107, 140, 79, 0.6);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1352,9 +1352,9 @@ input[type="range"].slider-warm::-moz-range-thumb {
 /* ── "Show my barber a 360°" picker: shake every cut, badge the target ── */
 @keyframes pcard-shake {
   0%, 100% { transform: rotate(var(--pcard-wonk, 0deg)); }
-  25%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 2.2deg)) translateY(-1px); }
-  50%      { transform: rotate(calc(var(--pcard-wonk, 0deg) + 2.2deg)); }
-  75%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 1.4deg)) translateY(-1px); }
+  25%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 0.88deg)) translateY(-0.4px); }
+  50%      { transform: rotate(calc(var(--pcard-wonk, 0deg) + 0.88deg)); }
+  75%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 0.56deg)) translateY(-0.4px); }
 }
 .pcard-shake {
   /* desync each card off the grid index that's already in scope (--settle-i) */
@@ -1369,9 +1369,31 @@ input[type="range"].slider-warm::-moz-range-thumb {
   box-shadow: 0 4px 14px -3px rgba(232, 97, 77, 0.6);
   pointer-events: none;
 }
-.barber-pick-banner { animation: bounce-in 360ms cubic-bezier(.34,1.56,.64,1) both; }
+/* Keeps translateX(-50%) at every step so the entrance animation can't knock
+   the fixed-position banner off horizontal centre (plain bounce-in would). */
+@keyframes barber-pick-in {
+  0%   { transform: translateX(-50%) scale(0.92); opacity: 0; }
+  60%  { transform: translateX(-50%) scale(1.02); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); }
+}
+.barber-pick-banner { animation: barber-pick-in 360ms cubic-bezier(.34,1.56,.64,1) both; }
+
+/* Jumping dots for the "Waiting for the render to load" gate */
+.barber-wait-dots { display: inline-flex; margin-left: 2px; }
+.barber-wait-dots span {
+  display: inline-block;
+  animation: barber-dot-jump 1s ease-in-out infinite;
+}
+.barber-wait-dots span:nth-child(2) { animation-delay: 0.16s; }
+.barber-wait-dots span:nth-child(3) { animation-delay: 0.32s; }
+@keyframes barber-dot-jump {
+  0%, 65%, 100% { transform: translateY(0);    opacity: 0.5; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pcard-shake { animation: none; }
+  .barber-wait-dots span { animation: none; }
 }
 
 /* ── Empty-state add-button physics sequence ──────────────── */
@@ -3159,19 +3181,20 @@ html.dark .pcard {
 }
 
 html.dark .tokens-widget {
-  background: linear-gradient(150deg, #ffe9b8 0%, #ffd170 100%);
-  border-color: rgba(200, 150, 30, 0.4);
+  background: linear-gradient(150deg, #4a3a1c 0%, #6b521f 100%);
+  border-color: rgba(220, 170, 70, 0.32);
 }
 html.dark .tokens-widget__count {
-  color: #2a201a;
+  color: #ffe2a0;
 }
 html.dark .tokens-widget__label {
-  color: #7a5920;
+  color: #d8aa5c;
 }
-/* Collapsed profile pill keeps its yellow bg in dark mode, so force dark ink
-   on the token count (var(--ink) flips to near-white and disappears). */
+/* Collapsed profile pill: deep amber in dark mode (the bright yellow glares
+   against the charcoal UI), with light-gold text so the count stays legible. */
 html.dark .pill-credits {
-  color: #2a201a;
+  background: #5a4520;
+  color: #ffe2a0;
 }
 
 /* Prompt-suggestion chips + refresh button: the warm cream bg stays nearly

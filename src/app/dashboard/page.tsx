@@ -286,7 +286,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
               <div ref={heroRef} className="tokens-widget">
                 <div className="tokens-widget__row">
                   <span className="tokens-widget__label">Tokens</span>
-                  <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#4a3a2e' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? 'rgba(74,58,46,0.10)' : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{planName} plan</span>
+                  <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{planName} plan</span>
                 </div>
                 <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.credits ?? 0)} /></span>
                 <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: 12 }}>
@@ -509,15 +509,17 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   // `on` is a fixed (mode-independent) foreground that contrasts with the
   // accent fill — dark text on the light/yellow accents, light text on the
   // dark ones. Avoids using --cream/--ink, which flip in dark mode.
-  const themeOptions: { value: Theme; label: string; icon: string; color: string; on: string }[] = [
-    { value: 'light', label: 'Light', icon: '☀', color: 'var(--mustard)', on: '#3d2e0c' },
+  // `glyph` overrides the selected icon/dot color independently of the `on` text color.
+  // Light shows a bright offwhite sun against the mustard fill — yellow-on-yellow would blend.
+  const themeOptions: { value: Theme; label: string; icon: string; color: string; on: string; glyph?: string }[] = [
+    { value: 'light', label: 'Light', icon: '☀', color: 'var(--mustard)', on: '#3d2e0c', glyph: 'var(--cream)' },
     { value: 'system', label: 'System', icon: '◐', color: 'var(--caramel)', on: '#fff8ea' },
     { value: 'dark', label: 'Dark', icon: '☾', color: 'var(--denim)', on: '#fff8ea' },
   ];
 
-  const qualityOptions: { value: RenderQuality; label: string; desc: string; color: string; on: string }[] = [
+  const qualityOptions: { value: RenderQuality; label: string; desc: string; color: string; on: string; glyph?: string }[] = [
     { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device', color: 'var(--moss)', on: '#fff8ea' },
-    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens', color: 'var(--mustard)', on: '#3d2e0c' },
+    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens', color: 'var(--denim)', on: '#fff8ea' },
     { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition', color: 'var(--terracotta)', on: '#fff8ea' },
   ];
 
@@ -534,7 +536,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <SectionLabel>Account</SectionLabel>
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="w-full font-sans text-[15px] text-[var(--ink)] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'opacity 280ms ease' }} />
+                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="w-full font-sans text-[15px] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', color: editingUsername ? 'var(--ink)' : 'var(--smoke)', border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'opacity 280ms ease, color 280ms ease' }} />
                 {/* Gray scrim shown while the field is locked */}
                 <div aria-hidden style={{ position: 'absolute', inset: 0, borderRadius: 12, background: 'rgba(120,120,120,0.14)', opacity: editingUsername ? 0 : 1, transition: 'opacity 280ms ease', pointerEvents: 'none' }} />
               </div>
@@ -559,7 +561,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <div className="flex gap-2">
               {themeOptions.map(opt => (
                 <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? opt.color : 'var(--biscuit)', color: theme === opt.value ? opt.on : 'var(--char)', border: theme === opt.value ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 22%, transparent)`, fontWeight: theme === opt.value ? 600 : 400 }}>
-                  <span style={{ fontSize: opt.value === 'system' ? 16 : 19.2, color: theme === opt.value ? opt.on : opt.color }}>{opt.icon}</span>
+                  <span style={{ fontSize: opt.value === 'system' ? 16 : 19.2, color: theme === opt.value ? (opt.glyph ?? opt.on) : opt.color }}>{opt.icon}</span>
                   {opt.label}
                 </button>
               ))}
@@ -574,7 +576,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <div className="flex flex-col gap-2">
               {qualityOptions.map(opt => (
                 <button key={opt.value} onClick={() => updateRenderQuality(opt.value)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all" style={{ background: renderQuality === opt.value ? opt.color : 'var(--biscuit)', color: renderQuality === opt.value ? opt.on : 'var(--ink)', border: renderQuality === opt.value ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 22%, transparent)` }}>
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? opt.on : opt.color, transition: 'background 200ms' }} />
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? (opt.glyph ?? opt.on) : opt.color, transition: 'background 200ms' }} />
                   <div className="flex flex-col">
                     <span className="font-sans text-[13px] font-semibold">{opt.label}</span>
                     <span className="font-sans text-[11px]" style={{ opacity: 0.8 }}>{opt.desc}</span>
@@ -1787,7 +1789,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
-                  {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : 'rgba(42,32,26,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(42,32,26,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
+                  {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : (isDark ? 'rgba(245,241,234,0.28)' : 'rgba(42,32,26,0.28)')}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : (isDark ? 'rgba(245,241,234,0.7)' : 'rgba(42,32,26,0.7)'), letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
                   <AddProjectButton onClick={onAdd} isEmpty={projects !== undefined && projects.length === 0} />

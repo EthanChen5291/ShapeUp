@@ -81,7 +81,7 @@ const TRENDING_CUTS = [
   'fluffy crop, low fade',
 ];
 
-const CHIPS_PER_PAGE = 4;
+const CHIPS_PER_PAGE = 3;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -475,7 +475,7 @@ export default function EditPanel({ profile, onParamsChange, sessionId, latestIm
   return (
     <>
     <div className="flex-shrink-0 overflow-hidden rounded-2xl" style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-    <aside className="relative flex flex-col gap-6 px-5 py-6 text-[var(--ink)]" aria-label="Hair editor controls">
+    <aside className="relative flex flex-col gap-6 px-5 pt-6 pb-2 text-[var(--ink)]" aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}

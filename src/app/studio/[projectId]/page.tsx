@@ -439,19 +439,25 @@ export default function StudioPage() {
     return () => clearTimeout(t);
   }, [effectiveSplatUrl]);
 
-  // Auto-fire the 360° barber clip when arriving from the dashboard's
-  // "Show my barber a 360°" picker. The flag is a one-shot sessionStorage
-  // handoff set right before navigation (mirrors studio_splatUrl). We wait for
-  // the splat to download + render before sweeping, matching the thumbnail delay.
-  const autoBarberTriggered = useRef(false);
+  // When arriving from the dashboard's "Show my barber a 360°" picker, show a
+  // "waiting for the render" gate instead of auto-firing on a blind timer: the
+  // user watches the splat load and presses "All ready!" to start the 360 sweep
+  // the moment it looks right. The flag is a one-shot sessionStorage handoff
+  // set right before navigation (mirrors studio_splatUrl).
+  const autoBarberConsumed = useRef(false);
+  const [autoBarberPending, setAutoBarberPending] = useState(false);
   useEffect(() => {
-    if (autoBarberTriggered.current || !effectiveSplatUrl) return;
+    if (autoBarberConsumed.current || !effectiveSplatUrl) return;
     if (typeof window === 'undefined' || sessionStorage.getItem('studio_autoBarber') !== '1') return;
-    autoBarberTriggered.current = true;
+    autoBarberConsumed.current = true;
     sessionStorage.removeItem('studio_autoBarber');
-    const t = setTimeout(() => requestBarberVideo(), 10000);
-    return () => clearTimeout(t);
-  }, [effectiveSplatUrl, requestBarberVideo]);
+    setAutoBarberPending(true);
+  }, [effectiveSplatUrl]);
+
+  const handleAutoBarberReady = useCallback(() => {
+    setAutoBarberPending(false);
+    requestBarberVideo();
+  }, [requestBarberVideo]);
 
   // Auto-save every 30s
   useEffect(() => {
@@ -809,6 +815,32 @@ export default function StudioPage() {
               )}
             </div>
           </div>
+
+          {/* "Waiting for the render" gate — shown after picking a cut for a 360
+              from the dashboard. The user watches the splat load behind it and
+              presses "All ready!" to kick off the sweep. */}
+          {autoBarberPending && videoState !== 'recording' && videoState !== 'encoding' && (
+            <div
+              className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5"
+              style={{ background: 'rgba(23,17,13,0.7)', backdropFilter: 'blur(3px)' }}
+              role="status"
+              aria-live="polite"
+            >
+              <span className="font-mono text-[12px] uppercase tracking-[0.22em] text-[var(--cream)]/85">
+                Waiting for the render to load
+                <span className="barber-wait-dots" aria-hidden>
+                  <span>.</span><span>.</span><span>.</span>
+                </span>
+              </span>
+              <button
+                onClick={handleAutoBarberReady}
+                className="font-sans text-[13px] font-semibold rounded-full px-6 py-2.5 transition-transform active:scale-95"
+                style={{ background: 'var(--moss)', color: 'var(--chalk)', boxShadow: '0 6px 20px -6px rgba(107,140,79,0.7)' }}
+              >
+                All ready!
+              </button>
+            </div>
+          )}
 
           {/* Capture overlay — masks the spinning canvas while recording the
               360° clip. Pure DOM, so it never appears in the recording. */}
