@@ -2238,6 +2238,62 @@ html.dark .explore-marquee-track {
   width: 100%;
 }
 
+/* positioning context so the tilt message can float beside the viewfinder */
+.lsc-stage {
+  position: relative;
+  width: 100%;
+}
+
+/* head-tilt nudge — sits to the LEFT of the camera, points back at it */
+.lsc-tilt-msg {
+  position: absolute;
+  right: calc(100% + 16px);   /* just outside the frame's left edge */
+  top: 50%;
+  width: max-content;
+  max-width: 180px;
+  padding: 9px 13px;
+  border-radius: 14px;
+  background: var(--tomato, #e2613f);
+  color: #fff8ea;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: 0 8px 22px -10px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(8px) scale(0.96);
+  transform-origin: right center;
+  transition: opacity 280ms ease, transform 320ms cubic-bezier(0.2, 0.85, 0.2, 1);
+  z-index: 5;
+}
+.lsc-tilt-msg.is-on {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0) scale(1);
+}
+/* tail on the right edge, pointing toward the camera */
+.lsc-tilt-msg::after {
+  content: '';
+  position: absolute;
+  top: 50%; right: -4px;
+  width: 12px; height: 12px;
+  background: inherit;
+  border-radius: 2px 0 0 0;
+  transform: translateY(-50%) rotate(45deg);
+}
+/* on narrow screens there's no room beside the camera — float it on top instead */
+@media (max-width: 640px) {
+  .lsc-tilt-msg {
+    right: auto; left: 50%; top: 10px;
+    transform: translateX(-50%) translateY(-6px) scale(0.96);
+    max-width: 78%;
+    text-align: center;
+  }
+  .lsc-tilt-msg.is-on { transform: translateX(-50%) translateY(0) scale(1); }
+  .lsc-tilt-msg::after { display: none; }
+}
+
 .lsc-frame {
   position: relative;
   aspect-ratio: 1;

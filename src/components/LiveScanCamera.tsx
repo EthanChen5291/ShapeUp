@@ -329,6 +329,22 @@ export default function LiveScanCamera({
           } else {
             (['distance', 'facing', 'still'] as CheckKey[]).forEach(k => judge(k, false));
           }
+
+          /* head-tilt (roll) side message — only with landmarks (mediapipe) */
+          if (obs.count === 1 && obs.roll !== null) {
+            const isTilted = Math.abs(obs.roll) > TILT_DEG;
+            if (isTilted) { tiltStreak.current++; levelStreak.current = 0; }
+            else          { levelStreak.current++; tiltStreak.current = 0; }
+            if (!tiltedRef.current && tiltStreak.current >= PASS_FRAMES) {
+              tiltedRef.current = true; setTilted(true);
+            } else if (tiltedRef.current && levelStreak.current >= FAIL_FRAMES) {
+              tiltedRef.current = false; setTilted(false);
+            }
+          } else if (tiltedRef.current) {
+            /* lost the face / no landmarks — clear the message */
+            tiltedRef.current = false; setTilted(false);
+            tiltStreak.current = 0; levelStreak.current = 0;
+          }
         }
         if (luma !== null) judge('light', luma > 58 && luma < 215);
 
@@ -496,7 +512,13 @@ export default function LiveScanCamera({
       />
 
       {/* ── viewfinder ── */}
-      <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
+      <div className="lsc-stage">
+        {/* head-tilt nudge — floats to the left of the camera */}
+        <div className={`lsc-tilt-msg font-mono ${tilted && !shot && !camError ? 'is-on' : ''}`} role="status" aria-hidden={!tilted}>
+          Your head looks tilted — straighten it up so it’s level.
+        </div>
+
+        <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
         <video ref={videoRef} playsInline muted className="lsc-video" />
         <div className="lsc-grain" aria-hidden />
 
@@ -536,6 +558,7 @@ export default function LiveScanCamera({
             <span className="font-mono" style={{ fontSize: 11 }}>{camError}</span>
           </div>
         )}
+        </div>
       </div>
 
       {/* ── shutter ── */}
