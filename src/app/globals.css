@@ -610,6 +610,78 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
+/* ── "Show my barber a 360°" — quiet tertiary utility row ────────────────
+   Sits beneath the loud token/refer CTAs. Deliberately flat: no fill, no
+   raised ledge, no shimmer, neutral ink tones (never coral/amber/blue, which
+   are reserved for the primary CTAs + active states). A calm "this exists"
+   affordance that stays out of the attention contest. The only flourish — the
+   icon spinning a full 360° — fires on hover/focus intent, not at rest. */
+.btn-barber360 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;                         /* a11y touch target */
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid rgba(42, 32, 26, 0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 180ms ease, border-color 180ms ease, transform 110ms ease;
+}
+.btn-barber360__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: rgba(42, 32, 26, 0.06);
+  color: var(--smoke);
+  transition: transform 520ms cubic-bezier(.34, 1.1, .64, 1), color 180ms ease, background 180ms ease;
+}
+.btn-barber360__text {
+  flex: 1;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.004em;
+  color: var(--char);
+}
+.btn-barber360__chev {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: rgba(42, 32, 26, 0.3);
+  transition: transform 180ms ease, color 180ms ease;
+}
+.btn-barber360:hover,
+.btn-barber360:focus-visible {
+  background: rgba(42, 32, 26, 0.035);
+  border-color: rgba(42, 32, 26, 0.2);
+}
+.btn-barber360:hover .btn-barber360__icon,
+.btn-barber360:focus-visible .btn-barber360__icon {
+  transform: rotate(-360deg);               /* a wink at "360", on intent only */
+  background: rgba(42, 32, 26, 0.1);
+  color: var(--ink);
+}
+.btn-barber360:hover .btn-barber360__chev,
+.btn-barber360:focus-visible .btn-barber360__chev {
+  transform: translateX(2px);
+  color: rgba(42, 32, 26, 0.55);
+}
+.btn-barber360:active { transform: scale(0.985); }
+.btn-barber360:focus-visible {
+  outline: 2px solid rgba(232, 97, 77, 0.5);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-barber360__icon { transition: color 180ms ease, background 180ms ease; }
+  .btn-barber360:hover .btn-barber360__icon,
+  .btn-barber360:focus-visible .btn-barber360__icon { transform: none; }
+}
+
 /* Referral popup accent badge */
 .refer-pop__badge {
   align-self: flex-start;

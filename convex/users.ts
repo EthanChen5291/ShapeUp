@@ -146,6 +146,27 @@ export const recordBiometricConsent = mutation({
   },
 });
 
+// Records the user's answer to the one-time "Improve ShapeUp?" prompt. Stamping
+// promptedAt (even on decline) is what guarantees the prompt only ever shows once.
+export const setImproveShapeUp = mutation({
+  args: { optIn: v.boolean() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    await ctx.db.patch(user._id, {
+      improveShapeUpOptIn: args.optIn,
+      improveShapeUpPromptedAt: Date.now(),
+    });
+  },
+});
+
 function getBypassEmails(): Set<string> {
   return new Set(
     (process.env.DEMO_BYPASS_EMAILS ?? "")

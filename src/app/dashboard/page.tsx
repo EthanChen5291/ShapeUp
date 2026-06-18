@@ -12,6 +12,7 @@ import { HairParams, UserHeadProfile } from '@/types';
 import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
+import ImproveShapeUpDialog from '@/components/ImproveShapeUpDialog';
 import dynamic from 'next/dynamic';
 import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
 import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
@@ -316,12 +317,16 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                 {redeemErr && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{redeemErr}</span>}
               </div>
 
-              {/* ── Show my barber a 360° (utility) ── */}
-              <div className="flex flex-col gap-1.5">
-                <BouncyButton onClick={handleBarber} className="font-sans text-[13px] w-full" style={{ background: 'none', border: '1px solid rgba(42,32,26,0.14)', color: 'var(--char)', borderRadius: 12, padding: '9px 14px', fontWeight: 600 }}>
-                  ✂ Show my barber a 360°
-                </BouncyButton>
-              </div>
+              {/* ── Show my barber a 360° — quiet tertiary utility row ── */}
+              <button onClick={handleBarber} className="btn-barber360" aria-label="Show my barber a 360 degree view of your cut">
+                <span className="btn-barber360__icon" aria-hidden>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v5h-5" /></svg>
+                </span>
+                <span className="btn-barber360__text">Show my barber a 360°</span>
+                <span className="btn-barber360__chev" aria-hidden>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                </span>
+              </button>
 
               <div className="border-t border-dashed border-[var(--char)]/15 pt-3 flex items-center justify-between">
                 <BouncyButton
@@ -1887,6 +1892,7 @@ export default function DashboardPage() {
   const createProject = useMutation(api.projects.create);
   const saveProject = useMutation(api.projects.save);
   const setDefaultScan = useMutation(api.users.setDefaultScan);
+  const setImproveShapeUp = useMutation(api.users.setImproveShapeUp);
   const markAccessed = useMutation(api.projects.markAccessed);
   const meUser = useQuery(api.users.getMe);
   const allProjects = useQuery(api.projects.list);
@@ -1947,11 +1953,38 @@ export default function DashboardPage() {
   const [profilePillPulse, setProfilePillPulse] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pendingProjectId, setPendingProjectId] = useState<Id<'projects'> | null>(null);
+  const [showImprovePrompt, setShowImprovePrompt] = useState(false);
 
   // Auto-open scan popup for new users with no username
   useEffect(() => {
     if (needsUsername) setShowScanPopup(true);
   }, [needsUsername]);
+
+  // The "Improve ShapeUp?" opt-in fades in once the new user is actually resting
+  // on the dashboard — i.e. onboarding done (has a username) and no scan / result /
+  // auth overlay in the way. It's shown exactly once, gated on improveShapeUpPromptedAt.
+  const dashboardResting =
+    !showScanPopup && !showReusePopup && !showOutOfTokens && !showLimitReached &&
+    !showScanResult && !selfieFlying && !showAuthPopup;
+  const needsImprovePrompt =
+    !!meUser && !!meUser.username && meUser.improveShapeUpPromptedAt == null;
+
+  useEffect(() => {
+    if (!needsImprovePrompt || !dashboardResting) return;
+    // Small beat after landing so it reads as a deliberate fade-in, not a flash.
+    const id = setTimeout(() => setShowImprovePrompt(true), 600);
+    return () => clearTimeout(id);
+  }, [needsImprovePrompt, dashboardResting]);
+
+  const handleImproveChoice = useCallback(async (optIn: boolean) => {
+    try {
+      await setImproveShapeUp({ optIn });
+    } catch (err) {
+      console.error('[Dashboard] setImproveShapeUp failed:', err);
+    }
+    // Keep mounted briefly so the dialog's fade-out can play.
+    setTimeout(() => setShowImprovePrompt(false), 340);
+  }, [setImproveShapeUp]);
 
   const handleScanComplete = useCallback(async (
     p: UserHeadProfile,
@@ -2098,6 +2131,7 @@ export default function DashboardPage() {
       )}
       {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
       {showLimitReached && <ProjectLimitPopup onDismiss={() => setShowLimitReached(false)} />}
+      {showImprovePrompt && <ImproveShapeUpDialog onChoice={handleImproveChoice} />}
 
       {showAuthPopup && createPortal(
         <div

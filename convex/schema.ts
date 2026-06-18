@@ -10,6 +10,11 @@ export default defineSchema({
     credits: v.number(),
     biometricConsentAt: v.optional(v.number()),
     biometricConsentVersion: v.optional(v.string()),
+    // Optional product-analytics opt-in ("Improve ShapeUp?"). PromptedAt records
+    // that the one-time dashboard prompt was shown (so it never shows twice);
+    // OptIn is the user's choice. Anonymous usage data only — never scan/face data.
+    improveShapeUpOptIn: v.optional(v.boolean()),
+    improveShapeUpPromptedAt: v.optional(v.number()),
     theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("system"))),
     renderQuality: v.optional(v.union(v.literal("performance"), v.literal("balanced"), v.literal("high"))),
     aiTrainingOptOut: v.optional(v.boolean()),
