@@ -20,6 +20,7 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
     <div
       className="fixed inset-0 z-[10050] flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.7)' }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div
         className="relative flex flex-col gap-5 rounded-3xl"
@@ -35,13 +36,10 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
       >
         <div className="flex flex-col gap-1">
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">Before we continue</span>
-          <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.15 }}>
-            We&rsquo;ll scan your face in&nbsp;3D
-          </h2>
         </div>
 
         <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
-          The 3D head reconstruction processes biometric data derived from your photo — specifically, facial geometry used only to render your virtual haircut preview. This data is not sold or shared with third parties.
+          Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third bodies.
         </p>
 
         <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-1.5">

@@ -1529,6 +1529,21 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background: var(--tomato);
 }
 
+/* ── Artist spinner — hand-drawn rounded loops ────────────── */
+@keyframes artist-spin     { to { transform: rotate(360deg); } }
+@keyframes artist-spin-rev { to { transform: rotate(-360deg); } }
+
+.artist-spinner__ring {
+  transform-box: view-box;
+  transform-origin: center;
+  fill: none;
+  stroke-linecap: round;
+}
+/* Gravity easing: accelerates toward the bottom, slows climbing back up. */
+.artist-spinner__ring--1 { animation: artist-spin     1.5s cubic-bezier(.45,.05,.55,.95) infinite; }
+.artist-spinner__ring--2 { animation: artist-spin-rev 2.1s cubic-bezier(.45,.05,.55,.95) infinite; }
+.artist-spinner__ring--3 { animation: artist-spin     1.1s cubic-bezier(.45,.05,.55,.95) infinite; }
+
 /* ── Letter fade-in — selfie requirements ─────────────── */
 @keyframes letter-fade-in {
   from { opacity: 0; transform: translateY(4px); }

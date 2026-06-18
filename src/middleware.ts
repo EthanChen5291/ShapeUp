@@ -8,6 +8,7 @@ const isAdminRoute = createRouteMatcher(['/admin(.*)', '/api/admin(.*)']);
 export default clerkMiddleware(async (auth, req) => {
   if (isAdminRoute(req)) {
     const { userId } = await auth();
+    console.log('[admin-mw]', req.nextUrl.pathname, 'userId=', userId, 'isAdmin=', isAdminUserId(userId));
     if (!isAdminUserId(userId)) {
       // API callers get a clean 403; page visitors are bounced home so the
       // admin shells never even render for non-admins.

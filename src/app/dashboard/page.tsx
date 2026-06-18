@@ -752,73 +752,28 @@ function ReuseScanPopup({ onReuse, onNewSelfie, onDismiss, creating }: { onReuse
   );
 }
 
-/* ─── Scan progress bars ─── */
-type BarSegment = { to: number; ms: number } | { hold: number };
-const SCAN_STEPS: { label: string; holdAt88: boolean; segments: BarSegment[] }[] = [
-  { label: 'Scanning geometry', holdAt88: false, segments: [{ to: 28, ms: 350 }, { hold: 400 }, { to: 64, ms: 450 }, { hold: 300 }, { to: 100, ms: 500 }] },
-  { label: 'Mapping features', holdAt88: false, segments: [{ to: 16, ms: 350 }, { hold: 600 }, { to: 44, ms: 550 }, { hold: 450 }, { to: 78, ms: 500 }, { hold: 250 }, { to: 100, ms: 350 }] },
-  { label: 'Generating mesh', holdAt88: false, segments: [{ to: 11, ms: 350 }, { hold: 600 }, { to: 34, ms: 550 }, { hold: 500 }, { to: 62, ms: 600 }, { hold: 400 }, { to: 86, ms: 450 }, { hold: 200 }, { to: 100, ms: 350 }] },
-  { label: 'Building model', holdAt88: true, segments: [{ to: 19, ms: 600 }, { hold: 1400 }, { to: 47, ms: 1000 }, { hold: 1200 }, { to: 88, ms: 1800 }] },
-];
-
-function easeOut(t: number) { return 1 - Math.pow(1 - t, 3); }
-
-function OrganicBar({ label, active = false, segments, holdAt88 = false, complete = false, onComplete }: {
-  label: string; active?: boolean; segments: BarSegment[]; holdAt88?: boolean; complete?: boolean; onComplete?: () => void;
-}) {
-  const [visible, setVisible] = useState(false);
-  const [fillPct, setFillPct] = useState(0);
-  const [completing, setCompleting] = useState(false);
-  const rafRef = useRef<number>(0);
-  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stepRef = useRef(0);
-  const stepStartRef = useRef(0);
-  const fromPctRef = useRef(0);
-  const completedRef = useRef(false);
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
-  const completeRef = useRef(complete);
-  completeRef.current = complete;
-
-  useEffect(() => { if (active) setVisible(true); }, [active]);
-
-  useEffect(() => {
-    if (!visible || completedRef.current) return;
-    stepRef.current = 0; stepStartRef.current = performance.now(); fromPctRef.current = 0;
-    const advance = (now: number) => {
-      if (completeRef.current || completedRef.current) return;
-      const seg = segments[stepRef.current];
-      if (!seg) return;
-      if ('hold' in seg) { holdRef.current = setTimeout(() => { if (completeRef.current || completedRef.current) return; stepRef.current++; stepStartRef.current = performance.now(); rafRef.current = requestAnimationFrame(advance); }, seg.hold); return; }
-      const elapsed = now - stepStartRef.current;
-      const t = Math.min(elapsed / seg.ms, 1);
-      const pct = fromPctRef.current + easeOut(t) * (seg.to - fromPctRef.current);
-      setFillPct(pct);
-      if (t >= 1) {
-        fromPctRef.current = seg.to; stepRef.current++; stepStartRef.current = now;
-        if (stepRef.current < segments.length) { rafRef.current = requestAnimationFrame(advance); }
-        else if (!holdAt88 && !completedRef.current) { completedRef.current = true; onCompleteRef.current?.(); }
-      } else { rafRef.current = requestAnimationFrame(advance); }
-    };
-    rafRef.current = requestAnimationFrame(advance);
-    return () => { cancelAnimationFrame(rafRef.current); if (holdRef.current) clearTimeout(holdRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
-  useEffect(() => {
-    if (!complete) return;
-    cancelAnimationFrame(rafRef.current);
-    if (holdRef.current) clearTimeout(holdRef.current);
-    completedRef.current = true; setVisible(true); setCompleting(true); setFillPct(100); onCompleteRef.current?.();
-  }, [complete]);
-
+/* ─── Artist spinner — thick rounded loops circling ─── */
+function ArtistSpinner() {
+  // Concentric arcs at different radii so the strokes never overlap; each
+  // ring is a partial circle with round caps, rotating at its own speed.
+  const rings = [
+    { r: 34, cls: 'artist-spinner__ring--1', stroke: 'var(--tomato)',          dash: '128 86', w: 7 },
+    { r: 23, cls: 'artist-spinner__ring--2', stroke: 'rgba(255,248,234,0.7)',  dash: '64 81',  w: 6 },
+    { r: 13, cls: 'artist-spinner__ring--3', stroke: 'rgba(255,248,234,0.4)',  dash: '46 36',  w: 5 },
+  ];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%', opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 400ms ease, transform 400ms ease' }}>
-      <span style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,248,234,0.55)', fontWeight: 500 }}>{label}</span>
-      <div style={{ height: 11, borderRadius: 9999, background: 'rgba(42,32,26,0.1)', overflow: 'hidden', position: 'relative' }}>
-        <div className="organic-bar-fill" style={{ width: `${fillPct}%`, transition: completing ? 'width 700ms ease-out' : 'none' }} />
-      </div>
-    </div>
+    <svg width="72" height="72" viewBox="0 0 100 100" role="img" aria-label="Loading">
+      {rings.map(ring => (
+        <circle
+          key={ring.r}
+          className={`artist-spinner__ring ${ring.cls}`}
+          cx="50" cy="50" r={ring.r}
+          stroke={ring.stroke}
+          strokeWidth={ring.w}
+          strokeDasharray={ring.dash}
+        />
+      ))}
+    </svg>
   );
 }
 
@@ -921,7 +876,6 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
   const [paywallDisabled, setPaywallDisabled] = useState(false);
   const [faceliftStatus, setFaceliftStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
   const [faceliftError, setFaceliftError] = useState<string | null>(null);
-  const [activeBarIndex, setActiveBarIndex] = useState(0);
   const faceliftAbortRef = useRef<AbortController | null>(null);
   const isDismissing = useRef(false);
   const hasConsent = useQuery(api.users.hasBiometricConsent);
@@ -1018,7 +972,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
 
   const runFacelift = async () => {
     if (!captured || !capturedDataUrl) return;
-    setShowVerifyBtns(false); setPhase('processing'); setFaceliftStatus('processing'); setFaceliftError(null); setActiveBarIndex(0);
+    setShowVerifyBtns(false); setPhase('processing'); setFaceliftStatus('processing'); setFaceliftError(null);
     const abort = new AbortController();
     faceliftAbortRef.current = abort;
 
@@ -1141,14 +1095,12 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
           <div style={{ width: (expanded && !collapsing && !exiting) ? '40vw' : '0vw', overflow: 'hidden', flexShrink: 0, transition: 'width 750ms cubic-bezier(.2,.85,.2,1)', borderRight: '1px solid rgba(255,248,234,0.07)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: (expanded && !collapsing && !exiting) ? '40px 52px' : '0', ...(isMobile ? { width: '100%', height: phase === 'processing' ? 'auto' : 0, padding: phase === 'processing' ? '24px 24px' : 0, borderRight: 'none', borderBottom: phase === 'processing' ? '1px solid rgba(255,248,234,0.07)' : 'none', transition: 'none' } : {}) }}>
             {phase !== 'processing' && showRequirements && <LiveChecklist checks={liveChecks} />}
             {phase === 'processing' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', maxWidth: 320 }}>
-                <p style={{ fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontVariationSettings: "'SOFT' 50, 'WONK' 1, 'opsz' 144", fontSize: 20, fontWeight: 600, color: 'var(--cream)', opacity: 0.85, marginBottom: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', maxWidth: 320, alignItems: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontVariationSettings: "'SOFT' 50, 'WONK' 1, 'opsz' 144", fontSize: 20, fontWeight: 600, color: 'var(--cream)', opacity: 0.85, marginBottom: 4, textAlign: 'center' }}>
                   {faceliftStatus === 'error' ? 'Something went wrong' : 'Analyzing your look...'}
                 </p>
-                {SCAN_STEPS.map((s, i) => (
-                  <OrganicBar key={s.label} label={s.label} active={i <= activeBarIndex} segments={s.segments} holdAt88={s.holdAt88} complete={faceliftStatus === 'done'} onComplete={() => setActiveBarIndex(prev => Math.max(prev, i + 1))} />
-                ))}
-                {faceliftStatus === 'processing' && <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'rgba(255,248,234,0.35)', marginTop: 4, fontStyle: 'italic' }}>Building your 3D model — this takes about 2 minutes</p>}
+                {faceliftStatus !== 'error' && <ArtistSpinner />}
+                {faceliftStatus === 'processing' && <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'rgba(255,248,234,0.35)', marginTop: 4, fontStyle: 'italic', textAlign: 'center' }}>Building your 3D model — this takes about 2 minutes</p>}
                 {faceliftStatus === 'error' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
                     <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'rgba(255,100,80,0.8)', lineHeight: 1.4, wordBreak: 'break-word' }}>{faceliftError ?? 'Unknown error'}</p>

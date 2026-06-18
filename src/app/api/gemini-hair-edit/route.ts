@@ -191,12 +191,34 @@ export async function POST(req: NextRequest) {
   let mimeType = 'image/png';
   try {
     // Relative paths (e.g. /api/img?key=…) must be made absolute for server-side fetch
-    const fetchUrl = imageUrl.startsWith('/')
+    const isInternal = imageUrl.startsWith('/');
+    const fetchUrl = isInternal
       ? `${new URL(req.url).origin}${imageUrl}`
       : imageUrl;
+    // /api/img is auth-gated (requireSignedIn + ownership). A bare server-side
+    // fetch carries no Clerk session, so it 401s — and we'd then base64 the
+    // error body and hand Gemini garbage ("Unable to process input image").
+    // Forward the caller's cookies (and Authorization) so the internal hop is
+    // authenticated as the same signed-in user.
+    const forwardHeaders: Record<string, string> = {};
+    if (isInternal) {
+      const cookie = req.headers.get('cookie');
+      const authz = req.headers.get('authorization');
+      if (cookie) forwardHeaders.cookie = cookie;
+      if (authz) forwardHeaders.authorization = authz;
+    }
     console.log('[gemini-hair-edit] fetching source image...');
-    const imageRes = await fetch(fetchUrl);
+    const imageRes = await fetch(fetchUrl, { headers: forwardHeaders });
     console.log('[gemini-hair-edit] image fetch status:', imageRes.status, imageRes.statusText);
+    if (!imageRes.ok) {
+      // Fail loud and specific instead of feeding Gemini the error page bytes.
+      const body = await imageRes.text().catch(() => '');
+      console.error('[gemini-hair-edit] source image fetch not ok:', imageRes.status, body.slice(0, 200));
+      return NextResponse.json(
+        { ok: false, error: 'Could not load source image', detail: `HTTP ${imageRes.status} fetching the scan` },
+        { status: 502 },
+      );
+    }
     const contentType = imageRes.headers.get('content-type') ?? 'image/png';
     console.log('[gemini-hair-edit] image content-type:', contentType);
     const arrayBuffer = await imageRes.arrayBuffer();

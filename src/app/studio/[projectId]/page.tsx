@@ -399,6 +399,15 @@ export default function StudioPage() {
     }
   }, [project, initialized]);
 
+  // The polaroid's error flag is shared by the loading screen and the main
+  // studio view. A transient miss on the loading screen (S3 not yet warm) would
+  // otherwise stick the flag true and leave the main polaroid on the mascot
+  // fallback forever. Re-arm it whenever the source image resolves/changes so
+  // the real selfie gets a fresh load attempt.
+  useEffect(() => {
+    setPolaroidImgError(false);
+  }, [imageUrl, displayImageUrl]);
+
   const { splatSrc, splatKey, status: demoStatus } = useDemoFacelift(persistedSplatUrl ? null : imageUrl);
   const effectiveSplatUrl = persistedSplatUrl ?? splatSrc;
 

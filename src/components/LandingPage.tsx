@@ -443,25 +443,32 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown, isMobile }: { s
 }
 
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
-const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4'];
+/* Idle video shown before the first message is sent (no message sent yet). */
+const FACE2_IDLE_VID = '/landing_face2/face2.mp4';
+
+const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4', '/landing_face2/face2g.mp4', '/landing_face2/face2h.mp4'];
 
 const FACE2_MESSAGES = [
-  "Take 6 inches off",
-  "Two pigtails, please",
-  "Wavy dirty blonde",
-  "Messy high bun",
-  "Blonde highlights + a perm",
-  "Go full blonde",
+  "Take 6 inches off",        // face2a — bob
+  "Wavy dirty blonde",        // face2b — wavy blonde
+  "Go full blonde",           // face2c — blonde
+  "Messy high bun",           // face2d — messy high bun
+  "Twin buns, tied up",       // face2e — tied twin buns
+  "Wolf cut + red streaks",   // face2f — red streaks + wolf cut
+  "Go full pink",             // face2g — pink hair
+  "Two pigtails, please",     // face2h — two pigtails
 ];
 
 /* Barber replies — one per request, same index. Short, confident, points to step 3. */
 const FACE2_REPLIES = [
-  "✂ Snip snip — check step 3 →",
-  "Pigtails, rendered →",
-  "Color's mixed. Look right →",
-  "Pinned it up for you →",
-  "Foils in, curls set →",
-  "Full blonde. Bold. →",
+  "✂ Snip snip — check step 3 →", // face2a — bob
+  "Color's mixed. Look right →",  // face2b — wavy blonde
+  "Full blonde. Bold. →",         // face2c — blonde
+  "Pinned it up for you →",       // face2d — messy high bun
+  "Twin buns, pinned →",          // face2e — tied twin buns
+  "Wolf cut + streaks in →",      // face2f — red streaks + wolf cut
+  "Full pink. Bold. →",           // face2g — pink hair
+  "Pigtails, rendered →",         // face2h — two pigtails
 ];
 
 function Face2VideoSwiper({
@@ -476,6 +483,10 @@ function Face2VideoSwiper({
   disableInteraction?: boolean;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
+  // Idle video plays until the first message is sent, then fades to the message videos.
+  const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
+  const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const activeRef = useRef(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -522,7 +533,16 @@ function Face2VideoSwiper({
   }, [scrollRef, goNext, goPrev]);
 
   useEffect(() => {
-    if (externalIdx !== undefined && externalIdx !== activeRef.current) {
+    if (externalIdx === undefined) return;
+    const firstStart = !startedRef.current;
+    if (firstStart) {
+      startedRef.current = true;
+      setStarted(true);
+      idleVideoRef.current?.pause();
+    }
+    // On the very first send (index 0) the active index already matches, so
+    // force the switch to play the message video and fade the idle one out.
+    if (firstStart || externalIdx !== activeRef.current) {
       switchTo(externalIdx);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -558,9 +578,10 @@ function Face2VideoSwiper({
     else if (delta < -40) goPrev();
   }, [disableInteraction, goNext, goPrev]);
 
-  // Speed curve is baked into the video — just play at 1×.
+  // Speed curve is baked into the video — just play at 1×. The idle video shows
+  // first (before any message is sent); message videos take over after.
   useEffect(() => {
-    videoRefs.current[0]?.play().catch(() => {});
+    idleVideoRef.current?.play().catch(() => {});
   }, []);
 
   return (
@@ -582,6 +603,20 @@ function Face2VideoSwiper({
         pointerEvents: 'none',
       } as React.CSSProperties}>
         <div ref={bounceDivRef} style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+          {/* Idle video — plays before the first message is sent */}
+          <video
+            key={FACE2_IDLE_VID}
+            ref={idleVideoRef}
+            src={FACE2_IDLE_VID}
+            muted playsInline loop preload="auto"
+            style={{
+              position: 'absolute', top: 0, left: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              opacity: started ? 0 : 1,
+              transition: 'opacity 60ms ease',
+            }}
+          />
           {FACE2_VIDS.map((src, i) => (
             <video
               key={src}
@@ -592,7 +627,7 @@ function Face2VideoSwiper({
                 position: 'absolute', top: 0, left: 0,
                 width: '100%', height: '100%',
                 objectFit: 'cover',
-                opacity: i === activeIdx ? 1 : 0,
+                opacity: started && i === activeIdx ? 1 : 0,
                 transition: 'opacity 60ms ease',
               }}
             />
@@ -802,9 +837,9 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     requestAnimationFrame(() => setSendBouncing(true));
     setTimeout(() => setSendBouncing(false), 500);
 
-    // Reset inactivity timer — fade+reset fires 8s after the last send
+    // Reset inactivity timer — fade+reset fires 15s after the last send
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    inactivityTimerRef.current = setTimeout(() => triggerInactivityReset(), 8000);
+    inactivityTimerRef.current = setTimeout(() => triggerInactivityReset(), 15000);
 
     const idx = curIdxRef.current;
     const text = FACE2_MESSAGES[idx];
