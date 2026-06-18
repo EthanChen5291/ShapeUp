@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import PlyViewerModal from '@/components/PlyViewerModal';
 
 interface FaceliftRow {
   id: string;
@@ -20,6 +21,8 @@ export default function AdminPage() {
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/admin-facelifts')
@@ -94,7 +97,9 @@ export default function AdminPage() {
           {filtered.map((f) => (
             <div
               key={f.id}
-              className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex items-center gap-4"
+              onClick={() => setPreviewSrc(f.splatUrl)}
+              className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 flex items-center gap-4 cursor-pointer hover:border-amber-500/60 transition-colors"
+              title="Click to preview .splat"
             >
               <span className="text-amber-400 text-xs w-48 shrink-0 truncate" title={f.jobId}>
                 {f.jobId}
@@ -112,6 +117,7 @@ export default function AdminPage() {
                 <a
                   href={f.splatUrl}
                   download={`${f.jobId}.splat`}
+                  onClick={(e) => e.stopPropagation()}
                   className="px-3 py-1 rounded text-xs bg-amber-500 text-black border border-amber-500 hover:bg-amber-400 transition-colors"
                 >
                   ↓ .splat
@@ -119,6 +125,7 @@ export default function AdminPage() {
                 <a
                   href={f.plyUrl}
                   download={`${f.jobId}.ply`}
+                  onClick={(e) => e.stopPropagation()}
                   className="px-3 py-1 rounded text-xs bg-neutral-800 text-amber-400 border border-neutral-700 hover:border-amber-500 transition-colors"
                 >
                   ↓ .ply
@@ -127,6 +134,10 @@ export default function AdminPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {previewSrc && (
+        <PlyViewerModal src={previewSrc} onClose={() => setPreviewSrc(null)} />
       )}
     </div>
   );
