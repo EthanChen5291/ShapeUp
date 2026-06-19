@@ -385,13 +385,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
                     </span>
                   </div>
 
-                  <div style={{
-                    fontFamily: 'var(--font-jetbrains), monospace',
-                    fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em',
-                    color: 'rgba(255,248,234,0.48)', marginBottom: 20,
-                  }}>
-                    {plan.perToken} / token · {plan.sub}
-                  </div>
+                  <div style={{ marginBottom: 20 }} />
 
                   <div style={{ borderTop: '1px solid rgba(255,248,234,0.13)', marginBottom: 16 }} />
 

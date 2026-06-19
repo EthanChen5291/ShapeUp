@@ -283,7 +283,7 @@ export default function PricingPage() {
                   color: 'rgba(255,248,234,0.48)',
                   marginBottom: 20,
                 }}>
-                  {plan.perToken ? `${plan.perToken} / token` : plan.sub}
+                  {plan.perToken ? '' : plan.sub}
                 </div>
 
                 {/* Divider */}

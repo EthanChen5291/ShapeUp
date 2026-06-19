@@ -1834,7 +1834,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                   fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
                   color: 'rgba(255,248,234,0.48)', marginBottom: 20,
                 }}>
-                  {plan.perToken ? `${plan.perToken} / token` : plan.sub}
+                  {plan.perToken ? '' : plan.sub}
                 </div>
 
                 <div style={{ borderTop: '1px solid rgba(255,248,234,0.13)', marginBottom: 18 }} />

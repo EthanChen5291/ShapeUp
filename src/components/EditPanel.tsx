@@ -622,8 +622,8 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
               }}
             >
               <div
-                className="flex items-center justify-center gap-3 rounded-2xl px-10 py-8 text-center shadow-2xl font-display italic"
-                style={{ background: '#F5E6A3', color: 'var(--ink)', width: 'min(90vw, 26rem)', fontSize: 'calc(0.875rem * 1.15)', fontWeight: 500 }}
+                className="flex items-center justify-center gap-3 rounded-2xl px-10 py-8 text-center shadow-2xl font-sans"
+                style={{ background: '#ffffff', color: 'var(--char)', width: 'min(90vw, 26rem)', fontSize: 'calc(0.875rem * 1.15)', fontWeight: 500 }}
               >
                 <span>✂</span>
                 <span>
