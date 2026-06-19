@@ -19,6 +19,7 @@ import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
 import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
 import { BarberMascot, InlineWordmark, BouncyButton, ClockCounter } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
+import ConfettiBurst from '@/components/ConfettiBurst';
 import { PricingPopup } from '@/components/PricingPopup';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings, type Theme, type RenderQuality } from '@/contexts/SettingsContext';
@@ -111,6 +112,8 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
   const [redeeming, setRedeeming] = useState(false);
   const [redeemMsg, setRedeemMsg] = useState('');
   const [redeemErr, setRedeemErr] = useState('');
+  const [confettiKey, setConfettiKey] = useState(0);
+  const redeemBarRef = useRef<HTMLDivElement | null>(null);
   const [showRefer, setShowRefer] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const [isDark, setIsDark] = useState(false);
@@ -246,6 +249,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
       const res = await redeemMutation({ code });
       setRedeemMsg(`✓ ${res.tokens} tokens added`);
       setRedeemValue('');
+      setConfettiKey(k => k + 1);
       setTimeout(() => setRedeemMsg(''), 3000);
     } catch (err) {
       setRedeemErr(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Try again.');
@@ -309,7 +313,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
 
               {/* ── Redeem a code (secondary) ── */}
               <div className={`border-t border-dashed border-[var(--char)]/15 flex flex-col ${isMobile ? 'pt-5 gap-3.5' : 'pt-3.5 gap-2.5'}`}>
-                <div className="flex gap-2">
+                <div ref={redeemBarRef} className="flex gap-2">
                   <input
                     value={redeemValue}
                     onChange={e => { setRedeemValue(e.target.value.toUpperCase()); setRedeemErr(''); setRedeemMsg(''); }}
@@ -324,6 +328,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                 </div>
                 {redeemMsg && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>{redeemMsg}</span>}
                 {redeemErr && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{redeemErr}</span>}
+                <ConfettiBurst fireKey={confettiKey} originRef={redeemBarRef} />
               </div>
 
               {/* ── Show my barber a 360° — quiet tertiary utility row ── */}

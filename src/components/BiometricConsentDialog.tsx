@@ -39,7 +39,7 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
         </div>
 
         <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
-          Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third bodies.
+          Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third parties.
         </p>
 
         <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-1.5">

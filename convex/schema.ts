@@ -54,6 +54,7 @@ export default defineSchema({
     .index("by_token", ["tokenIdentifier"])
     .index("by_clerk_id", ["clerkId"])
     .index("by_username", ["username"])
+    .index("by_email", ["email"])
     .index("by_referral_code", ["referralCode"]),
 
   // One row per referral relationship. Reward is granted when the referred

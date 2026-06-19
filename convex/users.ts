@@ -74,6 +74,33 @@ export const getOrCreate = mutation({
       return pending._id;
     }
 
+    // Cross-auth-method linking: signing in with a second method (e.g. Google
+    // after email/password) yields a different Clerk subject/token, so the two
+    // lookups above miss and we'd otherwise create a duplicate account — forcing
+    // the user through username setup again. If there's an existing account with
+    // the same VERIFIED email, adopt it onto this identity instead. The
+    // emailVerified guard is essential: adopting on an unverified email would let
+    // anyone claim another user's account by signing up with their address.
+    if (identity.email && identity.emailVerified) {
+      const email = identity.email;
+      // .first() (not .unique()): if earlier duplicates already exist for this
+      // email, tolerate them rather than throwing and blocking login.
+      const byEmail = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .first();
+      if (byEmail) {
+        await ctx.db.patch(byEmail._id, {
+          tokenIdentifier: identity.tokenIdentifier,
+          clerkId: identity.subject,
+          username: byEmail.username ?? identity.nickname ?? undefined,
+          referralCode: byEmail.referralCode ?? (await uniqueReferralCode(ctx)),
+        });
+        await maybeAttachReferral(ctx, byEmail._id, args.referralCode);
+        return byEmail._id;
+      }
+    }
+
     const userId = await ctx.db.insert("users", {
       tokenIdentifier: identity.tokenIdentifier,
       clerkId: identity.subject,
