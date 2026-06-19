@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "facelift": "node scripts/facelift-upstream.mjs",
+    "s3:cors": "node scripts/apply-s3-cors.mjs",
+    "s3:cors:show": "node scripts/apply-s3-cors.mjs --show",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",

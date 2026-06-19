@@ -2410,7 +2410,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,6,4,0.60)' }} />
                 {/* Content */}
                 <div style={{ position: 'relative', zIndex: 1, padding: '34px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
+                  <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#9be39b', lineHeight: 1 }}>
                     {item.stat}
                   </div>
                   <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>
