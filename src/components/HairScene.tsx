@@ -17,12 +17,13 @@
 
 import * as THREE from 'three';
 
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { OrbitControls, Splat, useGLTF } from '@react-three/drei';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import HairStrandMesh from './HairStrandMesh';
+import { MATCHED_PATH_HEADER } from 'next/dist/lib/constants';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { parseNPY } from '@/lib/parseNPY';
 
@@ -245,8 +246,10 @@ interface SceneProps {
   hairScale: number;
   hairPos: [number, number, number];
   splatScale: number;
+  hairSplatScale?: number;
   splatPosY: number;
   splatSrc: string;
+  hairSplatUrl?: string;
   hairstepPlyUrl?: string;
   hairstepPlyUrls?: string[];
   hairColor?: string;
@@ -284,7 +287,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, hairSplatScale, splatPosY, splatSrc, hairSplatUrl, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
@@ -298,6 +301,12 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
       {showSplat && splatSrc && (
         <Suspense fallback={null}>
           <Splat key={splatSrc} src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
+        </Suspense>
+      )}
+
+      {hairSplatUrl && (
+        <Suspense fallback={null}>
+          <Splat key={hairSplatUrl} src={hairSplatUrl} alphaTest={0.02} scale={hairSplatScale ?? splatScale} position={[0, -0.7, 0.48]} rotation={[0, -Math.PI / 2, 0]} />
         </Suspense>
       )}
 
@@ -383,6 +392,7 @@ interface HairSceneProps {
   profile?:                  UserHeadProfile;
   autoFaceliftDataUrl?:      string;
   faceliftPlyReady?:         boolean;
+  hairSplatUrl?:             string;
   hairstepPlyUrl?:           string;
   hairstepPlyUrls?:          string[];
   splatSrcOverride?:         string | null;
@@ -395,7 +405,7 @@ interface HairSceneProps {
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = '#001f5b', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairSplatUrl, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = '#001f5b', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
@@ -544,8 +554,10 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairScale={hairScale}
           hairPos={hairPos}
           splatScale={2.772}
+          hairSplatScale={5}
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
+          hairSplatUrl={hairSplatUrl}
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
           hairstepPlyUrls={showHair ? hairstepPlyUrls : undefined}
           hairColor={hairColor}

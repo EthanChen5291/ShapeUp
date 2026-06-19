@@ -6,26 +6,8 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import HairStrandMesh from './HairStrandMesh';
 
 const RECOMMENDATIONS = [
-  {
-    label: 'Bruno',
-    url: `/api/proxy-ply?url=${encodeURIComponent('https://firebasestorage.googleapis.com/v0/b/hackprinceton-shapeup.firebasestorage.app/o/scans%2FGuICOu5AppsxsKSVbiH8%2Fhairstep.ply?alt=media&token=0699eba2-0572-489f-9eb2-e95b0ffc7b6f')}`,
-  },
-  {
-    label: 'Coco',
-    url: `/api/proxy-ply?url=${encodeURIComponent('https://firebasestorage.googleapis.com/v0/b/hackprinceton-shapeup.firebasestorage.app/o/scans%2FUJvCn1dm3z7VgrgR38FK%2Fhairstep.ply?alt=media&token=d4bbc7eb-d14c-45e5-af8f-7370468b2a2f')}`,
-  },
-  {
-    label: 'Bruno Buzz',
-    url: `/api/proxy-ply?url=${encodeURIComponent('https://firebasestorage.googleapis.com/v0/b/hackprinceton-shapeup.firebasestorage.app/o/scans%2FC5YRFTnE3BD7VoIT42O8%2Fhairstep.ply?alt=media&token=4204d17c-cd35-494d-80ca-55e6455004ff')}`,
-  },
-  {
-    label: 'Style 4',
-    url: `/api/proxy-ply?url=${encodeURIComponent('https://firebasestorage.googleapis.com/v0/b/hackprinceton-shapeup.firebasestorage.app/o/scans%2FER7aDgSO3lanUW60XG9Z%2Fhairstep.ply?alt=media&token=45ca7701-dc3d-4186-a8dc-6ec252ddd776')}`,
-  },
-  {
-    label: 'Style 5',
-    url: `/api/proxy-ply?url=${encodeURIComponent('https://firebasestorage.googleapis.com/v0/b/hackprinceton-shapeup.firebasestorage.app/o/scans%2F0sS08kIg86OwZFOR7EkD%2Fhairstep.ply?alt=media&token=923834f5-7df7-43e3-a591-91970be2679c')}`,
-  },
+  { label: 'Style 1', url: '/prebake_0.splat' },
+  { label: 'Style 2', url: '/prebake_1.splat' },
 ];
 
 interface HairRecommendationsBarProps {

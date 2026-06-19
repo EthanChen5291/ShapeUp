@@ -155,6 +155,7 @@ export default function StudioPage() {
   const [persistedSplatUrl, setPersistedSplatUrl] = useState<string | null>(null);
   const [hairstepPlyUrl, setHairstepPlyUrl] = useState<string | null>(null);
   const [editSplatSrc, setEditSplatSrc] = useState<string | null>(null);
+  const [hairSplatUrl, setHairSplatUrl] = useState<string | null>(null);
   const [previewPlyUrl, setPreviewPlyUrl] = useState<string | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
@@ -412,7 +413,7 @@ export default function StudioPage() {
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
           <div className="absolute top-3 right-3 z-10">
-            <HairRecommendationsBar visible={showRecommendations} onHover={setPreviewPlyUrl} onSelect={(url) => { setHairstepPlyUrl(url); setPreviewPlyUrl(null); }} />
+            <HairRecommendationsBar visible={showRecommendations} onHover={setPreviewPlyUrl} onSelect={(url) => { if (url.startsWith('/')) { setHairSplatUrl(url); } else { setHairstepPlyUrl(url); } setPreviewPlyUrl(null); }} />
           </div>
 
           <HairScene
@@ -420,6 +421,7 @@ export default function StudioPage() {
             colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
             profile={profile ?? mockUserHeadProfile}
             onPrimaryHairBBoxReady={handleHairBBoxReady}
+            hairSplatUrl={hairSplatUrl ?? undefined}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             splatSrcOverride={editSplatSrc ?? effectiveSplatUrl ?? undefined}
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
