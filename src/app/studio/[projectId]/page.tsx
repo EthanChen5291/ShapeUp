@@ -429,6 +429,16 @@ export default function StudioPage() {
     if (effectiveSplatUrl) setSplatReady(true);
   }, [effectiveSplatUrl]);
 
+  // New accounts get the feedback prompt as soon as their first render shows —
+  // the initial model render counts as their first "edit". Fires once per mount,
+  // and only once the feedback state has loaded so the new-account check is real.
+  const initialRenderFeedbackRef = useRef(false);
+  useEffect(() => {
+    if (!effectiveSplatUrl || initialRenderFeedbackRef.current || !feedbackPrompt.isReady) return;
+    initialRenderFeedbackRef.current = true;
+    feedbackPrompt.registerInitialRender();
+  }, [effectiveSplatUrl, feedbackPrompt.isReady, feedbackPrompt.registerInitialRender]);
+
   // Inference disclaimer badge: show once, the first time this project's model
   // is generated. Persisted per-project so it never reappears on refresh.
   const [showInferenceNote, setShowInferenceNote] = useState(false);

@@ -684,6 +684,19 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   );
 }
 
+/* ─── Scissors icon, blades pointing down ─── */
+function ScissorsDownIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(90deg)', flexShrink: 0 }} aria-hidden>
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+    </svg>
+  );
+}
+
 /* ─── Scan Now Popup ─── */
 function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss: () => void }) {
   const [show, setShow] = useState(false);
@@ -1773,10 +1786,10 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     const isActive = item.key === activeNav;
     return (
       <button key={item.key} data-nav={item.key} onClick={() => setActiveNav(item.key)}
-        style={{ border: 'none', cursor: 'pointer', background: isActive ? (dark ? 'rgba(232,97,77,0.18)' : 'rgba(232,97,77,0.1)') : 'transparent', color: isActive ? 'var(--coral)' : dark ? 'rgba(252,245,228,0.7)' : 'var(--ink)', padding: big ? '14px 0' : '10px 0', borderRadius: big ? 16 : 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: big ? 8 : 5, width: big ? 99 : 66, fontSize: big ? 14 : 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: isActive ? `${big ? 2 : 1.5}px solid rgba(232,97,77,${dark ? '0.35' : '0.28'})` : `${big ? 2 : 1.5}px solid transparent`, transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
+        style={{ border: 'none', cursor: 'pointer', background: isActive ? (dark ? 'rgba(232,97,77,0.18)' : 'rgba(232,97,77,0.1)') : 'transparent', color: isActive ? 'var(--coral)' : dark ? 'rgba(252,245,228,0.7)' : 'var(--ink)', padding: big ? '11px 0' : '10px 0', borderRadius: big ? 13 : 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: big ? 6 : 5, width: big ? 79 : 66, fontSize: big ? 11 : 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: isActive ? `${big ? 2 : 1.5}px solid rgba(232,97,77,${dark ? '0.35' : '0.28'})` : `${big ? 2 : 1.5}px solid transparent`, transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...(big ? { width: 30, height: 30 } : {}) }}>
-          <span style={{ display: 'flex', ...(big ? { transform: 'scale(1.5)', transformOrigin: 'center' } : {}) }}>{item.icon}</span>
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...(big ? { width: 24, height: 24 } : {}) }}>
+          <span style={{ display: 'flex', ...(big ? { transform: 'scale(1.2)', transformOrigin: 'center' } : {}) }}>{item.icon}</span>
         </span>
         <span>{item.key}</span>
       </button>
@@ -1869,7 +1882,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 </div>
                 {showScanNow && !(displayProjects && displayProjects.length > 0) && (
                   <div className="mt-8 flex justify-center scan-btn-pop">
-                    <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)' }}>✂ Scan now</BouncyButton>
+                    <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)', display: 'inline-flex', alignItems: 'center', gap: 8 }}><ScissorsDownIcon /> Scan now</BouncyButton>
                   </div>
                 )}
               </div>
