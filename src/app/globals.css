@@ -957,10 +957,23 @@ input[type="range"].slider-warm::-moz-range-thumb {
     border-color 200ms ease,
     box-shadow 280ms ease;
 }
+.value-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 30px 2px rgba(79, 214, 192, 0.30);
+  transition: box-shadow 280ms ease;
+}
 .value-card:hover {
   transform: translateY(-5px) rotate(var(--card-wonk, 0deg));
-  border-color: rgba(74, 222, 128, 0.75);
+  border-color: rgba(79, 214, 192, 0.75);
   box-shadow: 0 20px 44px -18px rgba(0,0,0,0.45);
+}
+.value-card:hover::after {
+  box-shadow: inset 0 0 42px 4px rgba(79, 214, 192, 0.42);
 }
 
 /* ── How-it-works step card hover ────────────────────────── */
