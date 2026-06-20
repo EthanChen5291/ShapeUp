@@ -18,9 +18,10 @@ interface FeedbackToastProps {
   route?: string;
   projectId?: string;
   editCount?: number;
+  isMobile?: boolean;
 }
 
-export default function FeedbackToast({ open, onClose, route, projectId, editCount }: FeedbackToastProps) {
+export default function FeedbackToast({ open, onClose, route, projectId, editCount, isMobile }: FeedbackToastProps) {
   const submitFeedback = useMutation(api.feedback.submitFeedback);
   const markPrompted = useMutation(api.feedback.markPrompted);
 
@@ -61,14 +62,27 @@ export default function FeedbackToast({ open, onClose, route, projectId, editCou
 
   return (
     <div
-      className="fixed bottom-5 right-5 z-50 flex flex-col gap-3 rounded-2xl"
+      className="fixed z-50 flex flex-col gap-3 rounded-2xl"
       style={{
         background: 'var(--cream)',
         border: '1px solid rgba(42,32,26,0.1)',
         boxShadow: '0 24px 60px -16px rgba(0,0,0,0.45)',
         padding: '20px 22px',
         width: 'min(340px, calc(100vw - 32px))',
-        animation: 'popup-in 280ms cubic-bezier(.2,.85,.2,1)',
+        // Desktop: anchor to the scene's top-right corner — just left of the
+        // toolbox (w-80 = 20rem) with the toast's right edge sitting by the sun
+        // brightness button, and lerp in leftward. Mobile keeps bottom-right.
+        ...(isMobile
+          ? {
+              bottom: 20,
+              right: 20,
+              animation: 'popup-in 280ms cubic-bezier(.2,.85,.2,1)',
+            }
+          : {
+              top: 96,
+              right: 'calc(20rem + 52px)',
+              animation: 'feedback-lerp-left 520ms cubic-bezier(0.22, 1, 0.36, 1) both',
+            }),
       }}
       role="dialog"
       aria-label="Share feedback"

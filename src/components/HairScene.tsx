@@ -77,6 +77,14 @@ const ORBIT_SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.5, 4.0];
 const DEFAULT_CAMERA_POS: [number, number, number] = [0, 0, 7.8];
 const DEFAULT_ORBIT_TARGET: [number, number, number] = [0, 0, 0];
 
+// Fixed transform for prebake hairstyle overlays. Mirrors the user splat's
+// transform so the hair lands on the head; nudge here to fine-tune the fit.
+const PREBAKE_OVERLAY = {
+  scale: 2.772,
+  position: [0, -0.07, 0.48] as [number, number, number],
+  rotation: [-Math.PI / 2, Math.PI, Math.PI] as [number, number, number],
+};
+
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
 type HairLayer = { id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
@@ -188,6 +196,7 @@ interface SceneProps {
   splatScale: number;
   splatPosY: number;
   splatSrc: string;
+  prebakeSplatUrl?: string | null;
   hairstepPlyUrl?: string;
   hairstepPlyUrls?: string[];
   hairColor?: string;
@@ -256,7 +265,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, renderQuality = 'balanced', videoCaptureKey, captureBackground, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, prebakeSplatUrl, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, renderQuality = 'balanced', videoCaptureKey, captureBackground, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
@@ -271,6 +280,22 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
       {showSplat && splatSrc && (
         <Suspense fallback={null}>
           <Splat key={splatSrc} src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
+        </Suspense>
+      )}
+
+      {/* Prebake hairstyle overlay — a hair-only splat that sits on top of the
+          user's head splat at a fixed transform (mirrors how hairstep PLY was
+          overlaid). Tweak PREBAKE_OVERLAY to align hair to the head. */}
+      {prebakeSplatUrl && (
+        <Suspense fallback={null}>
+          <Splat
+            key={prebakeSplatUrl}
+            src={prebakeSplatUrl}
+            alphaTest={0.02}
+            scale={PREBAKE_OVERLAY.scale}
+            position={PREBAKE_OVERLAY.position}
+            rotation={PREBAKE_OVERLAY.rotation}
+          />
         </Suspense>
       )}
 
@@ -375,6 +400,7 @@ interface HairSceneProps {
   hairstepPlyUrl?:           string;
   hairstepPlyUrls?:          string[];
   splatSrcOverride?:         string | null;
+  prebakeSplatUrl?:          string | null;
   disableDefaultHairLayers?: boolean;
   disableKeyboardControls?:  boolean;
   background?:               string;
@@ -390,7 +416,7 @@ interface HairSceneProps {
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = 'url(/preview_bg.jpg) center / 100% 100% no-repeat', backgroundBrightness, uiHidden = false, captureKey, renderQuality = 'balanced', videoCaptureKey, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, prebakeSplatUrl, disableDefaultHairLayers, disableKeyboardControls = false, background = 'url(/preview_bg.jpg) center / 100% 100% no-repeat', backgroundBrightness, uiHidden = false, captureKey, renderQuality = 'balanced', videoCaptureKey, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
@@ -568,6 +594,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           splatScale={2.772}
           splatPosY={-0.07}
           splatSrc={effectiveSplatSrc}
+          prebakeSplatUrl={prebakeSplatUrl}
           hairstepPlyUrl={showHair ? hairstepPlyUrl : undefined}
           hairstepPlyUrls={showHair ? hairstepPlyUrls : undefined}
           hairColor={hairColor}

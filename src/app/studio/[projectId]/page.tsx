@@ -12,6 +12,8 @@ import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
+import PresetStylePanel from '@/components/PresetStylePanel';
+import { getCategory, classifyHairColor, type PresetGender } from '@/data/hairPresets';
 import FeedbackToast from '@/components/FeedbackToast';
 import InferenceNote from '@/components/InferenceNote';
 import { useFeedbackPrompt } from '@/hooks/useFeedbackPrompt';
@@ -26,6 +28,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 
 const HairScene = dynamic(() => import('@/components/HairScene'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
+const PresetStyleRail = dynamic(() => import('@/components/PresetStyleRail'), { ssr: false });
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
@@ -243,6 +246,14 @@ export default function StudioPage() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
   const [previewExpanded, setPreviewExpanded] = useState(false);
+
+  // ── Toolbox tabs: FREE (preset try-on) vs PRO (AI render) ───
+  const [toolboxTab, setToolboxTab] = useState<'free' | 'pro'>('pro');
+  const [presetCategory, setPresetCategory] = useState<PresetGender | null>(null);
+  // Hovered look previews as an overlay in the scene; selected look stays on
+  // until cleared. Both are prebake splat URLs.
+  const [presetHoverUrl, setPresetHoverUrl] = useState<string | null>(null);
+  const [presetSelectedUrl, setPresetSelectedUrl] = useState<string | null>(null);
   const [sceneBackground, setSceneBackground] = useState(() => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     return isDark
@@ -569,6 +580,14 @@ export default function StudioPage() {
 
   const faceliftReady = splatReady && !!effectiveSplatUrl;
 
+  // FREE tab: a hovered/selected prebake hairstyle OVERLAYS the user's own head
+  // splat (it doesn't replace it) so they can try looks on without a token. PRO
+  // never overlays. The user's own hair color is free; paid plans unlock the rest.
+  const freeMode = toolboxTab === 'free';
+  const userHairColor = classifyHairColor(profile?.currentStyle.colorRGB);
+  const isPaidPlan = !!userQuery?.topPlan || isAllowlisted;
+  const prebakeOverlayUrl = freeMode ? (presetHoverUrl ?? presetSelectedUrl) : null;
+
   // Hair edit loop view (waiting for splat, or splat is ready — we stay here until user submits a prompt)
   if (!faceliftReady || (faceliftReady && editLoopPrompt === '' && !splatReady)) {
     // Show loading/preview while building
@@ -806,6 +825,22 @@ export default function StudioPage() {
             <HairRecommendationsBar visible={showRecommendations} onHover={setPreviewPlyUrl} onSelect={(url) => { setHairstepPlyUrl(url); setPreviewPlyUrl(null); }} />
           </div>
 
+          {/* FREE try-on rail — preset looks lerp into a row at the top once a
+              category is picked. No transform on this wrapper (would trap the
+              rail's fixed canvas); centered via flex instead. */}
+          <div className="absolute top-3 left-0 right-0 z-20 flex justify-center pointer-events-none">
+            <PresetStyleRail
+              cuts={presetCategory ? (getCategory(presetCategory)?.cuts ?? []) : []}
+              userColor={userHairColor}
+              isPaid={isPaidPlan}
+              visible={freeMode && presetCategory !== null && !menuHidden}
+              selectedSplatUrl={presetSelectedUrl}
+              onHover={setPresetHoverUrl}
+              onSelect={(url) => { setPresetSelectedUrl(url); setPresetHoverUrl(null); }}
+              onLocked={() => setShowPricing(true)}
+            />
+          </div>
+
           <HairScene
             params={hairParams}
             colorRGB={profile?.currentStyle.colorRGB ?? '#3b1f0a'}
@@ -813,6 +848,7 @@ export default function StudioPage() {
             onPrimaryHairBBoxReady={handleHairBBoxReady}
             hairstepPlyUrl={previewPlyUrl ?? hairstepPlyUrl ?? undefined}
             splatSrcOverride={editSplatSrc ?? effectiveSplatUrl ?? undefined}
+            prebakeSplatUrl={prebakeOverlayUrl}
             disableDefaultHairLayers={!!(editSplatSrc ?? effectiveSplatUrl)}
             disableKeyboardControls={!sceneControlsEnabled}
             background={sceneBackground}
@@ -941,8 +977,46 @@ export default function StudioPage() {
             )}
           </div>
           )}
+
+          {/* Tabs + panel share one wrapper (no flex gap) so the active tab
+              connects flush to the toolbox card below it. */}
+          <div className="flex flex-col">
+          {/* FREE / PRO tabs — two rectangles poking out of the toolbox top */}
+          <div className="toolbox-tabs" role="tablist" aria-label="Toolbox mode">
+            <button
+              role="tab"
+              aria-selected={toolboxTab === 'free'}
+              onClick={() => setToolboxTab('free')}
+              className={`toolbox-tab toolbox-tab-free ${toolboxTab === 'free' ? 'toolbox-tab-active' : ''}`}
+            >
+              FREE
+            </button>
+            <button
+              role="tab"
+              aria-selected={toolboxTab === 'pro'}
+              onClick={() => setToolboxTab('pro')}
+              className={`toolbox-tab toolbox-tab-pro ${toolboxTab === 'pro' ? 'toolbox-tab-active' : ''}`}
+            >
+              <span className="toolbox-tab-pro-text">PRO</span>
+              <span className="toolbox-tab-pro-mark" aria-hidden>✦</span>
+            </button>
+          </div>
+
+          {toolboxTab === 'free' ? (
+            <PresetStylePanel
+              isMobile={isMobile}
+              category={presetCategory}
+              onCategoryChange={(c) => { setPresetCategory(c); setPresetHoverUrl(null); if (c === null) setPresetSelectedUrl(null); }}
+              userColor={userHairColor}
+              isPaid={isPaidPlan}
+              selectedSplatUrl={presetSelectedUrl}
+              onHoverPreset={setPresetHoverUrl}
+              onSelectPreset={(url) => { setPresetSelectedUrl(url); setPresetHoverUrl(null); }}
+            />
+          ) : (
           <EditPanel
               isMobile={isMobile}
+              hideToolboxTab
               profile={profile ?? mockUserHeadProfile}
               onParamsChange={handleParamsChange}
               sessionId={sessionId}
@@ -1026,6 +1100,8 @@ export default function StudioPage() {
               videoUrl={videoUrl}
               videoExt={videoExt}
             />
+          )}
+          </div>
           </div>
         </aside>
       )}
@@ -1043,6 +1119,7 @@ export default function StudioPage() {
         route="studio"
         projectId={projectId}
         editCount={feedbackPrompt.editCount}
+        isMobile={isMobile}
       />
     </main>
   );

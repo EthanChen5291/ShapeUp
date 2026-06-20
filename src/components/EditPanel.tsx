@@ -19,6 +19,9 @@ import InferenceNote from '@/components/InferenceNote';
 
 interface EditPanelProps {
   isMobile?: boolean;
+  // When the FREE/PRO tabs sit above the card, suppress the panel's own raised
+  // "Toolbox" tab (mobile) so the two don't stack.
+  hideToolboxTab?: boolean;
   profile: UserHeadProfile;
   onParamsChange: (params: HairParams) => void;
   sessionId: string | null;
@@ -121,7 +124,7 @@ const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
   ],
 };
 
-export default function EditPanel({ isMobile = false, profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
+export default function EditPanel({ isMobile = false, hideToolboxTab = false, profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
   const [emptyHint, setEmptyHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
@@ -510,7 +513,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   return (
     <>
     <div className={`flex-shrink-0 rounded-2xl ${isMobile ? 'overflow-visible relative' : 'overflow-hidden'}`} style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-    <aside className={`relative flex flex-col text-[var(--ink)] ${isMobile ? 'gap-3 px-4 pt-8 pb-3' : 'gap-6 px-5 pt-6 pb-2'}`} aria-label="Hair editor controls">
+    <aside className={`relative flex flex-col text-[var(--ink)] ${isMobile ? (hideToolboxTab ? 'gap-3 px-4 pt-4 pb-3' : 'gap-3 px-4 pt-8 pb-3') : 'gap-6 px-5 pt-6 pb-2'}`} aria-label="Hair editor controls">
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}
@@ -522,7 +525,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       )}
 
       {/* Header */}
-      {isMobile ? (
+      {isMobile ? (hideToolboxTab ? null : (
         // A raised "Toolbox" tab whose top half pokes out above the card's top edge.
         <div
           className="flex items-center gap-2"
@@ -541,7 +544,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           <span className="inline-block w-2 h-7 barber-pole" />
           <h2 className="font-display italic text-[var(--ink)] leading-none" style={{ fontWeight: 500, fontSize: '1.625rem' }}>Toolbox</h2>
         </div>
-      ) : (
+      )) : (
         <div className="flex items-center gap-3">
           <span className="inline-block w-2 h-7 barber-pole" />
           <div>
