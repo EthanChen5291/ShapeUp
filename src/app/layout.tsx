@@ -1,9 +1,12 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Fraunces, DM_Sans, JetBrains_Mono, Montserrat } from 'next/font/google';
 import { ConvexClerkProvider } from '@/components/ConvexClerkProvider';
 import { NavLoadingProvider } from '@/components/NavLoadingOverlay';
+import { SettingsProvider } from '@/contexts/SettingsContext';
 import './globals.css';
+
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -35,13 +38,29 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'ShapeUp · The 3D Barber',
+  title: 'ShapeUp',
   description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      publishableKey={clerkPublishableKey}
+      // Point Clerk at our own routes (which render <SignUpWidget />) so any time
+      // Clerk needs to send the user to "sign in / sign up" — e.g. the fallback
+      // during the Google OAuth callback — it uses our UI instead of Clerk's
+      // hosted Account Portal.
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+    >
       <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrains.variable} ${montserrat.variable}`}>
         <body style={{ fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
           <style>{`
@@ -51,9 +70,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             .font-mono    { font-family: var(--font-jetbrains), ui-monospace, monospace !important; }
           `}</style>
           <ConvexClerkProvider>
-            <NavLoadingProvider>
-              {children}
-            </NavLoadingProvider>
+            <SettingsProvider>
+              <NavLoadingProvider>
+                {children}
+              </NavLoadingProvider>
+            </SettingsProvider>
           </ConvexClerkProvider>
         </body>
       </html>

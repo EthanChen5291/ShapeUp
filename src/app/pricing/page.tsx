@@ -5,18 +5,10 @@ import { useUser, useClerk } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-/* ── Scissors SVG (self-contained, no shared import) ── */
-function ScissorsMark({ color = '#2a201a', size = 28 }: { color?: string; size?: number }) {
+/* ── Brand logo mark (self-contained, no shared import) ── */
+function ScissorsMark({ size = 28 }: { color?: string; size?: number }) {
   return (
-    <svg viewBox="0 0 200 360" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: 'auto', display: 'block' }}>
-      <line x1="94" y1="188" x2="58" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
-      <line x1="106" y1="188" x2="142" y2="266" stroke={color} strokeWidth="13" strokeLinecap="round" />
-      <circle cx="52" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
-      <circle cx="148" cy="300" r="34" fill="none" stroke={color} strokeWidth="14" />
-      <path d="M 108 172 L 88 188 L 32 28 L 48 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
-      <path d="M 92 172 L 112 188 L 168 28 L 152 22 Z" fill={color} stroke={color} strokeWidth="4" strokeLinejoin="round" />
-      <circle cx="100" cy="180" r="13" fill={color} />
-    </svg>
+    <img src="/shapeup_logo.png?v=2" alt="ShapeUp" draggable={false} style={{ width: size, height: 'auto', display: 'block' }} />
   );
 }
 
@@ -61,7 +53,7 @@ const PLANS = [
     freeOnly: false,
   },
   {
-    id: 'lifetime',
+    id: 'pro',
     label: 'Pro',
     price: '$14.99',
     sub: 'one-time',
@@ -146,7 +138,7 @@ export default function PricingPage() {
       {/* ── Nav ── */}
       <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1160, margin: '0 auto 52px' }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ScissorsMark color="#2a201a" size={26} />
+          <ScissorsMark color="#2a201a" size={65} />
           <span style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 28, fontWeight: 900, color: 'var(--ink)', lineHeight: 1, letterSpacing: '-0.02em' }}>
             shape<em style={{ color: 'var(--tomato)' }}>up</em>
           </span>
@@ -291,7 +283,7 @@ export default function PricingPage() {
                   color: 'rgba(255,248,234,0.48)',
                   marginBottom: 20,
                 }}>
-                  {plan.perToken ? `${plan.perToken} / token` : plan.sub}
+                  {plan.perToken ? '' : plan.sub}
                 </div>
 
                 {/* Divider */}
@@ -304,9 +296,7 @@ export default function PricingPage() {
                     background: plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(217,78,58,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{ width: 13, transform: 'rotate(186deg)' }}>
-                      <ScissorsMark color={plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'var(--tomato)'} size={13} />
-                    </div>
+                    <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: 26, height: 26, borderRadius: '50%', display: 'block' }} />
                   </div>
                   <span style={{
                     fontFamily: 'var(--font-dmsans), sans-serif',

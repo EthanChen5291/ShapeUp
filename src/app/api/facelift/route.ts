@@ -2,7 +2,7 @@
 // Modal runs inference synchronously; this handler waits for the result,
 // converts PLY → splat, uploads both (+ video) to S3, and returns signed URLs.
 
-export const maxDuration = 600; // 10 min — covers Modal cold start + weight download + inference
+export const maxDuration = 300; // Vercel Hobby cap; Modal work must finish within 5 min.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ConvexHttpClient } from 'convex/browser';
@@ -12,11 +12,9 @@ import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
 import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { parseImageDataUrl, sanitizeOutputName } from '@/lib/imageDataUrl';
+import { getFaceliftHeaders, isFaceliftConfigured, resolveFaceliftUrl } from '@/lib/facelift';
 import fs from 'fs/promises';
 import path from 'path';
-
-const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
-const FACELIFT_SHARED_SECRET = process.env.FACELIFT_SHARED_SECRET ?? '';
 
 const SH_C0 = 0.28209479177387814;
 const MAX_FACELIFT_IMAGE_BYTES = 6 * 1024 * 1024;
@@ -114,14 +112,6 @@ function plyToSplat(plyBuf: Buffer): Buffer {
   return out;
 }
 
-function getFaceliftHeaders(): HeadersInit {
-  return {
-    'ngrok-skip-browser-warning': '1',
-    'User-Agent': 'shapeup',
-    ...(FACELIFT_SHARED_SECRET ? { 'X-ShapeUp-Facelift-Secret': FACELIFT_SHARED_SECRET } : {}),
-  };
-}
-
 function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
   if (typeof value !== 'string' || value.length === 0) return null;
   if (value.length > Math.ceil(maxBytes * 4 / 3) + 128) return null;
@@ -131,9 +121,9 @@ function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
 }
 
 export async function POST(req: NextRequest) {
-  if (!FACELIFT_URL) {
-    console.error('[facelift] POST: FACELIFT_URL not configured');
-    return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
+  if (!isFaceliftConfigured()) {
+    console.error('[facelift] POST: no FaceLift upstream configured (FACELIFT_URL / OSCAR_FACELIFT_URL)');
+    return NextResponse.json({ error: 'FaceLift upstream not configured' }, { status: 503 });
   }
 
   const authResult = await requireSignedIn();
@@ -189,10 +179,12 @@ export async function POST(req: NextRequest) {
 
   let imageDataUrl: string | undefined;
   let outputName = 'edit-output';
+  let fingerprint: string | undefined;
   try {
-    ({ imageDataUrl, outputName = 'edit-output' } = await req.json() as {
+    ({ imageDataUrl, outputName = 'edit-output', fingerprint } = await req.json() as {
       imageDataUrl?: string;
       outputName?: string;
+      fingerprint?: string;
     });
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -220,12 +212,24 @@ export async function POST(req: NextRequest) {
     console.error('[facelift] POST: GPU budget check failed (allowing request):', err);
   }
 
-  if (process.env.DISABLE_PAYWALL !== '1') {
+  // Spend an entitlement: a paid credit if the user has one, otherwise their
+  // one-time free generation (gated by the anti-Sybil checks in freeGen.ts).
+  // Allowlisted demo/dev accounts bypass billing entirely.
+  if (process.env.DISABLE_PAYWALL !== '1' && !isDemoUser) {
     try {
-      await convex.mutation(api.users.deductCredit, {});
+      await convex.mutation(api.freeGen.consumeGeneration, {
+        ipHash: hashIdentifier(ip),
+        fingerprintHash: typeof fingerprint === 'string' && fingerprint.length > 0
+          ? hashIdentifier(fingerprint)
+          : undefined,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const status = msg.includes('No credits') ? 402 : 400;
+      // Entitlement failures (out of credits, free gen exhausted/blocked) are a
+      // payment-required signal; anything else is a bad request.
+      const status = /out of credits|free generation|verify your email|permanent email|this device|this network/i.test(msg)
+        ? 402
+        : 400;
       return NextResponse.json({ error: msg }, { status });
     }
   }
@@ -237,10 +241,11 @@ export async function POST(req: NextRequest) {
   imageBytes.set(buffer);
   form.append('image', new Blob([imageBytes], { type: parsedImage.mimeType }), `face.${uploadExt}`);
 
-  console.log(`[facelift] POST: sending to Modal — ${buffer.length} bytes`);
+  const faceliftUrl = await resolveFaceliftUrl();
+  console.log(`[facelift] POST: sending to ${faceliftUrl} — ${buffer.length} bytes`);
   let upstream: Response;
   try {
-    upstream = await fetch(`${FACELIFT_URL}/process_image`, {
+    upstream = await fetch(`${faceliftUrl}/process_image`, {
       method: 'POST',
       headers: getFaceliftHeaders(),
       body:   form,
@@ -343,5 +348,5 @@ export async function POST(req: NextRequest) {
   ]);
 
   console.log(`[facelift] POST: done jobId=${jobId}`);
-  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl });
+  return NextResponse.json({ jobId, splatUrl, plyUrl, videoUrl, splatS3Key: splatKey });
 }

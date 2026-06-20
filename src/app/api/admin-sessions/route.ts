@@ -8,6 +8,12 @@ export async function GET() {
   if (authResult.response) return authResult.response;
 
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const convexToken = await authResult.session.getToken({ template: 'convex' });
+  if (!convexToken) {
+    return NextResponse.json({ error: 'Convex auth token unavailable' }, { status: 401 });
+  }
+  convex.setAuth(convexToken);
+
   try {
     const sessions = await convex.query(api.sessions.listRecent, {});
     return NextResponse.json({ sessions });

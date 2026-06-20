@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireConvexAdmin } from "./lib/adminAuth";
 
 export const recordResult = mutation({
   args: {
@@ -40,5 +41,17 @@ export const getLatestByUser = query({
       .withIndex("by_user_id", q => q.eq("userId", identity.tokenIdentifier))
       .order("desc")
       .first();
+  },
+});
+
+// Admin: most recent rendered facelifts across all users. The
+// /api/admin-facelifts route also restricts callers to admins; this enforces
+// it independently.
+export const listRecent = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireConvexAdmin(ctx);
+
+    return await ctx.db.query("facelifts").order("desc").take(50);
   },
 });

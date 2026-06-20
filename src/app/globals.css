@@ -558,6 +558,150 @@ body {
     inset 0 1px 0 rgba(255,255,255,0.18);
 }
 
+/* ── Refer CTA: bluish button beneath "Get more tokens", same raised
+     Duolingo-ledge press behaviour, just a different palette ─────────── */
+.btn-refer-cta {
+  display: block;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #6ea1cc 0%, #3a6b93 100%);
+  color: #fff8ea;
+  border: none;
+  border-radius: 11px;
+  padding: 10px 14px 9px;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variation-settings: 'SOFT' 20, 'WONK' 0, 'opsz' 14;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    0 5px 0 0 #244863,
+    0 8px 20px -4px rgba(27, 54, 80, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+.btn-refer-cta__text {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+}
+.btn-refer-cta__hl {
+  color: var(--honey);
+  font-weight: 900;
+  white-space: nowrap;
+}
+.btn-refer-cta:hover:not(:disabled) {
+  background: linear-gradient(160deg, #7db0d9 0%, #427399 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 7px 0 0 #244863,
+    0 14px 28px -6px rgba(27, 54, 80, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.btn-refer-cta:active:not(:disabled) {
+  transform: translateY(5px);
+  box-shadow:
+    0 0 0 0 #244863,
+    0 3px 8px -2px rgba(27, 54, 80, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* ── "Show my barber a 360°" — tertiary utility row, moss accent ─────────
+   Sits beneath the loud token (amber/coral) + refer (blue) CTAs. It carries
+   its own colour — a soft moss green — so it's clearly visible, but moss is
+   unused by either primary button, so it never competes or reads as a rival
+   CTA: still flat (no raised ledge, no shimmer), just gently tinted. The one
+   flourish — the icon spinning a full 360° — fires on hover/focus, not at rest. */
+.btn-barber360 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;                         /* a11y touch target */
+  padding: 8px 12px;
+  background: rgba(107, 140, 79, 0.08);
+  border: 1px solid rgba(107, 140, 79, 0.34);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 180ms ease, border-color 180ms ease, transform 110ms ease;
+}
+.btn-barber360__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: rgba(107, 140, 79, 0.16);
+  color: var(--moss);
+  transition: color 180ms ease, background 180ms ease;
+}
+.btn-barber360__icon svg {
+  transition: transform 520ms cubic-bezier(.34, 1.1, .64, 1);
+}
+.btn-barber360__text {
+  flex: 1;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.004em;
+  color: #46612f;                           /* deep moss — 4.5:1 on the tint */
+}
+.btn-barber360__chev {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: rgba(107, 140, 79, 0.6);
+  transition: transform 180ms ease, color 180ms ease;
+}
+.btn-barber360:hover,
+.btn-barber360:focus-visible {
+  background: rgba(107, 140, 79, 0.15);
+  border-color: rgba(107, 140, 79, 0.5);
+}
+.btn-barber360:hover .btn-barber360__icon,
+.btn-barber360:focus-visible .btn-barber360__icon {
+  background: rgba(107, 140, 79, 0.24);
+  color: #3f5530;
+}
+.btn-barber360:hover .btn-barber360__icon svg,
+.btn-barber360:focus-visible .btn-barber360__icon svg {
+  transform: rotate(-360deg);               /* a wink at "360", on intent only */
+}
+.btn-barber360:hover .btn-barber360__chev,
+.btn-barber360:focus-visible .btn-barber360__chev {
+  transform: translateX(2px);
+  color: var(--moss);
+}
+.btn-barber360:active { transform: scale(0.985); }
+.btn-barber360:focus-visible {
+  outline: 2px solid rgba(107, 140, 79, 0.6);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-barber360__icon svg { transition: none; }
+  .btn-barber360:hover .btn-barber360__icon svg,
+  .btn-barber360:focus-visible .btn-barber360__icon svg { transform: none; }
+}
+
+/* Referral popup accent badge */
+.refer-pop__badge {
+  align-self: flex-start;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #335f85;
+  background: rgba(110, 161, 204, 0.18);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
 .btn-cream {
   background: var(--cream);
   color: var(--ink);
@@ -962,6 +1106,21 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 /* ── Pipeline progress bars ────────────────────────────── */
+/* Smoothly lerp the loading UI (and the Toolbox card) open/closed.
+   grid-template-rows 0fr→1fr animates an auto-height region. */
+.pipeline-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pipeline-collapse-open {
+  grid-template-rows: 1fr;
+}
+.pipeline-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .pipeline-wrapper {
   display: flex;
   flex-direction: column;
@@ -970,7 +1129,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   border-radius: 14px;
   background: rgba(42, 32, 26, 0.04);
   border: 1px solid rgba(42, 32, 26, 0.09);
-  margin-top: 4px;
+  /* Spacing handled by the form's gap; the collapse wrapper owns the open/close. */
+  margin-top: 0;
 }
 
 .pipeline-stage {
@@ -1195,6 +1355,53 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .card-wiggle { animation: card-wiggle 320ms cubic-bezier(.36,.07,.19,.97) both; }
 
+/* ── "Show my barber a 360°" picker: shake every cut, badge the target ── */
+@keyframes pcard-shake {
+  0%, 100% { transform: rotate(var(--pcard-wonk, 0deg)); }
+  25%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 0.88deg)) translateY(-0.4px); }
+  50%      { transform: rotate(calc(var(--pcard-wonk, 0deg) + 0.88deg)); }
+  75%      { transform: rotate(calc(var(--pcard-wonk, 0deg) - 0.56deg)) translateY(-0.4px); }
+}
+.pcard-shake {
+  /* desync each card off the grid index that's already in scope (--settle-i) */
+  animation: pcard-shake 360ms ease-in-out infinite;
+  animation-delay: calc(var(--settle-i, 0) * -73ms);
+}
+.pcard-360-badge {
+  position: absolute; top: 9px; right: 9px; z-index: 3;
+  font-family: var(--font-dmsans); font-weight: 800; font-size: 12px; letter-spacing: 0.03em;
+  background: var(--coral); color: var(--offwhite);
+  padding: 4px 9px; border-radius: 9999px;
+  box-shadow: 0 4px 14px -3px rgba(232, 97, 77, 0.6);
+  pointer-events: none;
+}
+/* Keeps translateX(-50%) at every step so the entrance animation can't knock
+   the fixed-position banner off horizontal centre (plain bounce-in would). */
+@keyframes barber-pick-in {
+  0%   { transform: translateX(-50%) scale(0.92); opacity: 0; }
+  60%  { transform: translateX(-50%) scale(1.02); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); }
+}
+.barber-pick-banner { animation: barber-pick-in 360ms cubic-bezier(.34,1.56,.64,1) both; }
+
+/* Jumping dots for the "Waiting for the render to load" gate */
+.barber-wait-dots { display: inline-flex; margin-left: 2px; }
+.barber-wait-dots span {
+  display: inline-block;
+  animation: barber-dot-jump 1s ease-in-out infinite;
+}
+.barber-wait-dots span:nth-child(2) { animation-delay: 0.16s; }
+.barber-wait-dots span:nth-child(3) { animation-delay: 0.32s; }
+@keyframes barber-dot-jump {
+  0%, 65%, 100% { transform: translateY(0);    opacity: 0.5; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcard-shake { animation: none; }
+  .barber-wait-dots span { animation: none; }
+}
+
 /* ── Empty-state add-button physics sequence ──────────────── */
 @keyframes empty-text-drop {
   /* text starts far above the card and falls all the way to center */
@@ -1264,6 +1471,48 @@ input[type="range"].slider-warm::-moz-range-thumb {
   text-transform: uppercase;
 }
 
+/* ── Logo home button — logo + overlaid home icon, hover lerp, press bounce ── */
+.logo-home {
+  display: inline-block;
+  padding: 0;
+  background: transparent;
+  border: none;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* Outer element owns the smooth hover lerp; inner owns the press bounce so the
+     two transforms compose without fighting. */
+  transform: scale(1);
+  transition: transform 280ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.logo-home:hover { transform: scale(1.12); }
+.logo-home:focus-visible { outline: none; }
+.logo-home:focus-visible .logo-home-frame { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5); }
+.logo-home-inner {
+  position: relative;
+  display: block;
+}
+.logo-home-frame {
+  display: block;
+  width: 90%;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  padding: 0;
+  box-sizing: border-box;
+}
+.logo-home-bounce { animation: logo-home-press 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes logo-home-press {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.9); }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-home, .logo-home-bounce { transition: none; animation: none; }
+  .logo-home:hover { transform: none; }
+}
+
 /* ── Flip Digit — countdown slot animation ─────────────── */
 @keyframes flip-digit-out-anim {
   from { transform: translateY(0);    opacity: 1; }
@@ -1285,6 +1534,21 @@ input[type="range"].slider-warm::-moz-range-thumb {
   border-radius: 9999px;
   background: var(--tomato);
 }
+
+/* ── Artist spinner — hand-drawn rounded loops ────────────── */
+@keyframes artist-spin     { to { transform: rotate(360deg); } }
+@keyframes artist-spin-rev { to { transform: rotate(-360deg); } }
+
+.artist-spinner__ring {
+  transform-box: view-box;
+  transform-origin: center;
+  fill: none;
+  stroke-linecap: round;
+}
+/* Gravity easing: accelerates toward the bottom, slows climbing back up. */
+.artist-spinner__ring--1 { animation: artist-spin     1.5s cubic-bezier(.45,.05,.55,.95) infinite; }
+.artist-spinner__ring--2 { animation: artist-spin-rev 2.1s cubic-bezier(.45,.05,.55,.95) infinite; }
+.artist-spinner__ring--3 { animation: artist-spin     1.1s cubic-bezier(.45,.05,.55,.95) infinite; }
 
 /* ── Letter fade-in — selfie requirements ─────────────── */
 @keyframes letter-fade-in {
@@ -1543,8 +1807,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   background: var(--biscuit);
   border-radius: 0 0 16px 16px;
   border-top: 1.5px dashed rgba(42, 32, 26, 0.22);  /* ticket perforation */
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 16px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px;
   z-index: 1;
 }
 .pcard-tray-label {
@@ -1556,7 +1820,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 
 .pcard-chip {
-  width: 50px; height: 50px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   border: none;
   display: flex; align-items: center; justify-content: center;
@@ -1571,6 +1835,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .pcard-chip-butter:hover { background: rgba(255, 231, 176, 0.85); }
 .pcard-chip-gold   { background: rgba(212, 175, 55, 0.18); color: rgb(180, 140, 30); }
 .pcard-chip-gold:hover { background: rgba(212, 175, 55, 0.3); }
+.pcard-chip-purple { background: rgba(130, 80, 200, 0.1); color: rgb(120, 70, 190); }
+.pcard-chip-purple:hover { background: rgba(130, 80, 200, 0.2); }
 
 .pcard-content {
   position: absolute; inset: 0;
@@ -1627,6 +1893,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
   font-size: 16px;
   color: var(--char);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+.pcard-name-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  border-bottom: 1.5px solid rgba(130, 80, 200, 0.5);
+  padding: 0;
+  width: 100%;
   min-width: 0;
 }
 .pcard-date {
@@ -1915,6 +2190,41 @@ input[type="range"].slider-warm::-moz-range-thumb {
   color: rgba(42, 32, 26, 0.45);
   animation: explore-marquee-roll 26s linear infinite;
 }
+
+/* ── Explore — dark mode overrides ─────────────────────────────── */
+html.dark .explore-ghost {
+  background: #252528;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  outline: 1.5px solid rgba(252, 245, 228, 0.15);
+}
+html.dark .explore-ghost:hover {
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+}
+html.dark .explore-ghost-photo {
+  background: linear-gradient(160deg, #2e2e34, #1e1e21);
+}
+html.dark .explore-ghost-tag {
+  color: rgba(252, 245, 228, 0.75);
+}
+html.dark .explore-ghost-stamp {
+  color: rgba(252, 245, 228, 0.9);
+  background: #2e2e34;
+  border: 1.2px solid rgba(252, 245, 228, 0.55);
+}
+html.dark .explore-ticket {
+  background: #252528;
+  border: 1.5px solid rgba(252, 245, 228, 0.2);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+.explore-ticket-label { color: rgba(42, 32, 26, 0.7); }
+html.dark .explore-ticket-label { color: rgba(252, 245, 228, 0.85); }
+html.dark .explore-marquee {
+  border-top: 1.5px solid rgba(252, 245, 228, 0.1);
+  background: #1e1e21;
+}
+html.dark .explore-marquee-track {
+  color: rgba(252, 245, 228, 0.55);
+}
 @keyframes explore-marquee-roll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
@@ -1922,9 +2232,66 @@ input[type="range"].slider-warm::-moz-range-thumb {
 
 /* ── Live selfie camera (LiveScanCamera) ────────────────────────── */
 .lsc-root {
+  position: relative;
   display: flex; flex-direction: column;
   gap: 16px;
   width: 100%;
+}
+
+/* positioning context so the tilt message can float beside the viewfinder */
+.lsc-stage {
+  position: relative;
+  width: 100%;
+}
+
+/* head-tilt nudge — sits to the LEFT of the camera, points back at it */
+.lsc-tilt-msg {
+  position: absolute;
+  right: calc(100% + 16px);   /* just outside the frame's left edge */
+  top: 50%;
+  width: max-content;
+  max-width: 180px;
+  padding: 9px 13px;
+  border-radius: 14px;
+  background: var(--tomato, #e2613f);
+  color: #fff8ea;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: 0 8px 22px -10px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(8px) scale(0.96);
+  transform-origin: right center;
+  transition: opacity 280ms ease, transform 320ms cubic-bezier(0.2, 0.85, 0.2, 1);
+  z-index: 5;
+}
+.lsc-tilt-msg.is-on {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0) scale(1);
+}
+/* tail on the right edge, pointing toward the camera */
+.lsc-tilt-msg::after {
+  content: '';
+  position: absolute;
+  top: 50%; right: -4px;
+  width: 12px; height: 12px;
+  background: inherit;
+  border-radius: 2px 0 0 0;
+  transform: translateY(-50%) rotate(45deg);
+}
+/* on narrow screens there's no room beside the camera — float it on top instead */
+@media (max-width: 640px) {
+  .lsc-tilt-msg {
+    right: auto; left: 50%; top: 10px;
+    transform: translateX(-50%) translateY(-6px) scale(0.96);
+    max-width: 78%;
+    text-align: center;
+  }
+  .lsc-tilt-msg.is-on { transform: translateX(-50%) translateY(0) scale(1); }
+  .lsc-tilt-msg::after { display: none; }
 }
 
 .lsc-frame {
@@ -1980,23 +2347,6 @@ input[type="range"].slider-warm::-moz-range-thumb {
   50%      { opacity: 0.72; }
 }
 
-.lsc-count {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-style: italic; font-weight: 600;
-  font-size: clamp(6rem, 18vw, 9rem);
-  color: var(--cream);
-  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-  animation: lsc-count-pop 700ms cubic-bezier(0.18, 1.3, 0.3, 1) both;
-}
-@keyframes lsc-count-pop {
-  0%   { transform: scale(1.7); opacity: 0; filter: blur(5px); }
-  35%  { transform: scale(0.96); opacity: 1; filter: blur(0); }
-  70%  { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.92); opacity: 0; }
-}
-
 .lsc-flash {
   position: absolute; inset: 0;
   background: var(--chalk);
@@ -2011,7 +2361,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .lsc-develop-img {
   width: 100%; height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);     /* keep mirroring so it matches what they saw */
+  /* dataURL is already mirrored in the capture canvas to match the preview —
+     no CSS mirror here, or it double-flips and looks un-mirrored */
   animation: lsc-develop 1100ms ease-out both;
 }
 @keyframes lsc-develop {
@@ -2087,6 +2438,102 @@ input[type="range"].slider-warm::-moz-range-thumb {
   50%      { box-shadow: 0 0 0 9px rgba(255, 231, 176, 0); }
 }
 
+/* checks-not-met confirmation popup */
+.lsc-confirm-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(20, 14, 10, 0.55);
+  backdrop-filter: blur(3px);
+  animation: lsc-confirm-veil-in 180ms ease-out;
+}
+@keyframes lsc-confirm-veil-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.lsc-confirm-card {
+  width: min(340px, 100%);
+  border-radius: 18px;
+  padding: 20px 20px 16px;
+  background: var(--cream, #fff8ea);
+  color: var(--char, #1a1410);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.6);
+  animation: lsc-confirm-card-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes lsc-confirm-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.lsc-confirm-title {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 600;
+}
+.lsc-confirm-body {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(26, 20, 16, 0.78);
+}
+.lsc-confirm-list {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.lsc-confirm-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--char, #1a1410);
+}
+.lsc-confirm-list li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.5em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tomato, #e4572e);
+}
+.lsc-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.lsc-confirm-cancel,
+.lsc-confirm-go {
+  border: none;
+  cursor: pointer;
+  padding: 9px 16px;
+  border-radius: 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+.lsc-confirm-cancel {
+  background: rgb(40, 100, 210);
+  color: #ffffff;
+  box-shadow: 0 8px 22px -8px rgba(40, 100, 210, 0.55);
+}
+.lsc-confirm-go {
+  background: rgba(26, 20, 16, 0.07);
+  color: var(--char, #1a1410);
+}
+.lsc-confirm-cancel:hover,
+.lsc-confirm-go:hover { transform: scale(1.04); }
+.lsc-confirm-cancel:active,
+.lsc-confirm-go:active { transform: scale(0.96); }
+
 .lsc-uploading {
   margin: 0;
   font-size: 10px;
@@ -2098,6 +2545,15 @@ input[type="range"].slider-warm::-moz-range-thumb {
 @keyframes lsc-uploading-blink {
   0%, 100% { opacity: 0.45; }
   50%      { opacity: 1; }
+}
+
+/* "Upload your own selfie" iMessage-style bubble.
+   The wrapper is a flex column so the button keeps its full-width flow
+   exactly as before; the bubble is absolutely positioned so it can never
+   nudge the button — it just floats below-and-right of it. */
+.lsc-upload-cluster {
+  position: relative;
+  display: flex; flex-direction: column;
 }
 
 /* ── Live checklist (ScanPopup left panel) ──────────────────────── */
@@ -2185,7 +2641,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
   .pcard-sheen, .pcard-stamp-slam, .pcard-crumple,
   .grid-settle, .hl-swipe, .count-ticket, .gold-scribble path,
   .saved-ghost-bookmark, .explore-ghost, .explore-marquee-track,
-  .lsc-oval-dash, .lsc-oval-ready, .lsc-count, .lsc-caption,
+  .lsc-oval-dash, .lsc-oval-ready, .lsc-caption,
   .lsc-shutter-armed .lsc-shutter-core, .lchk-row, .lchk-pin,
   .lchk-tick path, .lsc-develop-img {
     animation: none !important;
@@ -2629,43 +3085,62 @@ input[type="range"].slider-warm::-moz-range-thumb {
   position: relative;
   overflow: hidden;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
   width: 100%;
-  padding: 13px 16px 14px;
-  border: none;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  background: linear-gradient(135deg, var(--tomato) 0%, var(--cherry) 100%);
-  color: var(--cream);
+  background: linear-gradient(135deg, #3e3e44 0%, #2c2c31 52%, #232327 100%);
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 8px 22px -8px rgba(169, 49, 31, 0.6),
-              inset 0 -2px 0 rgba(0, 0, 0, 0.14),
-              inset 0 1px 0 rgba(255, 248, 234, 0.18);
-  transition: transform 170ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 170ms ease;
+  box-shadow: 0 10px 26px -10px rgba(0, 0, 0, 0.55),
+              inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: transform 170ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 170ms ease, filter 170ms ease;
 }
 .btn-cta-order:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.015);
-  box-shadow: 0 14px 34px -10px rgba(169, 49, 31, 0.7),
-              inset 0 -2px 0 rgba(0, 0, 0, 0.14),
-              inset 0 1px 0 rgba(255, 248, 234, 0.18);
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.1);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(255, 255, 255, 0.12),
+              inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
-.btn-cta-order:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.btn-cta-order:active:not(:disabled) {
+  transform: translateY(0) scale(0.975);
+  box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.5),
+              inset 0 2px 5px rgba(0, 0, 0, 0.4);
+}
 .btn-cta-order-title {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
   font-family: var(--font-dmsans), system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 800;
+  font-size: 15px;
   letter-spacing: 0.01em;
 }
-.btn-cta-order-sub {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 11.5px;
-  opacity: 0.88;
+.btn-cta-order-icon {
+  flex-shrink: 0;
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.btn-cta-order:hover:not(:disabled) .btn-cta-order-icon { transform: scale(1.12); }
+.btn-cta-order-beta {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2a201a;
+  background: rgba(255, 248, 234, 0.78);
+  border-radius: 4px;
+  padding: 2px 5px;
+  line-height: 1.2;
+  pointer-events: none;
 }
 .btn-cta-order-sheen {
   position: absolute;
@@ -2754,5 +3229,180 @@ input[type="range"].slider-warm::-moz-range-thumb {
   @keyframes stamp-slam-static {
     0%, 99% { opacity: 1; transform: translate(-50%, -50%) rotate(-6deg); }
     100%    { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg); }
+  }
+}
+
+/* ============================================================
+   DARK MODE — html.dark overrides warm palette with charcoal
+   ============================================================ */
+html.dark {
+  --biscuit:    #1e1e21;
+  --biscuit-lt: #252528;
+  --cream:      #2b2b2f;
+  --butter:     #3a3a40;
+  --peach:      #3a2e2a;
+  --chalk:      #1e1e21;
+
+  --ink:   #f0ece4;
+  --char:  #c4c0b8;
+  --smoke: #8a8a96;
+}
+
+html.dark body {
+  background: var(--biscuit);
+  color: var(--ink);
+}
+
+html.dark .pcard {
+  background: var(--cream);
+  outline-color: rgba(255,255,255,0.1) !important;
+}
+
+html.dark .tokens-widget {
+  background: linear-gradient(150deg, #4a3a1c 0%, #6b521f 100%);
+  border-color: rgba(220, 170, 70, 0.32);
+}
+html.dark .tokens-widget__count {
+  color: #ffe2a0;
+}
+html.dark .tokens-widget__label {
+  color: #d8aa5c;
+}
+/* Collapsed profile pill: deep amber in dark mode (the bright yellow glares
+   against the charcoal UI), with light-gold text so the count stays legible. */
+html.dark .pill-credits {
+  background: #5a4520;
+  color: #ffe2a0;
+}
+
+/* Prompt-suggestion chips + refresh button: the warm cream bg stays nearly
+   opaque in dark mode, leaving light text on a light fill. Darken the fill and
+   lighten the outline so they read against the charcoal background. */
+html.dark .chip-suggest,
+html.dark .chip-refresh {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+html.dark .chip-suggest:hover:not(:disabled),
+html.dark .chip-refresh:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.dark .btn-tokens-cta {
+  color: #ffffff;
+}
+
+html.dark .count-ticket {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* language select — strip OS chrome */
+.settings-lang-select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+html.dark .settings-lang-select {
+  background: var(--biscuit-lt);
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: var(--ink);
+  border-radius: 8px;
+}
+
+/* ── Floor-0 search border (visible in dark mode) ──────────── */
+:root { --search-floor0-border: rgba(42, 32, 26, 0.28); }
+html.dark { --search-floor0-border: rgba(255, 255, 255, 0.28); }
+
+/* ── Studio outer shell — dark mode replaces tomato red ─────── */
+html.dark .bg-tomato-shop {
+  background: #111113;
+  /* scope-restore --cream for studio text so text-[var(--cream)] stays light */
+  --cream: #F5F1EA;
+}
+html.dark .bg-tomato-shop::after {
+  background: none;
+}
+
+html.dark .fresh-sheet {
+  background: var(--cream);
+}
+
+/* ── Sun brightness glass slider ─────────────────────────── */
+.slider-glass {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.slider-glass::-webkit-slider-runnable-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.slider-glass::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.9);
+  margin-top: -7px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+.slider-glass::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.slider-glass::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.slider-glass::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+@keyframes sunBounceIn {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.62); }
+  60%  { transform: scale(1.44); }
+  80%  { transform: scale(1.52); }
+  100% { transform: scale(1.5); }
+}
+@keyframes sunBounceHover {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.13); }
+  75%  { transform: scale(1.07); }
+  100% { transform: scale(1.1); }
+}
+
+/* ============================================================
+   MOBILE SUPPORT (<= 768px only — desktop is untouched)
+   See NOTES.md "Mobile Support — Mechanism".
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Prevent accidental horizontal scroll from fixed/absolute desktop layouts. */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  /* Honor notch / home-indicator safe areas on the page body. */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 }

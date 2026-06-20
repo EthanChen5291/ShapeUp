@@ -9,12 +9,19 @@
  */
 
 import type * as facelifts from "../facelifts.js";
+import type * as feedback from "../feedback.js";
+import type * as freeGen from "../freeGen.js";
 import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
+import type * as lib_adminAuth from "../lib/adminAuth.js";
+import type * as lib_allowlist from "../lib/allowlist.js";
 import type * as lib_contentFilter from "../lib/contentFilter.js";
+import type * as lib_disposableEmail from "../lib/disposableEmail.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
+import type * as lib_referrals from "../lib/referrals.js";
 import type * as projects from "../projects.js";
 import type * as rateLimits from "../rateLimits.js";
+import type * as redeem from "../redeem.js";
 import type * as sessions from "../sessions.js";
 import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
@@ -29,12 +36,19 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   facelifts: typeof facelifts;
+  feedback: typeof feedback;
+  freeGen: typeof freeGen;
   gpuUsage: typeof gpuUsage;
   http: typeof http;
+  "lib/adminAuth": typeof lib_adminAuth;
+  "lib/allowlist": typeof lib_allowlist;
   "lib/contentFilter": typeof lib_contentFilter;
+  "lib/disposableEmail": typeof lib_disposableEmail;
   "lib/rateLimit": typeof lib_rateLimit;
+  "lib/referrals": typeof lib_referrals;
   projects: typeof projects;
   rateLimits: typeof rateLimits;
+  redeem: typeof redeem;
   sessions: typeof sessions;
   stripe: typeof stripe;
   users: typeof users;
