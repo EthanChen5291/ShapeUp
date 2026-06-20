@@ -74,6 +74,42 @@ type Phase = 'consent' | 'camera' | 'processing' | 'done' | 'error';
 
 const STEP_ORDER: StepId[] = ['capture', 'bald_gen', 'original_scan', 'bald_scan', 'subtracting', 'done'];
 
+// ─── persisted subtraction controls ───────────────────────────────────────────
+// Saved to localStorage so the user's tuning survives a refresh and carries over
+// to subsequent generations (restart no longer resets them).
+
+const CONTROLS_STORAGE_KEY = 'subtraction-controls-v1';
+
+interface StoredControls {
+  scaleX:        number;
+  scaleY:        number;
+  scaleZ:        number;
+  uniformScale:  number;
+  voxelOverride: string;
+  maskClose:     number;
+}
+
+const DEFAULT_CONTROLS: StoredControls = {
+  scaleX:        1.0,
+  scaleY:        1.0,
+  scaleZ:        1.0,
+  uniformScale:  1.0,
+  voxelOverride: '',
+  maskClose:     0.55,
+};
+
+function loadStoredControls(): StoredControls {
+  if (typeof window === 'undefined') return DEFAULT_CONTROLS;
+  try {
+    const raw = window.localStorage.getItem(CONTROLS_STORAGE_KEY);
+    if (!raw) return DEFAULT_CONTROLS;
+    const parsed = JSON.parse(raw) as Partial<StoredControls>;
+    return { ...DEFAULT_CONTROLS, ...parsed };
+  } catch {
+    return DEFAULT_CONTROLS;
+  }
+}
+
 function initialSteps(): Record<StepId, StepState> {
   return {
     capture:       { status: 'pending', label: '1 · Capture'              },
@@ -295,13 +331,13 @@ export default function SubtractionPage() {
   const [baldResult,      setBaldResult]      = useState<FaceliftResult | null>(null);
   const [subResult,       setSubResult]       = useState<SubtractResult | null>(null);
 
-  // Subtraction params (editable after scans complete)
-  const [subScaleX,         setSubScaleX]         = useState(1.0);
-  const [subScaleY,         setSubScaleY]         = useState(1.0);
-  const [subScaleZ,         setSubScaleZ]         = useState(1.0);
-  const [subUniformScale,   setSubUniformScale]   = useState(1.0);
-  const [subVoxelOverride,  setSubVoxelOverride]  = useState('');   // empty = auto
-  const [subMaskClose,      setSubMaskClose]      = useState(0.55); // streak cleanup; 1 = off
+  // Subtraction params (editable after scans complete) — restored from localStorage
+  const [subScaleX,         setSubScaleX]         = useState(() => loadStoredControls().scaleX);
+  const [subScaleY,         setSubScaleY]         = useState(() => loadStoredControls().scaleY);
+  const [subScaleZ,         setSubScaleZ]         = useState(() => loadStoredControls().scaleZ);
+  const [subUniformScale,   setSubUniformScale]   = useState(() => loadStoredControls().uniformScale);
+  const [subVoxelOverride,  setSubVoxelOverride]  = useState(() => loadStoredControls().voxelOverride);  // empty = auto
+  const [subMaskClose,      setSubMaskClose]      = useState(() => loadStoredControls().maskClose);      // streak cleanup; 1 = off
   const [rerunning,         setRerunning]         = useState(false);
 
   const [cameraFailed, setCameraFailed] = useState(false);
@@ -325,6 +361,24 @@ export default function SubtractionPage() {
   useEffect(() => {
     debugEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [debugLines]);
+
+  // ── persist subtraction controls (survives refresh + carries across generations) ──
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const data: StoredControls = {
+      scaleX:        subScaleX,
+      scaleY:        subScaleY,
+      scaleZ:        subScaleZ,
+      uniformScale:  subUniformScale,
+      voxelOverride: subVoxelOverride,
+      maskClose:     subMaskClose,
+    };
+    try {
+      window.localStorage.setItem(CONTROLS_STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      /* storage unavailable (private mode / quota) — ignore */
+    }
+  }, [subScaleX, subScaleY, subScaleZ, subUniformScale, subVoxelOverride, subMaskClose]);
 
   // ── step updater ──
   const updateStep = useCallback((id: StepId, update: Partial<StepState>) => {
@@ -559,6 +613,7 @@ export default function SubtractionPage() {
         const baldGenElapsed = Date.now() - baldGenStart;
         dbg(`runPipeline: bald gen done in ${baldGenElapsed}ms`);
         pushLog(`[bald_gen] done in ${(baldGenElapsed / 1000).toFixed(2)}s`);
+
         updateStep('bald_gen', {
           status: 'done',
           detail: `Gemini AI baldification applied`,
@@ -587,9 +642,12 @@ export default function SubtractionPage() {
         const msg = err instanceof Error ? err.message : String(err);
         dbgErr(`runPipeline: bald gen or bald scan failed: ${msg}`);
         pushLog(`[bald_gen/bald_scan] FAILED: ${msg}`);
-        // Determine which step to mark errored
-        updateStep('bald_gen',  (prev => prev.bald_gen.status  === 'running' ? { status: 'error', error: msg } : {})({} as Record<StepId, StepState>));
-        updateStep('bald_scan', { status: 'error', error: msg });
+        // Determine which step to mark errored — if bald_gen is still running,
+        // the failure happened during generation; otherwise it was the bald scan.
+        setSteps(prev => {
+          const failedId: StepId = prev.bald_gen.status === 'running' ? 'bald_gen' : 'bald_scan';
+          return { ...prev, [failedId]: { ...prev[failedId], status: 'error', error: msg } };
+        });
         throw new Error(`Bald pipeline failed: ${msg}`);
       });
 
@@ -680,12 +738,8 @@ export default function SubtractionPage() {
     setCameraFailed(false);
     setDebugLines([]);
     setSteps(initialSteps());
-    setSubScaleX(1.0);
-    setSubScaleY(1.0);
-    setSubScaleZ(1.0);
-    setSubUniformScale(1.0);
-    setSubVoxelOverride('');
-    setSubMaskClose(0.55);
+    // Subtraction controls intentionally preserved across generations (persisted
+    // in localStorage). Use the "reset" button to return them to defaults.
     setRerunning(false);
     setPhase('camera');
   }
@@ -1110,7 +1164,7 @@ export default function SubtractionPage() {
               {/* Reset + Re-run */}
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  onClick={() => { setSubScaleX(1); setSubScaleY(1); setSubScaleZ(1); setSubUniformScale(1); setSubVoxelOverride(''); setSubMaskClose(0.55); }}
+                  onClick={() => { setSubScaleX(DEFAULT_CONTROLS.scaleX); setSubScaleY(DEFAULT_CONTROLS.scaleY); setSubScaleZ(DEFAULT_CONTROLS.scaleZ); setSubUniformScale(DEFAULT_CONTROLS.uniformScale); setSubVoxelOverride(DEFAULT_CONTROLS.voxelOverride); setSubMaskClose(DEFAULT_CONTROLS.maskClose); }}
                   style={{ flex: 1, background: '#0e0c09', border: '1px solid #443', color: '#665', padding: '6px 0', cursor: 'pointer', fontFamily: 'monospace', fontSize: 10 }}
                 >
                   reset
