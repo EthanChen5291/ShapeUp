@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
+import { View, PerspectiveCamera } from '@react-three/drei';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import HairStrandMesh from './HairStrandMesh';
 
@@ -34,15 +35,23 @@ interface HairRecommendationsBarProps {
   visible: boolean;
 }
 
+// Each thumbnail used to mount its own <Canvas> (== its own WebGL context). With
+// ~5 recommendations + the main scene that pushed the browser past its live-context
+// ceiling and triggered "WebGLRenderer: Context Lost". drei's <View> renders every
+// thumbnail into ONE shared context (one <Canvas> + <View.Port/>), each <View> DOM
+// box teleporting its scene to the matching screen rect.
 export default function HairRecommendationsBar({ onHover, onSelect, visible }: HairRecommendationsBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [everShown, setEverShown] = useState(false);
+  // Mount the 3D layer only while the bar is on screen (+ the fade-out) so the
+  // single shared context is released when the panel is closed.
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
     if (visible) {
-      setEverShown(true);
+      setMounted(true);
       el.style.opacity = '1';
       el.style.transform = 'translateY(0)';
       el.style.pointerEvents = 'auto';
@@ -50,56 +59,57 @@ export default function HairRecommendationsBar({ onHover, onSelect, visible }: H
       el.style.opacity = '0';
       el.style.transform = 'translateY(-18px)';
       el.style.pointerEvents = 'none';
+      hideTimer = setTimeout(() => setMounted(false), 500);
     }
+    return () => { if (hideTimer) clearTimeout(hideTimer); };
   }, [visible]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        opacity: 0,
-        transform: 'translateY(-18px)',
-        transition: 'opacity 0.45s cubic-bezier(0.22,1,0.36,1), transform 0.45s cubic-bezier(0.22,1,0.36,1)',
-        pointerEvents: 'none',
-      }}
-    >
+    <>
       <div
-        className="font-mono text-[9px] uppercase tracking-[0.2em] text-center mb-1"
-        style={{ color: 'rgba(255,248,234,0.6)' }}
+        ref={containerRef}
+        style={{
+          opacity: 0,
+          transform: 'translateY(-18px)',
+          transition: 'opacity 0.45s cubic-bezier(0.22,1,0.36,1), transform 0.45s cubic-bezier(0.22,1,0.36,1)',
+          pointerEvents: 'none',
+        }}
       >
-        styles
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-        {everShown && RECOMMENDATIONS.map((rec) => (
-          <div
-            key={rec.url}
-            onMouseEnter={() => onHover(rec.url)}
-            onMouseLeave={() => onHover(null)}
-            onClick={() => onSelect(rec.url)}
-            style={{
-              width: 56,
-              cursor: 'pointer',
-              borderRadius: 6,
-              overflow: 'hidden',
-              border: '1px solid rgba(255,248,234,0.15)',
-              background: 'rgba(0,0,0,0.35)',
-              transition: 'border-color 0.15s, transform 0.15s',
-            }}
-            onMouseOver={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,248,234,0.5)';
-              (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.04)';
-            }}
-            onMouseOut={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,248,234,0.15)';
-              (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
-            }}
-          >
-            <div style={{ width: 56, height: 68 }}>
-              <Canvas
-                gl={{ toneMapping: THREE.NoToneMapping, antialias: true }}
-                camera={{ position: [0, 0, 7.8], fov: 45 }}
-                style={{ width: '100%', height: '100%', background: '#17110d' }}
-              >
+        <div
+          className="font-mono text-[9px] uppercase tracking-[0.2em] text-center mb-1"
+          style={{ color: 'rgba(255,248,234,0.6)' }}
+        >
+          styles
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+          {mounted && RECOMMENDATIONS.map((rec) => (
+            <div
+              key={rec.url}
+              onMouseEnter={() => onHover(rec.url)}
+              onMouseLeave={() => onHover(null)}
+              onClick={() => onSelect(rec.url)}
+              style={{
+                width: 56,
+                cursor: 'pointer',
+                borderRadius: 6,
+                overflow: 'hidden',
+                border: '1px solid rgba(255,248,234,0.15)',
+                background: 'rgba(0,0,0,0.35)',
+                transition: 'border-color 0.15s, transform 0.15s',
+              }}
+              onMouseOver={(e) => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,248,234,0.5)';
+                (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.04)';
+              }}
+              onMouseOut={(e) => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,248,234,0.15)';
+                (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+              }}
+            >
+              {/* <View> is the DOM box; its 3D children are rendered by <View.Port/>
+                  into the shared canvas at this element's screen rect. */}
+              <View style={{ width: 56, height: 68, background: '#17110d' }}>
+                <PerspectiveCamera makeDefault position={[0, 0, 7.8]} fov={45} />
                 <ambientLight intensity={0.5} />
                 <directionalLight position={[5, 10, 5]} intensity={1.0} />
                 <directionalLight position={[0, 2, 5]} intensity={0.8} />
@@ -113,24 +123,38 @@ export default function HairRecommendationsBar({ onHover, onSelect, visible }: H
                     renderOrder={0}
                   />
                 </Suspense>
-              </Canvas>
+              </View>
+              <div
+                className="text-center font-mono"
+                style={{
+                  fontSize: 8,
+                  padding: '2px 3px',
+                  color: 'rgba(255,248,234,0.75)',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  borderTop: '1px solid rgba(255,248,234,0.08)',
+                }}
+              >
+                {rec.label}
+              </div>
             </div>
-            <div
-              className="text-center font-mono"
-              style={{
-                fontSize: 8,
-                padding: '2px 3px',
-                color: 'rgba(255,248,234,0.75)',
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                borderTop: '1px solid rgba(255,248,234,0.08)',
-              }}
-            >
-              {rec.label}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+
+      {/* Single shared WebGL context for every thumbnail. Kept a sibling of the
+          animated container above: that container's `transform` would otherwise
+          become the containing block for this fixed canvas and break alignment.
+          pointerEvents:none + transparent — it only paints the <View> rects, so
+          the underlying DOM (hover/click on the boxes) is untouched. */}
+      {mounted && (
+        <Canvas
+          style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 40 }}
+          gl={{ antialias: true, alpha: true, toneMapping: THREE.NoToneMapping }}
+        >
+          <View.Port />
+        </Canvas>
+      )}
+    </>
   );
 }

@@ -7,7 +7,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const PLAN_CONFIG: Record<string, { amount: number; credits: number; name: string; description: string }> = {
   starter:  { amount: 199,  credits: 8,   name: '8 Haircut Generations',   description: '8 AI haircut renders — try different styles before your next cut.' },
   popular:  { amount: 499,  credits: 30,  name: '30 Haircut Generations',  description: '30 AI haircut renders — try different styles before your next cut.' },
-  lifetime: { amount: 1499, credits: 100, name: '100 Haircut Generations', description: '100 AI haircut renders — try different styles before your next cut.' },
+  pro: { amount: 1499, credits: 100, name: '100 Haircut Generations', description: '100 AI haircut renders — try different styles before your next cut.' },
 };
 
 export async function POST(request: Request) {
@@ -27,7 +27,6 @@ export async function POST(request: Request) {
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    allow_promotion_codes: true,
     line_items: [
       {
         price_data: {
@@ -36,7 +35,7 @@ export async function POST(request: Request) {
           product_data: {
             name: config.name,
             description: config.description,
-            images: [`${origin}/logo.PNG`],
+            images: [`${origin}/shapeup_logo.png`],
           },
         },
         quantity: 1,

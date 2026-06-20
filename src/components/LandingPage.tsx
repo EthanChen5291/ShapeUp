@@ -9,6 +9,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { BarberMascot, BouncyButton, Reveal } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 /* ─────────────── Face Video Swiper ─────────────── */
 const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mp4`);
@@ -329,7 +330,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
 }
 
 /* ─────────────── Scroll Arrows ─────────────── */
-function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTriggerRef: React.MutableRefObject<((dir: 'up' | 'down') => void) | null>; onClickUp?: () => void; onClickDown?: () => void }) {
+function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown, isMobile }: { swipeTriggerRef: React.MutableRefObject<((dir: 'up' | 'down') => void) | null>; onClickUp?: () => void; onClickDown?: () => void; isMobile?: boolean }) {
   const upContainerRef = useRef<HTMLDivElement>(null);
   const downContainerRef = useRef<HTMLDivElement>(null);
   const [upHovered, setUpHovered] = useState(false);
@@ -401,10 +402,19 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
     return () => { cancelAnimationFrame(rafId); swipeTriggerRef.current = null; };
   }, [swipeTriggerRef]);
 
-  const SH = 78;
-  const SW = 140;
+  const SH = isMobile ? 54 : 78;
+  const SW = isMobile ? 96 : 140;
   // left: 30 + 200% of SW (170) = 370; tops derived from centered pair ± vertical shifts
   const arrowLeft = 218.5;
+
+  // On mobile the sprite container shrinks (max 360px wide), so the arrows are
+  // sized down and centered horizontally, anchored close to the sprite edges.
+  const upPos: React.CSSProperties = isMobile
+    ? { left: `calc(50% - ${SW / 2}px)`, top: '3%' }
+    : { left: arrowLeft, top: 'calc(50% - 314.4px)' };
+  const downPos: React.CSSProperties = isMobile
+    ? { left: `calc(50% - ${SW / 2}px)`, bottom: '2%' }
+    : { left: arrowLeft, top: 'calc(50% + 258px)' };
 
   return (
     <>
@@ -413,7 +423,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
         onMouseEnter={() => setUpHovered(true)}
         onMouseLeave={() => setUpHovered(false)}
         onClick={onClickUp}
-        style={{ position: 'absolute', left: arrowLeft, top: 'calc(50% - 314.4px)', width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
+        style={{ position: 'absolute', ...upPos, width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={upHovered ? "/arrows/arrowup_highlighted.png" : "/arrows/arrowup.png"} alt="scroll up" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: upHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
@@ -423,7 +433,7 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
         onMouseEnter={() => setDownHovered(true)}
         onMouseLeave={() => setDownHovered(false)}
         onClick={onClickDown}
-        style={{ position: 'absolute', left: arrowLeft, top: 'calc(50% + 258px)', width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
+        style={{ position: 'absolute', ...downPos, width: SW, height: SH, willChange: 'transform', zIndex: 20, cursor: 'pointer' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={downHovered ? "/arrows/arrowdown_highlighted.png" : "/arrows/arrowdown.png"} alt="scroll down" style={{ width: SW, height: SH, display: 'block', position: 'relative' as const, zIndex: 1, opacity: downHovered ? 1 : 0.5, transition: 'opacity 0.15s ease' }} />
@@ -433,25 +443,32 @@ function ScrollArrows({ swipeTriggerRef, onClickUp, onClickDown }: { swipeTrigge
 }
 
 /* ─────────────── Face2 Video Swiper + Show Barber Demo ─────────────── */
-const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4'];
+/* Idle video shown before the first message is sent (no message sent yet). */
+const FACE2_IDLE_VID = '/landing_face2/face2.mp4';
+
+const FACE2_VIDS = ['/landing_face2/face2a.mp4', '/landing_face2/face2b.mp4', '/landing_face2/face2c.mp4', '/landing_face2/face2d.mp4', '/landing_face2/face2e.mp4', '/landing_face2/face2f.mp4', '/landing_face2/face2g.mp4', '/landing_face2/face2h.mp4'];
 
 const FACE2_MESSAGES = [
-  "Take 6 inches off",
-  "Two pigtails, please",
-  "Wavy dirty blonde",
-  "Messy high bun",
-  "Blonde highlights + a perm",
-  "Go full blonde",
+  "Take 6 inches off",        // face2a — bob
+  "Wavy dirty blonde",        // face2b — wavy blonde
+  "Go full blonde",           // face2c — blonde
+  "Messy high bun",           // face2d — messy high bun
+  "Twin buns, tied up",       // face2e — tied twin buns
+  "Wolf cut + red streaks",   // face2f — red streaks + wolf cut
+  "Go full pink",             // face2g — pink hair
+  "Two pigtails, please",     // face2h — two pigtails
 ];
 
 /* Barber replies — one per request, same index. Short, confident, points to step 3. */
 const FACE2_REPLIES = [
-  "✂ Snip snip — check step 3 →",
-  "Pigtails, rendered →",
-  "Color's mixed. Look right →",
-  "Pinned it up for you →",
-  "Foils in, curls set →",
-  "Full blonde. Bold. →",
+  "✂ Snip snip — check step 3 →", // face2a — bob
+  "Color's mixed. Look right →",  // face2b — wavy blonde
+  "Full blonde. Bold. →",         // face2c — blonde
+  "Pinned it up for you →",       // face2d — messy high bun
+  "Twin buns, pinned →",          // face2e — tied twin buns
+  "Wolf cut + streaks in →",      // face2f — red streaks + wolf cut
+  "Full pink. Bold. →",           // face2g — pink hair
+  "Pigtails, rendered →",         // face2h — two pigtails
 ];
 
 function Face2VideoSwiper({
@@ -466,6 +483,10 @@ function Face2VideoSwiper({
   disableInteraction?: boolean;
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
+  // Idle video plays until the first message is sent, then fades to the message videos.
+  const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
+  const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const activeRef = useRef(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -512,7 +533,16 @@ function Face2VideoSwiper({
   }, [scrollRef, goNext, goPrev]);
 
   useEffect(() => {
-    if (externalIdx !== undefined && externalIdx !== activeRef.current) {
+    if (externalIdx === undefined) return;
+    const firstStart = !startedRef.current;
+    if (firstStart) {
+      startedRef.current = true;
+      setStarted(true);
+      idleVideoRef.current?.pause();
+    }
+    // On the very first send (index 0) the active index already matches, so
+    // force the switch to play the message video and fade the idle one out.
+    if (firstStart || externalIdx !== activeRef.current) {
       switchTo(externalIdx);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -548,9 +578,10 @@ function Face2VideoSwiper({
     else if (delta < -40) goPrev();
   }, [disableInteraction, goNext, goPrev]);
 
-  // Speed curve is baked into the video — just play at 1×.
+  // Speed curve is baked into the video — just play at 1×. The idle video shows
+  // first (before any message is sent); message videos take over after.
   useEffect(() => {
-    videoRefs.current[0]?.play().catch(() => {});
+    idleVideoRef.current?.play().catch(() => {});
   }, []);
 
   return (
@@ -572,6 +603,20 @@ function Face2VideoSwiper({
         pointerEvents: 'none',
       } as React.CSSProperties}>
         <div ref={bounceDivRef} style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+          {/* Idle video — plays before the first message is sent */}
+          <video
+            key={FACE2_IDLE_VID}
+            ref={idleVideoRef}
+            src={FACE2_IDLE_VID}
+            muted playsInline loop preload="auto"
+            style={{
+              position: 'absolute', top: 0, left: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              opacity: started ? 0 : 1,
+              transition: 'opacity 60ms ease',
+            }}
+          />
           {FACE2_VIDS.map((src, i) => (
             <video
               key={src}
@@ -582,7 +627,7 @@ function Face2VideoSwiper({
                 position: 'absolute', top: 0, left: 0,
                 width: '100%', height: '100%',
                 objectFit: 'cover',
-                opacity: i === activeIdx ? 1 : 0,
+                opacity: started && i === activeIdx ? 1 : 0,
                 transition: 'opacity 60ms ease',
               }}
             />
@@ -792,9 +837,9 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
     requestAnimationFrame(() => setSendBouncing(true));
     setTimeout(() => setSendBouncing(false), 500);
 
-    // Reset inactivity timer — fade+reset fires 8s after the last send
+    // Reset inactivity timer — fade+reset fires 15s after the last send
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    inactivityTimerRef.current = setTimeout(() => triggerInactivityReset(), 8000);
+    inactivityTimerRef.current = setTimeout(() => triggerInactivityReset(), 15000);
 
     const idx = curIdxRef.current;
     const text = FACE2_MESSAGES[idx];
@@ -844,8 +889,8 @@ function DescribePhoneDemo({ onSend }: { onSend?: (videoIdx: number) => void }) 
           display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
           zIndex: 1,
         }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', background: PHONE_CREAM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <div style={{ width: 12, transform: 'rotate(186deg)' }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: PHONE_CREAM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            <div style={{ width: 24 }}>
               <BarberMascot isStatic color={PHONE_TOMATO} />
             </div>
           </div>
@@ -1001,6 +1046,7 @@ const GLIMPSE_ERUPTION_DURATION = 1900;
 const GLIMPSE_ORBIT_SPEED = 0.00022; // radians per ms, CCW
 
 function GlimpseSection() {
+  const isMobile = useIsMobile();
   const sectionRef = useRef<HTMLDivElement>(null);
   const satelliteRefs = useRef<(HTMLDivElement | null)[]>(Array(GLIMPSE_SATELLITE_COUNT).fill(null));
   const stateRef = useRef({ phase: 'idle' as 'idle' | 'erupting' | 'orbiting', eruptionStart: 0, orbitOffset: 0, lastTime: 0 });
@@ -1139,7 +1185,7 @@ function GlimpseSection() {
       {/* Orbit stage */}
       <div
         ref={sectionRef}
-        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(isMobile ? { height: 'calc((100vw - 16px) / 868 * 960)', transform: 'scale(calc((100vw - 16px) / 868))', transformOrigin: 'center center' } : {}) }}
       >
         {/* Center image */}
         <div
@@ -1172,7 +1218,7 @@ function GlimpseSection() {
               justifyContent: 'center',
             }}
           >
-            <div style={{ width: 80, opacity: 0.18, transform: 'rotate(186deg)' }}>
+            <div style={{ width: 80, opacity: 0.18 }}>
               <BarberMascot isStatic />
             </div>
             <img
@@ -1228,7 +1274,7 @@ function GlimpseSection() {
               padding: '20px 18px',
             }}
           >
-            <div style={{ width: 32, opacity: 0.2, transform: 'rotate(186deg)', marginBottom: 'auto', alignSelf: 'flex-end', marginTop: 20 }}>
+            <div style={{ width: 32, opacity: 0.2, marginBottom: 'auto', alignSelf: 'flex-end', marginTop: 20 }}>
               <BarberMascot isStatic color="#2a201a" />
             </div>
             <p
@@ -1288,7 +1334,7 @@ const PRICING_PLANS = [
     sub: 'one-time',
     tokens: 8,
     perToken: '25¢',
-    tokenLabel: '8 AI looks',
+    tokenLabel: '8 haircut generations',
     line: '8 custom renders. Enough to test a fade, a crop, and a taper before your next appointment.',
     cta: 'Try 8 looks',
     featured: false,
@@ -1301,20 +1347,20 @@ const PRICING_PLANS = [
     sub: 'one-time',
     tokens: 30,
     perToken: '17¢',
-    tokenLabel: '30 AI looks',
+    tokenLabel: '30 haircut generations',
     line: '30 looks to explore. Find what works for your face shape, then walk in with a reference photo.',
     cta: 'Get 30 looks',
     featured: true,
     freeOnly: false,
   },
   {
-    id: 'lifetime',
+    id: 'pro',
     label: 'Pro',
     price: '$14.99',
     sub: 'one-time',
     tokens: 100,
     perToken: '15¢',
-    tokenLabel: '100 AI looks',
+    tokenLabel: '100 haircut generations',
     line: 'Serious about your hair. 100 looks at 15¢ each — experiment until you find a signature style.',
     cta: 'Get 100 looks',
     featured: false,
@@ -1336,7 +1382,7 @@ function PricingCTAButton({
   onClick,
   disabled = false,
 }: {
-  variant: 'free' | 'starter' | 'popular' | 'lifetime';
+  variant: 'free' | 'starter' | 'popular' | 'pro';
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
@@ -1345,6 +1391,7 @@ function PricingCTAButton({
   const [animKey, setAnimKey] = useState(0);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [btnSize, setBtnSize] = useState({ w: 260, h: 46 });
+  const isMobile = useIsMobile();
 
   useLayoutEffect(() => {
     if (!btnRef.current) return;
@@ -1360,26 +1407,26 @@ function PricingCTAButton({
   const onLeaveBtn = () => { setHovered(false); };
 
   const fillColor =
-    variant === 'lifetime' ? 'rgb(240,70,130)' :
+    variant === 'pro' ? 'rgb(240,70,130)' :
     variant === 'popular'  ? 'rgb(80,150,255)'  :
     variant === 'starter'  ? 'rgb(248,200,24)'  :
     'rgba(255,248,234,0.92)';
-  const hoverText = (variant === 'popular' || variant === 'lifetime') ? '#ffffff' : 'rgba(42,32,26,0.9)';
+  const hoverText = (variant === 'popular' || variant === 'pro') ? '#ffffff' : 'rgba(42,32,26,0.9)';
   const baseStyle: React.CSSProperties =
     variant === 'popular'  ? { border: '1px solid rgba(55,110,210,0.5)',  background: 'rgba(55,110,210,0.22)', color: 'rgba(255,248,234,0.78)', boxShadow: '0 4px 22px rgba(55,110,210,0.18)' } :
-    variant === 'lifetime' ? { border: '1px solid rgba(220,70,120,0.43)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
+    variant === 'pro' ? { border: '1px solid rgba(220,70,120,0.43)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
     variant === 'starter'  ? { border: '1px solid rgba(248,200,24,0.32)', background: 'rgba(248,200,24,0.06)', color: 'var(--cream)' } :
                              { border: '1px solid rgba(255,248,234,0.18)', background: 'rgba(255,248,234,0.07)', color: 'var(--cream)' };
 
   const LT_BR = 12;
   const ringColor =
     variant === 'starter'  ? 'rgba(255,238,148,0.88)' :
-    variant === 'lifetime' ? 'rgba(255,190,218,0.88)' :
+    variant === 'pro' ? 'rgba(255,190,218,0.88)' :
     'rgba(255,255,255,0.85)';
-  const hoverScale = variant === 'lifetime' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)';
+  const hoverScale = variant === 'pro' ? 'scale(1.14)' : variant === 'popular' ? 'scale(1.05)' : 'scale(1.04)';
   const hoverShadow =
     variant === 'popular'  ? '0 8px 48px -2px rgba(80,150,255,0.95), 0 0 56px rgba(80,150,255,0.65), 0 0 100px rgba(80,150,255,0.28)' :
-    variant === 'lifetime' ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)' :
+    variant === 'pro' ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)' :
     variant === 'starter'  ? '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)' :
                              '0 8px 28px -4px rgba(255,248,234,0.32), 0 0 14px rgba(255,248,234,0.12)';
 
@@ -1401,9 +1448,9 @@ function PricingCTAButton({
         disabled={disabled}
         style={{
           position: 'relative', overflow: 'hidden',
-          width: '100%', padding: variant === 'lifetime' ? '12px 15px' : '13px 16px',
+          width: '100%', padding: isMobile ? '18px 16px' : (variant === 'pro' ? '12px 15px' : '13px 16px'),
           fontFamily: 'var(--font-dmsans), sans-serif',
-          fontSize: variant === 'lifetime' ? 12 : 13, fontWeight: 700, borderRadius: LT_BR,
+          fontSize: isMobile ? 16 : (variant === 'pro' ? 12 : 13), fontWeight: 700, borderRadius: LT_BR,
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.6 : 1,
           display: 'block',
@@ -1441,14 +1488,14 @@ function PricingCTAButton({
           }} />
         ))}
 
-        {/* Lifetime: four expanding pink circle rings */}
-        {variant === 'lifetime' && hovered && POPULAR_RING_POS.map((p, i) => (
+        {/* Pro: four expanding pink circle rings */}
+        {variant === 'pro' && hovered && POPULAR_RING_POS.map((p, i) => (
           <span key={`ltcircle-${animKey}-${i}`} aria-hidden style={{
             position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
             width: 2, height: 2, borderRadius: '50%',
             transform: 'translate(-50%,-50%)',
             pointerEvents: 'none', zIndex: 1,
-            animation: `lifetime-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
+            animation: `pro-circle-grow 780ms ${p.delay}ms cubic-bezier(0.16,1,0.3,1) forwards`,
           }} />
         ))}
 
@@ -1676,6 +1723,7 @@ function TraceBorderCta({
 }
 
 function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingClick: (planId: string) => void; checkoutLoading: string | null }) {
+  const isMobile = useIsMobile();
   return (
     <div id="pricing" style={{ padding: '0 0 72px' }}>
       <Reveal>
@@ -1686,7 +1734,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
         overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+        <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16, ...(isMobile ? { padding: '36px 20px' } : {}) }}>
           <h2 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
             pricing
           </h2>
@@ -1719,7 +1767,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
               borderRadius: 18, padding: '16px 32px', textAlign: 'center',
             }}>
               <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(82,202,120,0.9)', marginBottom: 8 }}>
-                1 AI look
+                1 haircut generation
               </div>
               <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: '#52ca78', lineHeight: 1, letterSpacing: '-0.03em' }}>
                 8¢
@@ -1729,7 +1777,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
         </div>
 
         {/* Plan cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           {PRICING_PLANS.map((plan) => {
             const isFeatured = plan.featured;
             return (
@@ -1786,7 +1834,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                   fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
                   color: 'rgba(255,248,234,0.48)', marginBottom: 20,
                 }}>
-                  {plan.perToken ? `${plan.perToken} / token` : plan.sub}
+                  {plan.perToken ? '' : plan.sub}
                 </div>
 
                 <div style={{ borderTop: '1px solid rgba(255,248,234,0.13)', marginBottom: 18 }} />
@@ -1794,12 +1842,10 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <div style={{
                     width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                    background: plan.id === 'starter' ? 'rgba(248,200,24,0.18)' : plan.id === 'lifetime' ? 'rgba(240,70,130,0.18)' : plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
+                    background: plan.id === 'starter' ? 'rgba(248,200,24,0.18)' : plan.id === 'pro' ? 'rgba(240,70,130,0.18)' : plan.freeOnly ? 'rgba(255,248,234,0.07)' : 'rgba(80,150,255,0.18)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <div style={{ width: 13, transform: 'rotate(186deg)' }}>
-                      <BarberMascot isStatic color={plan.id === 'starter' ? 'rgba(248,200,24,0.9)' : plan.id === 'lifetime' ? 'rgba(240,70,130,0.9)' : plan.freeOnly ? 'rgba(255,248,234,0.58)' : 'rgba(80,150,255,0.9)'} />
-                    </div>
+                    <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: 26, height: 26, borderRadius: '50%', display: 'block' }} />
                   </div>
                   <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
                     {plan.tokenLabel}
@@ -2023,6 +2069,7 @@ function NeonCornersOverlay({ color, seed }: { color: string; seed: number }) {
 }
 
 function LandingPage({ onEnter }: { onEnter: () => void }) {
+  const isMobile = useIsMobile();
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
 
@@ -2156,34 +2203,35 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         }}
       />
 
-      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '16px 56px 56px' }}>
+      <div className="relative z-10" style={{ maxWidth: 1320, margin: '0 auto', padding: '16px 56px 56px', ...(isMobile ? { padding: '14px 20px 40px' } : {}) }}>
 
         {/* ── Nav ── */}
-        <nav className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5 }}>
+        <nav className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 5, ...(isMobile ? { gap: 10 } : {}) }}>
           <div
             style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default' }}
             onMouseEnter={() => setLogoHover(true)}
             onMouseLeave={() => setLogoHover(false)}
           >
-            <div style={{ width: 28 }}><BarberMascot isStatic={!logoHover} snap={logoHover} color="#2a201a" /></div>
-            <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)' }}>
+            <div style={{ width: 46 }}><BarberMascot isStatic={!logoHover} snap={logoHover} color="#2a201a" /></div>
+            <div className="type-chonk" style={{ fontSize: 30, lineHeight: 1, margin: 0, color: 'var(--ink)', ...(isMobile ? { fontSize: 22 } : {}) }}>
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, ...(isMobile ? { gap: 12 } : {}) }}>
             <button
               onClick={scrollToHowItWorks}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
               how it works
             </button>
+            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />
             <button
               onClick={scrollToPricing}
               className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
             >
@@ -2208,17 +2256,18 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             alignItems: 'center',
             marginTop: 36,
             position: 'relative',
+            ...(isMobile ? { gridTemplateColumns: '1fr', gap: 24, marginTop: 24 } : {}),
           }}
         >
           {/* Left */}
           <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
-            <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '5px 14px', marginTop: 8 }}>
-              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10 }}>✦</span>
-              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8 }}>Free to try · No credit card · 3D preview in ~60 sec</span>
+            <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '8px 20px', marginTop: 8 }}>
+              <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10, ...(isMobile ? { fontSize: 12 } : {}) }}>✦</span>
+              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8, ...(isMobile ? { fontSize: 13, letterSpacing: '0.14em' } : {}) }}>Free to try · No credit card · 3D preview in ~60 sec</span>
             </div>
             <div
               className="type-chonk"
-              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05 }}
+              style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05, ...(isMobile ? { fontSize: 'clamp(2.5rem, 4.8vw, 3.7rem)', marginTop: 26, lineHeight: 1.1 } : {}) }}
             >
               <div className="hero-rise delay-100">see it first.</div>
               <div className="hero-rise delay-200"><em style={{ color: 'var(--tomato)' }}>love</em> it more.</div>
@@ -2226,7 +2275,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
             <p
               className="font-serif italic hero-rise delay-300"
-              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '22px auto 0', lineHeight: 1.5 }}
+              style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '22px auto 0', lineHeight: 1.5, ...(isMobile ? { fontSize: 21, maxWidth: 520, margin: '28px auto 0', lineHeight: 1.62 } : {}) }}
             >
               Take one selfie. See 10+ haircuts on your actual 3D face.
               <br />Walk into the barber knowing exactly what you want.
@@ -2239,10 +2288,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
           {/* Right — blob visual */}
           <div
-            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
+            style={{ position: 'relative', height: 640, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', ...(isMobile ? { height: 'auto', justifyContent: 'center' } : {}) }}
             className="hero-blob-in"
           >
-            <div style={{ position: 'relative', width: 624, zIndex: 1 }}>
+            <div style={{ position: 'relative', width: 624, zIndex: 1, ...(isMobile ? { width: '100%', maxWidth: 360 } : {}) }}>
               <Image src="/blob.png" alt="" width={619} height={677} style={{ width: '100%', height: 'auto', display: 'block' }} />
               <FaceVideoSwiper
                 onSwipeUp={() => swipeTriggerRef.current?.('up')}
@@ -2253,6 +2302,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 swipeTriggerRef={swipeTriggerRef}
                 onClickUp={() => faceScrollRef.current?.goPrev()}
                 onClickDown={() => faceScrollRef.current?.goNext()}
+                isMobile={isMobile}
               />
             </div>
           </div>
@@ -2263,7 +2313,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%' }} />
 
       <div style={{ backgroundImage: 'url(/white.png)', backgroundSize: 'cover', backgroundPosition: 'center', paddingBottom: 80 }}>
-      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px', ...(isMobile ? { padding: '0 20px' } : {}) }}>
 
         {/* ── Problem section ── */}
         <div style={{ padding: '58px 0 0' }}>
@@ -2290,7 +2340,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </Reveal>
 
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 0, ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
             {[
               {
                 stat: '~6 weeks',
@@ -2339,11 +2389,11 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         </div>
 
         {/* ── Value props bar ── */}
-        <div style={{ margin: '0 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div style={{ margin: '0 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           {([
             { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%' },
             { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '50%' },
-            { stat: '$2', label: 'FOR 20 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 20 different cuts.', bgPos: '100%' },
+            { stat: '$2', label: 'FOR 8 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 8 different cuts.', bgPos: '100%' },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
               <div className="value-card" style={{ '--card-wonk': `${[-0.6, 0.6, -0.4][i]}deg` } as React.CSSProperties}>
@@ -2360,7 +2410,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,6,4,0.60)' }} />
                 {/* Content */}
                 <div style={{ position: 'relative', zIndex: 1, padding: '34px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#ffffff', lineHeight: 1 }}>
+                  <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#9be39b', lineHeight: 1 }}>
                     {item.stat}
                   </div>
                   <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>
@@ -2380,7 +2430,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/transition2.png" alt="" style={{ display: 'block', width: '100%', transform: 'scaleY(-1)' }} />
 
-      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px 80px' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px 80px', ...(isMobile ? { padding: '0 20px 60px' } : {}) }}>
 
         {/* ── Steps ── */}
         <div id="how-it-works" style={{ marginTop: 48, paddingTop: 8 }}>
@@ -2397,7 +2447,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               This demo is live — send a message and try it yourself.
             </p>
           </Reveal>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
 
             {/* Step 1: Scan */}
             <Reveal wonk={-0.5} style={{ display: 'flex' }}>
@@ -2501,9 +2551,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </div>
             </Reveal>
 
-            {/* ── Connector badges — the pipeline, made visible ── */}
+            {/* ── Connector badges — the pipeline, made visible (horizontal layout only) ── */}
             {/* 1 → 2: quiet, sequence only */}
-            <Reveal delay={460} style={{ position: 'absolute', left: 'calc(33.333% - 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5 }}>
+            <Reveal delay={460} style={{ position: 'absolute', left: 'calc(33.333% - 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5, ...(isMobile ? { display: 'none' } : {}) }}>
               <div style={{
                 width: 34, height: 34, borderRadius: '50%',
                 background: 'var(--cream)', border: '1.5px solid rgba(42,32,26,0.18)',
@@ -2516,7 +2566,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               </div>
             </Reveal>
             {/* 2 → 3: tomato, re-pops on every send — this link is live */}
-            <Reveal delay={560} style={{ position: 'absolute', left: 'calc(66.667% + 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5 }}>
+            <Reveal delay={560} style={{ position: 'absolute', left: 'calc(66.667% + 3.3px)', top: '50%', marginLeft: -17, marginTop: -17, zIndex: 5, ...(isMobile ? { display: 'none' } : {}) }}>
               <div
                 key={describeActiveIdx ?? -1}
                 className={describeActiveIdx !== undefined ? 'popup-in' : ''}
@@ -2570,7 +2620,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
       {/* ── Dark charcoal section ── */}
       <div style={{ backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: '768px auto', backgroundRepeat: 'repeat', backgroundPosition: 'top left' }}>
-        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px' }}>
+        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 56px', ...(isMobile ? { padding: '0 20px' } : {}) }}>
 
           {/* ── Glimpse orbit section ── */}
           <GlimpseSection />
@@ -2605,7 +2655,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </Reveal>
 
           {/* ── Trust Strip ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: '0 0 64px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: '0 0 64px', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
             {[
               { title: 'Your photo stays private', body: 'We never sell or share your scan. Delete your data anytime from settings.' },
               { title: 'AI trained on real cuts', body: '3D facial mesh and strand-level simulation built from real barbershop styles.' },

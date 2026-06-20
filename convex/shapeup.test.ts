@@ -37,7 +37,7 @@ describe('users and credits', () => {
 
     await t.mutation(api.users.getOrCreate, {});
 
-    await expect(t.mutation(api.users.deductCredit, {})).rejects.toThrow(/No credits remaining/);
+    await expect(t.mutation(api.users.deductCredit, {})).rejects.toThrow(/out of credits/);
   });
 
   test('setUsername rejects profane and reserved usernames', async () => {

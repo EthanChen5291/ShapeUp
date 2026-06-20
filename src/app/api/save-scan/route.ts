@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { uploadToS3, getSignedDownloadUrl } from '@/lib/s3';
@@ -64,8 +65,11 @@ export async function POST(req: NextRequest) {
 
   const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // Upload scan image to S3
-  const scanS3Key = `pictures/${sessionId}/scan.png`;
+  // Upload scan image to S3. The S3 path uses a CSPRNG UUID — NOT the sessionId,
+  // which embeds a millisecond timestamp + non-crypto Math.random() suffix and is
+  // therefore guessable. Face scans are biometric data, so the key must be
+  // unguessable (matching the randomUUID() keys used for thumbnails/edit-images).
+  const scanS3Key = `pictures/${randomUUID()}/scan.png`;
   let downloadUrl: string | null = null;
   try {
     await uploadToS3(scanS3Key, buffer, parsedImage.mimeType);
@@ -89,6 +93,14 @@ export async function POST(req: NextRequest) {
   }
 
   console.log('[save-scan] done — sessionId:', sessionId);
-  // Fall back to the original data URL if S3 upload failed so the session still works
-  return NextResponse.json({ ok: true, sessionId, downloadUrl: downloadUrl ?? imageDataUrl });
+  // Fall back to the original data URL if S3 upload failed so the session still works.
+  // Return the real scanS3Key (a CSPRNG-UUID path the client cannot reconstruct) so
+  // callers persist the key the bytes actually live at. Only when upload succeeded —
+  // downloadUrl is null on S3 failure, in which case there is no object to point to.
+  return NextResponse.json({
+    ok: true,
+    sessionId,
+    downloadUrl: downloadUrl ?? imageDataUrl,
+    scanS3Key: downloadUrl ? scanS3Key : null,
+  });
 }

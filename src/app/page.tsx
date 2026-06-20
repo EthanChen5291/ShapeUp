@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { WaitlistPage } from '@/components/WaitlistPage';
 import LoadingScreen from '@/components/LoadingScreen';
 import LandingPage from '@/components/LandingPage';
+import { captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from '@/lib/referral';
 
 type AppState = 'loading' | 'landing';
 
@@ -18,11 +19,13 @@ export default function Home() {
   useQuery(api.users.getMe);
 
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => { setMounted(true); captureReferralFromUrl(); }, []);
 
   useEffect(() => {
     if (isSignedIn) {
-      getOrCreate().catch((err) => console.error('[Home] getOrCreate FAILED:', err));
+      getOrCreate({ referralCode: getPendingReferralCode() })
+        .then(() => clearPendingReferralCode())
+        .catch((err) => console.error('[Home] getOrCreate FAILED:', err));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);

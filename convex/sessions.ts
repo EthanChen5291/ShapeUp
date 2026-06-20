@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireConvexAdmin } from "./lib/adminAuth";
 
 export const create = mutation({
   args: {
@@ -20,11 +21,12 @@ export const create = mutation({
   },
 });
 
+// Admin: most recent sessions across all users. The /api/admin-sessions route
+// also restricts callers to admins; this enforces it independently.
 export const listRecent = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthenticated");
+    await requireConvexAdmin(ctx);
 
     return await ctx.db.query("sessions").order("desc").take(50);
   },

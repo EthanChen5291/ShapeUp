@@ -3,11 +3,11 @@
 /* ════════════════════════════════════════════════════════════════
    LiveScanCamera — the looking glass, now actually looking back.
 
-   Real-time face tracking drives six live requirement checks:
-     one face · centered · distance · facing forward · light · still
+   Real-time face tracking drives five live requirement checks:
+     one face · distance · facing forward · light · still
    The oval guide reacts (ink → tomato while coaching → butter when
-   ready), then a 3-2-1 Fraunces countdown auto-fires the shutter:
-   flash → polaroid develop → verify.
+   ready). The user fires the shutter themselves:
+     flash → polaroid develop → verify.
 
    Detection ladder:
      1. MediaPipe FaceLandmarker (CDN, GPU)   — full checks
@@ -21,34 +21,34 @@
        pipeline goes (the part that returns profile/sessionId/url).
    ════════════════════════════════════════════════════════════════ */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UserHeadProfile } from '@/types';
 
 /* ── Check model ─────────────────────────────────────────────── */
-export type CheckKey = 'face' | 'center' | 'distance' | 'facing' | 'light' | 'still';
+export type CheckKey = 'face' | 'distance' | 'facing' | 'light' | 'still';
 export type CheckState = 'idle' | 'fail' | 'pass';
 export type ChecksMap = Record<CheckKey, CheckState>;
 
 export const CHECK_META: Record<CheckKey, { label: string; coach: string }> = {
   face:     { label: 'One face in frame',      coach: 'step into the frame…' },
-  center:   { label: 'Centered in the oval',   coach: 'find the middle of the oval' },
   distance: { label: 'Arm\u2019s length away', coach: 'a touch closer…' },
   facing:   { label: 'Facing forward',         coach: 'look straight at yourself' },
   light:    { label: 'Good, even light',       coach: 'find some light' },
   still:    { label: 'Holding still',          coach: 'hold it right there…' },
 };
 
-export const CHECK_ORDER: CheckKey[] = ['face', 'center', 'distance', 'facing', 'light', 'still'];
+export const CHECK_ORDER: CheckKey[] = ['face', 'distance', 'facing', 'light', 'still'];
 
 const FRESH_CHECKS = (): ChecksMap => ({
-  face: 'idle', center: 'idle', distance: 'idle', facing: 'idle', light: 'idle', still: 'idle',
+  face: 'idle', distance: 'idle', facing: 'idle', light: 'idle', still: 'idle',
 });
 
 /* Hysteresis: a check must agree for N consecutive frames to flip. */
 const PASS_FRAMES = 4;
 const FAIL_FRAMES = 6;
-const ALL_PASS_HOLD_MS = 750;   // dwell before countdown starts
-const COUNTDOWN_TICK_MS = 720;
+
+/* Head-tilt tolerance: eye-line more than this many degrees off level reads as tilted. */
+const TILT_DEG = 8;
 
 type Engine = 'mediapipe' | 'native' | 'manual';
 
@@ -57,12 +57,13 @@ interface FaceObservation {
   cx: number; cy: number;       // face box center
   w: number; h: number;         // face box size
   yawRatio: number | null;      // |nose→Leye| / |nose→Reye|, null if unknown
+  roll: number | null;          // eye-line angle off horizontal in degrees, null if unknown
   count: number;                // faces seen
 }
 
 export interface LiveScanCameraProps {
   hairType: string;
-  onScanComplete: (profile: UserHeadProfile, sessionId: string | null, url: string | null) => void;
+  onScanComplete: (profile: UserHeadProfile, sessionId: string | null, url: string | null, scanS3Key: string | null) => void;
   onDataUrlReady?: (dataUrl: string) => void;
   onChecksChange?: (checks: ChecksMap, allPass: boolean) => void;
   onDismiss?: () => void;
@@ -73,106 +74,45 @@ export interface LiveScanCameraProps {
      captured dataUrl, run your existing /api scan pipeline, and
      resolve with what handleCapture in ScanPopup expects.       */
   processCapture?: (dataUrl: string) => Promise<{
-    profile: UserHeadProfile; sessionId: string | null; url: string | null;
+    profile: UserHeadProfile; sessionId: string | null; url: string | null; scanS3Key: string | null;
   }>;
 }
 
 /* ── Upload an Image hover button ───────────────────────────── */
 function UploadImageButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   const [hovered, setHovered] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [dims, setDims] = useState({ w: 0, h: 0 });
-
-  useLayoutEffect(() => {
-    if (!btnRef.current) return;
-    const update = () => {
-      if (!btnRef.current) return;
-      const r = btnRef.current.getBoundingClientRect();
-      setDims({ w: r.width, h: r.height });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(btnRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  const BR = 8;
-  const TRACE_INSET = 2;
-  const STROKE_W = 1.5;
-  const rx = Math.max(2, BR - TRACE_INSET);
-  const rw = Math.max(0, dims.w - TRACE_INSET * 2);
-  const rh = Math.max(0, dims.h - TRACE_INSET * 2);
-  const perimeter = dims.w > 0
-    ? 2 * ((rw - 2 * rx) + (rh - 2 * rx)) + 2 * Math.PI * rx
-    : 0;
-
   const isHov = hovered && !disabled;
 
   return (
     <button
-      ref={btnRef}
       type="button"
       onClick={onClick}
       disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className="font-display"
       style={{
-        position: 'relative',
-        overflow: 'hidden',
-        background: 'none',
         border: 'none',
-        borderRadius: BR,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        padding: '7px 12px',
-        fontFamily: 'var(--font-fraunces), Georgia, serif',
-        fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144",
-        fontWeight: 700,
+        alignSelf: 'center',
+        width: 'fit-content',
+        padding: '9px 19px',
+        borderRadius: 17,
+        background: 'var(--butter, #ffe7b0)',
+        color: 'var(--char, #1a1410)',
         fontSize: 15,
-        letterSpacing: '-0.01em',
-        color: isHov ? 'var(--char)' : 'rgba(255,248,234,0.85)',
+        fontWeight: 600,
+        letterSpacing: '0.01em',
+        lineHeight: 1.3,
+        boxShadow: '0 6px 18px -8px rgba(0, 0, 0, 0.45)',
         opacity: disabled ? 0.38 : 1,
-        transition: 'transform 300ms cubic-bezier(0.34,1.56,0.64,1), color 200ms ease',
+        transformOrigin: 'center',
         transform: isHov ? 'scale(1.06)' : 'scale(1)',
+        transition: 'transform 360ms cubic-bezier(0.16,1,0.3,1)',
         marginTop: 4,
       }}
     >
-      {/* Amber fill — grows from center on hover */}
-      <span aria-hidden style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(255,232,170,0.93)',
-        clipPath: isHov ? `inset(0% round ${BR}px)` : `inset(50% round ${rx}px)`,
-        transition: 'clip-path 560ms cubic-bezier(0.16,1,0.3,1)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-
-      {/* White SVG trace — draws around border on hover */}
-      {perimeter > 0 && (
-        <svg
-          aria-hidden
-          viewBox={`0 0 ${dims.w} ${dims.h}`}
-          style={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            pointerEvents: 'none', zIndex: 1,
-            filter: isHov ? 'drop-shadow(0 0 4px rgba(255,255,255,0.5))' : undefined,
-            transition: 'filter 200ms ease',
-          }}
-        >
-          <rect
-            x={TRACE_INSET} y={TRACE_INSET}
-            width={rw} height={rh}
-            rx={rx} ry={rx}
-            fill="none"
-            stroke="rgba(255,255,255,0.88)"
-            strokeWidth={STROKE_W}
-            strokeDasharray={perimeter}
-            strokeDashoffset={isHov ? 0 : perimeter}
-            style={{ transition: `stroke-dashoffset ${isHov ? '680ms' : '140ms'} cubic-bezier(0.16,1,0.3,1)` }}
-          />
-        </svg>
-      )}
-
-      <span style={{ position: 'relative', zIndex: 2 }}>Upload an Image</span>
+      Upload an Image
     </button>
   );
 }
@@ -196,22 +136,27 @@ export default function LiveScanCamera({
   const [camError, setCamError] = useState<string | null>(null);
   const [checks, setChecks]   = useState<ChecksMap>(FRESH_CHECKS);
   const [allPass, setAllPass] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash]     = useState(false);
   const [shot, setShot]       = useState<string | null>(null); // dataUrl after capture
   const [uploading, setUploading] = useState(false);
+  const [tilted, setTilted]   = useState(false);  // head rolled off level → side message
+  const [confirmOpen, setConfirmOpen] = useState(false); // "checks not met" guard
+  const [confirmFails, setConfirmFails] = useState<CheckKey[]>([]); // frozen at popup-open
 
   /* frame-loop scratch (refs to avoid re-render churn) */
-  const passStreak = useRef<Record<CheckKey, number>>({ face: 0, center: 0, distance: 0, facing: 0, light: 0, still: 0 });
-  const failStreak = useRef<Record<CheckKey, number>>({ face: 0, center: 0, distance: 0, facing: 0, light: 0, still: 0 });
+  const passStreak = useRef<Record<CheckKey, number>>({ face: 0, distance: 0, facing: 0, light: 0, still: 0 });
+  const failStreak = useRef<Record<CheckKey, number>>({ face: 0, distance: 0, facing: 0, light: 0, still: 0 });
   const liveChecks = useRef<ChecksMap>(FRESH_CHECKS());
   const lastCenters = useRef<Array<{ t: number; x: number; y: number }>>([]);
-  const allPassSince = useRef<number | null>(null);
   const lastPublished = useRef<ChecksMap>(FRESH_CHECKS());
   const lastReady = useRef(false);
-  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const capturedRef = useRef(false);
+  const pendingShotRef = useRef<string | null>(null); // frozen frame awaiting confirm
   const lastDetect = useRef(0);
+  /* tilt debounce — flip the side message only after a few agreeing frames */
+  const tiltStreak = useRef(0);
+  const levelStreak = useRef(0);
+  const tiltedRef = useRef(false);
 
   const checksUpRef = useRef(onChecksChange);
   checksUpRef.current = onChecksChange;
@@ -288,7 +233,7 @@ export default function LiveScanCamera({
       try { res = landmarkerRef.current.detectForVideo(v, now); }
       catch { return null; }
       const faces = res.faceLandmarks ?? [];
-      if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, count: 0 };
+      if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, roll: null, count: 0 };
       const pts = faces[0];
       let minX = 1, minY = 1, maxX = 0, maxY = 0;
       for (const p of pts) {
@@ -298,10 +243,13 @@ export default function LiveScanCamera({
       const nose = pts[1], lEye = pts[33], rEye = pts[263];
       const dl = Math.hypot(nose.x - lEye.x, nose.y - lEye.y);
       const dr = Math.hypot(nose.x - rEye.x, nose.y - rEye.y);
+      /* roll = angle of the eye line off horizontal; magnitude is mirror-invariant */
+      const roll = Math.atan2(rEye.y - lEye.y, rEye.x - lEye.x) * 180 / Math.PI;
       return {
         cx: (minX + maxX) / 2, cy: (minY + maxY) / 2,
         w: maxX - minX, h: maxY - minY,
         yawRatio: dr > 0.0001 ? dl / dr : null,
+        roll,
         count: faces.length,
       };
     }
@@ -309,13 +257,14 @@ export default function LiveScanCamera({
     if (eng === 'native' && nativeRef.current) {
       try {
         const faces = await nativeRef.current.detect(v);
-        if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, count: 0 };
+        if (!faces.length) return { cx: 0, cy: 0, w: 0, h: 0, yawRatio: null, roll: null, count: 0 };
         const b = faces[0].boundingBox;
         return {
           cx: (b.x + b.width / 2) / v.videoWidth,
           cy: (b.y + b.height / 2) / v.videoHeight,
           w: b.width / v.videoWidth, h: b.height / v.videoHeight,
           yawRatio: null,
+          roll: null,
           count: faces.length,
         };
       } catch { return null; }
@@ -368,7 +317,6 @@ export default function LiveScanCamera({
         if (!manual && obs) {
           judge('face', obs.count === 1);
           if (obs.count === 1) {
-            judge('center', Math.abs(obs.cx - 0.5) < 0.13 && Math.abs(obs.cy - 0.46) < 0.15);
             judge('distance', obs.h > 0.30 && obs.h < 0.68);
             judge('facing', obs.yawRatio === null ? true : obs.yawRatio > 0.62 && obs.yawRatio < 1.62);
             /* stillness over a 600ms window */
@@ -379,7 +327,23 @@ export default function LiveScanCamera({
             for (let i = 1; i < pts.length; i++) drift += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
             judge('still', pts.length > 3 && drift < 0.055);
           } else {
-            (['center', 'distance', 'facing', 'still'] as CheckKey[]).forEach(k => judge(k, false));
+            (['distance', 'facing', 'still'] as CheckKey[]).forEach(k => judge(k, false));
+          }
+
+          /* head-tilt (roll) side message — only with landmarks (mediapipe) */
+          if (obs.count === 1 && obs.roll !== null) {
+            const isTilted = Math.abs(obs.roll) > TILT_DEG;
+            if (isTilted) { tiltStreak.current++; levelStreak.current = 0; }
+            else          { levelStreak.current++; tiltStreak.current = 0; }
+            if (!tiltedRef.current && tiltStreak.current >= PASS_FRAMES) {
+              tiltedRef.current = true; setTilted(true);
+            } else if (tiltedRef.current && levelStreak.current >= FAIL_FRAMES) {
+              tiltedRef.current = false; setTilted(false);
+            }
+          } else if (tiltedRef.current) {
+            /* lost the face / no landmarks — clear the message */
+            tiltedRef.current = false; setTilted(false);
+            tiltStreak.current = 0; levelStreak.current = 0;
           }
         }
         if (luma !== null) judge('light', luma > 58 && luma < 215);
@@ -397,19 +361,6 @@ export default function LiveScanCamera({
           setAllPass(ready);
           checksUpRef.current?.(snapshot, ready);
         }
-
-        /* auto-capture orchestration (detection engines only) */
-        if (!manual) {
-          if (ready) {
-            if (allPassSince.current === null) allPassSince.current = now;
-            else if (now - allPassSince.current > ALL_PASS_HOLD_MS && countdownTimer.current === null && !capturedRef.current) {
-              startCountdown();
-            }
-          } else {
-            allPassSince.current = null;
-            if (countdownTimer.current !== null) cancelCountdown();
-          }
-        }
       }
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -418,44 +369,37 @@ export default function LiveScanCamera({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, camError, shot]);
 
-  /* ── Countdown + shutter ────────────────────────────────────── */
-  const cancelCountdown = () => {
-    if (countdownTimer.current !== null) { clearInterval(countdownTimer.current); countdownTimer.current = null; }
-    setCountdown(null);
-  };
-
-  const startCountdown = () => {
-    let n = 3;
-    setCountdown(3);
-    countdownTimer.current = setInterval(() => {
-      n -= 1;
-      if (n <= 0) { cancelCountdown(); fireShutter(); }
-      else setCountdown(n);
-    }, COUNTDOWN_TICK_MS);
-  };
-
-  const fireShutter = () => {
-    if (capturedRef.current) return;
+  /* ── Shutter ────────────────────────────────────────────────── */
+  /* Grab the current video frame as a square, mirrored dataUrl — a pure
+     snapshot with no side effects, so the moment the user presses the
+     button is the moment that gets frozen and (later) processed. */
+  const captureFrame = (): string | null => {
     const v = videoRef.current;
-    if (!v || v.readyState < 2) return;
-    capturedRef.current = true;
-
-    setFlash(true);
-    setTimeout(() => setFlash(false), 160);
-
+    if (!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight) return null;
     if (!shotCanvas.current) shotCanvas.current = document.createElement('canvas');
     const c = shotCanvas.current;
     const side = Math.min(v.videoWidth, v.videoHeight);
     c.width = side; c.height = side;
     const ctx = c.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
     /* center-crop square, mirrored to match the preview the user saw */
     ctx.save();
     ctx.translate(side, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, side, side);
     ctx.restore();
-    const dataUrl = c.toDataURL('image/jpeg', 0.92);
+    return c.toDataURL('image/jpeg', 0.92);
+  };
+
+  /* Commit an already-captured frame: flash, develop, and run the upload
+     pipeline. Takes the dataUrl so the frozen frame is what gets processed. */
+  const commitShot = (dataUrl: string) => {
+    if (capturedRef.current) return;
+    capturedRef.current = true;
+
+    setFlash(true);
+    setTimeout(() => setFlash(false), 160);
+
     onDataUrlReady?.(dataUrl);
     setShot(dataUrl);
 
@@ -463,12 +407,12 @@ export default function LiveScanCamera({
       setUploading(true);
       try {
         if (processCapture) {
-          const { profile, sessionId, url } = await processCapture(dataUrl);
-          onScanComplete(profile, sessionId, url);
+          const { profile, sessionId, url, scanS3Key } = await processCapture(dataUrl);
+          onScanComplete(profile, sessionId, url, scanS3Key);
         } else {
           /* TODO: replace with your old ScanCamera upload pipeline.
              Until wired, hand the raw dataUrl up so the flow still moves. */
-          onScanComplete({} as UserHeadProfile, null, dataUrl);
+          onScanComplete({} as UserHeadProfile, null, dataUrl, null);
         }
       } finally {
         setUploading(false);
@@ -476,9 +420,40 @@ export default function LiveScanCamera({
     }, 950); // let the develop animation breathe first
   };
 
+  const fireShutter = () => {
+    if (capturedRef.current) return;
+    const dataUrl = captureFrame();
+    if (!dataUrl) return;
+    commitShot(dataUrl);
+  };
+
   const handleManualShutter = () => {
-    if (countdownTimer.current !== null || capturedRef.current) return;
+    if (capturedRef.current || confirmOpen) return;
+    /* When detection is live but the checklist isn't fully met, the shutter
+       isn't "armed" (red). Freeze the frame and the unmet checks right now,
+       then ask the user to confirm before processing that exact selfie. */
+    if (detecting && !allPass) {
+      const dataUrl = captureFrame();
+      if (!dataUrl) return;
+      pendingShotRef.current = dataUrl;
+      setConfirmFails(CHECK_ORDER.filter(k => checks[k] !== 'pass'));
+      setConfirmOpen(true);
+      return;
+    }
     fireShutter();
+  };
+
+  const confirmCapture = () => {
+    setConfirmOpen(false);
+    const frozen = pendingShotRef.current;
+    pendingShotRef.current = null;
+    if (frozen) commitShot(frozen);
+    else fireShutter();
+  };
+
+  const cancelConfirm = () => {
+    setConfirmOpen(false);
+    pendingShotRef.current = null;
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -487,8 +462,6 @@ export default function LiveScanCamera({
     e.target.value = '';
     if (capturedRef.current) return;
     capturedRef.current = true;
-
-    cancelCountdown();
 
     try {
       const bitmap = await createImageBitmap(file);
@@ -507,10 +480,10 @@ export default function LiveScanCamera({
         setUploading(true);
         try {
           if (processCapture) {
-            const { profile, sessionId, url } = await processCapture(dataUrl);
-            onScanComplete(profile, sessionId, url);
+            const { profile, sessionId, url, scanS3Key } = await processCapture(dataUrl);
+            onScanComplete(profile, sessionId, url, scanS3Key);
           } else {
-            onScanComplete({} as UserHeadProfile, null, dataUrl);
+            onScanComplete({} as UserHeadProfile, null, dataUrl, null);
           }
         } finally {
           setUploading(false);
@@ -527,18 +500,6 @@ export default function LiveScanCamera({
   const ringTone = allPass ? 'ready' : anyFail ? 'coach' : 'idle';
   const ringColor = ringTone === 'ready' ? 'var(--butter)' : ringTone === 'coach' ? 'var(--tomato)' : 'rgba(255,248,234,0.45)';
 
-  /* first failing check decides the coaching line */
-  const firstIssue = CHECK_ORDER.find(k => checks[k] !== 'pass');
-  const coachLine = !detecting
-    ? (engine === 'booting' ? 'warming up the chair…' : 'line yourself up, then tap the shutter')
-    : countdown !== null
-    ? `looking sharp — ${countdown}`
-    : allPass
-    ? 'hold it right there…'
-    : firstIssue
-    ? CHECK_META[firstIssue].coach
-    : 'line yourself up…';
-
   /* ════════════════════ RENDER ════════════════════ */
   return (
     <div className="lsc-root">
@@ -549,8 +510,15 @@ export default function LiveScanCamera({
         className="hidden"
         onChange={handleUpload}
       />
+
       {/* ── viewfinder ── */}
-      <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
+      <div className="lsc-stage">
+        {/* head-tilt nudge — floats to the left of the camera */}
+        <div className={`lsc-tilt-msg font-mono ${tilted && !shot && !camError ? 'is-on' : ''}`} role="status" aria-hidden={!tilted}>
+          Your head looks tilted — straighten it up so it’s level.
+        </div>
+
+        <div className={`lsc-frame ${ringTone === 'ready' ? 'lsc-frame-ready' : ''}`}>
         <video ref={videoRef} playsInline muted className="lsc-video" />
         <div className="lsc-grain" aria-hidden />
 
@@ -570,11 +538,6 @@ export default function LiveScanCamera({
           />
         </svg>
 
-        {/* countdown numeral */}
-        {countdown !== null && (
-          <div key={countdown} className="lsc-count font-display">{countdown}</div>
-        )}
-
         {/* shutter flash */}
         <div className="lsc-flash" style={{ opacity: flash ? 1 : 0, transition: flash ? 'none' : 'opacity 160ms ease-out' }} aria-hidden />
 
@@ -587,7 +550,7 @@ export default function LiveScanCamera({
 
         {/* engine pip */}
         <div className="lsc-pip font-mono">
-          {engine === 'booting' ? 'loading lens…' : detecting ? '● live face tracking' : '○ manual mode'}
+          {engine === 'booting' ? 'loading lens…' : detecting ? '● live' : '○ manual mode'}
         </div>
 
         {camError && (
@@ -595,10 +558,10 @@ export default function LiveScanCamera({
             <span className="font-mono" style={{ fontSize: 11 }}>{camError}</span>
           </div>
         )}
+        </div>
       </div>
 
-      {/* ── caption + shutter ── */}
-      <p className="lsc-caption font-display" key={coachLine}>{coachLine}</p>
+      {/* ── shutter ── */}
       <div className="lsc-shutter-row">
         <button
           type="button"
@@ -616,10 +579,37 @@ export default function LiveScanCamera({
       )}
 
       {!shot && !uploading && (
-        <UploadImageButton
-          onClick={() => fileInputRef.current?.click()}
-          disabled={engine === 'booting'}
-        />
+        <div className="lsc-upload-cluster">
+          <UploadImageButton
+            onClick={() => fileInputRef.current?.click()}
+            disabled={engine === 'booting'}
+          />
+        </div>
+      )}
+
+      {/* ── checks-not-met confirmation ── */}
+      {confirmOpen && (
+        <div className="lsc-confirm-veil" role="dialog" aria-modal="true" onClick={cancelConfirm}>
+          <div className="lsc-confirm-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display lsc-confirm-title">Take it anyway?</h3>
+            <p className="lsc-confirm-body">
+              These recommendations aren&rsquo;t met yet. Capturing now can lower the quality of your scan:
+            </p>
+            <ul className="lsc-confirm-list">
+              {confirmFails.map((k) => (
+                <li key={k}>{CHECK_META[k].label}</li>
+              ))}
+            </ul>
+            <div className="lsc-confirm-actions">
+              <button type="button" className="lsc-confirm-cancel font-display" onClick={cancelConfirm}>
+                Keep adjusting
+              </button>
+              <button type="button" className="lsc-confirm-go" onClick={confirmCapture}>
+                Take it anyway
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

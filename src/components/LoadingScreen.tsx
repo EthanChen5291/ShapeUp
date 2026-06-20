@@ -137,7 +137,7 @@ export default function LoadingScreen({ onDone, ready }: { onDone: () => void; r
           />
         </svg>
 
-        <div style={{ width: 56, transform: 'rotate(186deg)' }}>
+        <div style={{ width: 56 }}>
           <BarberMascot snap />
         </div>
         <h1

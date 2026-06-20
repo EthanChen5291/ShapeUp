@@ -225,7 +225,10 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
       return;
     }
     if (!(await ensureBiometricConsent())) return;
-    if (!paywallDisabled && convexUser != null && convexUser.credits <= 0) {
+    // availableGenerations folds in the one-time free generation, so a brand-new
+    // 0-credit user can still scan. getMe always provides it; fall back to raw
+    // credits for safety.
+    if (!paywallDisabled && convexUser != null && (convexUser.availableGenerations ?? convexUser.credits) <= 0) {
       onNoTokens?.();
       return;
     }

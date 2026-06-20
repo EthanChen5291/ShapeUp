@@ -3,18 +3,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSignedIn } from '@/lib/serverAuth';
+import { getFaceliftHeaders, isFaceliftConfigured, resolveFaceliftUrl } from '@/lib/facelift';
 
-const FACELIFT_URL = process.env.FACELIFT_URL ?? '';
-const FACELIFT_SHARED_SECRET = process.env.FACELIFT_SHARED_SECRET ?? '';
 const JOB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
-
-function getFaceliftHeaders(): HeadersInit {
-  return {
-    'ngrok-skip-browser-warning': '1',
-    'User-Agent': 'shapeup',
-    ...(FACELIFT_SHARED_SECRET ? { 'X-ShapeUp-Facelift-Secret': FACELIFT_SHARED_SECRET } : {}),
-  };
-}
 
 export async function GET(
   _req: NextRequest,
@@ -23,8 +14,8 @@ export async function GET(
   const authResult = await requireSignedIn();
   if (authResult.response) return authResult.response;
 
-  if (!FACELIFT_URL) {
-    return NextResponse.json({ error: 'FACELIFT_URL not configured' }, { status: 503 });
+  if (!isFaceliftConfigured()) {
+    return NextResponse.json({ error: 'FaceLift upstream not configured' }, { status: 503 });
   }
 
   const { jobId, file } = await params;
@@ -37,7 +28,8 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid jobId' }, { status: 400 });
   }
 
-  const upstream = await fetch(`${FACELIFT_URL}/download/${encodeURIComponent(jobId)}/${isPly ? 'ply' : 'video'}`, {
+  const faceliftUrl = await resolveFaceliftUrl();
+  const upstream = await fetch(`${faceliftUrl}/download/${encodeURIComponent(jobId)}/${isPly ? 'ply' : 'video'}`, {
     headers: getFaceliftHeaders(),
   });
 

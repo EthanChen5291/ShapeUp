@@ -23,8 +23,8 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import HairStrandMesh from './HairStrandMesh';
+import SplatVideoCapture from './SplatVideoCapture';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
-import { parseNPY } from '@/lib/parseNPY';
 
 // ── Polycam head ─────────────────────────────────────────────
 function PolycamHeadGLB() {
@@ -62,73 +62,6 @@ function PolycamHead() {
   );
 }
 
-// ── Hair depth points (npy) ─────────────────────────────────
-
-// Renders a .npy file as a visible point cloud.
-// Handles two shapes:
-//   (N, 3)  — direct XYZ points (used as-is, scaled by scale/position group)
-//   (H, W)  — 2D depth map: constructs 3D points by mapping pixel (i,j) →
-//              (x, y) in PLY bbox space and depth value → z offset.
-//              Subsampled every DEPTH_STEP pixels to keep point count manageable.
-const DEPTH_STEP = 6; // sample every Nth pixel from the depth map
-// PLY bbox extents used to normalize depth map pixel coords into PLY space.
-const PLY_W = 0.34; const PLY_H = 0.37; const PLY_D = 0.30;
-const PLY_Y_CENTER = 1.72; const PLY_Z_CENTER = -0.016;
-
-function HairDepthPoints({ url, color, scale, position }: {
-  url: string;
-  color: string;
-  scale: number;
-  position: [number, number, number];
-}) {
-  const [geo, setGeo] = useState<THREE.BufferGeometry | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    parseNPY(url).then(({ data, shape }) => {
-      if (cancelled) return;
-      const g = new THREE.BufferGeometry();
-
-      let positions: Float32Array;
-
-      if (shape.length === 2) {
-        // 2D depth map (H, W): build point cloud in PLY coordinate space
-        const [H, W] = shape;
-        const pts: number[] = [];
-        for (let i = 0; i < H; i += DEPTH_STEP) {
-          for (let j = 0; j < W; j += DEPTH_STEP) {
-            const d = data[i * W + j];
-            if (d <= 0) continue; // skip background/empty pixels
-            const x = ((j - W / 2) / W) * PLY_W;
-            const y = PLY_Y_CENTER - ((i - H / 2) / H) * PLY_H;
-            const z = PLY_Z_CENTER + (d - 0.5) * PLY_D;
-            pts.push(x, y, z);
-          }
-        }
-        positions = new Float32Array(pts);
-      } else {
-        // (N, 3): direct XYZ points
-        positions = new Float32Array(data);
-      }
-
-      g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      setGeo(g);
-    });
-    return () => { cancelled = true; };
-  }, [url]);
-
-  useEffect(() => () => { geo?.dispose(); }, [geo]);
-
-  if (!geo) return null;
-  return (
-    <group scale={scale} position={position}>
-      <points geometry={geo}>
-        <pointsMaterial color={color} size={0.02} sizeAttenuation depthWrite={false} />
-      </points>
-    </group>
-  );
-}
-
 // ── Scene content ───────────────────────────────────────────
 
 // Fallback hair transform used before a measured PLY bbox is available.
@@ -138,19 +71,24 @@ const HAIR_PLY_POS_DEFAULT: [number, number, number] = [0, -23.149, 0.7];
 
 const ORBIT_SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.5, 4.0];
 
+// Default orbit camera framing — matches the <Canvas camera> below and the
+// orbit target. The 360° capture resets to this so a zoomed-in/elevated live
+// view doesn't produce a bad clip.
+const DEFAULT_CAMERA_POS: [number, number, number] = [0, 0, 7.8];
+const DEFAULT_ORBIT_TARGET: [number, number, number] = [0, 0, 0];
+
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
-// type 'ply' → HairStrandMesh, type 'npy' → HairDepthPoints
-type HairLayer = { type: 'ply' | 'npy'; id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
+type HairLayer = { id: string; label: string; url: string; color: string; lineWidth: number; renderOrder: number; yOffset?: number };
 const S3_HAIR = 'https://shape-up-s3.s3.us-east-1.amazonaws.com/hair';
 
 const HAIR_LAYERS: HairLayer[] = [
-  { type: 'ply', id: 'pretty interesting', label: 'Modified',    url: `${S3_HAIR}/hair_modified.ply`, color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'pretty thick',    label: 'Strands 1',   url: `${S3_HAIR}/strands_1.ply`,   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'medium bob',     label: 'Preset A',    url: `${S3_HAIR}/preset_a.ply`,    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'medium long',        label: 'Guest',       url: `${S3_HAIR}/guest.ply`,       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'brunohair',    label: 'Bruno',       url: `${S3_HAIR}/brunohair.ply`,   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
-  { type: 'ply', id: 'top_hair',     label: 'Top Hair',    url: `${S3_HAIR}/top_hair.ply`,    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
+  { id: 'pretty interesting', label: 'Modified',    url: `${S3_HAIR}/hair_modified.ply`, color: '#dca850', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'pretty thick',    label: 'Strands 1',   url: `${S3_HAIR}/strands_1.ply`,   color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'medium bob',     label: 'Preset A',    url: `${S3_HAIR}/preset_a.ply`,    color: '#c8a050', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'medium long',        label: 'Guest',       url: `${S3_HAIR}/guest.ply`,       color: '#c0b090', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'brunohair',    label: 'Bruno',       url: `${S3_HAIR}/brunohair.ply`,   color: '#0f0d0c', lineWidth: 0.8, renderOrder: 0 },
+  { id: 'top_hair',     label: 'Top Hair',    url: `${S3_HAIR}/top_hair.ply`,    color: '#3b1f0a', lineWidth: 0.8, renderOrder: 0, yOffset: -0.3 },
 ];
 
 type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
@@ -168,7 +106,7 @@ function isTyping(): boolean {
 }
 
 function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any> }) {
-  const { camera } = useThree();
+  const { camera, invalidate } = useThree();
   const keys    = useRef(new Set<string>());
   const velRot  = useRef({ theta: 0, phi: 0 });
   const velMove = useRef(new THREE.Vector3());
@@ -177,6 +115,7 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
     const onDown = (e: KeyboardEvent) => {
       if (isTyping()) return;
       keys.current.add(e.code);
+      invalidate(); // kick the demand-mode loop on first keydown
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code))
         e.preventDefault();
     };
@@ -190,7 +129,7 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, []);
+  }, [invalidate]);
 
   useFrame((_, delta) => {
     const controls = orbitRef.current;
@@ -232,6 +171,8 @@ function KeyboardCameraController({ orbitRef }: { orbitRef: React.RefObject<any>
     controls.target.add(move);
 
     controls.update();
+    // In demand mode, keep requesting frames while keys are held
+    if (keys.current.size > 0) invalidate();
   });
 
   return null;
@@ -252,46 +193,78 @@ interface SceneProps {
   hairColor?: string;
   orbitRotateSpeed?: number;
   disableKeyboardControls?: boolean;
+  background?: string;
   captureKey?: number;
+  renderQuality?: 'performance' | 'balanced' | 'high';
+  videoCaptureKey?: number;
+  captureBackground?: string;
+  onVideoProgress?: (p: number) => void;
+  onVideoReady?: (blob: Blob, ext: string) => void;
+  onVideoError?: (err: unknown) => void;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-// Captures a 45° screenshot once the scene has rendered, then calls back.
-function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
-  const { gl, scene, camera } = useThree();
-  const doneRef = useRef(false);
-  const readyRef = useRef(false);
-
+// Sets scene.background from the CSS-style background string passed to HairScene.
+// url(...) → TextureLoader; #hex / rgb(...) → THREE.Color; anything else → no-op.
+function SceneBackground({ background }: { background: string }) {
+  const { scene } = useThree();
   useEffect(() => {
-    const t = setTimeout(() => { readyRef.current = true; }, 2000);
-    return () => clearTimeout(t);
-  }, []);
+    if (background.startsWith('url(')) {
+      const path = background.match(/url\(([^)]+)\)/)?.[1] ?? '/preview_bg.jpg';
+      const tex = new THREE.TextureLoader().load(path);
+      scene.background = tex;
+      return () => { tex.dispose(); scene.background = null; };
+    }
+    if (background.startsWith('#') || background.startsWith('rgb')) {
+      scene.background = new THREE.Color(background);
+      return () => { scene.background = null; };
+    }
+  }, [background, scene]);
+  return null;
+}
+
+// Captures the current canvas view as a square 512×512 JPEG thumbnail.
+// Center-crops gl.domElement to a square (handles any panel aspect ratio),
+// then downsamples to 512×512. No camera movement — captures the user's
+// current view angle with whatever scene.background is active.
+// TODO: generate thumbnail server-side during facelift instead of capturing client canvas.
+function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
+  const { gl } = useThree();
+  const doneRef = useRef(false);
+  const frameRef = useRef(0);
 
   useFrame(() => {
-    if (!readyRef.current || doneRef.current) return;
+    if (doneRef.current) return;
+    frameRef.current += 1;
+    if (frameRef.current < 3) return; // wait 3 frames to ensure scene is rendered
     doneRef.current = true;
-    const origPos = camera.position.clone();
-    camera.position.set(5.5, 0, 5.5);
-    camera.lookAt(0, 0, 0);
-    gl.render(scene, camera);
-    const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.85);
-    camera.position.copy(origPos);
-    camera.lookAt(0, 0, 0);
-    onCapture(dataUrl);
+
+    const SIZE = 512;
+    const cw = gl.domElement.width;
+    const ch = gl.domElement.height;
+    const side = Math.min(cw, ch);
+    const sx = (cw - side) / 2;
+    const sy = (ch - side) / 2;
+    const thumb = document.createElement('canvas');
+    thumb.width = SIZE;
+    thumb.height = SIZE;
+    thumb.getContext('2d')!.drawImage(gl.domElement, sx, sy, side, side, 0, 0, SIZE, SIZE);
+    onCapture(thumb.toDataURL('image/jpeg', 0.82));
   });
 
   return null;
 }
 
-function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
+function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, renderQuality = 'balanced', videoCaptureKey, captureBackground, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[5, 10, 5]}  intensity={1.0} castShadow />
-      <directionalLight position={[0, 2, 5]}   intensity={0.8} />
+      {background && <SceneBackground background={background} />}
+      <ambientLight intensity={renderQuality === 'performance' ? 0.75 : 0.5} />
+      <directionalLight position={[5, 10, 5]} intensity={1.0} castShadow={renderQuality !== 'performance'} />
+      <directionalLight position={[0, 2, 5]}  intensity={0.8} />
 
       {showPolycam && <PolycamHead />}
 
@@ -301,52 +274,57 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
         </Suspense>
       )}
 
-      {HAIR_LAYERS.filter(l => visibleLayers.has(l.id)).map(l =>
-        l.type === 'npy' ? (
-          <HairDepthPoints
-            key={l.id}
-            url={l.url}
-            color={hairColor ?? l.color}
-            scale={hairScale}
-            position={hairPos}
-          />
-        ) : (
-          <HairStrandMesh
-            key={l.id}
-            url={l.url}
-            color={hairColor ?? l.color}
-            scale={hairScale}
-            position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
-            lineWidth={l.lineWidth}
-            renderOrder={l.renderOrder}
-            onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
-          />
-        )
-      )}
-
-      {hairstepPlyUrl && (
-        <>
+      {HAIR_LAYERS.filter(l => visibleLayers.has(l.id)).map(l => (
         <HairStrandMesh
-          url={hairstepPlyUrl}
-          color={hairColor ?? "#3b1f0a"}
+          key={l.id}
+          url={l.url}
+          color={hairColor ?? l.color}
           scale={hairScale}
-          position={hairPos}
-          lineWidth={0.8}
-          renderOrder={0}
-          onBBoxReady={onPrimaryHairBBoxReady}
+          position={'yOffset' in l ? [hairPos[0], hairPos[1] + (l as {yOffset:number}).yOffset, hairPos[2]] : hairPos}
+          lineWidth={l.lineWidth}
+          renderOrder={l.renderOrder}
+          renderQuality={renderQuality}
+          onBBoxReady={l.id === 'hair_modified' ? onPrimaryHairBBoxReady : undefined}
         />
-        {visibleLayers.has('top_hair') && (
-          <HairStrandMesh
-            url={`${S3_HAIR}/top_hair.ply`}
-            color={hairColor ?? "#3b1f0a"}
-            scale={hairScale}
-            position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
-            lineWidth={0.8}
-            renderOrder={0}
-          />
-        )}
-        </>
-      )}
+      ))}
+
+      {hairstepPlyUrl && (() => {
+        const lw = renderQuality === 'performance' ? 0.6 : renderQuality === 'high' ? 0.9 : 0.8;
+        const passes = renderQuality === 'high' ? 3 : 1;
+        const offsets: [number, number, number][] = [
+          [0, 0, 0],
+          [0.003, 0.003, 0],
+          [-0.003, -0.003, 0],
+        ];
+        return (
+          <>
+            {Array.from({ length: passes }, (_, pi) => (
+              <HairStrandMesh
+                key={`hairstep-${pi}`}
+                url={hairstepPlyUrl}
+                color={hairColor ?? "#3b1f0a"}
+                scale={hairScale}
+                position={[hairPos[0] + offsets[pi][0], hairPos[1] + offsets[pi][1], hairPos[2] + offsets[pi][2]]}
+                lineWidth={lw}
+                renderOrder={pi}
+                renderQuality={renderQuality}
+                onBBoxReady={pi === 0 ? onPrimaryHairBBoxReady : undefined}
+              />
+            ))}
+            {visibleLayers.has('top_hair') && (
+              <HairStrandMesh
+                url={`${S3_HAIR}/top_hair.ply`}
+                color={hairColor ?? "#3b1f0a"}
+                scale={hairScale}
+                position={[hairPos[0], hairPos[1] - 0.3, hairPos[2]]}
+                lineWidth={lw}
+                renderOrder={0}
+                renderQuality={renderQuality}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {hairstepPlyUrls?.map((url, i) => (
         <HairStrandMesh
@@ -357,6 +335,7 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
           position={hairPos}
           lineWidth={0.8}
           renderOrder={0}
+          renderQuality={renderQuality}
         />
       ))}
 
@@ -371,6 +350,16 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
       />
       {!disableKeyboardControls && <KeyboardCameraController orbitRef={orbitRef} />}
       {onThumbnailReady && <ThumbnailCapture key={captureKey ?? 0} onCapture={onThumbnailReady} />}
+      <SplatVideoCapture
+        captureKey={videoCaptureKey ?? 0}
+        orbitRef={orbitRef}
+        defaultCameraPos={DEFAULT_CAMERA_POS}
+        defaultTarget={DEFAULT_ORBIT_TARGET}
+        captureBackground={captureBackground}
+        onProgress={onVideoProgress}
+        onReady={onVideoReady}
+        onError={onVideoError}
+      />
     </>
   );
 }
@@ -389,13 +378,19 @@ interface HairSceneProps {
   disableDefaultHairLayers?: boolean;
   disableKeyboardControls?:  boolean;
   background?:               string;
+  backgroundBrightness?:     number;
   uiHidden?:                 boolean;
   captureKey?:               number;
+  renderQuality?:            'performance' | 'balanced' | 'high';
+  videoCaptureKey?:          number;
+  onVideoProgress?:          (p: number) => void;
+  onVideoReady?:             (blob: Blob, ext: string) => void;
+  onVideoError?:             (err: unknown) => void;
   onPrimaryHairBBoxReady?: (bbox: RawHairBBox) => void;
   onThumbnailReady?: (dataUrl: string) => void;
 }
 
-export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = '#001f5b', uiHidden = false, captureKey, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
+export default function HairScene({ params: _params, colorRGB: _colorRGB, profile: _profile, autoFaceliftDataUrl, faceliftPlyReady, hairstepPlyUrl, hairstepPlyUrls, splatSrcOverride, disableDefaultHairLayers, disableKeyboardControls = false, background = 'url(/preview_bg.jpg) center / 100% 100% no-repeat', backgroundBrightness, uiHidden = false, captureKey, renderQuality = 'balanced', videoCaptureKey, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: HairSceneProps) {
   console.log('[HairScene] mount/render — splatSrcOverride:', splatSrcOverride, '| disableDefaultHairLayers:', disableDefaultHairLayers);
   const [showPolycam, setShowPolycam] = useState(false);
   const [showSplat, setShowSplat]     = useState(!!splatSrcOverride);
@@ -494,7 +489,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
   const [hairColor, setHairColor] = useState('#3b1f0a');
   const [cursorHidden, setCursorHidden] = useState(false);
-  const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(2);
+  const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(1);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -521,6 +516,14 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     return next;
   }, [visibleLayers, hoveredLayer, showHair]);
 
+  // When backgroundBrightness is provided for a URL background, render the image
+  // as a CSS-filtered div behind a transparent canvas so brightness only affects
+  // the background plate, not the hair mesh or splat render.
+  const useCssBg = backgroundBrightness !== undefined && background.startsWith('url(');
+  const cssBrightnessFilter = useCssBg
+    ? `brightness(${Math.max(0.05, backgroundBrightness! * 2)})`
+    : undefined;
+
   return (
     <div
       role="region"
@@ -531,11 +534,30 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
       <p id="hair-scene-instructions" className="sr-only">
         Use pointer or touch controls to rotate and inspect the hairstyle preview.
       </p>
+      {useCssBg && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background,
+            filter: cssBrightnessFilter,
+            zIndex: 0,
+          }}
+        />
+      )}
       <Canvas
-        shadows
-        gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true }}
-        camera={{ position: [0, 0, 7.8], fov: 45 }}
-        style={{ width: '100%', height: '100%', background }}
+        shadows={renderQuality !== 'performance'}
+        dpr={renderQuality === 'performance' ? 1 : renderQuality === 'balanced' ? [1, 1.5] : [1, 2]}
+        frameloop={renderQuality === 'performance' ? 'demand' : 'always'}
+        gl={{
+          antialias: renderQuality !== 'performance',
+          powerPreference: renderQuality === 'performance' ? 'low-power' : 'high-performance',
+          toneMapping: THREE.NoToneMapping,
+          preserveDrawingBuffer: true,
+          alpha: true,
+        }}
+        camera={{ position: DEFAULT_CAMERA_POS, fov: 45 }}
+        style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: useCssBg ? 'transparent' : background }}
       >
         <Scene
           showPolycam={showPolycam}
@@ -551,7 +573,14 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
           hairColor={hairColor}
           orbitRotateSpeed={ORBIT_SPEEDS[orbitSpeedIdx]}
           disableKeyboardControls={disableKeyboardControls}
+          background={useCssBg ? undefined : background}
           captureKey={captureKey}
+          renderQuality={renderQuality}
+          videoCaptureKey={videoCaptureKey}
+          captureBackground={background}
+          onVideoProgress={onVideoProgress}
+          onVideoReady={onVideoReady}
+          onVideoError={onVideoError}
           onPrimaryHairBBoxReady={onPrimaryHairBBoxReady}
           onThumbnailReady={onThumbnailReady}
         />

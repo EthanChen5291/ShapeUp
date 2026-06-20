@@ -17,7 +17,7 @@ export default function DeleteMyDataPage() {
       </p>
       <p>
         Legacy records that cannot be safely attributed to your authenticated account may require manual review by our
-        privacy team at <a href="mailto:privacy@shapeup.app">privacy@shapeup.app</a>.
+        privacy team at <a href="mailto:shapeup.ai@gmail.com">shapeup.ai@gmail.com</a>.
       </p>
       <DeleteAccountPanel />
     </LegalShell>
