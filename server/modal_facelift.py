@@ -230,7 +230,7 @@ class FaceLiftServer:
                         demo_fxfycxcy=self.camera_intrinsics,
                         demo_c2w=self.camera_extrinsics,
                         guidance_scale_2D=3.0,
-                        step_2D=70,
+                        step_2D=50,
                         face_detector=self.face_detector,
                     ))
                     elapsed_s = round(time.perf_counter() - gpu_start, 3)
