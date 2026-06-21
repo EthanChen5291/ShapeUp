@@ -13,6 +13,9 @@ pnpm.lockyaml
 .env.local
 .env.*.local
 
+# Secrets / auth handoff notes (contain Clerk/Stripe keys — never commit)
+clerkauth.txt
+
 # Editor
 .DS_Store
 *.swp
