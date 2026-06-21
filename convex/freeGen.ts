@@ -37,7 +37,7 @@ export const consumeGeneration = mutation({
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
-    if (!user) throw new ConvexError("Couldn't find your account. Please reload and try again.");
+    if (!user) throw new ConvexError({ code: "account_missing", message: "Couldn't find your account. Please reload and try again." });
 
     // 1. Paid credits take precedence over the free generation.
     if (user.credits > 0) {
@@ -47,7 +47,7 @@ export const consumeGeneration = mutation({
 
     // 2. Free-generation path. One per account, ever.
     if (user.freeGenUsedAt) {
-      throw new ConvexError("You're out of credits. Add more to keep creating.");
+      throw new ConvexError({ code: "out_of_credits", message: "You're out of credits. Add more to keep creating." });
     }
 
     // Require a verified, non-disposable email so throwaway inboxes can't farm.
@@ -59,11 +59,14 @@ export const consumeGeneration = mutation({
     // template ({{user.email_verified}}).
     const emailVerified = identity.emailVerified as boolean | string | undefined;
     if (emailVerified === false || emailVerified === "false") {
-      throw new ConvexError("Please verify your email to use your free generation.");
+      throw new ConvexError({ code: "email_unverified", message: "Please verify your email to use your free generation." });
     }
-    const email = (user.email ?? identity.email ?? "").toLowerCase();
+    // Use `||` (not `??`) so a stored empty-string email still falls back to the
+    // JWT claim — `??` only short-circuits on null/undefined, so a `user.email`
+    // of "" would otherwise block a legitimate free generation.
+    const email = (user.email || identity.email || "").toLowerCase().trim();
     if (!email || isDisposableEmailDomain(email)) {
-      throw new ConvexError("A permanent email address is required for the free generation.");
+      throw new ConvexError({ code: "email_required", message: "A permanent email address is required for the free generation." });
     }
 
     // Device-fingerprint Sybil check: one free generation per physical device,
@@ -76,7 +79,7 @@ export const consumeGeneration = mutation({
         )
         .first();
       if (prior) {
-        throw new ConvexError("This device has already used its free generation.");
+        throw new ConvexError({ code: "free_gen_used", message: "This device has already used its free generation." });
       }
     }
 
@@ -88,7 +91,7 @@ export const consumeGeneration = mutation({
       .order("desc")
       .take(FREE_GEN_IP_CAP + 1);
     if (recentIpGrants.filter((g) => g.grantedAt >= since).length >= FREE_GEN_IP_CAP) {
-      throw new ConvexError("Too many free generations from this network. Add credits to continue.");
+      throw new ConvexError({ code: "network_limited", message: "Too many free generations from this network. Add credits to continue." });
     }
 
     // Commit the entitlement: mark the account and record the signals. All in

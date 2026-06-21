@@ -21,6 +21,9 @@ export function isOnEmailAllowlist(
   user: { email?: string } | null,
   identity: { email?: string | null },
 ): boolean {
-  const email = user?.email ?? identity.email ?? undefined;
+  // `||` (not `??`) so a stored empty-string email still falls back to the JWT
+  // claim — otherwise an allowlisted account whose `users.email` is "" would be
+  // treated as non-allowlisted and get paywalled.
+  const email = user?.email || identity.email || undefined;
   return Boolean(email && getBypassEmails().has(email.toLowerCase()));
 }

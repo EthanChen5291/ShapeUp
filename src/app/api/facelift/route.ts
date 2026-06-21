@@ -5,6 +5,7 @@
 export const maxDuration = 300; // Vercel Hobby cap; Modal work must finish within 5 min.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { ConvexError } from 'convex/values';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import { getSignedDownloadUrl, uploadToS3 } from '@/lib/s3';
@@ -224,13 +225,34 @@ export async function POST(req: NextRequest) {
           : undefined,
       });
     } catch (err) {
+      // A ConvexError is an *intentional*, user-facing rejection from the
+      // mutation (the message + structured data survive the wire even in prod).
+      // consumeGeneration tags each with a `code`; `needsCredits` tells the
+      // client whether to show the pricing modal (genuine credit exhaustion) or
+      // surface the gate's actual message (e.g. "verify your email"). We keep a
+      // 402 for the whole free-generation entitlement family.
+      if (err instanceof ConvexError) {
+        const data = (err.data && typeof err.data === 'object')
+          ? err.data as { code?: string; message?: string }
+          : { message: typeof err.data === 'string' ? err.data : err.message };
+        const message = data.message ?? err.message;
+        const CREDIT_CODES = new Set(['out_of_credits', 'free_gen_used', 'network_limited']);
+        // Prefer the structured code; fall back to message matching so a route
+        // deployed ahead of the updated mutation still classifies correctly.
+        const needsCredits = data.code
+          ? CREDIT_CODES.has(data.code)
+          : /out of credits|free generation/i.test(message);
+        return NextResponse.json({ error: message, code: data.code, needsCredits }, { status: 402 });
+      }
+      // Anything else is a masked Convex "Server Error" (an unexpected internal
+      // failure, redacted to "[Request ID: …] Server Error" in prod). That is
+      // NOT a client error — surface it as 502 and log the request id so it can
+      // be traced in the Convex dashboard, instead of a misleading 400.
       const msg = err instanceof Error ? err.message : String(err);
-      // Entitlement failures (out of credits, free gen exhausted/blocked) are a
-      // payment-required signal; anything else is a bad request.
-      const status = /out of credits|free generation|verify your email|permanent email|this device|this network/i.test(msg)
-        ? 402
-        : 400;
-      return NextResponse.json({ error: msg }, { status });
+      console.error('[facelift] POST: consumeGeneration failed unexpectedly:', msg, {
+        user: hashIdentifier(authResult.session.userId),
+      });
+      return NextResponse.json({ error: `Couldn't verify your generation entitlement: ${msg}` }, { status: 502 });
     }
   }
 

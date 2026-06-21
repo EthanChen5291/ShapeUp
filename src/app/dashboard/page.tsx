@@ -1061,6 +1061,15 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
       const fingerprint = await getVisitorId();
       const submitRes = await fetch('/api/facelift', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageDataUrl: capturedDataUrl, fingerprint }), signal: abort.signal });
       if (submitRes.status === 402) {
+        const body = await submitRes.json().catch(() => null) as { error?: string; needsCredits?: boolean } | null;
+        // Only genuine credit exhaustion should open the pricing modal. Other
+        // free-generation gates (e.g. "verify your email", "a permanent email is
+        // required") surface their actual reason instead of a misleading prompt.
+        if (body && body.needsCredits === false) {
+          setFaceliftError(body.error ?? 'Unable to start your free 3D build.');
+          setFaceliftStatus('error');
+          return;
+        }
         closePopup();
         setTimeout(() => onNoTokens?.(), 900);
         return;
