@@ -1,0 +1,239 @@
+================================================================
+PREBAKE SPLAT BLUR — ANALYSIS
+================================================================
+
+THE QUESTION
+------------
+Prebake hairstyle splats (public/prebake/men/*.splat) look blurry in
+ShapeUp, but the SAME files look ~3x sharper when imported into
+SuperSplat. FaceLift output splats (.splat, same renderer) look fine.
+Why?
+
+
+TL;DR
+-----
+It is NOT the file format, NOT spherical harmonics, NOT splat density,
+and NOT the gaussian sizes. The prebake assets are equivalent quality
+to the FaceLift output and are sharp when rendered ALONE (which is what
+SuperSplat does).
+
+The difference is the RENDER CONTEXT in ShapeUp:
+  - FaceLift output = ONE self-contained splat object.
+  - Prebake        = a SECOND transparent splat object drawn on top of
+                     the user's head splat (two overlapping clouds).
+
+drei's <Splat> depth-sorts each splat object INTERNALLY but does NOT
+sort the two objects against each other. Both clouds occupy the same
+head-shaped volume, both are semi-transparent, both write depth. Where
+they interpenetrate (i.e. the entire head/scalp), their gaussians blend
+/ ghost / double-expose -> reads as "blurry / foggy."
+
+SuperSplat shows the prebake alone -> one correctly-sorted cloud ->
+sharp. That is the whole discrepancy.
+
+A secondary, smaller factor: ShapeUp caps render resolution (dpr) below
+native, which softens everything slightly vs SuperSplat's full-res view.
+Hair is high-frequency detail so it shows this more than smooth faces.
+
+
+EVIDENCE (measured from the actual files)
+-----------------------------------------
+File format:
+  - All prebake .splat files are standard antimatter15 format: raw
+    binary, exactly 32-byte rows (pos f32 / scale f32 / RGBA u8 /
+    quaternion u8). Byte-for-byte structurally identical to
+    edit-output.splat (a FaceLift output that renders fine).
+  - => "SuperSplat wrote a different/weird format" is FALSE.
+
+Density (splats per 0.03 voxel — i.e. local sharpness):
+    middlepart_black   5.6
+    topshort_black     5.4
+    dreads_black       8.6
+    edit-output (FL)   6.4
+    subtraction-hair   5.6
+  - Prebake density == FaceLift density. Not a density problem.
+
+Gaussian scale (median linear scale):
+    prebake middlepart 0.0034   (SMALLER)
+    FaceLift edit-out  0.0047
+  - Prebake gaussians are smaller, not bigger. Not an oversized-blob
+    problem.
+
+Same-file cross-check:
+  - User reports the identical .splat is ~3x sharper in SuperSplat.
+    Same bytes, same (lack of) SH -> the data is good; the renderer
+    context is what changes.
+
+Render path (verified in code):
+  - src/app/studio/[projectId]/page.tsx:850  splatSrcOverride  (user head splat)
+  - src/app/studio/[projectId]/page.tsx:851  prebakeSplatUrl   (prebake hair)
+    Both are passed at once -> two <Splat> objects rendered together.
+  - src/components/HairScene.tsx:280-300  renders user splat AND prebake
+    splat as two separate <Splat> meshes.
+  - node_modules/@react-three/drei/core/Splat.js: shared state is
+    memoized PER URL. Two different URLs => two independent workers =>
+    two independent depth sorts. No global cross-object sort. Material
+    is transparent + depthTest + depthWrite(alphaTest>0) + CustomBlending.
+
+
+HYPOTHESES, RANKED
+------------------
+[RULED OUT] Wrong format / SuperSplat export format
+   Files are standard antimatter .splat, identical structure to working
+   FaceLift splats.
+
+[RULED OUT] Lost spherical harmonics (.splat drops SH)
+   SuperSplat shows the SAME .splat (also no SH) sharper. SH is not the
+   differentiator.
+
+[RULED OUT] Low asset density / decimated in SuperSplat
+   Measured per-voxel density equals FaceLift's.
+
+[RULED OUT] Oversized gaussians
+   Prebake gaussians are smaller than FaceLift's.
+
+[PRIMARY — most likely] Two overlapping splat objects, no cross-object
+   depth sort. The prebake cloud + the user-head cloud occupy the same
+   volume; both semi-transparent; independent sorts; depthWrite on.
+   Their gaussians blend/ghost in the overlap (the whole head) -> haze.
+   This is the ONLY structural difference between prebake (blurry) and
+   FaceLift (sharp) inside the same renderer, and it explains why the
+   file is sharp alone in SuperSplat.
+   - Made worse if the prebake includes its own head/scalp surface (it
+     spans a full head bbox): that surface double-stacks with the user's
+     head -> a second semi-transparent head layer summing alpha. If the
+     prebake head is even slightly misaligned with the user's head, the
+     doubled offset edges read directly as blur.
+
+[SECONDARY] Render resolution (dpr) capped below native.
+   renderQuality defaults to 'balanced' => dpr [1, 1.5]
+   (src/components/HairScene.tsx:576; default in
+   src/contexts/SettingsContext.tsx:26). On a retina Mac (dpr 2) the
+   canvas is rasterized at ~75% res and upscaled. SuperSplat renders at
+   full native 2-3x. This softens everything globally; hair shows it
+   most. Explains part of the "3x sharper in SuperSplat" magnitude but
+   NOT the prebake-vs-FaceLift gap on its own.
+
+
+DECISIVE DIAGNOSTICS (run these to confirm)
+-------------------------------------------
+1) Hide the user's head splat and view the prebake ALONE in-app.
+   - If it snaps sharp  -> confirms PRIMARY (overlay blending).
+   - If still blurry    -> points at SECONDARY (dpr/resolution).
+
+2) Flip render quality to "High" (dpr [1,2]) and re-check.
+   - If noticeably sharper -> SECONDARY is contributing.
+
+
+RECOMMENDED FIXES (in order)
+----------------------------
+1) Make the prebakes HAIR-ONLY. In SuperSplat, crop away the head/scalp
+   surface so only hair remains, then re-export. A thin hair shell sits
+   mostly in front of / outside the user's head, so the two clouds
+   barely interpenetrate -> the blending haze largely disappears. This
+   matches the asset's intended contract (src/data/hairPresets.ts says
+   each preset is a "hair-only Gaussian splat"). Today they are not.
+
+2) Bump dpr for the studio preview: force renderQuality='high' there, or
+   uncap balanced to dpr={[1, window.devicePixelRatio]}. Closes the
+   remaining sharpness gap vs SuperSplat (costs some GPU).
+
+3) (Engineering option, if 1+2 aren't enough) Merge the user-head splat
+   and the prebake into a SINGLE <Splat> so they share one global depth
+   sort. antimatter .splat rows are independent 32 bytes, so two files
+   concatenate trivially — but their transforms differ (prebake scale
+   2.474 + own position/rotation vs user splat scale 2.772), so the
+   prebake's transform must be baked into its positions/rotations before
+   concatenating. More work; only needed if the overlay still ghosts.
+
+4) (Cheap experiment) Pass `alphaHash` to the prebake <Splat>. Switches
+   it to stochastic/dithered transparency with depthWrite, which gives
+   more consistent cross-object occlusion (may trade haze for slight
+   grain). Worth a quick A/B.
+
+
+UPDATE — CONFIRMED BY SCREENSHOTS
+---------------------------------
+Side-by-side (ShapeUp vs SuperSplat, same file) confirms the PRIMARY
+hypothesis and sharpens it:
+  - In ShapeUp the hair renders as a SEMI-TRANSPARENT WASH — the scalp is
+    visible through it and all strand detail is gone. The face/head is
+    sharp.
+  - In SuperSplat the same gaussians show crisp, solid strands.
+
+Mechanism (refined): the prebake hair gaussians are very low opacity
+(median alpha ~0.075). Gaussians only look solid when many faint,
+correctly depth-sorted samples accumulate front-to-back. SuperSplat does
+this (one cloud, global sort, depthWrite off). ShapeUp renders the hair
+as a SECOND <Splat> over the head <Splat>; drei sorts + depth-writes each
+cloud independently and cannot composite them together. With
+depthWrite=true (because alphaTest=0.02), the hair's front-to-back
+accumulation is broken -> it washes out into a blur. The dense,
+high-opacity face is the primary cloud and composites fine -> stays sharp.
+This is a COMPOSITING failure, not resolution and not the asset.
+
+Fix path (in order of effort):
+  1) Confirm: hide the head splat with a preset active -> hair should
+     snap sharp.
+  2) alphaHash on the <Splat>s (one-liner): order-independent stochastic
+     transparency handles two overlapping clouds much better than sorted
+     alpha blending. May fix outright; costs slight dithering grain.
+  3) Merge head + hair into ONE <Splat> for a single global sort. The two
+     differ only by uniform scale (head 2.772, prebake 2.474; same rot +
+     pos), so bake the prebake into head space and concatenate the
+     32-byte-row buffers -> one cloud, correct accumulation, real strands.
+
+
+UPDATE 2 — COMPOSITING FIXED; REMAINING SOFTNESS IS OPACITY+CONTRAST
+--------------------------------------------------------------------
+Tried alphaHash (HairScene.tsx prebake <Splat>): killed the wash and
+revealed strand structure, but produced heavy dither GRAIN because the
+hair alpha is only ~0.075 (stochastic hashing passes ~7% of fragments).
+
+Switched to the grain-free fix: prebake <Splat> alphaTest={0} (depthWrite
+OFF so faint gaussians accumulate front-to-back like SuperSplat) +
+renderOrder so the head still occludes hair behind it
+(HairScene.tsx ~282 head renderOrder=0, ~291 hair alphaTest=0
+renderOrder=1).
+
+Result (screenshots): the BLACK asset now renders crisp with visible
+strands (just thin/transparent). The compositing failure is solved.
+But the BLONDE/BROWN assets still look soft. Measured why:
+
+  asset                splats  scl_med  splats/voxel  alpha med/mean
+  middlepart_black     66887   0.0034   5.6           19 / 25
+  middlepart_blonde    71718   0.0032   5.8           19 / 22
+  middlepart_blonde2   73596   0.0032   5.8           19 / 22
+  middlepart_brown    218008   0.0032   11.9          19 / 22
+
+  -> black and blonde/brown are GEOMETRICALLY IDENTICAL (same count,
+     gaussian size, density, span). The render path treats them the same.
+     The ONLY differences are color and a slightly lower mean alpha.
+
+So the remaining softness is NOT blur and NOT geometry. It is:
+  (1) Low opacity — all prebakes are very thin (alpha median 19/255 ≈ 7%),
+      so few gaussians accumulate -> soft edges.
+  (2) Low contrast — light/blonde faint hair over light skin + cream
+      background washes out. Dark/black hair stays readable because it
+      contrasts with the skin. SuperSplat looks crisp for blonde too
+      partly because its background is BLACK (high contrast).
+
+FIX for the remaining softness (one lever solves both "black is too
+transparent" and "blonde looks blurry"):
+  - Raise the baked opacity of the thin assets: multiply the per-splat
+    alpha byte (offset 27 of each 32-byte row) by ~2-3x, clamp to 255.
+    Denser, more present hair -> more contrast -> crisp.
+  - Cleanest at the source: re-export from SuperSplat with higher
+    opacity. Or a one-time script over public/prebake/men/*.splat.
+  - (Optional, perceptual) a darker scene background behind the preview
+    would also raise contrast for light hair.
+
+
+KEY FILE POINTERS
+-----------------
+  src/components/HairScene.tsx:82      PREBAKE_OVERLAY (scale/pos/rot)
+  src/components/HairScene.tsx:280-300 user splat + prebake splat render
+  src/components/HairScene.tsx:576     dpr per renderQuality
+  src/app/studio/[projectId]/page.tsx:850-851  both splats passed in
+  src/contexts/SettingsContext.tsx:26  renderQuality default 'balanced'
+  src/data/hairPresets.ts:5            "hair-only" contract (not yet true)

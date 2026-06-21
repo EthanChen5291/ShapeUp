@@ -80,10 +80,86 @@ const DEFAULT_ORBIT_TARGET: [number, number, number] = [0, 0, 0];
 // Fixed transform for prebake hairstyle overlays. Mirrors the user splat's
 // transform so the hair lands on the head; nudge here to fine-tune the fit.
 const PREBAKE_OVERLAY = {
-  scale: 2.772,
+  scale: 2.474, // prebake hair overlay fit on the head
   position: [0, -0.07, 0.48] as [number, number, number],
   rotation: [-Math.PI / 2, Math.PI, Math.PI] as [number, number, number],
 };
+
+// antimatter15 .splat row: pos f32×3 | scale f32×3 | rgba u8×4 | quat u8×4.
+const SPLAT_ROW = 32;
+
+// Merge a prebake hair overlay INTO the head splat so they render as a single
+// <Splat> cloud. Rendering the hair as a *second* transparent cloud makes it
+// blurry: the head splat writes depth (alphaTest>0) and depth-culls the hair
+// gaussians interleaved with the scalp, leaving a washed-out shell. One cloud =
+// one global depth sort = the hair gets the same path that keeps the face sharp.
+//
+// The head and the prebake share the SAME world position + rotation and differ
+// only by uniform scale, so rebasing a hair point into head object-space is a
+// single scalar k = prebakeScale / headScale (translation + rotation cancel):
+//   R·sH·xH + T = R·sP·xP + T  ⇒  xH = (sP/sH)·xP.
+// We scale each hair row's position (3 floats) AND gaussian scale (3 floats) by
+// k; color + rotation bytes are copied verbatim. (Assumes PREBAKE_OVERLAY shares
+// the head's pos+rot — true today; only the uniform scale differs.)
+function mergeSplatBuffers(head: ArrayBuffer, prebake: ArrayBuffer, k: number): Uint8Array {
+  const h = new Uint8Array(head);
+  const p = new Uint8Array(prebake);
+  const hn = Math.floor(h.length / SPLAT_ROW);
+  const pn = Math.floor(p.length / SPLAT_ROW);
+  const out = new Uint8Array((hn + pn) * SPLAT_ROW);
+  out.set(h.subarray(0, hn * SPLAT_ROW), 0);
+  out.set(p.subarray(0, pn * SPLAT_ROW), hn * SPLAT_ROW);
+  // Scale pos+scale (first 6 of the 8 floats per row) of the prebake region.
+  const f = new Float32Array(out.buffer);
+  const fStart = hn * (SPLAT_ROW / 4); // float index where prebake rows begin
+  for (let r = 0; r < pn; r++) {
+    const base = fStart + r * (SPLAT_ROW / 4);
+    for (let j = 0; j < 6; j++) f[base + j] *= k;
+  }
+  return out;
+}
+
+// Memoize merged blobs per (head, prebake) pair so re-selecting a style reuses
+// the same object URL (drei caches loads by src) instead of growing GPU memory.
+const mergedSplatCache = new Map<string, string>();
+
+// Builds (and caches) a single merged head+hair .splat object URL. Returns null
+// until ready / when no prebake is active, so the caller falls back to the plain
+// head splat (head shows immediately; hair "lands" once the merge resolves).
+function useMergedSplat(
+  headUrl: string | null,
+  prebakeUrl: string | null,
+  headScale: number,
+  prebakeScale: number,
+): string | null {
+  const [mergedUrl, setMergedUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!headUrl || !prebakeUrl) { setMergedUrl(null); return; }
+    const cacheKey = `${headUrl}|${prebakeUrl}|${prebakeScale / headScale}`;
+    const cached = mergedSplatCache.get(cacheKey);
+    if (cached) { setMergedUrl(cached); return; }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const [hb, pb] = await Promise.all([
+          fetch(headUrl).then(r => r.arrayBuffer()),
+          fetch(prebakeUrl).then(r => r.arrayBuffer()),
+        ]);
+        if (cancelled) return;
+        const merged = mergeSplatBuffers(hb, pb, prebakeScale / headScale);
+        const objectUrl = URL.createObjectURL(new Blob([merged.buffer as ArrayBuffer], { type: 'application/octet-stream' }));
+        mergedSplatCache.set(cacheKey, objectUrl);
+        setMergedUrl(objectUrl);
+      } catch (err) {
+        console.error('[useMergedSplat] merge failed; falling back to head-only', err);
+        if (!cancelled) setMergedUrl(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [headUrl, prebakeUrl, headScale, prebakeScale]);
+  return mergedUrl;
+}
 
 // Dev: all known hair layers. Toggle multiple simultaneously to identify pairs.
 // Colors are fixed per layer so you can distinguish overlapping sets visually.
@@ -267,6 +343,8 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
 
 function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, prebakeSplatUrl, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, renderQuality = 'balanced', videoCaptureKey, captureBackground, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
+  // Merge prebake hair into the head cloud → one global sort (see useMergedSplat).
+  const mergedSplatUrl = useMergedSplat(showSplat ? splatSrc : null, prebakeSplatUrl ?? null, splatScale, PREBAKE_OVERLAY.scale);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
     <>
@@ -277,24 +355,24 @@ function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale
 
       {showPolycam && <PolycamHead />}
 
+      {/* Head splat. When a prebake hair overlay is active we MERGE the hair
+          gaussians into the head cloud and render a SINGLE <Splat> (see
+          useMergedSplat): one cloud → one global depth sort → the hair gets the
+          exact path that keeps the face sharp. Rendering the hair as a separate
+          transparent cloud made it blurry because the head writes depth
+          (alphaTest>0) and depth-culls the interleaved hair gaussians. Until the
+          merge resolves, mergedSplatUrl is null and we show the plain head.
+          See prebake.txt. */}
       {showSplat && splatSrc && (
         <Suspense fallback={null}>
-          <Splat key={splatSrc} src={splatSrc} alphaTest={0.02} scale={splatScale} position={[0, splatPosY, 0.48]} rotation={[-Math.PI / 2, Math.PI, Math.PI]} />
-        </Suspense>
-      )}
-
-      {/* Prebake hairstyle overlay — a hair-only splat that sits on top of the
-          user's head splat at a fixed transform (mirrors how hairstep PLY was
-          overlaid). Tweak PREBAKE_OVERLAY to align hair to the head. */}
-      {prebakeSplatUrl && (
-        <Suspense fallback={null}>
           <Splat
-            key={prebakeSplatUrl}
-            src={prebakeSplatUrl}
+            key={mergedSplatUrl ?? splatSrc}
+            src={mergedSplatUrl ?? splatSrc}
             alphaTest={0.02}
-            scale={PREBAKE_OVERLAY.scale}
-            position={PREBAKE_OVERLAY.position}
-            rotation={PREBAKE_OVERLAY.rotation}
+            renderOrder={0}
+            scale={splatScale}
+            position={[0, splatPosY, 0.48]}
+            rotation={[-Math.PI / 2, Math.PI, Math.PI]}
           />
         </Suspense>
       )}
@@ -573,7 +651,14 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
       )}
       <Canvas
         shadows={renderQuality !== 'performance'}
-        dpr={renderQuality === 'performance' ? 1 : renderQuality === 'balanced' ? [1, 1.5] : [1, 2]}
+        // Splat sharpness is 1:1 with framebuffer resolution (gaussian size in
+        // drei's shader scales with viewport device-pixels), so dpr is what
+        // makes the whole scene crisp vs. soft — not the asset. r3f clamps the
+        // display's real devicePixelRatio into [min,max], so it never renders
+        // beyond native. balanced caps at 2 => native on retina laptops (the
+        // common case) with bounded fill cost; high caps at 3 => true native on
+        // high-DPI displays (opt-in). See prebake.txt.
+        dpr={renderQuality === 'performance' ? 1 : renderQuality === 'balanced' ? [1, 2] : [1, 3]}
         frameloop={renderQuality === 'performance' ? 'demand' : 'always'}
         gl={{
           antialias: renderQuality !== 'performance',
