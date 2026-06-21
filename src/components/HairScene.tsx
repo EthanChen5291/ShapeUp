@@ -80,7 +80,11 @@ const DEFAULT_ORBIT_TARGET: [number, number, number] = [0, 0, 0];
 // Fixed transform for prebake hairstyle overlays. Mirrors the user splat's
 // transform so the hair lands on the head; nudge here to fine-tune the fit.
 const PREBAKE_OVERLAY = {
-  scale: 2.474, // prebake hair overlay fit on the head
+  scale: 2.721, // prebake hair overlay fit on the head (2.474 + 10%)
+  // Vertical nudge baked into the merge, in head object-space. The merged cloud
+  // renders with rotation [-π/2, π, π], which maps object -Z → world -Y, so the
+  // merge SUBTRACTS dropZ: a positive dropZ slides the hair DOWN on the head.
+  dropZ: 0.050,
   position: [0, -0.07, 0.48] as [number, number, number],
   rotation: [-Math.PI / 2, Math.PI, Math.PI] as [number, number, number],
 };
@@ -101,7 +105,7 @@ const SPLAT_ROW = 32;
 // We scale each hair row's position (3 floats) AND gaussian scale (3 floats) by
 // k; color + rotation bytes are copied verbatim. (Assumes PREBAKE_OVERLAY shares
 // the head's pos+rot — true today; only the uniform scale differs.)
-function mergeSplatBuffers(head: ArrayBuffer, prebake: ArrayBuffer, k: number): Uint8Array {
+function mergeSplatBuffers(head: ArrayBuffer, prebake: ArrayBuffer, k: number, dropZ: number): Uint8Array {
   const h = new Uint8Array(head);
   const p = new Uint8Array(prebake);
   const hn = Math.floor(h.length / SPLAT_ROW);
@@ -115,6 +119,7 @@ function mergeSplatBuffers(head: ArrayBuffer, prebake: ArrayBuffer, k: number): 
   for (let r = 0; r < pn; r++) {
     const base = fStart + r * (SPLAT_ROW / 4);
     for (let j = 0; j < 6; j++) f[base + j] *= k;
+    f[base + 2] -= dropZ; // object -Z → world -Y at render: slide hair down
   }
   return out;
 }
@@ -131,11 +136,12 @@ function useMergedSplat(
   prebakeUrl: string | null,
   headScale: number,
   prebakeScale: number,
+  dropZ: number,
 ): string | null {
   const [mergedUrl, setMergedUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!headUrl || !prebakeUrl) { setMergedUrl(null); return; }
-    const cacheKey = `${headUrl}|${prebakeUrl}|${prebakeScale / headScale}`;
+    const cacheKey = `${headUrl}|${prebakeUrl}|${prebakeScale / headScale}|${dropZ}`;
     const cached = mergedSplatCache.get(cacheKey);
     if (cached) { setMergedUrl(cached); return; }
 
@@ -147,7 +153,7 @@ function useMergedSplat(
           fetch(prebakeUrl).then(r => r.arrayBuffer()),
         ]);
         if (cancelled) return;
-        const merged = mergeSplatBuffers(hb, pb, prebakeScale / headScale);
+        const merged = mergeSplatBuffers(hb, pb, prebakeScale / headScale, dropZ);
         const objectUrl = URL.createObjectURL(new Blob([merged.buffer as ArrayBuffer], { type: 'application/octet-stream' }));
         mergedSplatCache.set(cacheKey, objectUrl);
         setMergedUrl(objectUrl);
@@ -157,7 +163,7 @@ function useMergedSplat(
       }
     })();
     return () => { cancelled = true; };
-  }, [headUrl, prebakeUrl, headScale, prebakeScale]);
+  }, [headUrl, prebakeUrl, headScale, prebakeScale, dropZ]);
   return mergedUrl;
 }
 
@@ -344,7 +350,7 @@ function ThumbnailCapture({ onCapture }: { onCapture: (dataUrl: string) => void 
 function Scene({ showPolycam = false, showSplat = true, visibleLayers, hairScale, hairPos, splatScale, splatPosY, splatSrc, prebakeSplatUrl, hairstepPlyUrl, hairstepPlyUrls, hairColor, orbitRotateSpeed = 1, disableKeyboardControls = false, background, captureKey, renderQuality = 'balanced', videoCaptureKey, captureBackground, onVideoProgress, onVideoReady, onVideoError, onPrimaryHairBBoxReady, onThumbnailReady }: SceneProps) {
   const orbitRef = useRef<any>(null);
   // Merge prebake hair into the head cloud → one global sort (see useMergedSplat).
-  const mergedSplatUrl = useMergedSplat(showSplat ? splatSrc : null, prebakeSplatUrl ?? null, splatScale, PREBAKE_OVERLAY.scale);
+  const mergedSplatUrl = useMergedSplat(showSplat ? splatSrc : null, prebakeSplatUrl ?? null, splatScale, PREBAKE_OVERLAY.scale, PREBAKE_OVERLAY.dropZ);
   console.log('[Scene] render — showSplat:', showSplat, '| splatSrc:', splatSrc?.substring(0, 80));
   return (
     <>
