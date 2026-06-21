@@ -16,6 +16,9 @@ pnpm.lockyaml
 # Secrets / auth handoff notes (contain Clerk/Stripe keys — never commit)
 clerkauth.txt
 
+# Convex snapshot exports (contain user data)
+backups/
+
 # Editor
 .DS_Store
 *.swp
