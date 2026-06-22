@@ -51,9 +51,20 @@ export const getOrCreate = mutation({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
     if (existing) {
+      const patch: Record<string, unknown> = {};
       // Backfill a referral code for accounts that predate the referral feature.
       if (!existing.referralCode) {
-        await ctx.db.patch(existing._id, { referralCode: await uniqueReferralCode(ctx) });
+        patch.referralCode = await uniqueReferralCode(ctx);
+      }
+      // Backfill email for accounts created before the `convex` JWT template
+      // emitted the `email` claim. Without it, the free-generation gate in
+      // convex/freeGen.ts rejects them with "a permanent email is required",
+      // since `user.email` was stored empty and never updated afterward.
+      if (!existing.email && identity.email) {
+        patch.email = identity.email;
+      }
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(existing._id, patch);
       }
       return existing._id;
     }
