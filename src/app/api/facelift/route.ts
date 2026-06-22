@@ -13,7 +13,7 @@ import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
 import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { parseImageDataUrl, sanitizeOutputName } from '@/lib/imageDataUrl';
-import { getFaceliftHeaders, isFaceliftConfigured, resolveFaceliftUrl } from '@/lib/facelift';
+import { getFaceliftHeaders, isFaceliftConfigured, resolveFaceliftUpstreams } from '@/lib/facelift';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -119,6 +119,52 @@ function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
   const buffer = Buffer.from(value, 'base64');
   if (buffer.length === 0 || buffer.length > maxBytes) return null;
   return buffer;
+}
+
+type UpstreamResult =
+  | { ok: true; plyBuffer: Buffer; videoBuffer: Buffer | null; elapsedS: number | null }
+  | { ok: false; reason: string };
+
+// One synchronous attempt against a single upstream's /process_image. Any
+// failure — network error, non-200, malformed JSON, or a missing/oversized
+// ply_b64 (e.g. OSCAR's async `{job_id}` response) — is returned as a soft
+// failure so the caller can fall back to the next upstream instead of erroring.
+async function callFaceliftUpstream(url: string, form: FormData): Promise<UpstreamResult> {
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${url}/process_image`, {
+      method: 'POST',
+      headers: getFaceliftHeaders(),
+      body: form,
+      signal: AbortSignal.timeout(600_000),
+    });
+  } catch (err) {
+    return { ok: false, reason: `network error: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => '');
+    return { ok: false, reason: `HTTP ${upstream.status}: ${text}` };
+  }
+
+  let data: { ply_b64?: unknown; video_b64?: unknown; elapsed_s?: unknown };
+  try {
+    data = await upstream.json();
+  } catch {
+    return { ok: false, reason: 'malformed JSON' };
+  }
+
+  const plyBuffer = decodeBoundedBase64(data.ply_b64, MAX_PLY_BYTES);
+  if (!plyBuffer) return { ok: false, reason: 'missing or invalid ply_b64' };
+
+  let videoBuffer: Buffer | null = null;
+  if (data.video_b64) {
+    videoBuffer = decodeBoundedBase64(data.video_b64, MAX_VIDEO_BYTES);
+    if (!videoBuffer) return { ok: false, reason: 'invalid video_b64' };
+  }
+
+  const elapsedS = typeof data.elapsed_s === 'number' && data.elapsed_s > 0 ? data.elapsed_s : null;
+  return { ok: true, plyBuffer, videoBuffer, elapsedS };
 }
 
 export async function POST(req: NextRequest) {
@@ -257,66 +303,50 @@ export async function POST(req: NextRequest) {
   }
 
   const { buffer } = parsedImage;
-  const form = new FormData();
   const uploadExt = parsedImage.mimeType === 'image/png' ? 'png' : parsedImage.mimeType === 'image/webp' ? 'webp' : 'jpg';
   const imageBytes = new Uint8Array(buffer.length);
   imageBytes.set(buffer);
-  form.append('image', new Blob([imageBytes], { type: parsedImage.mimeType }), `face.${uploadExt}`);
+  // Rebuild the multipart form per attempt so a retry against the fallback
+  // upstream gets a fresh, unconsumed body.
+  const imageBlob = new Blob([imageBytes], { type: parsedImage.mimeType });
+  const buildForm = () => {
+    const form = new FormData();
+    form.append('image', imageBlob, `face.${uploadExt}`);
+    return form;
+  };
 
-  const faceliftUrl = await resolveFaceliftUrl();
-  console.log(`[facelift] POST: sending to ${faceliftUrl} — ${buffer.length} bytes`);
-  let upstream: Response;
-  try {
-    upstream = await fetch(`${faceliftUrl}/process_image`, {
-      method: 'POST',
-      headers: getFaceliftHeaders(),
-      body:   form,
-      signal: AbortSignal.timeout(600_000),
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[facelift] POST: network error reaching Modal: ${msg}`);
-    return NextResponse.json({ error: `Cannot reach FaceLift server: ${msg}` }, { status: 502 });
-  }
-
-  if (!upstream.ok) {
-    const text = await upstream.text().catch(() => '');
-    console.error(`[facelift] POST: Modal returned ${upstream.status}: ${text}`);
-    return NextResponse.json({ error: `FaceLift server error: ${text}` }, { status: 502 });
-  }
-
-  let modalData: { ply_b64?: unknown; video_b64?: unknown; elapsed_s?: unknown };
-  try {
-    modalData = await upstream.json();
-  } catch {
-    console.warn('[facelift] POST: Modal returned malformed JSON', {
+  // Try upstreams in priority order (OSCAR first when it's up, Modal as the
+  // reliable fallback). We only surface an error if every upstream fails — a
+  // single OSCAR failure transparently falls through to Modal.
+  const upstreams = await resolveFaceliftUpstreams();
+  let result: Extract<UpstreamResult, { ok: true }> | null = null;
+  const failures: string[] = [];
+  for (const { name, url } of upstreams) {
+    console.log(`[facelift] POST: trying ${name} → ${url} — ${buffer.length} bytes`);
+    const attempt = await callFaceliftUpstream(url, buildForm());
+    if (attempt.ok) {
+      console.log(`[facelift] POST: ${name} succeeded`);
+      result = attempt;
+      break;
+    }
+    console.warn(`[facelift] POST: ${name} failed (${attempt.reason})`, {
       user: hashIdentifier(authResult.session.userId),
     });
-    return NextResponse.json({ error: 'FaceLift server returned malformed JSON' }, { status: 502 });
+    failures.push(`${name}: ${attempt.reason}`);
   }
 
-  const plyBuffer = decodeBoundedBase64(modalData.ply_b64, MAX_PLY_BYTES);
-  if (!plyBuffer) {
-    console.warn('[facelift] POST: Modal returned invalid PLY payload', {
-      user: hashIdentifier(authResult.session.userId),
-    });
-    return NextResponse.json({ error: 'FaceLift server returned an invalid PLY payload' }, { status: 502 });
+  if (!result) {
+    const detail = failures.join('; ') || 'no upstream configured';
+    console.error(`[facelift] POST: all FaceLift upstreams failed — ${detail}`);
+    return NextResponse.json({ error: `FaceLift server unavailable (${detail})` }, { status: 502 });
   }
 
-  const videoBuffer = modalData.video_b64
-    ? decodeBoundedBase64(modalData.video_b64, MAX_VIDEO_BYTES)
-    : null;
-  if (modalData.video_b64 && !videoBuffer) {
-    console.warn('[facelift] POST: Modal returned invalid video payload', {
-      user: hashIdentifier(authResult.session.userId),
-    });
-    return NextResponse.json({ error: 'FaceLift server returned an invalid video payload' }, { status: 502 });
-  }
+  const { plyBuffer, videoBuffer, elapsedS } = result;
 
-  // Meter actual GPU-seconds (reported by Modal) against the monthly budget.
-  if (typeof modalData.elapsed_s === 'number' && modalData.elapsed_s > 0) {
+  // Meter actual GPU-seconds (reported by the upstream) against the monthly budget.
+  if (elapsedS !== null) {
     try {
-      await convex.mutation(api.gpuUsage.record, { seconds: modalData.elapsed_s });
+      await convex.mutation(api.gpuUsage.record, { seconds: elapsedS });
     } catch (err) {
       console.error('[facelift] POST: failed to record GPU usage (non-fatal):', err);
     }
