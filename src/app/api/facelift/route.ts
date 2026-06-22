@@ -1,6 +1,8 @@
 // POST { imageDataUrl, outputName? } → { jobId, splatUrl, plyUrl, videoUrl }
-// Modal runs inference synchronously; this handler waits for the result,
-// converts PLY → splat, uploads both (+ video) to S3, and returns signed URLs.
+// Tries FaceLift upstreams in priority order (OSCAR first when up, Modal as the
+// reliable fallback). Modal converts PLY → splat and uploads both to S3 from
+// inside the GPU container, returning just the S3 keys. OSCAR returns base64, so
+// for that path this handler converts PLY → splat and uploads to S3 itself.
 
 export const maxDuration = 300; // Vercel Hobby cap; Modal work must finish within 5 min.
 
@@ -121,13 +123,18 @@ function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
   return buffer;
 }
 
+// A successful upstream returns one of two shapes:
+//  - 's3'     → Modal already converted PLY → splat and uploaded both to S3;
+//               we get the keys back and skip all local processing.
+//  - 'base64' → OSCAR returns base64 PLY; the route converts + uploads itself.
 type UpstreamResult =
-  | { ok: true; plyBuffer: Buffer; videoBuffer: Buffer | null; elapsedS: number | null }
+  | { ok: true; kind: 's3'; jobId: string; plyKey: string; splatKey: string; elapsedS: number | null }
+  | { ok: true; kind: 'base64'; plyBuffer: Buffer; videoBuffer: Buffer | null; elapsedS: number | null }
   | { ok: false; reason: string };
 
 // One synchronous attempt against a single upstream's /process_image. Any
 // failure — network error, non-200, malformed JSON, or a missing/oversized
-// ply_b64 (e.g. OSCAR's async `{job_id}` response) — is returned as a soft
+// payload (e.g. OSCAR's async `{job_id}` response) — is returned as a soft
 // failure so the caller can fall back to the next upstream instead of erroring.
 async function callFaceliftUpstream(url: string, form: FormData): Promise<UpstreamResult> {
   let upstream: Response;
@@ -147,15 +154,31 @@ async function callFaceliftUpstream(url: string, form: FormData): Promise<Upstre
     return { ok: false, reason: `HTTP ${upstream.status}: ${text}` };
   }
 
-  let data: { ply_b64?: unknown; video_b64?: unknown; elapsed_s?: unknown };
+  let data: {
+    job_id?: unknown;
+    ply_s3_key?: unknown;
+    splat_s3_key?: unknown;
+    ply_b64?: unknown;
+    video_b64?: unknown;
+    elapsed_s?: unknown;
+  };
   try {
     data = await upstream.json();
   } catch {
     return { ok: false, reason: 'malformed JSON' };
   }
 
+  const elapsedS = typeof data.elapsed_s === 'number' && data.elapsed_s > 0 ? data.elapsed_s : null;
+
+  // Modal (S3-from-container): already converted + uploaded, returns S3 keys.
+  if (typeof data.ply_s3_key === 'string' && typeof data.splat_s3_key === 'string') {
+    const jobId = typeof data.job_id === 'string' && data.job_id ? data.job_id : crypto.randomUUID();
+    return { ok: true, kind: 's3', jobId, plyKey: data.ply_s3_key, splatKey: data.splat_s3_key, elapsedS };
+  }
+
+  // OSCAR (base64): the route decodes, converts, and uploads.
   const plyBuffer = decodeBoundedBase64(data.ply_b64, MAX_PLY_BYTES);
-  if (!plyBuffer) return { ok: false, reason: 'missing or invalid ply_b64' };
+  if (!plyBuffer) return { ok: false, reason: 'missing or invalid ply_s3_key / ply_b64' };
 
   let videoBuffer: Buffer | null = null;
   if (data.video_b64) {
@@ -163,8 +186,7 @@ async function callFaceliftUpstream(url: string, form: FormData): Promise<Upstre
     if (!videoBuffer) return { ok: false, reason: 'invalid video_b64' };
   }
 
-  const elapsedS = typeof data.elapsed_s === 'number' && data.elapsed_s > 0 ? data.elapsed_s : null;
-  return { ok: true, plyBuffer, videoBuffer, elapsedS };
+  return { ok: true, kind: 'base64', plyBuffer, videoBuffer, elapsedS };
 }
 
 export async function POST(req: NextRequest) {
@@ -325,7 +347,7 @@ export async function POST(req: NextRequest) {
     console.log(`[facelift] POST: trying ${name} → ${url} — ${buffer.length} bytes`);
     const attempt = await callFaceliftUpstream(url, buildForm());
     if (attempt.ok) {
-      console.log(`[facelift] POST: ${name} succeeded`);
+      console.log(`[facelift] POST: ${name} succeeded (${attempt.kind})`);
       result = attempt;
       break;
     }
@@ -341,49 +363,58 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `FaceLift server unavailable (${detail})` }, { status: 502 });
   }
 
-  const { plyBuffer, videoBuffer, elapsedS } = result;
-
   // Meter actual GPU-seconds (reported by the upstream) against the monthly budget.
-  if (elapsedS !== null) {
+  if (result.elapsedS !== null) {
     try {
-      await convex.mutation(api.gpuUsage.record, { seconds: elapsedS });
+      await convex.mutation(api.gpuUsage.record, { seconds: result.elapsedS });
     } catch (err) {
       console.error('[facelift] POST: failed to record GPU usage (non-fatal):', err);
     }
   }
 
-  let splatBuffer: Buffer;
-  try {
-    splatBuffer = plyToSplat(plyBuffer);
-  } catch (err) {
-    console.warn('[facelift] POST: Modal returned malformed PLY', {
-      user: hashIdentifier(authResult.session.userId),
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json({ error: 'FaceLift server returned malformed PLY data' }, { status: 502 });
-  }
+  // Resolve the final S3 keys. Modal already converted + uploaded (kind 's3');
+  // OSCAR (kind 'base64') is converted and uploaded here.
+  let jobId: string;
+  let plyKey: string;
+  let splatKey: string;
+  let videoKey: string | null = null;
 
-  const jobId    = crypto.randomUUID();
-  const plyKey   = `facelifts/${jobId}/output.ply`;
-  const splatKey = `facelifts/${jobId}/output.splat`;
-  const videoKey = `facelifts/${jobId}/turntable.mp4`;
+  if (result.kind === 's3') {
+    ({ jobId, plyKey, splatKey } = result);
+  } else {
+    let splatBuffer: Buffer;
+    try {
+      splatBuffer = plyToSplat(result.plyBuffer);
+    } catch (err) {
+      console.warn('[facelift] POST: upstream returned malformed PLY', {
+        user: hashIdentifier(authResult.session.userId),
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return NextResponse.json({ error: 'FaceLift server returned malformed PLY data' }, { status: 502 });
+    }
 
-  await Promise.all([
-    uploadToS3(plyKey,   plyBuffer,   'application/octet-stream'),
-    uploadToS3(splatKey, splatBuffer, 'application/octet-stream'),
-    ...(videoBuffer ? [uploadToS3(videoKey, videoBuffer, 'video/mp4')] : []),
-  ]);
-  console.log(`[facelift] POST: uploaded to S3 — ply=${plyBuffer.length}B splat=${splatBuffer.length}B`);
+    jobId    = crypto.randomUUID();
+    plyKey   = `facelifts/${jobId}/output.ply`;
+    splatKey = `facelifts/${jobId}/output.splat`;
+    videoKey = result.videoBuffer ? `facelifts/${jobId}/turntable.mp4` : null;
 
-  try {
-    const publicDir = path.join(process.cwd(), 'public');
-    const safeOutputName = sanitizeOutputName(outputName, 'edit-output');
     await Promise.all([
-      fs.writeFile(path.join(publicDir, `${safeOutputName}.ply`),   plyBuffer),
-      fs.writeFile(path.join(publicDir, `${safeOutputName}.splat`), splatBuffer),
+      uploadToS3(plyKey,   result.plyBuffer, 'application/octet-stream'),
+      uploadToS3(splatKey, splatBuffer,      'application/octet-stream'),
+      ...(result.videoBuffer ? [uploadToS3(videoKey!, result.videoBuffer, 'video/mp4')] : []),
     ]);
-  } catch (err) {
-    console.warn('[facelift] POST: could not write local public/ files (non-fatal):', err);
+    console.log(`[facelift] POST: uploaded to S3 — ply=${result.plyBuffer.length}B splat=${splatBuffer.length}B`);
+
+    try {
+      const publicDir = path.join(process.cwd(), 'public');
+      const safeOutputName = sanitizeOutputName(outputName, 'edit-output');
+      await Promise.all([
+        fs.writeFile(path.join(publicDir, `${safeOutputName}.ply`),   result.plyBuffer),
+        fs.writeFile(path.join(publicDir, `${safeOutputName}.splat`), splatBuffer),
+      ]);
+    } catch (err) {
+      console.warn('[facelift] POST: could not write local public/ files (non-fatal):', err);
+    }
   }
 
   try {
@@ -396,7 +427,7 @@ export async function POST(req: NextRequest) {
   const [plyUrl, splatUrl, videoUrl] = await Promise.all([
     getSignedDownloadUrl(plyKey),
     getSignedDownloadUrl(splatKey),
-    videoBuffer ? getSignedDownloadUrl(videoKey) : Promise.resolve(null),
+    videoKey ? getSignedDownloadUrl(videoKey) : Promise.resolve(null),
   ]);
 
   console.log(`[facelift] POST: done jobId=${jobId}`);
