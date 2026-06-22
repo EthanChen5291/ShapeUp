@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as facelifts from "../facelifts.js";
 import type * as feedback from "../feedback.js";
 import type * as freeGen from "../freeGen.js";
@@ -35,6 +36,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   facelifts: typeof facelifts;
   feedback: typeof feedback;
   freeGen: typeof freeGen;
