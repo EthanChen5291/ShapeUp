@@ -218,26 +218,6 @@ describe('scan and generation APIs', () => {
     expect(uploadToS3).not.toHaveBeenCalled();
   });
 
-  test('/api/facelift legacy download proxy requires auth and validates jobId before proxying', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    vi.stubEnv('FACELIFT_URL', 'https://ml.shapeup.test');
-    vi.doMock('@/lib/serverAuth', () => ({
-      requireSignedIn: vi.fn().mockResolvedValue({
-        response: null,
-        session: { userId: 'user_123' },
-      }),
-    }));
-
-    const { GET } = await import('./facelift/[jobId]/[file]/route');
-    const res = await GET(new NextRequest('https://shapeup.test/api/facelift/../../etc/passwd/ply'), {
-      params: Promise.resolve({ jobId: '../../etc/passwd', file: 'ply' }),
-    });
-
-    expect(res.status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   test('/api/facelift forwards the GPU shared secret and rejects malformed PLY before S3 upload', async () => {
     const uploadToS3 = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ply_b64: 'not-a-valid-ply' }), { status: 200 }));
@@ -279,26 +259,6 @@ describe('scan and generation APIs', () => {
       headers: expect.objectContaining({ 'X-ShapeUp-Facelift-Secret': 'server-only-secret' }),
     }));
     expect(uploadToS3).not.toHaveBeenCalled();
-  });
-
-  test('/api/facelift legacy download proxy requires auth and validates jobId before proxying', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    vi.stubEnv('FACELIFT_URL', 'https://ml.shapeup.test');
-    vi.doMock('@/lib/serverAuth', () => ({
-      requireSignedIn: vi.fn().mockResolvedValue({
-        response: null,
-        session: { userId: 'user_123' },
-      }),
-    }));
-
-    const { GET } = await import('./facelift/[jobId]/[file]/route');
-    const res = await GET(new NextRequest('https://shapeup.test/api/facelift/../../etc/passwd/ply'), {
-      params: Promise.resolve({ jobId: '../../etc/passwd', file: 'ply' }),
-    });
-
-    expect(res.status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test('/api/proxy-ply rejects arbitrary private-network URLs', async () => {

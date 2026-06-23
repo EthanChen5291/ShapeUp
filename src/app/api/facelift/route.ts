@@ -123,6 +123,14 @@ function decodeBoundedBase64(value: unknown, maxBytes: number): Buffer | null {
   return buffer;
 }
 
+// Upstream-supplied S3 keys are used verbatim to mint signed download URLs, so
+// constrain them to the facelifts/ prefix and a safe charset — a compromised or
+// buggy upstream must not be able to make us sign arbitrary bucket objects.
+const S3_KEY_RE = /^facelifts\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+function isValidS3Key(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 256 && S3_KEY_RE.test(value);
+}
+
 // A successful upstream returns one of two shapes:
 //  - 's3'     → Modal already converted PLY → splat and uploaded both to S3;
 //               we get the keys back and skip all local processing.
@@ -171,7 +179,12 @@ async function callFaceliftUpstream(url: string, form: FormData): Promise<Upstre
   const elapsedS = typeof data.elapsed_s === 'number' && data.elapsed_s > 0 ? data.elapsed_s : null;
 
   // Modal (S3-from-container): already converted + uploaded, returns S3 keys.
-  if (typeof data.ply_s3_key === 'string' && typeof data.splat_s3_key === 'string') {
+  // Prefer this whenever the upstream signals it (either key present), and
+  // reject keys outside the facelifts/ prefix before we ever sign them.
+  if (data.ply_s3_key !== undefined || data.splat_s3_key !== undefined) {
+    if (!isValidS3Key(data.ply_s3_key) || !isValidS3Key(data.splat_s3_key)) {
+      return { ok: false, reason: 'missing or invalid ply_s3_key / splat_s3_key' };
+    }
     const jobId = typeof data.job_id === 'string' && data.job_id ? data.job_id : crypto.randomUUID();
     return { ok: true, kind: 's3', jobId, plyKey: data.ply_s3_key, splatKey: data.splat_s3_key, elapsedS };
   }
