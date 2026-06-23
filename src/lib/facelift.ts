@@ -29,7 +29,6 @@ export function isFaceliftConfigured(): boolean {
   return Boolean(FACELIFT_URL || OSCAR_FACELIFT_URL);
 }
 
-let cached: { url: string; at: number } | null = null;
 let cachedOscarUp: { up: boolean; at: number } | null = null;
 
 async function isOscarUp(): Promise<boolean> {
@@ -43,36 +42,6 @@ async function isOscarUp(): Promise<boolean> {
   } catch {
     return false; // connection refused / timeout / tunnel offline
   }
-}
-
-// Returns the base URL to use for FaceLift work.
-//
-// FACELIFT_UPSTREAM forces a choice and skips the health probe entirely:
-//   "oscar" → always OSCAR     "modal" → always Modal     "auto"/unset → probe
-// In auto mode we prefer OSCAR when it's up and fall back to Modal otherwise.
-// The auto decision is cached briefly so repeated requests don't each pay the
-// probe latency. Toggle the override with `npm run facelift oscar|modal|auto`.
-export async function resolveFaceliftUrl(): Promise<string> {
-  const url = await pickFaceliftUrl();
-  const name = url === OSCAR_FACELIFT_URL ? 'OSCAR' : 'Modal';
-  console.log(`[facelift] using ${name} → ${url}`);
-  return url;
-}
-
-async function pickFaceliftUrl(): Promise<string> {
-  const mode = (process.env.FACELIFT_UPSTREAM ?? 'auto').toLowerCase();
-  if (mode === 'oscar') return OSCAR_FACELIFT_URL || FACELIFT_URL;
-  if (mode === 'modal') return FACELIFT_URL || OSCAR_FACELIFT_URL;
-
-  if (!OSCAR_FACELIFT_URL) return FACELIFT_URL;
-  if (!FACELIFT_URL) return OSCAR_FACELIFT_URL; // nothing to fall back to
-
-  const now = Date.now();
-  if (cached && now - cached.at < HEALTH_TTL_MS) return cached.url;
-
-  const url = (await isOscarUp()) ? OSCAR_FACELIFT_URL : FACELIFT_URL;
-  cached = { url, at: now };
-  return url;
 }
 
 export type FaceliftUpstream = { name: 'OSCAR' | 'Modal'; url: string };

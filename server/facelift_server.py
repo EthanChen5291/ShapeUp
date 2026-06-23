@@ -1,5 +1,19 @@
 """
-FaceLift head reconstruction server.
+FaceLift head reconstruction server (OSCAR box).
+
+Synchronous design — matches server/modal_facelift.py and what the Next.js
+route (src/app/api/facelift/route.ts) expects:
+
+    POST /process_image  (multipart "image")
+        → runs inference inline (~15-20 s on GPU)
+        → { "ply_b64": <base64 gaussians.ply>,
+            "video_b64": <base64 turntable.mp4 | null>,
+            "elapsed_s": <float> }
+
+The route decodes the PLY, converts PLY → splat, and uploads both (+ video) to
+S3. There is no job-poll/download protocol: the caller blocks on this one
+request, so OSCAR and Modal are drop-in interchangeable behind
+resolveFaceliftUpstreams() in src/lib/facelift.ts.
 
 Setup:
 1. Clone FaceLift and set up its conda env:
@@ -22,58 +36,47 @@ Setup:
 6. Expose via ngrok:
        ngrok http 5002
 
-   Then update FACELIFT_URL in server/main.py and .env.local to the ngrok URL.
+   Then point OSCAR_FACELIFT_URL (.env / Vercel) at the ngrok URL.
 """
 
+import base64
 import os
-import re
 import shutil
 import sys
 import threading
 import time
 import uuid
+from io import BytesIO
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request
+from PIL import Image, UnidentifiedImageError
 
 FACELIFT_DIR = os.environ.get("FACELIFT_DIR", str(Path.home() / "FaceLift"))
 RESULTS_DIR  = "/tmp/facelift_results"
 UPLOADS_DIR  = "/tmp/facelift_uploads"
 FACELIFT_SHARED_SECRET = os.environ.get("FACELIFT_SHARED_SECRET")
 MAX_UPLOAD_BYTES = 6 * 1024 * 1024
-JOB_TTL_SECONDS = int(os.environ.get("FACELIFT_JOB_TTL_SECONDS", "3600"))
-JOB_ID_RE = re.compile(r"^[a-f0-9-]{36}$")
+MAX_PIXELS = 12_000_000
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 sys.path.insert(0, FACELIFT_DIR)
 
-app   = Flask(__name__)
+app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
-JOBS: dict[str, dict] = {}
 
 _models      = None
 _models_lock = threading.Lock()
-_jobs_lock = threading.Lock()
+# Serialises GPU access: one inference at a time per process (Flask is threaded).
+_gpu_lock    = threading.Lock()
 
 
 def require_shared_secret():
     if FACELIFT_SHARED_SECRET and request.headers.get("X-ShapeUp-Facelift-Secret") != FACELIFT_SHARED_SECRET:
         return jsonify({"error": "Unauthorized"}), 401
     return None
-
-
-def cleanup_old_jobs() -> None:
-    cutoff = time.time() - JOB_TTL_SECONDS
-    with _jobs_lock:
-        expired = [
-            job_id for job_id, job in JOBS.items()
-            if job.get("created_at", time.time()) < cutoff and job.get("status") != "running"
-        ]
-        for job_id in expired:
-            JOBS.pop(job_id, None)
-            shutil.rmtree(os.path.join(RESULTS_DIR, job_id), ignore_errors=True)
 
 
 def load_models():
@@ -99,57 +102,37 @@ def load_models():
         return _models
 
 
-def run_facelift(job_id: str, image_path: str) -> None:
-    try:
-        with _jobs_lock:
-            JOBS[job_id] = {**JOBS.get(job_id, {}), "status": "running"}
-        output_dir   = os.path.join(RESULTS_DIR, job_id)
-        os.makedirs(output_dir, exist_ok=True)
+def run_facelift(job_id: str, image_path: str) -> tuple[str, str | None]:
+    """Run inference synchronously. Returns (ply_path, video_path|None)."""
+    output_dir = os.path.join(RESULTS_DIR, job_id)
+    os.makedirs(output_dir, exist_ok=True)
 
-        models = load_models()
+    models = load_models()
+    from inference import process_single_image
 
-        from inference import process_single_image
+    process_single_image(
+        image_path=image_path,
+        output_dir=output_dir,
+        pipeline=models["mv_pipeline"],
+        gslrm_model=models["gslrm_model"],
+        face_detector=models["face_detector"],
+        camera_params=models["camera_params"],
+        auto_crop=True,
+        seed=4,
+        guidance_scale_2D=3.0,
+        step_2D=50,
+    )
 
-        process_single_image(
-            image_path=image_path,
-            output_dir=output_dir,
-            pipeline=models["mv_pipeline"],
-            gslrm_model=models["gslrm_model"],
-            face_detector=models["face_detector"],
-            camera_params=models["camera_params"],
-            auto_crop=True,
-            seed=4,
-            guidance_scale_2D=3.0,
-            step_2D=50,
-        )
+    # FaceLift writes: output_dir/<image_stem>/gaussians.ply + turntable.mp4
+    stem       = Path(image_path).stem
+    out_subdir = os.path.join(output_dir, stem)
+    ply_path   = os.path.join(out_subdir, "gaussians.ply")
+    video_path = os.path.join(out_subdir, "turntable.mp4")
 
-        # FaceLift writes: output_dir/<image_stem>/gaussians.ply + turntable.mp4
-        stem        = Path(image_path).stem
-        out_subdir  = os.path.join(output_dir, stem)
-        ply_path    = os.path.join(out_subdir, "gaussians.ply")
-        video_path  = os.path.join(out_subdir, "turntable.mp4")
+    if not os.path.exists(ply_path):
+        raise RuntimeError("FaceLift produced no gaussians.ply")
 
-        if not os.path.exists(ply_path):
-            with _jobs_lock:
-                JOBS[job_id] = {**JOBS.get(job_id, {}), "status": "error", "error": "FaceLift produced no gaussians.ply"}
-            return
-
-        with _jobs_lock:
-            JOBS[job_id] = {
-                **JOBS.get(job_id, {}),
-                "status":     "success",
-                "ply_path":   ply_path,
-                "video_path": video_path if os.path.exists(video_path) else None,
-            }
-    except Exception as e:
-        import traceback
-        with _jobs_lock:
-            JOBS[job_id] = {**JOBS.get(job_id, {}), "status": "error", "error": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"}
-    finally:
-        try:
-            os.remove(image_path)
-        except OSError:
-            pass
+    return ply_path, video_path if os.path.exists(video_path) else None
 
 
 @app.route("/process_image", methods=["POST"])
@@ -157,69 +140,55 @@ def process_image():
     auth_error = require_shared_secret()
     if auth_error:
         return auth_error
-    cleanup_old_jobs()
+
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
     img_file = request.files["image"]
     if img_file.mimetype not in {"image/png", "image/jpeg", "image/webp"}:
         return jsonify({"error": "Unsupported image type"}), 400
+
+    raw = img_file.read()
+    if len(raw) > MAX_UPLOAD_BYTES:
+        return jsonify({"error": "Image is too large"}), 413
+    try:
+        with Image.open(BytesIO(raw)) as img:
+            img.verify()
+            width, height = img.size
+    except UnidentifiedImageError:
+        return jsonify({"error": "Invalid image"}), 400
+    if width * height > MAX_PIXELS:
+        return jsonify({"error": "Image has too many pixels"}), 413
+
     job_id   = str(uuid.uuid4())
     img_path = os.path.join(UPLOADS_DIR, f"{job_id}.png")
-    img_file.save(img_path)
-    with _jobs_lock:
-        JOBS[job_id] = {"status": "queued", "created_at": time.time()}
-    threading.Thread(target=run_facelift, args=(job_id, img_path), daemon=True).start()
-    return jsonify({"job_id": job_id})
+    with open(img_path, "wb") as f:
+        f.write(raw)
 
+    output_dir = os.path.join(RESULTS_DIR, job_id)
+    try:
+        with _gpu_lock:
+            gpu_start = time.perf_counter()
+            ply_path, video_path = run_facelift(job_id, img_path)
+            elapsed_s = round(time.perf_counter() - gpu_start, 3)
 
-@app.route("/status/<job_id>")
-def status(job_id: str):
-    auth_error = require_shared_secret()
-    if auth_error:
-        return auth_error
-    cleanup_old_jobs()
-    if not JOB_ID_RE.match(job_id):
-        return jsonify({"error": "Invalid job_id"}), 400
-    with _jobs_lock:
-        job = JOBS.get(job_id)
-    if not job:
-        return jsonify({"error": "Unknown job"}), 404
-    return jsonify({"status": job["status"], "error": job.get("error")})
+        with open(ply_path, "rb") as f:
+            ply_b64 = base64.b64encode(f.read()).decode()
+        video_b64 = None
+        if video_path:
+            with open(video_path, "rb") as f:
+                video_b64 = base64.b64encode(f.read()).decode()
 
-
-@app.route("/download/<job_id>/ply")
-def download_ply(job_id: str):
-    auth_error = require_shared_secret()
-    if auth_error:
-        return auth_error
-    if not JOB_ID_RE.match(job_id):
-        return jsonify({"error": "Invalid job_id"}), 400
-    with _jobs_lock:
-        job = JOBS.get(job_id)
-    if not job or job["status"] != "success":
-        return jsonify({"error": "Job not complete"}), 404
-    return send_file(
-        job["ply_path"],
-        mimetype="application/octet-stream",
-        as_attachment=True,
-        download_name="gaussians.ply",
-    )
-
-
-@app.route("/download/<job_id>/video")
-def download_video(job_id: str):
-    auth_error = require_shared_secret()
-    if auth_error:
-        return auth_error
-    if not JOB_ID_RE.match(job_id):
-        return jsonify({"error": "Invalid job_id"}), 400
-    with _jobs_lock:
-        job = JOBS.get(job_id)
-    if not job or job["status"] != "success":
-        return jsonify({"error": "Job not complete"}), 404
-    if not job.get("video_path"):
-        return jsonify({"error": "No video output"}), 404
-    return send_file(job["video_path"], mimetype="video/mp4")
+        return jsonify({"ply_b64": ply_b64, "video_b64": video_b64, "elapsed_s": elapsed_s})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        try:
+            os.remove(img_path)
+        except OSError:
+            pass
+        shutil.rmtree(output_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
