@@ -13,6 +13,7 @@ import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
 import FeedbackToast from '@/components/FeedbackToast';
+import RefundRequestDialog from '@/components/RefundRequestDialog';
 import InferenceNote from '@/components/InferenceNote';
 import { useFeedbackPrompt } from '@/hooks/useFeedbackPrompt';
 import Image from 'next/image';
@@ -450,6 +451,22 @@ export default function StudioPage() {
     setShowInferenceNote(true);
   }, [effectiveSplatUrl, projectId]);
 
+  // Token-refund reminder. Shown once per project a few seconds after the model
+  // lands (so it doesn't crowd the inference badge), reminding the user they can
+  // request a refund if the result drifted. Also openable any time via the
+  // "Not happy?" link in the scene bar. Persisted so it never reappears.
+  const [showRefund, setShowRefund] = useState(false);
+  useEffect(() => {
+    if (!effectiveSplatUrl || !projectId) return;
+    const key = `refundReminderSeen_${projectId}`;
+    if (localStorage.getItem(key)) return;
+    const t = setTimeout(() => {
+      localStorage.setItem(key, '1');
+      setShowRefund(true);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [effectiveSplatUrl, projectId]);
+
   // Generate thumbnail from front-facing splat render when splat first loads
   const splatThumbnailTriggered = useRef(false);
   useEffect(() => {
@@ -838,7 +855,18 @@ export default function StudioPage() {
           )}
 
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
+              <button
+                onClick={() => setShowRefund(true)}
+                className="font-mono text-[9px] uppercase tracking-[0.18em] underline underline-offset-2 transition-colors"
+                style={{ color: 'rgba(255,248,234,0.5)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--butter)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,248,234,0.5)')}
+              >
+                not happy?
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               {sceneControlsEnabled && (
                 <button
@@ -1044,6 +1072,10 @@ export default function StudioPage() {
         projectId={projectId}
         editCount={feedbackPrompt.editCount}
       />
+
+      {showRefund && (
+        <RefundRequestDialog projectId={projectId} onClose={() => setShowRefund(false)} />
+      )}
     </main>
   );
 }

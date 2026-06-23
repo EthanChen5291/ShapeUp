@@ -1044,9 +1044,29 @@ const GLIMPSE_SATELLITE_COUNT = 6;
 const GLIMPSE_FINAL_RADIUS = 343;
 const GLIMPSE_ERUPTION_DURATION = 1900;
 const GLIMPSE_ORBIT_SPEED = 0.00022; // radians per ms, CCW
+// Design size of the orbit stage (full diameter incl. satellite cards × tallest extent).
+const GLIMPSE_STAGE_WIDTH = 868;
+const GLIMPSE_STAGE_HEIGHT = 960;
 
 function GlimpseSection() {
   const isMobile = useIsMobile();
+  // The orbit stage is laid out at its 868px design width. On mobile that
+  // overflows the viewport, so we shrink the whole stage with a transform.
+  // NOTE: scale() needs a unitless number — a CSS calc() of lengths is invalid
+  // and gets silently dropped, so the scale must be computed in JS.
+  const [mobileScale, setMobileScale] = useState(0.34);
+  useEffect(() => {
+    if (!isMobile) return;
+    const compute = () => {
+      const fit = (window.innerWidth - 16) / GLIMPSE_STAGE_WIDTH;
+      // Cap at ~1/3 so the orbit stays comfortably inside the screen with margin.
+      setMobileScale(Math.min(0.34, fit));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [isMobile]);
+
   const sectionRef = useRef<HTMLDivElement>(null);
   const satelliteRefs = useRef<(HTMLDivElement | null)[]>(Array(GLIMPSE_SATELLITE_COUNT).fill(null));
   const stateRef = useRef({ phase: 'idle' as 'idle' | 'erupting' | 'orbiting', eruptionStart: 0, orbitOffset: 0, lastTime: 0 });
@@ -1185,7 +1205,7 @@ function GlimpseSection() {
       {/* Orbit stage */}
       <div
         ref={sectionRef}
-        style={{ position: 'relative', height: 960, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(isMobile ? { height: 'calc((100vw - 16px) / 868 * 960 / 2)', transform: 'scale(calc((100vw - 16px) / 868 / 2))', transformOrigin: 'center center' } : {}) }}
+        style={{ position: 'relative', height: GLIMPSE_STAGE_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(isMobile ? { height: GLIMPSE_STAGE_HEIGHT * mobileScale, transform: `scale(${mobileScale})`, transformOrigin: 'center center' } : {}) }}
       >
         {/* Center image */}
         <div

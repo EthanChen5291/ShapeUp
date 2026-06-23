@@ -187,4 +187,26 @@ export default defineSchema({
     .index("by_token", ["tokenIdentifier"])
     .index("by_rating", ["rating"]),
 
+  // Token-refund requests, raised from the studio when a user isn't happy with a
+  // generated model (face drift, etc.). Each row snapshots the selfie + splat S3
+  // keys so an admin can verify the output well after the fact. New requests fan
+  // out to Discord (selfie inline + splat link) — see convex/refunds.ts. Status
+  // moves pending -> approved (tokens granted) | denied.
+  refundRequests: defineTable({
+    tokenIdentifier: v.string(),
+    projectId: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    selfieS3Key: v.optional(v.string()),
+    splatS3Key: v.optional(v.string()),
+    email: v.optional(v.string()),
+    username: v.optional(v.string()),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("denied")),
+    createdAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    refundedTokens: v.optional(v.number()),
+  })
+    .index("by_status", ["status"])
+    .index("by_token", ["tokenIdentifier"])
+    .index("by_token_and_project", ["tokenIdentifier", "projectId"]),
+
 });
