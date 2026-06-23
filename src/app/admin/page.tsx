@@ -77,6 +77,9 @@ export default function AdminS3Page() {
         <Link href="/admin/feedback" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
           Feedback →
         </Link>
+        <Link href="/admin/refunds" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
+          Refunds →
+        </Link>
       </div>
       <p className="text-neutral-500 text-sm mb-6">
         {loading ? 'Loading…' : `${results.length} of ${total} shown`}

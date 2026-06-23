@@ -2475,11 +2475,25 @@ html.dark .explore-marquee-track {
   background: var(--cream, #fff8ea);
   color: var(--char, #1a1410);
   box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.6);
-  animation: lsc-confirm-card-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* slide+fade in, then a subtle attention shake once it has landed */
+  animation:
+    lsc-confirm-card-in 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    lsc-confirm-shake 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97) 240ms 1;
 }
 @keyframes lsc-confirm-card-in {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes lsc-confirm-shake {
+  0%, 100% { transform: translateX(0); }
+  15%      { transform: translateX(-5px); }
+  30%      { transform: translateX(4px); }
+  45%      { transform: translateX(-3px); }
+  60%      { transform: translateX(2px); }
+  75%      { transform: translateX(-1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lsc-confirm-card { animation: lsc-confirm-card-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }
 }
 .lsc-confirm-title {
   margin: 0 0 8px;
@@ -2534,6 +2548,9 @@ html.dark .explore-marquee-track {
   transition: transform 140ms ease, opacity 140ms ease;
 }
 .lsc-confirm-cancel {
+  /* the "keep adjusting" path is the one we want them to take — make it bigger */
+  padding: 11px 22px;
+  font-size: 14.5px;
   background: rgb(40, 100, 210);
   color: #ffffff;
   box-shadow: 0 8px 22px -8px rgba(40, 100, 210, 0.55);

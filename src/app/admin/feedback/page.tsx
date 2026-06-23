@@ -55,6 +55,9 @@ export default function AdminFeedbackPage() {
         <Link href="/admin" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
           ← S3 Admin
         </Link>
+        <Link href="/admin/refunds" className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2">
+          Refunds →
+        </Link>
       </div>
       <p className="text-neutral-500 text-sm mb-6">
         {loading ? 'Loading…' : `${shown.length} of ${count} shown · avg ${avg}/5`}

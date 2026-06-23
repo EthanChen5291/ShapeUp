@@ -207,7 +207,7 @@ def ply_to_splat(ply_bytes: bytes) -> bytes:
     gpu="L40S",
     # Scale to zero as fast as the client allows (must be > 0). Effectively "no warm
     # window" — fine while traffic is ~zero; bump this up once requests start clustering.
-    scaledown_window=2,
+    scaledown_window=5,
     # Hard cap on concurrent GPUs — bounds peak demo spend regardless of load.
     # The app-side monthly GPU-seconds guard (convex/gpuUsage.ts) bounds total.
     max_containers=2,
