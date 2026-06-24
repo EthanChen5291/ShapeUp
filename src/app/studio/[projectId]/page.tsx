@@ -297,6 +297,15 @@ export default function StudioPage() {
     setVideoState('error');
   }, []);
 
+  // The 360° clip is recorded from the live splat, so re-editing the hair makes
+  // any existing video stale (it still shows the old hairstyle). Drop it back to
+  // idle on a new splat so the user re-films against the current hairstyle.
+  const resetBarberVideo = useCallback(() => {
+    setVideoUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+    setVideoProgress(0);
+    setVideoState('idle');
+  }, []);
+
   // Release the object URL on unmount.
   useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
 
@@ -1046,6 +1055,7 @@ export default function StudioPage() {
                   setHairstepPlyUrl(`/api/proxy-ply?url=${encodeURIComponent(url)}`);
                 }
                 setThumbnailCaptureKey(k => k + 1);
+                resetBarberVideo(); // new hairstyle → any prior 360° clip is stale
               }}
               onUncertain={() => setShowRecommendations(true)}
               onRequestVideo={requestBarberVideo}
