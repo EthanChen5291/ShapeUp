@@ -550,7 +550,6 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
       <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
         <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>Settings</h2>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 48, gap: 16 }}>
-          <span className="font-display italic" style={{ fontWeight: 600, fontSize: 28, color: 'var(--ink)' }}>Sign In First</span>
           <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'var(--char)' }}>Sign in to manage your account, appearance, render quality, and privacy settings.</p>
           <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-tomato" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
           {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
