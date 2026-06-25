@@ -9,6 +9,7 @@ import { getVisitorId } from '@/lib/visitorId';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
 import { EditReport, sanitizeEditReport } from '@/lib/editReport';
 import { computeChipFlightKeyframes, CHIP_FLIGHT_OPTIONS } from './editPanelChipFlight';
+import { nextSelectedChip, resolveApplyPrompt } from './editPanelChipSelection';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -209,6 +210,13 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   const [chipPage, setChipPage] = useState(0);
   // Hovered-chip hairstyle preview bubble (null = dismissed).
   const [chipPreview, setChipPreview] = useState<CutPreview | null>(null);
+  // Mobile only: the tap-selected chip (border glows, preview pinned). Mobile
+  // can't hover, so selection replaces the desktop fly-to-prompt behavior.
+  const [selectedChip, setSelectedChip] = useState<string | null>(null);
+  const clearChipSelection = useCallback(() => {
+    setSelectedChip(null);
+    setChipPreview(null);
+  }, []);
   const chips = useMemo(() => {
     const start = (chipPage * CHIPS_PER_PAGE) % chipPool.length;
     return chipPool.concat(chipPool).slice(start, start + CHIPS_PER_PAGE);
@@ -415,7 +423,9 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   // instead of disabling the Apply button.
   const handleApply = () => {
     if (isBusy) return;
-    if (!prompt.trim()) {
+    // On mobile a tap-selected suggestion is applied directly (no prompt box).
+    const promptToApply = resolveApplyPrompt(isMobile, selectedChip, prompt);
+    if (!promptToApply.trim()) {
       emptyHintTimers.current.forEach(clearTimeout);
       setEmptyHint('shown');
       emptyHintTimers.current = [
@@ -424,8 +434,9 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       ];
       return;
     }
-    runPromptPipeline(prompt);
+    runPromptPipeline(promptToApply);
     setPrompt('');
+    clearChipSelection();
   };
 
   useEffect(() => () => emptyHintTimers.current.forEach(clearTimeout), []);
@@ -684,16 +695,27 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                 const r = el.getBoundingClientRect();
                 setChipPreview({ label: chip, left: r.left, right: r.right, centerY: r.top + r.height / 2 });
               };
+              const isSelected = isMobile && selectedChip === chip;
               return (
                 <button
                   key={chip}
                   type="button"
-                  onClick={(e) => flyChipToPrompt(e.currentTarget, chip)}
-                  onMouseEnter={(e) => showPreview(e.currentTarget)}
-                  onMouseLeave={() => setChipPreview(null)}
-                  onFocus={(e) => showPreview(e.currentTarget)}
-                  onBlur={() => setChipPreview(null)}
-                  className="chip-suggest chip-pop"
+                  aria-pressed={isMobile ? isSelected : undefined}
+                  // Mobile: tap to select (glow border + pinned preview), tap
+                  // again to un-select. Desktop: fly the chip into the prompt box.
+                  onClick={isMobile
+                    ? (e) => {
+                        const next = nextSelectedChip(selectedChip, chip);
+                        setSelectedChip(next);
+                        if (next) showPreview(e.currentTarget); else setChipPreview(null);
+                      }
+                    : (e) => flyChipToPrompt(e.currentTarget, chip)}
+                  // Hover preview is desktop-only — mobile can't hover.
+                  onMouseEnter={isMobile ? undefined : (e) => showPreview(e.currentTarget)}
+                  onMouseLeave={isMobile ? undefined : () => setChipPreview(null)}
+                  onFocus={isMobile ? undefined : (e) => showPreview(e.currentTarget)}
+                  onBlur={isMobile ? undefined : () => setChipPreview(null)}
+                  className={`chip-suggest chip-pop${isSelected ? ' chip-selected' : ''}`}
                   style={{ '--ci': i } as React.CSSProperties}
                 >
                   {chip}
@@ -704,7 +726,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           <div className="flex flex-col items-center gap-1">
             <button
               type="button"
-              onClick={() => setChipPage(p => p + 1)}
+              onClick={() => { setChipPage(p => p + 1); clearChipSelection(); }}
               className="chip-refresh"
               aria-label={`Show more trending ${gender === 'mens' ? "men's" : "women's"} cuts`}
               title="More trending cuts"
@@ -722,7 +744,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
             </button>
             <button
               type="button"
-              onClick={() => { setGender(g => (g === 'mens' ? 'womens' : 'mens')); setChipPage(0); }}
+              onClick={() => { setGender(g => (g === 'mens' ? 'womens' : 'mens')); setChipPage(0); clearChipSelection(); }}
               className="chip-gender chip-gender-nudge"
               aria-label={`Showing ${gender === 'mens' ? "men's" : "women's"} cuts — tap to switch to ${gender === 'mens' ? "women's" : "men's"} styles`}
               title={`Showing ${gender === 'mens' ? "men's" : "women's"} styles — tap to switch`}

@@ -2751,6 +2751,16 @@ html.dark .explore-marquee-track {
 }
 .chip-suggest:active:not(:disabled) { transform: scale(0.94); }
 
+/* Mobile tap-selected suggestion: glowing tomato border (no fly animation). */
+.chip-suggest.chip-selected,
+.chip-suggest.chip-selected:hover:not(:disabled) {
+  border-color: var(--tomato);
+  color: var(--tomato);
+  background: var(--cream);
+  box-shadow: 0 0 0 1px var(--tomato), 0 0 12px -1px rgba(217, 78, 58, 0.45);
+  transform: none;
+}
+
 /* ── Rotating barber chatter under the task bar ─────────────────── */
 .chatter-line { animation: chatter-in 420ms ease both; margin-top: 2px; }
 @keyframes chatter-in {
@@ -3413,6 +3423,12 @@ html.dark .chip-suggest:hover:not(:disabled),
 html.dark .chip-refresh:hover:not(:disabled),
 html.dark .chip-gender:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
+}
+html.dark .chip-suggest.chip-selected,
+html.dark .chip-suggest.chip-selected:hover:not(:disabled) {
+  border-color: var(--tomato);
+  color: var(--tomato);
+  background: rgba(217, 78, 58, 0.14);
 }
 
 html.dark .btn-tokens-cta {
