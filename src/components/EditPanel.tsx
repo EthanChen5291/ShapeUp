@@ -83,6 +83,16 @@ const TRENDING_CUTS_MENS = [
   'mid taper with waves',
   'buzz cut, clean line-up',
   'fluffy crop, low fade',
+  'wavy perm, middle part',
+  'broccoli perm, taper fade',
+  'textured mod, fringe',
+  'k-pop perm, curtain bangs',
+  'burst fade, textured fringe',
+  'bro flow, swept back',
+  'twist out, taper',
+  'caesar cut, textured fringe',
+  'spiky eboy, mid fade',
+  'perm mullet, taper fade',
 ];
 
 const TRENDING_CUTS_WOMENS = [
@@ -102,6 +112,16 @@ const TRENDING_CUTS_WOMENS = [
   'voluminous blowout, soft curls',
   'half-up bun, loose waves',
   'jellyfish cut, blunt crown',
+  'butterfly blowout, curtain bangs',
+  'birkin layers, wispy bangs',
+  'italian bob, blunt ends',
+  'octopus cut, choppy layers',
+  'hush cut, curtain bangs',
+  'C-curl perm, shoulder length',
+  'spiral perm, voluminous curls',
+  'soft body perm, long layers',
+  'modern shag, micro bangs',
+  'mixie cut, textured pixie',
 ];
 
 type Gender = 'mens' | 'womens';

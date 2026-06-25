@@ -102,7 +102,9 @@ export default defineSchema({
   facelifts: defineTable({
     userId: v.string(),
     jobId: v.string(),
-    plyS3Key: v.string(),
+    // Optional: the raw Gaussian .ply is only uploaded when a caller needs it
+    // (e.g. the hair-subtraction flow). The viewer only needs splatS3Key.
+    plyS3Key: v.optional(v.string()),
     splatS3Key: v.string(),
   })
     .index("by_job_id", ["jobId"])

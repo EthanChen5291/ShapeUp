@@ -224,4 +224,30 @@ describe('security regressions reproduced from Phase 1', () => {
       splatS3Key: 'facelifts/job_123/output.splat',
     } as any)).rejects.toThrow(/Unauthenticated|userId|Unauthorized/);
   });
+
+  test('facelifts.recordResult records a splat-only result when the .ply upload was skipped', async () => {
+    const t = authed('user_splatonly');
+
+    await t.mutation(api.facelifts.recordResult, {
+      jobId: 'job_splatonly',
+      splatS3Key: 'facelifts/job_splatonly/output.splat',
+    });
+
+    const row = await t.query(api.facelifts.getByJobId, { jobId: 'job_splatonly' });
+    expect(row?.splatS3Key).toBe('facelifts/job_splatonly/output.splat');
+    expect(row?.plyS3Key).toBeUndefined();
+  });
+
+  test('facelifts.recordResult keeps the .ply key when the subtraction flow requests it', async () => {
+    const t = authed('user_withply');
+
+    await t.mutation(api.facelifts.recordResult, {
+      jobId: 'job_withply',
+      plyS3Key: 'facelifts/job_withply/output.ply',
+      splatS3Key: 'facelifts/job_withply/output.splat',
+    });
+
+    const row = await t.query(api.facelifts.getByJobId, { jobId: 'job_withply' });
+    expect(row?.plyS3Key).toBe('facelifts/job_withply/output.ply');
+  });
 });

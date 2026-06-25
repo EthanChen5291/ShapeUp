@@ -55,6 +55,12 @@
       "skillPath": "skills/mike-convex-thumbnail/SKILL.md",
       "computedHash": "27a3d967cc9c4abf759ef2f6e429b347497d33afdd74c1c1d55ff07e18c3641f"
     },
+    "obsidian-bases": {
+      "source": "kepano/obsidian-skills",
+      "sourceType": "github",
+      "skillPath": "skills/obsidian-bases/SKILL.md",
+      "computedHash": "65db029661f38daadc8b8eb755bd7b96011336f49bdc11e966ec7fd157d8f125"
+    },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",

@@ -8,9 +8,9 @@ interface FaceliftRow {
   jobId: string;
   userId: string;
   createdAt: number;
-  plyKey: string;
+  plyKey: string | null;
   splatKey: string;
-  plyUrl: string;
+  plyUrl: string | null;
   splatUrl: string;
 }
 
@@ -122,14 +122,16 @@ export default function AdminPage() {
                 >
                   ↓ .splat
                 </a>
-                <a
-                  href={f.plyUrl}
-                  download={`${f.jobId}.ply`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="px-3 py-1 rounded text-xs bg-neutral-800 text-amber-400 border border-neutral-700 hover:border-amber-500 transition-colors"
-                >
-                  ↓ .ply
-                </a>
+                {f.plyUrl && (
+                  <a
+                    href={f.plyUrl}
+                    download={`${f.jobId}.ply`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-3 py-1 rounded text-xs bg-neutral-800 text-amber-400 border border-neutral-700 hover:border-amber-500 transition-colors"
+                  >
+                    ↓ .ply
+                  </a>
+                )}
               </div>
             </div>
           ))}

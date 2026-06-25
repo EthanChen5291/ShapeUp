@@ -5,7 +5,8 @@ import { requireConvexAdmin } from "./lib/adminAuth";
 export const recordResult = mutation({
   args: {
     jobId:     v.string(),
-    plyS3Key:  v.string(),
+    // Optional: omitted when the caller didn't request the raw .ply upload.
+    plyS3Key:  v.optional(v.string()),
     splatS3Key: v.string(),
   },
   handler: async (ctx, args) => {

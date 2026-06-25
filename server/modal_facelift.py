@@ -262,7 +262,7 @@ class FaceLiftServer:
         import uuid
         from io import BytesIO
 
-        from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+        from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
         from PIL import Image, UnidentifiedImageError
 
         sys.path.insert(0, FACELIFT_DIR)
@@ -281,6 +281,11 @@ class FaceLiftServer:
         @api.post("/process_image")
         async def process_image(
             image: UploadFile = File(...),
+            # The web viewer only consumes the .splat. The raw ~40 MB .ply is
+            # uploaded to S3 only when the caller asks for it (need_ply=true),
+            # e.g. the hair-subtraction flow that diffs two Gaussian clouds.
+            # Skipping it removes the dominant chunk of the S3 upload time.
+            need_ply: bool = Form(default=False),
             x_shapeup_facelift_secret: str | None = Header(default=None),
         ):
             if shared_secret and x_shapeup_facelift_secret != shared_secret:
@@ -374,18 +379,22 @@ class FaceLiftServer:
                 convert_s = round(time.perf_counter() - convert_start, 3)
 
                 upload_start = time.perf_counter()
-                ply_key   = f"facelifts/{job_id}/output.ply"
                 splat_key = f"facelifts/{job_id}/output.splat"
-                s3.put_object(Bucket=bucket, Key=ply_key, Body=ply_bytes,
-                              ContentType="application/octet-stream")
                 s3.put_object(Bucket=bucket, Key=splat_key, Body=splat_bytes,
                               ContentType="application/octet-stream")
+                # The 40 MB+ .ply dominates upload time; only ship it when asked.
+                ply_key = None
+                if need_ply:
+                    ply_key = f"facelifts/{job_id}/output.ply"
+                    s3.put_object(Bucket=bucket, Key=ply_key, Body=ply_bytes,
+                                  ContentType="application/octet-stream")
                 upload_s = round(time.perf_counter() - upload_start, 3)
 
                 total_s = round(time.perf_counter() - req_start, 3)
+                ply_size_note = f"ply {len(ply_bytes) / 1024:.0f}KB " if need_ply else "ply skipped "
                 print(
                     f"[facelift] {job_id} OK — {len(splat_bytes) // 32} splats, "
-                    f"ply {len(ply_bytes) / 1024:.0f}KB splat {len(splat_bytes) / 1024:.0f}KB, "
+                    f"{ply_size_note}splat {len(splat_bytes) / 1024:.0f}KB, "
                     f"gpu {elapsed_s}s convert {convert_s}s upload {upload_s}s total {total_s}s",
                     flush=True,
                 )

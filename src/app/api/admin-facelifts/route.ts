@@ -24,9 +24,9 @@ export async function GET() {
         jobId: r.jobId,
         userId: r.userId,
         createdAt: r._creationTime,
-        plyKey: r.plyS3Key,
+        plyKey: r.plyS3Key ?? null,
         splatKey: r.splatS3Key,
-        plyUrl: await getSignedDownloadUrl(r.plyS3Key),
+        plyUrl: r.plyS3Key ? await getSignedDownloadUrl(r.plyS3Key) : null,
         splatUrl: await getSignedDownloadUrl(r.splatS3Key),
       })),
     );

@@ -95,6 +95,17 @@ const MENS = {
   'mid taper with waves': 'Short 360 waves pattern across the top with visible wave definition; mid taper fade on the sides.',
   'buzz cut, clean line-up': 'Very short even all-over buzz cut; sharp defined hairline and line-up at the temples and forehead.',
   'fluffy crop, low fade': 'Soft fluffy voluminous cropped top with airy texture; low fade on the sides.',
+  // 2026 teen/young-adult trend additions (incl. perms)
+  'wavy perm, middle part': 'Loose permed waves through a medium-length top parted down the middle into soft curtains framing the forehead; tapered sides, natural tousled movement.',
+  'broccoli perm, taper fade': 'Tight short permed curls packed densely on top forming a rounded broccoli-like dome of curls; clean taper fade on the sides and back.',
+  'textured mod, fringe': 'Medium-length mod cut with a full textured fringe brushed forward over the forehead, blunt rounded perimeter, soft natural movement on the sides over the ears.',
+  'k-pop perm, curtain bangs': 'Soft airy Korean-style perm with loose S-curls and center-parted curtain bangs sweeping the forehead; light volume, fluffy natural finish, tapered sides.',
+  'burst fade, textured fringe': 'Choppy textured top falling into a forward fringe; a burst fade curving around the ear leaving a little length at the back nape, shortest behind the ear.',
+  'bro flow, swept back': 'Medium-to-long flowing hair swept up and back off the forehead with natural body and movement, length reaching the nape and tucking behind the ears, blended natural sides, no fade.',
+  'twist out, taper': 'Defined coily twist-out curls on top with springy separated curl clumps; clean taper fade on the sides and a sharp lined-up hairline.',
+  'caesar cut, textured fringe': 'Short uniform top brushed forward into a short blunt horizontal fringe across the forehead; textured piece-y finish, tapered short sides.',
+  'spiky eboy, mid fade': 'Piece-y textured top pinched up into soft spikes with a slight forward fringe (e-boy style); mid fade on the sides.',
+  'perm mullet, taper fade': 'Permed curly top and crown with curly length kept long at the back over the nape; taper-faded sides — a curly modern mullet.',
 };
 
 const WOMENS = {
@@ -114,6 +125,17 @@ const WOMENS = {
   'voluminous blowout, soft curls': 'Big bouncy blowout with rounded volume, ends curled under and away from the face, glossy smooth body.',
   'half-up bun, loose waves': 'Top section pulled into a half-up bun at the crown, remaining length falling in loose waves.',
   'jellyfish cut, blunt crown': 'Disconnected two-tier cut: blunt rounded short bob layer on top, long straight curtain of hair underneath.',
+  // 2026 teen/young-adult trend additions (incl. perms)
+  'butterfly blowout, curtain bangs': 'Big voluminous butterfly blowout — shorter face-framing top layers flipped back away from the face, longer layers beneath, rounded bouncy body, with soft curtain bangs.',
+  'birkin layers, wispy bangs': 'Effortless Jane-Birkin-inspired long layers with a tousled lived-in texture and long wispy see-through bangs grazing the brows.',
+  'italian bob, blunt ends': 'Chin-to-jaw length rounded Italian bob with thick blunt ends and soft bombshell volume bending under, voluminous and glossy.',
+  'octopus cut, choppy layers': 'Short choppy layered crown with long stringy spiky tendril layers underneath (octopus cut) — disconnected short-top, long-bottom shape with piece-y ends.',
+  'hush cut, curtain bangs': 'Soft low-maintenance hush cut — long hair with gentle face-framing layers that blend into seamless curtain bangs, airy and barely-there layering.',
+  'C-curl perm, shoulder length': 'Shoulder-length hair with a Korean C-curl perm — ends curled gently inward in a smooth C shape with a soft face-framing curve, glossy and bouncy.',
+  'spiral perm, voluminous curls': 'Tight defined spiral perm curls with big all-over volume and springy ringlets cascading from crown to ends.',
+  'soft body perm, long layers': 'Long layered hair with a soft body-wave perm adding loose relaxed waves and natural fullness through the lengths.',
+  'modern shag, micro bangs': 'Heavily layered modern shag with choppy texture and volume up top, paired with short blunt micro baby bangs high on the forehead.',
+  'mixie cut, textured pixie': 'A mixie (between a mullet and pixie) — short textured cropped top and sides with a longer wispy spiky nape, edgy piece-y finish.',
 };
 
 const JOBS = [
