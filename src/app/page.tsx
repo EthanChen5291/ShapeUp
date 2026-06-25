@@ -13,7 +13,7 @@ import { captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCod
 type AppState = 'loading' | 'landing';
 
 export default function Home() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
   const getOrCreate = useMutation(api.users.getOrCreate);
   useQuery(api.users.getMe);
@@ -69,6 +69,13 @@ export default function Home() {
   ) && window.location.hostname !== 'dev.nomorebadhaircuts.com';
   if (isWaitlistMode && !mounted) return null;
   if (isWaitlistMode && isTargetDomain) return <WaitlistPage />;
+
+  // Don't flash the landing page while Clerk is still resolving the session, or
+  // for signed-in users who are about to be pushed to /dashboard. Either case
+  // would otherwise paint <LandingPage> for a beat before the redirect fires.
+  if (!isLoaded || isSignedIn) {
+    return <LoadingScreen onDone={() => {}} ready={false} />;
+  }
 
   if (appState === 'loading') {
     return <LoadingScreen onDone={() => setAppState('landing')} ready={landingAssetsReady} />;
