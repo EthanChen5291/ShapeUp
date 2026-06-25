@@ -8,6 +8,7 @@ import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { getVisitorId } from '@/lib/visitorId';
 import { MAX_PROMPT_LENGTH } from '@/lib/llmValidation';
 import { EditReport, sanitizeEditReport } from '@/lib/editReport';
+import { computeChipFlightKeyframes, CHIP_FLIGHT_OPTIONS } from './editPanelChipFlight';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -170,6 +171,7 @@ const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
 
 export default function EditPanel({ isMobile = false, profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
+  const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
   const [emptyHint, setEmptyHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
   const emptyHintTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -530,8 +532,53 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     }
   }, [phase]);
 
+  // Fly a clicked suggestion chip along a quick curved arc into the prompt box,
+  // then pop its text into the textarea. Falls back to a plain fill when motion
+  // is reduced or the Web Animations API is unavailable (e.g. jsdom).
+  const flyChipToPrompt = (chipEl: HTMLElement, chip: string) => {
+    const target = promptTextareaRef.current;
+    const reduce = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!target || reduce || typeof chipEl.animate !== 'function') {
+      setPrompt(chip);
+      return;
+    }
+
+    const start = chipEl.getBoundingClientRect();
+    const end = target.getBoundingClientRect();
+
+    const clone = chipEl.cloneNode(true) as HTMLElement;
+    Object.assign(clone.style, {
+      position: 'fixed',
+      left: `${start.left}px`,
+      top: `${start.top}px`,
+      width: `${start.width}px`,
+      height: `${start.height}px`,
+      margin: '0',
+      zIndex: '9999',
+      pointerEvents: 'none',
+      willChange: 'transform, opacity',
+    } as Partial<CSSStyleDeclaration>);
+    document.body.appendChild(clone);
+
+    const anim = clone.animate(
+      computeChipFlightKeyframes(start, end),
+      CHIP_FLIGHT_OPTIONS,
+    );
+
+    anim.onfinish = () => {
+      clone.remove();
+      setPrompt(chip);
+      // Quick pop on the textarea as the text lands.
+      target.classList.remove('prompt-land');
+      void target.offsetWidth;
+      target.classList.add('prompt-land');
+    };
+  };
+
   const promptTextarea = (
     <textarea
+      ref={promptTextareaRef}
       id="hair-edit-prompt"
       aria-describedby="hair-edit-prompt-chips"
       className={`input-soft w-full rounded-xl px-3 py-2 text-sm resize-none placeholder:text-[var(--smoke)] ${isMobile ? 'h-16' : 'h-20'}`}
@@ -634,7 +681,6 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           <div key={chipPage} className="flex flex-wrap gap-1.5 flex-1 min-w-0">
             {chips.map((chip, i) => {
               const showPreview = (el: HTMLElement) => {
-                if (isBusy) return;
                 const r = el.getBoundingClientRect();
                 setChipPreview({ label: chip, left: r.left, right: r.right, centerY: r.top + r.height / 2 });
               };
@@ -642,13 +688,12 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                 <button
                   key={chip}
                   type="button"
-                  disabled={isBusy}
-                  onClick={() => setPrompt(chip)}
+                  onClick={(e) => flyChipToPrompt(e.currentTarget, chip)}
                   onMouseEnter={(e) => showPreview(e.currentTarget)}
                   onMouseLeave={() => setChipPreview(null)}
                   onFocus={(e) => showPreview(e.currentTarget)}
                   onBlur={() => setChipPreview(null)}
-                  className="chip-suggest chip-pop disabled:opacity-40"
+                  className="chip-suggest chip-pop"
                   style={{ '--ci': i } as React.CSSProperties}
                 >
                   {chip}
@@ -659,9 +704,8 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           <div className="flex flex-col items-center gap-1">
             <button
               type="button"
-              disabled={isBusy}
               onClick={() => setChipPage(p => p + 1)}
-              className="chip-refresh disabled:opacity-40"
+              className="chip-refresh"
               aria-label={`Show more trending ${gender === 'mens' ? "men's" : "women's"} cuts`}
               title="More trending cuts"
             >
@@ -678,9 +722,8 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
             </button>
             <button
               type="button"
-              disabled={isBusy}
               onClick={() => { setGender(g => (g === 'mens' ? 'womens' : 'mens')); setChipPage(0); }}
-              className="chip-gender chip-gender-nudge disabled:opacity-40"
+              className="chip-gender chip-gender-nudge"
               aria-label={`Showing ${gender === 'mens' ? "men's" : "women's"} cuts — tap to switch to ${gender === 'mens' ? "women's" : "men's"} styles`}
               title={`Showing ${gender === 'mens' ? "men's" : "women's"} styles — tap to switch`}
               /* outline + icon share one color: muted blue for men, muted pink for women */
