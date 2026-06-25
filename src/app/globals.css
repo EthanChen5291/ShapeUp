@@ -2593,7 +2593,9 @@ html.dark .explore-marquee-track {
   position: absolute;
   z-index: 3;
   width: 116px; height: 132px;
-  right: calc(50% + 106px);
+  /* Sit to the left of the shutter, but never let the figure spill off the
+     left edge on narrow/short containers — the second term clamps it in. */
+  right: min(calc(50% + 106px), calc(100% - 116px - 6px));
   bottom: -14px;
   pointer-events: none;
 }
@@ -2613,8 +2615,9 @@ html.dark .explore-marquee-track {
 }
 @media (max-width: 640px) {
   .lsc-pose-guide {
-    width: 102px; height: 116px;
-    right: calc(50% + 90px);
+    width: 90px; height: 104px;
+    /* clamp keeps the figure on-screen even on the narrowest phones */
+    right: min(calc(50% + 78px), calc(100% - 90px - 6px));
     bottom: -12px;
   }
 }
@@ -3354,6 +3357,13 @@ html.dark body {
    dark widget panel, so lighten it in dark mode. */
 html.dark .signup-legal-note {
   color: rgba(240, 236, 228, 0.5) !important;
+}
+
+/* "Continue with Google" button border is dark ink at low opacity — invisible
+   on the dark widget panel, so give it a thin light-gray outline in dark mode.
+   !important overrides the inline + JS hover border color. */
+html.dark .google-signin-btn {
+  border-color: rgba(240, 236, 228, 0.28) !important;
 }
 
 /* Auth modal heading uses var(--cream), which flips dark in dark mode even

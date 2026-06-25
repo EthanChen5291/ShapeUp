@@ -432,7 +432,7 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
 
           <button
             onClick={handleGoogle}
-            className="font-sans"
+            className="font-sans google-signin-btn"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: s.googleGap,
               width: '100%', padding: s.googlePadding, borderRadius: s.googleRadius,

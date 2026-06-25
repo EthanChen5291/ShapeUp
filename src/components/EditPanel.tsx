@@ -15,6 +15,7 @@ import { HairParams, UserHeadProfile } from '@/types';
 import BarberVideoCard from '@/components/BarberVideoCard';
 import { PricingPopup } from '@/components/PricingPopup';
 import InferenceNote from '@/components/InferenceNote';
+import HairPreviewBubble, { type CutPreview } from '@/components/HairPreviewBubble';
 
 
 interface EditPanelProps {
@@ -184,6 +185,8 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   }));
   const chipPool = chipPoolByGender[gender];
   const [chipPage, setChipPage] = useState(0);
+  // Hovered-chip hairstyle preview bubble (null = dismissed).
+  const [chipPreview, setChipPreview] = useState<CutPreview | null>(null);
   const chips = useMemo(() => {
     const start = (chipPage * CHIPS_PER_PAGE) % chipPool.length;
     return chipPool.concat(chipPool).slice(start, start + CHIPS_PER_PAGE);
