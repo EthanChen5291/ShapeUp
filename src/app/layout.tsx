@@ -38,8 +38,23 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://tryshapeup.cc'),
   title: 'ShapeUp',
-  description: 'A neighborhood chair. An AI barber. Your sharpest cut yet.',
+  description: 'An AI barber. Your sharpest cut yet.',
+  openGraph: {
+    type: 'website',
+    title: 'ShapeUp',
+    description: 'An AI barber. Your sharpest cut yet.',
+    url: 'https://tryshapeup.cc',
+    siteName: 'ShapeUp',
+    images: [{ url: '/shapeup_logo.png', width: 1200, height: 630, alt: 'ShapeUp' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ShapeUp',
+    description: 'An AI barber. Your sharpest cut yet.',
+    images: ['/shapeup_logo.png'],
+  },
 };
 
 export const viewport: Viewport = {
