@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 
@@ -50,7 +51,13 @@ function writeLocalSettings(patch: Partial<Settings>) {
   } catch { /* ignore */ }
 }
 
+// Public marketing surfaces always render in the warm light palette — dark mode
+// is an in-app preference and must never bleed onto the landing page (a returning
+// signed-out user can still have `theme: 'dark'` persisted in localStorage).
+const LIGHT_ONLY_ROUTES = new Set(['/']);
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const userQuery = useQuery(api.users.getMe);
   const updateSettingsMutation = useMutation(api.users.updateSettings);
   const isLoggedIn = userQuery !== null && userQuery !== undefined;
@@ -77,6 +84,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const apply = (dark: boolean) => {
       document.documentElement.classList.toggle('dark', dark);
     };
+    // Marketing routes are always light, whatever the stored preference.
+    if (LIGHT_ONLY_ROUTES.has(pathname)) { apply(false); return; }
     if (theme === 'dark') { apply(true); return; }
     if (theme === 'light') { apply(false); return; }
     // system
@@ -85,7 +94,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const handler = (e: MediaQueryListEvent) => apply(e.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
-  }, [theme]);
+  }, [theme, pathname]);
 
   const persist = (patch: Partial<Settings>) => {
     writeLocalSettings(patch);
