@@ -3143,6 +3143,39 @@ html.dark .explore-marquee-track {
   to   { transform: rotate(0deg); }
 }
 
+/* ── Gender swap button — sits under the refresh button, toggles which
+   trending-cut pool the chips suggest from. ───────────────────────── */
+.chip-gender {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(42, 32, 26, 0.18);
+  background: rgba(255, 248, 234, 0.7);
+  color: var(--char);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease,
+              transform 140ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.chip-gender:hover:not(:disabled) {
+  border-color: var(--tomato);
+  color: var(--tomato);
+  background: var(--cream);
+  transform: scale(1.08);
+}
+.chip-gender:active:not(:disabled) { transform: scale(0.9); }
+/* A few gentle pulses on mount so the toggle is noticed, then it rests. */
+.chip-gender-nudge {
+  animation: gender-nudge 1.5s ease-out 3 both;
+}
+@keyframes gender-nudge {
+  0%, 70%, 100% { box-shadow: 0 0 0 0 rgba(225, 75, 50, 0); }
+  82% { box-shadow: 0 0 0 4px rgba(225, 75, 50, 0.16); }
+}
+
 /* ── "Show my barber" CTA — the loop's payoff button ────────────── */
 .btn-cta-order {
   position: relative;
@@ -3280,6 +3313,7 @@ html.dark .explore-marquee-track {
   .receipt-stub-label, .chip-suggest, .pipeline-wrapper,
   .stage-pip-done, .error-shake, .rec-dot, .tb-status-dot,
   .prompt-frame::before, .chip-pop, .chip-refresh-spin,
+  .chip-gender-nudge,
   .btn-cta-order-sheen, .present-wrap, .present-backdrop,
   .present-hint {
     animation: none !important;
@@ -3354,12 +3388,14 @@ html.dark .pill-credits {
    opaque in dark mode, leaving light text on a light fill. Darken the fill and
    lighten the outline so they read against the charcoal background. */
 html.dark .chip-suggest,
-html.dark .chip-refresh {
+html.dark .chip-refresh,
+html.dark .chip-gender {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.22);
 }
 html.dark .chip-suggest:hover:not(:disabled),
-html.dark .chip-refresh:hover:not(:disabled) {
+html.dark .chip-refresh:hover:not(:disabled),
+html.dark .chip-gender:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
 }
 

@@ -63,8 +63,9 @@ const PROMPT_PLACEHOLDERS = [
   '"Curly on top, skin fade sides."',
 ];
 
-// Trending cuts — the refresh button pages through this pool, 4 at a time
-const TRENDING_CUTS = [
+// Trending cuts — the refresh button pages through these pools, 3 at a time.
+// The gender toggle swaps which pool the chips draw from.
+const TRENDING_CUTS_MENS = [
   'low taper fade, textured fringe',
   'textured crop, skin fade',
   'modern mullet, faded sides',
@@ -82,6 +83,31 @@ const TRENDING_CUTS = [
   'buzz cut, clean line-up',
   'fluffy crop, low fade',
 ];
+
+const TRENDING_CUTS_WOMENS = [
+  'long layers, curtain bangs',
+  'collarbone bob, soft waves',
+  'shaggy wolf cut, wispy ends',
+  'blunt lob, center part',
+  'butterfly layers, face framing',
+  'french bob, micro fringe',
+  'beachy waves, long layers',
+  'pixie cut, textured crop',
+  'money piece, balayage layers',
+  'curly shag, volume on top',
+  'sleek straight, middle part',
+  'choppy bixie cut',
+  'feathered layers, side bangs',
+  'voluminous blowout, soft curls',
+  'half-up bun, loose waves',
+  'jellyfish cut, blunt crown',
+];
+
+type Gender = 'mens' | 'womens';
+const TRENDING_CUTS: Record<Gender, string[]> = {
+  mens: TRENDING_CUTS_MENS,
+  womens: TRENDING_CUTS_WOMENS,
+};
 
 const CHIPS_PER_PAGE = 3;
 
@@ -149,8 +175,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   // Kept for the edit pipeline's report capture; consumed by future order logic.
   const [, setLastEditReport] = useState<EditReport | null>(null);
 
-  // Trending-cut suggestion chips, paged by the refresh button
-  const [chipPool] = useState(() => shuffle(TRENDING_CUTS));
+  // Trending-cut suggestion chips, paged by the refresh button.
+  // The gender toggle swaps which pool we suggest from.
+  const [gender, setGender] = useState<Gender>('mens');
+  const [chipPoolByGender] = useState<Record<Gender, string[]>>(() => ({
+    mens: shuffle(TRENDING_CUTS.mens),
+    womens: shuffle(TRENDING_CUTS.womens),
+  }));
+  const chipPool = chipPoolByGender[gender];
   const [chipPage, setChipPage] = useState(0);
   const chips = useMemo(() => {
     const start = (chipPage * CHIPS_PER_PAGE) % chipPool.length;
@@ -590,25 +622,61 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => setChipPage(p => p + 1)}
-            className="chip-refresh disabled:opacity-40"
-            aria-label="Show more trending cuts"
-            title="More trending cuts"
-          >
-            <svg
-              key={chipPage}
-              className={chipPage > 0 ? 'chip-refresh-spin' : undefined}
-              width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
-              aria-hidden
+          <div className="flex flex-col items-center gap-1">
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => setChipPage(p => p + 1)}
+              className="chip-refresh disabled:opacity-40"
+              aria-label={`Show more trending ${gender === 'mens' ? "men's" : "women's"} cuts`}
+              title="More trending cuts"
             >
-              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-              <path d="M21 3v6h-6" />
-            </svg>
-          </button>
+              <svg
+                key={chipPage}
+                className={chipPage > 0 ? 'chip-refresh-spin' : undefined}
+                width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <path d="M21 3v6h-6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => { setGender(g => (g === 'mens' ? 'womens' : 'mens')); setChipPage(0); }}
+              className="chip-gender chip-gender-nudge disabled:opacity-40"
+              aria-label={`Switch trending cuts to ${gender === 'mens' ? "women's" : "men's"} styles`}
+              title={`Show ${gender === 'mens' ? "women's" : "men's"} styles`}
+            >
+              {gender === 'mens' ? (
+                /* Venus (muted pink) — tap to switch to women's styles */
+                <svg
+                  key="to-womens"
+                  width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="#c97f95" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="8.5" r="5" />
+                  <line x1="12" y1="13.5" x2="12" y2="22" />
+                  <line x1="8.5" y1="19" x2="15.5" y2="19" />
+                </svg>
+              ) : (
+                /* Mars (muted blue) — tap to switch to men's styles */
+                <svg
+                  key="to-mens"
+                  width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="#6d8bb0" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="9.5" cy="14.5" r="5" />
+                  <line x1="13.5" y1="10.5" x2="20" y2="4" />
+                  <polyline points="14.5 4 20 4 20 9.5" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
         <div className={isMobile ? 'contents' : 'relative flex gap-2'}>
           {!isMobile && applyButton}
