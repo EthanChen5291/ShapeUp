@@ -2572,7 +2572,40 @@ html.dark .explore-marquee-track {
    nudge the button — it just floats below-and-right of it. */
 .lsc-upload-cluster {
   position: relative;
-  display: flex; flex-direction: column;
+  display: flex;
+  align-items: center; justify-content: center;
+}
+/* Pose guide floats over the shutter/upload stack: its top sits slightly
+   above the shutter button and its bottom slightly below the upload button.
+   Positioned against .lsc-root (the full column). */
+.lsc-pose-guide {
+  position: absolute;
+  z-index: 3;
+  width: 116px; height: 132px;
+  right: calc(50% + 106px);
+  bottom: -14px;
+  pointer-events: none;
+}
+.lsc-pose-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+/* male sits underneath, always visible; female fades on top of it */
+.lsc-pose-b { z-index: 1; }
+.lsc-pose-a { z-index: 2; animation: lsc-pose-fade 6s ease-in-out infinite; }
+@keyframes lsc-pose-fade {
+  0%, 40%   { opacity: 1; }
+  50%, 90%  { opacity: 0; }
+  100%      { opacity: 1; }
+}
+@media (max-width: 640px) {
+  .lsc-pose-guide {
+    width: 102px; height: 116px;
+    right: calc(50% + 90px);
+    bottom: -12px;
+  }
 }
 
 /* ── Live checklist (ScanPopup left panel) ──────────────────────── */

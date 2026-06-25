@@ -141,6 +141,18 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
   const [liveStatus, setLiveStatus] = useState('');
   const [freshCut, setFreshCut] = useState(false);
 
+  // ── Cancel-in-flight state ────────────────────────────────────────
+  // The "are you sure" confirm dialog (you still lose a token).
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // Aborts the active Gemini / facelift fetch so the client stops waiting and
+  // never applies the result.
+  const abortRef = useRef<AbortController | null>(null);
+  // Distinguishes a user-initiated cancel from a genuine error in the catch block.
+  const cancelledRef = useRef(false);
+  // True once the facelift (3D) request has been dispatched. facelift spends the
+  // token itself, so when it's already started we must NOT charge again on cancel.
+  const faceliftStartedRef = useRef(false);
+
   // Recovery state: true while we're polling Convex after a mid-hairstep refresh
   const [isRecovering, setIsRecovering] = useState(false);
   const recoveryStartedAtRef = useRef<number | null>(null);
@@ -263,6 +275,11 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
     processingRef.current = true;
     pipelineHadErrorRef.current = false;
     pendingPromptRef.current = submittedPrompt;
+    // Fresh cancel scope for this run.
+    abortRef.current = new AbortController();
+    cancelledRef.current = false;
+    faceliftStartedRef.current = false;
+    const signal = abortRef.current.signal;
     setPipelineError(null);
     setPhase('gemini');
 
@@ -274,6 +291,7 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
       console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: imageForGemini, sessionId, prompt: submittedPrompt });
       const geminiRes = await fetch('/api/gemini-hair-edit', {
         method: 'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl: imageForGemini,
@@ -312,8 +330,12 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
 
       // newImageUrl is already a data:image/png;base64,… URL — pass directly to facelift.
       const fingerprint = await getVisitorId();
+      // From here on the token is spent server-side by facelift, so a cancel
+      // must not also charge via /api/charge-edit.
+      faceliftStartedRef.current = true;
       const faceliftRes = await fetch('/api/facelift', {
         method:  'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ imageDataUrl: newImageUrl, outputName: 'edit-output', fingerprint }),
       });
@@ -338,7 +360,14 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
       onPlyReady(`/api/proxy-ply?url=${encodeURIComponent(faceliftData.splatUrl)}`, faceliftData.splatS3Key);
       setLiveStatus('3D hairstyle render is ready. Fresh cut.');
     } catch (err) {
-      if (!pipelineHadErrorRef.current) {
+      const aborted = cancelledRef.current || (err instanceof DOMException && err.name === 'AbortError');
+      if (aborted) {
+        // User cancelled: suppress the success path (no "fresh cut") but show no
+        // red error — just a quiet acknowledgement.
+        pipelineHadErrorRef.current = true;
+        setPipelineError(null);
+        setLiveStatus('Edit cancelled.');
+      } else if (!pipelineHadErrorRef.current) {
         pipelineHadErrorRef.current = true;
         setPipelineError('Unexpected error: ' + (err instanceof Error ? err.message : String(err)));
       }
@@ -375,6 +404,33 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
   };
 
   useEffect(() => () => emptyHintTimers.current.forEach(clearTimeout), []);
+
+  // ── Cancel the in-flight edit ─────────────────────────────────────
+  // Abort the active fetch so the client stops waiting and never applies the
+  // result. If we hadn't reached the facelift step yet, the token hasn't been
+  // spent server-side — so charge it here (the Gemini call already cost us).
+  // Note: aborting only stops the *client*; a facelift/Modal render already in
+  // flight keeps running on the GPU. That's why we still spend the token.
+  const confirmCancel = useCallback(async () => {
+    setShowCancelConfirm(false);
+    if (!processingRef.current) return;
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+
+    if (!faceliftStartedRef.current && !paywallDisabled && !isAllowlisted) {
+      // Gemini-phase cancel: facelift never ran, so spend the token now.
+      try {
+        const fingerprint = await getVisitorId();
+        await fetch('/api/charge-edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fingerprint }),
+        });
+      } catch (err) {
+        console.warn('[EditPanel] charge-edit on cancel failed (non-fatal):', err);
+      }
+    }
+  }, [paywallDisabled, isAllowlisted]);
 
   // ── Rotating placeholder + barber chatter ─────────────────────────
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
@@ -726,6 +782,17 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
             <p key={chatter} className="chatter-line font-serif italic text-[11.5px] text-[var(--smoke)] text-center">
               {chatter}
             </p>
+
+            {/* Cancel the in-flight edit */}
+            <div className="flex justify-center mt-1">
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(true)}
+                className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--cherry)] underline underline-offset-2 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
           </div>
         </div>
@@ -769,6 +836,48 @@ export default function EditPanel({ isMobile = false, hideToolboxTab = false, pr
         onDismiss={() => setShowPricing(false)}
         returnUrl={projectId ? `/studio/${projectId}` : undefined}
       />
+    )}
+
+    {showCancelConfirm && (
+      <div
+        className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+        style={{ background: 'rgba(20,14,10,0.55)', backdropFilter: 'blur(2px)' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-edit-title"
+        onClick={() => setShowCancelConfirm(false)}
+      >
+        <div
+          className="w-full max-w-xs rounded-2xl p-5 text-[var(--ink)]"
+          style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.12)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.55)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 id="cancel-edit-title" className="font-serif text-base font-semibold mb-1">
+            Cancel this edit?
+          </h3>
+          <p className="font-serif italic text-[13px] text-[var(--smoke)] mb-4">
+            The cut’s already on the chair — you’ll still be charged 1 token for the work in progress. This can’t be undone.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCancelConfirm(false)}
+              className="btn btn-snap flex-1"
+              style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, background: 'var(--biscuit)', color: 'var(--ink)', border: '1px solid rgba(42,32,26,0.15)' }}
+            >
+              Keep going
+            </button>
+            <button
+              type="button"
+              onClick={confirmCancel}
+              className="btn btn-snap flex-1"
+              style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, background: 'var(--cherry)', color: '#fff' }}
+            >
+              Yes, cancel
+            </button>
+          </div>
+        </div>
+      </div>
     )}
   </>
   );

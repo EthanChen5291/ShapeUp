@@ -527,8 +527,8 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   // Light shows a bright offwhite sun against the mustard fill — yellow-on-yellow would blend.
   const themeOptions: { value: Theme; label: string; icon: string; color: string; on: string; glyph?: string }[] = [
     { value: 'light', label: 'Light', icon: '☀', color: 'var(--mustard)', on: '#3d2e0c', glyph: 'var(--cream)' },
-    { value: 'system', label: 'System', icon: '◐', color: 'var(--caramel)', on: '#fff8ea' },
     { value: 'dark', label: 'Dark', icon: '☾', color: 'var(--denim)', on: '#fff8ea' },
+    { value: 'system', label: 'System', icon: '◐', color: 'var(--caramel)', on: '#fff8ea' },
   ];
 
   const qualityOptions: { value: RenderQuality; label: string; desc: string; color: string; on: string; glyph?: string }[] = [
