@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 
@@ -54,6 +55,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const userQuery = useQuery(api.users.getMe);
   const updateSettingsMutation = useMutation(api.users.updateSettings);
   const isLoggedIn = userQuery !== null && userQuery !== undefined;
+  const pathname = usePathname();
 
   const local = useMemo(() => readLocalSettings(), []);
 
@@ -72,11 +74,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (userQuery.aiTrainingOptOut != null) setAiTrainingOptOut(userQuery.aiTrainingOptOut);
   }, [userQuery]);
 
-  // Apply theme to <html>
+  // Apply theme to <html>. The landing/loading route ('/') is always shown in
+  // light mode — it keeps its default warm palette regardless of the theme setting.
   useEffect(() => {
     const apply = (dark: boolean) => {
       document.documentElement.classList.toggle('dark', dark);
     };
+    if (pathname === '/') { apply(false); return; }
     if (theme === 'dark') { apply(true); return; }
     if (theme === 'light') { apply(false); return; }
     // system
@@ -85,7 +89,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const handler = (e: MediaQueryListEvent) => apply(e.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
-  }, [theme]);
+  }, [theme, pathname]);
 
   const persist = (patch: Partial<Settings>) => {
     writeLocalSettings(patch);
