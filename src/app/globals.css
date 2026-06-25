@@ -2646,6 +2646,20 @@ html.dark .explore-marquee-track {
 .lchk-pass .lchk-label { opacity: 0.9; }
 .lchk-fail .lchk-label { opacity: 1; color: #ffd9cf; }
 
+/* Dark mode: --cream remaps to charcoal, so the checklist labels and scan
+   title would go dark. Keep them white in dark mode (fail state stays red). */
+html.dark .lchk-label { color: #fff; }
+html.dark .lchk-fail .lchk-label { color: #ffd9cf; }
+html.dark #scan-popup-title { color: #fff; }
+
+/* Keep the fulfilled-check pin yellow in dark mode (--butter remaps to gray),
+   with a dark tick so it stays legible on the yellow. */
+html.dark .lchk-pass .lchk-pin {
+  background: #ffe7b0;
+  border-color: #ffe7b0;
+}
+html.dark .lchk-tick path { stroke: #2b2b2f; }
+
 .lchk-footnote {
   margin: 14px 0 0;
   font-style: italic;

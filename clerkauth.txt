@@ -1,0 +1,97 @@
+CLERK AUTH — HANDOFF / CONTEXT
+Last updated: 2026-06-21
+
+============================================================
+TL;DR
+============================================================
+- Local dev now uses the Clerk DEVELOPMENT instance (full-sparrow-61).
+- Production (Vercel / tryshapeup.cc) uses the Clerk PRODUCTION instance (clerk.tryshapeup.cc).
+- These are two instances of the SAME Clerk app ("ShapeUp"), with SEPARATE user pools.
+- To use auth on http://localhost:3000 you MUST use the dev (pk_test/sk_test) keys.
+  Production pk_live keys CANNOT sign in on localhost (see "Why" below).
+
+============================================================
+WHAT WAS BROKEN & WHY
+============================================================
+Symptom 1: console error from clerk.browser.js + "Sign-in is still loading. Try again in a moment."
+  Cause: app ran on localhost with PRODUCTION keys (pk_live, clerk.tryshapeup.cc).
+  The production instance had NO allowed_origins, so localhost requests got
+  HTTP 400 origin_invalid -> clerk-js threw on init -> useSignIn() never loaded.
+
+Symptom 2 (after allowing localhost origin): sign-in returned
+  {"code":"authorization_invalid","message":"Unauthorized request"}.
+  Cause: PRODUCTION Clerk instances have no "dev-browser token" mechanism
+  (POST /v1/dev_browser -> instance_type_invalid) and rely on first-party cookies
+  on the real .tryshapeup.cc domain. On localhost those cookies are third-party /
+  blocked, so no client/session can be established -> authorization_invalid.
+  => A production Clerk instance fundamentally cannot complete sign-in on localhost.
+
+FIX: switch local dev to the app's DEVELOPMENT instance (full-sparrow-61), which
+DOES support dev-browser tokens (POST /v1/dev_browser -> HTTP 200) and works on localhost.
+
+============================================================
+INSTANCES
+============================================================
+PRODUCTION  (used by Vercel / live site)
+  Frontend API domain: clerk.tryshapeup.cc
+  Instance id:         ins_3CrytqZn22qRR3ffzWhUrhsaNWJ
+  Publishable key:     pk_live_Y2xlcmsudHJ5c2hhcGV1cC5jYyQ
+  Secret key:          sk_live_3L0nls... (in .env.local, commented out; set in Vercel)
+  'convex' JWT template: EXISTS
+  Note: clerk.tryshapeup.cc and clerk.nomorebadhaircuts.com are the SAME prod app, re-domained.
+
+DEVELOPMENT (used by localhost) — CURRENTLY ACTIVE in .env.local
+  Frontend API domain: full-sparrow-61.clerk.accounts.dev
+  Instance id:         ins_3CoezuaoW4csePxojnWXJIDoSxA
+  Publishable key:     pk_test_ZnVsbC1zcGFycm93LTYxLmNsZXJrLmFjY291bnRzLmRldiQ
+  Secret key:          sk_test_YUieUj6PAVbfFcBaIaxsAFF5gw3FdMo4rmgf3AKlfU
+  'convex' JWT template: EXISTS
+  Note: SEPARATE user pool from prod. Existing dev users include
+        andresnewman9087@gmail.com, shapeup.ai@gmail.com, ethan@tryshapeup.cc, etc.
+
+Both instances' 'convex' template + both .accounts.dev/.tryshapeup.cc domains are
+already trusted in convex/auth.config.ts, so BOTH Convex deployments accept tokens
+from either instance. No Convex change needed when switching Clerk keys.
+
+CONVEX DEPLOYMENTS (updated 2026-06-21):
+  PROD = outgoing-octopus-107  — serves tryshapeup.cc; deployed ONLY by Vercel
+         production builds (vercel.json runs `convex deploy` when VERCEL_ENV=production).
+         Prod deploy key lives in Vercel env CONVEX_DEPLOY_KEY. NEVER put it in .env*.
+  DEV  = flippant-lark-931     — local `npx convex dev` target (this is what .env.local
+         NEXT_PUBLIC_CONVEX_URL points at). Separate from prod; cannot affect it.
+  Stripe LIVE webhook -> https://outgoing-octopus-107.convex.site/stripe/webhook
+
+============================================================
+.env.local STATE
+============================================================
+- Active (uncommented): the pk_test / sk_test DEV keys above.
+- Commented out: the pk_live / sk_live PROD keys (kept for reference; Vercel holds the real prod env).
+- Do NOT switch back to prod-on-localhost: it can't sign in (see Why). Use the dev keys for local work.
+
+============================================================
+GOTCHAS
+============================================================
+- NEXT_PUBLIC_* keys are inlined at compile time. After changing keys in .env.local,
+  RESTART the dev server (a hot-reload may not fully re-bake the client bundle).
+- Dev-instance users are NOT prod users: fresh local accounts start with 0 credits
+  and are NOT on ADMIN_CLERK_IDS / DEMO_BYPASS_EMAILS (those hold prod clerk subjects).
+  Note DISABLE_PAYWALL=1 in .env.local already skips credit checks locally.
+- Production instance still has http://localhost:3000 + http://127.0.0.1:3000 in its
+  allowed_origins (a leftover from the first fix attempt; an empty-array PATCH was a
+  no-op). HARMLESS — prod still can't complete a localhost session — but you can clear
+  it in the Clerk dashboard (Production instance) if you want it tidy.
+
+============================================================
+USEFUL VERIFICATION COMMANDS
+============================================================
+# Which key is the running dev server serving to the browser:
+curl -s http://localhost:3000/sign-in | grep -oE "pk_(test|live)_[A-Za-z0-9]+" | sort -u
+
+# Confirm a secret key's instance id (JWKS kid):
+curl -s -H "Authorization: Bearer <SK>" https://api.clerk.com/v1/jwks
+
+# Confirm 'convex' JWT template exists on an instance:
+curl -s -H "Authorization: Bearer <SK>" https://api.clerk.com/v1/jwt_templates
+
+# Dev instance supports localhost handshake (returns 200 + token):
+curl -s -X POST "https://full-sparrow-61.clerk.accounts.dev/v1/dev_browser?publishable_key=<PK_TEST>"
