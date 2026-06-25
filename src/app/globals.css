@@ -3283,6 +3283,18 @@ html.dark body {
   color: var(--ink);
 }
 
+/* Sign-in popup: legal note is dark ink at low opacity — invisible on the
+   dark widget panel, so lighten it in dark mode. */
+html.dark .signup-legal-note {
+  color: rgba(240, 236, 228, 0.5) !important;
+}
+
+/* Auth modal heading uses var(--cream), which flips dark in dark mode even
+   though it sits on a dark backdrop — force it white. */
+html.dark .auth-modal-heading {
+  color: #fff8ea !important;
+}
+
 html.dark .pcard {
   background: var(--cream);
   outline-color: rgba(255,255,255,0.1) !important;

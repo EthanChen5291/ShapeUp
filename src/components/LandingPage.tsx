@@ -2795,7 +2795,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               }}>
                 {pendingAction.type === 'free' ? 'create your account' : 'sign in to purchase'}
               </p>
-              <h2 style={{
+              <h2 className="auth-modal-heading" style={{
                 fontFamily: 'var(--font-fraunces), Georgia, serif',
                 fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
                 color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,

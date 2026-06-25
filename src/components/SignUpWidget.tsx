@@ -453,7 +453,7 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
             Continue with Google
           </button>
 
-          <p className="font-mono" style={{ fontSize: s.noteFontSize, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
+          <p className="font-mono signup-legal-note" style={{ fontSize: s.noteFontSize, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
             Free to start · No credit card · By continuing, you agree to the{' '}
             <Link href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</Link>
             {' '}and{' '}
