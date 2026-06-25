@@ -12,6 +12,23 @@ Convex agent skills for common tasks can be installed by running
 
 <!-- convex-ai-end -->
 
+## Engineering conventions
+
+Act as a senior engineer: prefer the simplest change that fits existing
+patterns; read neighboring code before adding new code; don't introduce
+abstractions or dependencies a feature doesn't need.
+
+- **Front-end:** use the `ui-ux-pro-max` skill for any UI design, build, or
+  review work.
+- **Tests back every change:** each added or edited feature ships with a test.
+  Unit/logic → colocated `*.test.{ts,tsx}` next to the source (vitest,
+  `npm test`); user-facing flows → `e2e/*.spec.ts` (playwright,
+  `npm run test:e2e`); shared fixtures → `test/`.
+- **Definition of done:** `npm run typecheck && npm run lint && npm test` pass
+  before calling work complete. Report failures with output; don't claim green
+  unverified.
+- Don't deploy or push unless asked.
+
 <!-- BEGIN @agent-native/skills -->
 ## Efficient Fable
 

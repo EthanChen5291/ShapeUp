@@ -612,18 +612,29 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
         )}
         <div id="hair-edit-prompt-chips" className="flex items-start gap-1.5">
           <div key={chipPage} className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-            {chips.map((chip, i) => (
-              <button
-                key={chip}
-                type="button"
-                disabled={isBusy}
-                onClick={() => setPrompt(chip)}
-                className="chip-suggest chip-pop disabled:opacity-40"
-                style={{ '--ci': i } as React.CSSProperties}
-              >
-                {chip}
-              </button>
-            ))}
+            {chips.map((chip, i) => {
+              const showPreview = (el: HTMLElement) => {
+                if (isBusy) return;
+                const r = el.getBoundingClientRect();
+                setChipPreview({ label: chip, left: r.left, right: r.right, centerY: r.top + r.height / 2 });
+              };
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => setPrompt(chip)}
+                  onMouseEnter={(e) => showPreview(e.currentTarget)}
+                  onMouseLeave={() => setChipPreview(null)}
+                  onFocus={(e) => showPreview(e.currentTarget)}
+                  onBlur={() => setChipPreview(null)}
+                  className="chip-suggest chip-pop disabled:opacity-40"
+                  style={{ '--ci': i } as React.CSSProperties}
+                >
+                  {chip}
+                </button>
+              );
+            })}
           </div>
           <div className="flex flex-col items-center gap-1">
             <button
@@ -650,37 +661,40 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
               disabled={isBusy}
               onClick={() => { setGender(g => (g === 'mens' ? 'womens' : 'mens')); setChipPage(0); }}
               className="chip-gender chip-gender-nudge disabled:opacity-40"
-              aria-label={`Switch trending cuts to ${gender === 'mens' ? "women's" : "men's"} styles`}
-              title={`Show ${gender === 'mens' ? "women's" : "men's"} styles`}
+              aria-label={`Showing ${gender === 'mens' ? "men's" : "women's"} cuts — tap to switch to ${gender === 'mens' ? "women's" : "men's"} styles`}
+              title={`Showing ${gender === 'mens' ? "men's" : "women's"} styles — tap to switch`}
+              /* outline + icon share one color: muted blue for men, muted pink for women */
+              style={{ color: gender === 'mens' ? '#6d8bb0' : '#c97f95', borderColor: 'currentColor' }}
             >
               {gender === 'mens' ? (
-                /* Venus (muted pink) — tap to switch to women's styles */
+                /* Mars (muted blue) — men's styles are showing */
                 <svg
-                  key="to-womens"
+                  key="mens"
                   width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="#c97f95" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <circle cx="12" cy="8.5" r="5" />
-                  <line x1="12" y1="13.5" x2="12" y2="22" />
-                  <line x1="8.5" y1="19" x2="15.5" y2="19" />
-                </svg>
-              ) : (
-                /* Mars (muted blue) — tap to switch to men's styles */
-                <svg
-                  key="to-mens"
-                  width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="#6d8bb0" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
                   aria-hidden
                 >
                   <circle cx="9.5" cy="14.5" r="5" />
                   <line x1="13.5" y1="10.5" x2="20" y2="4" />
                   <polyline points="14.5 4 20 4 20 9.5" />
                 </svg>
+              ) : (
+                /* Venus (muted pink) — women's styles are showing */
+                <svg
+                  key="womens"
+                  width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="8.5" r="5" />
+                  <line x1="12" y1="13.5" x2="12" y2="22" />
+                  <line x1="8.5" y1="19" x2="15.5" y2="19" />
+                </svg>
               )}
             </button>
           </div>
         </div>
+        <HairPreviewBubble preview={chipPreview} />
         <div className={isMobile ? 'contents' : 'relative flex gap-2'}>
           {!isMobile && applyButton}
           {emptyHint !== 'hidden' && (
