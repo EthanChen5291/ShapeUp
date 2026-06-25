@@ -579,12 +579,18 @@ export default function LiveScanCamera({
       )}
 
       {!shot && !uploading && (
-        <div className="lsc-upload-cluster">
-          <UploadImageButton
-            onClick={() => fileInputRef.current?.click()}
-            disabled={engine === 'booting'}
-          />
-        </div>
+        <>
+          <div className="lsc-pose-guide" aria-hidden>
+            <img src="/frontfacing_female_eyes.png" alt="" className="lsc-pose-img lsc-pose-a" />
+            <img src="/frontfacing_male_eyes.png" alt="" className="lsc-pose-img lsc-pose-b" />
+          </div>
+          <div className="lsc-upload-cluster">
+            <UploadImageButton
+              onClick={() => fileInputRef.current?.click()}
+              disabled={engine === 'booting'}
+            />
+          </div>
+        </>
       )}
 
       {/* ── checks-not-met confirmation ── */}

@@ -442,6 +442,8 @@ function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCo
 // it lerps into view past the other floors. No close affordance — you leave it
 // by selecting another tab, exactly like the other levels.
 function SettingsPopup({ onRescan }: { onRescan: () => void }) {
+  const { isSignedIn } = useUser();
+  const [showSignIn, setShowSignIn] = useState(false);
   const userQuery = useQuery(api.users.getMe);
   const setUsernameMutation = useMutation(api.users.setUsername);
   const deleteAccountMutation = useMutation(api.users.deleteCurrentUserData);
@@ -540,6 +542,22 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const consentDate = userQuery?.biometricConsentAt
     ? new Date(userQuery.biometricConsentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
+
+  // Settings live behind auth — there's nothing to configure (or persist) until
+  // the user is signed in, so gate the whole floor behind a sign-in prompt.
+  if (isSignedIn === false) {
+    return (
+      <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>Settings</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 48, gap: 16 }}>
+          <span className="font-display italic" style={{ fontWeight: 600, fontSize: 28, color: 'var(--ink)' }}>Sign In First</span>
+          <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'var(--char)' }}>Sign in to manage your account, appearance, render quality, and privacy settings.</p>
+          <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-tomato" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+          {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
+        </div>
+      </div>
+    );
+  }
 
   return (
       <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
