@@ -170,6 +170,19 @@ const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
   ],
 };
 
+// Line-style scissors — inherits the surrounding text color via currentColor.
+function ScissorsIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+    </svg>
+  );
+}
+
 export default function EditPanel({ isMobile = false, profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
   const [prompt, setPrompt] = useState('');
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -615,7 +628,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       {isBusy ? (
         <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
       ) : (
-        '✂ Apply'
+        <span className="inline-flex items-center gap-1.5"><ScissorsIcon />Apply</span>
       )}
     </button>
   );
@@ -630,7 +643,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       {freshCut && (
         <div className="stamp-fresh" aria-hidden>
           <span>FRESH CUT</span>
-          <span className="stamp-fresh-sub">✂ shapeup approved</span>
+          <span className="stamp-fresh-sub inline-flex items-center gap-1"><ScissorsIcon size={12} /> shapeup approved</span>
         </div>
       )}
 
@@ -795,7 +808,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                 className="flex items-center justify-center gap-3 rounded-2xl px-10 py-8 text-center shadow-2xl font-sans"
                 style={{ background: '#ffffff', color: 'var(--char)', width: 'min(90vw, 26rem)', fontSize: 'calc(0.875rem * 1.15)', fontWeight: 500 }}
               >
-                <span>✂</span>
+                <span aria-hidden><ScissorsIcon size={20} /></span>
                 <span>
                   Enter your desired hairstyle<br />
                   in the toolbox!
