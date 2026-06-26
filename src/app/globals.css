@@ -1618,8 +1618,9 @@ input[type="range"].slider-warm::-moz-range-thumb {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 31px;
-  height: 22px;
+  width: 37px;
+  height: 26px;
+  margin-left: 3px;
   padding: 0;
   border-radius: 999px;
   border: 1px solid rgba(255, 248, 234, 0.24);
@@ -1633,7 +1634,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
     background 220ms ease, border-color 220ms ease,
     color 220ms ease, box-shadow 220ms ease;
 }
-.pne-compact .pne-toggle { width: 27px; height: 19px; }
+.pne-compact .pne-toggle { width: 32px; height: 23px; }
 /* Extend the tap target to ~44px without disturbing the visual chip. */
 .pne-toggle::before {
   content: '';
@@ -1683,7 +1684,7 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .pne-ok {
   font-family: var(--font-jetbrains), monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }

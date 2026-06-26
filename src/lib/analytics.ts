@@ -8,6 +8,7 @@ export type AnalyticsEvent =
   | 'user_signed_up'
   | 'project_created'
   | 'image_generated'
+  | 'checkout_started'
   | 'purchase_completed'
   | 'refund_requested';
 

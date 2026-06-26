@@ -228,4 +228,19 @@ export default defineSchema({
     heartbeatAt: v.number(),
   }).index("by_heartbeat", ["heartbeatAt"]),
 
+  // Inbound messages from the public "Contact us" page. Works for logged-out
+  // visitors, so there's no tokenIdentifier — just whatever they typed. A topic
+  // routes the message (support / billing / privacy / partnership / press /
+  // other). Every submission fans out to Discord — see convex/contact.ts.
+  contactMessages: defineTable({
+    name: v.string(),
+    email: v.string(),
+    topic: v.string(),
+    message: v.string(),
+    // Best-effort context: the Clerk token if the sender happened to be signed
+    // in, so we can tie a message back to an account when one exists.
+    tokenIdentifier: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_email", ["email"]),
+
 });
