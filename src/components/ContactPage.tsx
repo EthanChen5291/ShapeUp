@@ -71,12 +71,31 @@ export default function ContactPage() {
   }, [isSignedIn, pendingPlan]);
 
   const interceptBuy = (planId: string) => {
-    if (!isSignedIn) {
+    // Only an explicit signed-out state diverts to sign-in; while Clerk is still
+    // resolving, let checkout proceed (the API re-checks auth anyway).
+    if (isSignedIn === false) {
       setPendingPlan(planId);
       openSignIn();
       return true;
     }
     return false;
+  };
+
+  // Free tier: send signed-out visitors through sign-in, then into the app.
+  const [pendingFree, setPendingFree] = useState(false);
+  useEffect(() => {
+    if (isSignedIn && pendingFree) {
+      setPendingFree(false);
+      window.location.href = '/dashboard';
+    }
+  }, [isSignedIn, pendingFree]);
+  const handleFree = () => {
+    if (isSignedIn === false) {
+      setPendingFree(true);
+      openSignIn();
+      return;
+    }
+    window.location.href = '/dashboard';
   };
 
   const [topic, setTopic] = useState<TopicId>('support');
@@ -116,8 +135,8 @@ export default function ContactPage() {
       />
 
       <div className="relative" style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 24px 80px' }}>
-        {/* ── Nav ── mirrors the landing top bar so the dashboard / pricing
-            buttons stay reachable from here. */}
+        {/* ── Nav ── mirrors the landing top bar (how it works · pricing ·
+            contact us) so the same destinations stay reachable from here. */}
         <nav className="flex items-center justify-between" aria-label="Contact">
           <Link href="/" className="flex items-center gap-2 group" style={{ textDecoration: 'none' }}>
             <div style={{ width: 40 }}><BarberMascot isStatic color="var(--ink)" /></div>
@@ -126,15 +145,39 @@ export default function ContactPage() {
             </div>
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            {/* "how it works" lives on the landing page; drop it on small screens. */}
+            <Link
+              href="/#how-it-works"
+              className="font-serif italic nav-link-squiggle contact-nav-hide-sm"
+              style={{ textDecoration: 'none', color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
+            >
+              how it works
+            </Link>
+            <span aria-hidden className="contact-nav-hide-sm" style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
             <button
               onClick={() => setShowPricing(true)}
-              className="font-serif italic nav-link-squiggle contact-nav-hide-sm"
+              className="font-serif italic nav-link-squiggle"
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
               onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
             >
               pricing
             </button>
+            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
+            {/* Current page — just darkens on hover, no squiggle. */}
+            <Link
+              href="/contact"
+              aria-current="page"
+              className="font-serif italic"
+              style={{ textDecoration: 'none', color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
+            >
+              contact us
+            </Link>
+            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
             <BouncyButton
               onClick={() => { window.location.href = '/dashboard'; }}
               className="btn-tomato btn-lift-half"
@@ -402,6 +445,8 @@ export default function ContactPage() {
           onDismiss={() => setShowPricing(false)}
           returnUrl="/contact"
           interceptBuy={interceptBuy}
+          includeFree
+          onFree={handleFree}
         />
       )}
     </main>

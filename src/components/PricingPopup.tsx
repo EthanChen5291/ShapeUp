@@ -48,6 +48,24 @@ const PLANS = [
 ];
 
 type PlanId = 'starter' | 'popular' | 'pro';
+type PlanVariant = 'free' | PlanId;
+
+// Prepended only when the menu is shown to people who aren't on the app yet
+// (e.g. the contact page) — matches the landing page's free-plan appearance.
+// The dashboard top-up menu omits it.
+const FREE_PLAN = {
+  id: 'free' as const,
+  label: 'Free',
+  price: 'Free',
+  sub: 'forever',
+  perToken: '',
+  tokenLabel: 'Prebaked styles',
+  line: 'Browse 30+ expert-curated styles rendered on your 3D scan — no generation needed, no cost ever.',
+  cta: 'Start free',
+  featured: false,
+  accentColor: 'rgba(255,248,234,0.9)' as const,
+  accentBg: 'rgba(255,248,234,0.07)' as const,
+};
 
 const POPULAR_RING_POS = [
   { x: 28, y: 30, delay: 30  },
@@ -57,7 +75,7 @@ const POPULAR_RING_POS = [
 ] as const;
 
 function PlanCTAButton({ variant, children, onClick, disabled }: {
-  variant: PlanId;
+  variant: PlanVariant;
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
@@ -82,14 +100,16 @@ function PlanCTAButton({ variant, children, onClick, disabled }: {
   const fillColor =
     variant === 'pro' ? 'rgb(240,70,130)' :
     variant === 'popular'  ? 'rgb(80,150,255)'  :
-                             'rgb(248,200,24)';
+    variant === 'starter'  ? 'rgb(248,200,24)'  :
+                             'rgba(255,248,234,0.92)';
 
   const hoverText = (variant === 'popular' || variant === 'pro') ? '#ffffff' : 'rgba(42,32,26,0.9)';
 
   const baseStyle: React.CSSProperties =
     variant === 'popular'  ? { border: '1px solid rgba(55,110,210,0.5)',  background: 'rgba(55,110,210,0.22)', color: 'rgba(255,248,234,0.78)', boxShadow: '0 4px 22px rgba(55,110,210,0.18)' } :
     variant === 'pro' ? { border: '1px solid rgba(220,70,120,0.43)', background: 'rgba(220,70,120,0.05)', color: 'rgba(255,248,234,0.82)' } :
-                             { border: '1px solid rgba(248,200,24,0.32)',  background: 'rgba(248,200,24,0.06)',  color: 'var(--cream)' };
+    variant === 'starter'  ? { border: '1px solid rgba(248,200,24,0.32)',  background: 'rgba(248,200,24,0.06)',  color: 'var(--cream)' } :
+                             { border: '1px solid rgba(255,248,234,0.18)', background: 'rgba(255,248,234,0.07)', color: 'var(--cream)' };
 
   const LT_BR = 12;
   const ringColor =
@@ -101,7 +121,8 @@ function PlanCTAButton({ variant, children, onClick, disabled }: {
   const hoverShadow =
     variant === 'popular'  ? '0 8px 48px -2px rgba(80,150,255,0.95), 0 0 56px rgba(80,150,255,0.65)' :
     variant === 'pro' ? '0 8px 40px -4px rgba(240,70,130,0.7), 0 0 32px rgba(240,70,130,0.38)' :
-                             '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)';
+    variant === 'starter'  ? '0 8px 28px -4px rgba(248,200,24,0.45), 0 0 16px rgba(248,200,24,0.24)' :
+                             '0 8px 28px -4px rgba(255,248,234,0.32), 0 0 14px rgba(255,248,234,0.12)';
 
   return (
     <div
@@ -196,7 +217,7 @@ function PlanCTAButton({ variant, children, onClick, disabled }: {
   );
 }
 
-export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy }: {
+export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, includeFree, onFree }: {
   onDismiss: () => void;
   returnUrl?: string;
   outOfTokens?: boolean;
@@ -204,6 +225,11 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy }
   // visitor through sign-in first). Returning false/undefined proceeds to
   // checkout as normal. The dashboard omits this, so its behavior is unchanged.
   interceptBuy?: (planId: PlanId) => boolean | void;
+  // Show the free tier as a 4th card (for people not on the app yet). The
+  // dashboard top-up menu leaves this off.
+  includeFree?: boolean;
+  // What the free card's CTA does (e.g. start sign-up / enter the app).
+  onFree?: () => void;
 }) {
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -218,6 +244,8 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy }
     setVisible(false);
     setTimeout(onDismiss, 400);
   };
+
+  const plans = includeFree ? [FREE_PLAN, ...PLANS] : PLANS;
 
   const handleBuy = async (planId: PlanId) => {
     if (loading) return;
@@ -322,13 +350,13 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy }
             {/* Plan cards */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: `repeat(${plans.length}, 1fr)`,
               gap: 12,
               padding: '16px 20px 20px',
               flex: 1,
               ...(isMobile ? { gridTemplateColumns: '1fr', gap: 14 } : {}),
             }}>
-              {PLANS.map((plan) => (
+              {plans.map((plan) => (
                 <div
                   key={plan.id}
                   style={{
@@ -415,8 +443,8 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy }
 
                   <PlanCTAButton
                     variant={plan.id}
-                    onClick={() => handleBuy(plan.id)}
-                    disabled={!!loading}
+                    onClick={() => (plan.id === 'free' ? onFree?.() : handleBuy(plan.id))}
+                    disabled={plan.id === 'free' ? false : !!loading}
                   >
                     {loading === plan.id ? '…' : plan.cta}
                   </PlanCTAButton>

@@ -3926,11 +3926,8 @@ html.dark .fresh-sheet {
   .contact-grid { grid-template-columns: 1fr; gap: 16px; }
   .contact-field-row { grid-template-columns: 1fr; }
   .contact-topic-grid { grid-template-columns: 1fr; }
-}
-
-/* On the narrowest screens the contact nav keeps just the logo + dashboard
-   button; the "pricing" text link folds away so nothing crowds. */
-@media (max-width: 480px) {
+  /* Same as the landing nav: "how it works" folds away on mobile, leaving
+     pricing · contact us · dashboard. */
   .contact-nav-hide-sm { display: none; }
 }
 

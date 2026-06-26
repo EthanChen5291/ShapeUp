@@ -2261,8 +2261,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />
             <Link
               href="/contact"
-              className="font-serif italic nav-link-squiggle"
-              style={{ textDecoration: 'none', color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
+              className="font-serif italic"
+              style={{ textDecoration: 'none', color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease', ...(isMobile ? { fontSize: 15 } : {}) }}
               onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
               onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
             >
