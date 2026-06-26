@@ -13,6 +13,7 @@ import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
+import ProjectNameEditor from '@/components/ProjectNameEditor';
 import FeedbackToast from '@/components/FeedbackToast';
 import RefundRequestDialog from '@/components/RefundRequestDialog';
 import InferenceNote from '@/components/InferenceNote';
@@ -670,8 +671,11 @@ export default function StudioPage() {
   // ── 3D Studio ──
   return (
     <main className={`fixed inset-0 overflow-hidden bg-tomato-shop flex ${isMobile ? 'flex-col' : ''}`}>
-      <div className={`absolute z-20 flex items-center gap-3 ${isMobile ? 'top-4 left-4' : 'top-5 left-6'}`}>
+      <div className={`absolute z-20 flex flex-col ${isMobile ? 'top-3 left-4 gap-1' : 'top-3.5 left-6 gap-1.5'}`}>
         <LogoHomeLink cream small label="Back to home" onClick={() => router.push('/dashboard')} homeIcon={isMobile} textScale={isMobile ? 1.2 : 1} />
+        {project && (
+          <ProjectNameEditor projectId={projectId} name={project.name} compact={isMobile} />
+        )}
       </div>
 
       {isMobile && (

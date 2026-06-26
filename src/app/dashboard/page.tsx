@@ -691,9 +691,12 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
               {/* "What's that?" reveals the consent notice in an expandable bubble */}
               <div style={{ display: 'grid', gridTemplateRows: showConsentInfo ? '1fr' : '0fr', transition: 'grid-template-rows 300ms cubic-bezier(0.4,0,0.2,1)' }}>
                 <div style={{ overflow: 'hidden' }}>
-                  <p className="font-sans text-[11.5px] leading-snug rounded-lg px-3 py-2.5" style={{ color: 'var(--char)', margin: '0 0 2px', background: 'color-mix(in srgb, var(--ink) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }}>
-                    {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It&apos;s stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
-                  </p>
+                  <div className="rounded-lg px-3 py-2.5 flex flex-col gap-1.5" style={{ background: 'color-mix(in srgb, var(--ink) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }}>
+                    <p className="font-sans text-[11.5px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
+                      This is your go-ahead for us to turn your selfie into a personal 3D head model — the magic that lets you try on cuts and see how they actually sit on you. Your scan stays yours: kept private and just for your models. You can revoke this anytime and we&apos;ll delete it. One heads-up — once you revoke, state law means we can&apos;t build any new models for you.
+                    </p>
+                    <span className="font-mono text-[9.5px]" style={{ color: 'var(--smoke)' }}>policy {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'}</span>
+                  </div>
                 </div>
               </div>
 
