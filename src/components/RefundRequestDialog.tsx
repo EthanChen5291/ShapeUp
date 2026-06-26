@@ -95,31 +95,23 @@ export default function RefundRequestDialog({ projectId, onClose }: RefundReques
             </div>
 
             <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
-              Unhappy with your model? Request a refund and we&rsquo;ll take a look.
+              We&rsquo;re sorry if this one didn&rsquo;t come out right. Our technology is still
+              improving, and it can sometimes produce unexpected results. If your model isn&rsquo;t
+              what you hoped for, we&rsquo;ll make it right.
             </p>
 
-            <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-1.5">
-              <li>✓ We review your selfie and 3D model ourselves</li>
-              <li>✓ Approved refunds return your token, no questions asked</li>
-            </ul>
-
-            <div className="flex gap-3 pt-1">
+            <div className="flex flex-col items-center gap-3 pt-1">
               <button
                 onClick={close}
-                className="flex-1 font-sans text-[14px] font-semibold rounded-xl py-3 transition-colors"
-                style={{
-                  background: 'var(--biscuit)',
-                  border: '1.5px solid rgba(42,32,26,0.12)',
-                  color: 'var(--smoke)',
-                  cursor: 'pointer',
-                }}
+                className="w-full font-sans text-[14px] font-semibold rounded-xl py-3 transition-colors"
+                style={{ background: 'var(--ink)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
               >
-                Looks good
+                Okay
               </button>
               <button
                 onClick={() => setStage('form')}
-                className="flex-1 font-sans text-[14px] font-semibold rounded-xl py-3 transition-colors"
-                style={{ background: 'var(--ink)', color: 'var(--cream)', border: 'none', cursor: 'pointer' }}
+                className="font-sans text-[13px] underline underline-offset-4 transition-colors hover:text-[var(--char)]"
+                style={{ background: 'none', border: 'none', color: 'var(--smoke)', cursor: 'pointer', padding: 0 }}
               >
                 Request a refund
               </button>

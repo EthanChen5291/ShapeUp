@@ -18,6 +18,7 @@ import BarberVideoCard from '@/components/BarberVideoCard';
 import { PricingPopup } from '@/components/PricingPopup';
 import InferenceNote from '@/components/InferenceNote';
 import HairPreviewBubble, { type CutPreview } from '@/components/HairPreviewBubble';
+import { type Gender, loadGender, saveGender } from '@/components/editPanelGender';
 
 
 interface EditPanelProps {
@@ -126,7 +127,6 @@ const TRENDING_CUTS_WOMENS = [
   'mixie cut, textured pixie',
 ];
 
-type Gender = 'mens' | 'womens';
 const TRENDING_CUTS: Record<Gender, string[]> = {
   mens: TRENDING_CUTS_MENS,
   womens: TRENDING_CUTS_WOMENS,
@@ -213,8 +213,18 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   const [, setLastEditReport] = useState<EditReport | null>(null);
 
   // Trending-cut suggestion chips, paged by the refresh button.
-  // The gender toggle swaps which pool we suggest from.
-  const [gender, setGender] = useState<Gender>('mens');
+  // The gender toggle swaps which pool we suggest from. The choice is remembered
+  // per project (see persist effect below), so it survives refreshes and project
+  // switches.
+  const [gender, setGender] = useState<Gender>(() => loadGender(projectId));
+  // Re-load the stored choice when the active project changes. Adjusting state
+  // during render (React's recommended pattern) reloads before the persist
+  // effect runs, so we never write the previous project's gender to the new key.
+  const genderProjectRef = useRef(projectId);
+  if (genderProjectRef.current !== projectId) {
+    genderProjectRef.current = projectId;
+    setGender(loadGender(projectId));
+  }
   const [chipPoolByGender] = useState<Record<Gender, string[]>>(() => ({
     mens: shuffle(TRENDING_CUTS.mens),
     womens: shuffle(TRENDING_CUTS.womens),
@@ -234,6 +244,11 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     const start = (chipPage * CHIPS_PER_PAGE) % chipPool.length;
     return chipPool.concat(chipPool).slice(start, start + CHIPS_PER_PAGE);
   }, [chipPool, chipPage]);
+
+  // Remember the gender choice for this project so it persists across refreshes.
+  useEffect(() => {
+    saveGender(gender, projectId);
+  }, [gender, projectId]);
 
   const currentParams = history[historyIndex];
 

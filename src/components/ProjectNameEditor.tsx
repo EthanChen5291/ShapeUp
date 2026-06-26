@@ -37,6 +37,9 @@ export default function ProjectNameEditor({
   const [touched, setTouched] = useState(false);
   const [flip, setFlip] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Mirrors `editing` synchronously so commit/cancel stay idempotent even when
+  // Enter (or a Save click) and the input's blur both try to close the editor.
+  const editingRef = useRef(false);
 
   // Keep the draft synced to the latest saved name while we're not editing.
   useEffect(() => {
@@ -54,6 +57,7 @@ export default function ProjectNameEditor({
   const display = (name ?? '').trim() || 'Untitled cut';
 
   const beginEdit = () => {
+    editingRef.current = true;
     setDraft((name ?? '').trim());
     setTouched(true);
     setFlip(f => f + 1);
@@ -61,6 +65,8 @@ export default function ProjectNameEditor({
   };
 
   const commit = async () => {
+    if (!editingRef.current) return;
+    editingRef.current = false;
     setTouched(true);
     setFlip(f => f + 1);
     setEditing(false);
@@ -75,6 +81,8 @@ export default function ProjectNameEditor({
   };
 
   const cancel = () => {
+    if (!editingRef.current) return;
+    editingRef.current = false;
     setTouched(true);
     setFlip(f => f + 1);
     setDraft((name ?? '').trim());
@@ -117,6 +125,9 @@ export default function ProjectNameEditor({
       <button
         type="button"
         className="pne-toggle"
+        // Keep the input focused so a Save click commits directly instead of
+        // bouncing through the input's blur handler first.
+        onMouseDown={e => { if (editing) e.preventDefault(); }}
         onClick={() => (editing ? void commit() : beginEdit())}
         aria-label={editing ? 'Save name' : 'Rename project'}
       >
