@@ -8,6 +8,29 @@ export interface BiometricConsentDialogProps {
   onCancel: () => void;
 }
 
+// Small SVG check used in the reassurance list — vector, not a unicode/emoji glyph.
+function CheckRow({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--tomato, #d94e3a)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mt-[2px] shrink-0"
+        aria-hidden
+      >
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+      <span>{children}</span>
+    </li>
+  );
+}
+
 export default function BiometricConsentDialog({ onAccept, onCancel }: BiometricConsentDialogProps) {
   const [accepting, setAccepting] = useState(false);
 
@@ -34,18 +57,24 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
           animation: 'popup-in 280ms cubic-bezier(.2,.85,.2,1)',
         }}
       >
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">Before we continue</span>
+          <h2
+            className="font-sans text-[var(--ink)]"
+            style={{ fontSize: 23, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em' }}
+          >
+            A quick note on your face data
+          </h2>
         </div>
 
         <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
           Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third parties.
         </p>
 
-        <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-1.5">
-          <li>✓ Used solely for your haircut preview</li>
-          <li>✓ Stored in your account; delete anytime</li>
-          <li>✓ Not used to train models or identify you</li>
+        <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-2">
+          <CheckRow>Used solely for your haircut preview</CheckRow>
+          <CheckRow>Stored in your account; delete anytime</CheckRow>
+          <CheckRow>Not used to train models or identify you</CheckRow>
         </ul>
 
         <p className="font-mono text-[10px] text-[var(--smoke)]">

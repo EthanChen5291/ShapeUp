@@ -1535,21 +1535,23 @@ input[type="range"].slider-warm::-moz-range-thumb {
 }
 .pne-compact { max-width: 56vw; }
 
-/* Resting name + the editor share one type ramp so the box never jumps on toggle. */
+/* Name + editor share one type ramp (the original SHAPE UP wordmark style) so the
+   box never jumps on toggle. Inputs don't inherit font, so set it explicitly. */
 .pne-name,
 .pne-input,
 .pne-sizer {
-  font-family: var(--font-fraunces), serif;
-  font-size: 21px;
-  font-weight: 500;
-  font-style: italic;
-  line-height: 1.1;
-  letter-spacing: 0.005em;
+  font-family: var(--font-dmsans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--cream);
 }
 .pne-compact .pne-name,
 .pne-compact .pne-input,
-.pne-compact .pne-sizer { font-size: 18px; }
+.pne-compact .pne-sizer { font-size: 15.6px; }
 
 .pne-name {
   display: inline-block;
@@ -1594,34 +1596,66 @@ input[type="range"].slider-warm::-moz-range-thumb {
 /* The text-selection highlight while renaming. */
 .pne-input::selection { background: rgba(255, 231, 176, 0.32); }
 
-/* Toggle button: small, round-ish, clips the glyph that flies up off the top. */
+/* Toggle: a pill chip that clips the glyph flying up off the top. It morphs from
+   a soft "edit" lilac ghost into a solid warm-gold "save" chip. */
 .pne-toggle {
+  position: relative;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 30px;
-  height: 30px;
+  height: 21px;
   padding: 0;
-  background: none;
-  border: none;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 248, 234, 0.24);
+  background: rgba(255, 248, 234, 0.08);
+  color: rgba(255, 248, 234, 0.92);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transform: scale(1);
-  transition: transform 240ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    background 220ms ease, border-color 220ms ease,
+    color 220ms ease, box-shadow 220ms ease;
 }
-.pne-toggle:hover { transform: scale(1.14); }
+/* Extend the tap target to ~44px without disturbing the visual chip. */
+.pne-toggle::before {
+  content: '';
+  position: absolute;
+  inset: -12px -8px;
+}
+.pne-toggle:hover {
+  transform: scale(1.08);
+  background: rgba(255, 248, 234, 0.16);
+  border-color: rgba(255, 248, 234, 0.42);
+  color: var(--butter);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+}
 .pne-toggle:active { transform: scale(0.94); }
-.pne-toggle:focus-visible { outline: none; }
-.pne-toggle:focus-visible .pne-toggle-hit { box-shadow: 0 0 0 2px rgba(255, 248, 234, 0.5); }
+.pne-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255, 248, 234, 0.6); }
+
+/* Edit/confirm state — solid warm gold, reads unmistakably as "save". */
+.pne-toggle--on {
+  background: var(--butter);
+  border-color: rgba(255, 231, 176, 0.95);
+  color: var(--ink);
+  box-shadow: 0 3px 14px rgba(255, 206, 112, 0.34);
+}
+.pne-toggle--on:hover {
+  background: #ffd98c;
+  border-color: #ffd98c;
+  color: var(--ink);
+  box-shadow: 0 3px 16px rgba(255, 206, 112, 0.46);
+}
 
 .pne-toggle-hit {
   position: relative;
   display: block;
-  width: 26px;
-  height: 26px;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: inherit;
 }
 .pne-glyph {
   position: absolute;
@@ -1629,15 +1663,14 @@ input[type="range"].slider-warm::-moz-range-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: currentColor; /* pencil = lilac chip color; OK = ink on gold */
   will-change: transform, opacity;
 }
-.pne-pencil { color: #b69cf2; }
 .pne-ok {
-  color: var(--butter);
   font-family: var(--font-jetbrains), monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
 }
 .pne-hidden { opacity: 0; transform: translateY(150%); }
 

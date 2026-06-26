@@ -6,9 +6,37 @@ import { createPortal } from 'react-dom';
 export interface RefundRequestDialogProps {
   projectId: string;
   onClose: () => void;
+  /**
+   * When true the dialog is shown proactively (the new-account first-render
+   * reminder) and must be acknowledged: the backdrop won't dismiss it and the
+   * intro carries an emphasis icon. When false (the user opened it via the
+   * "not happy?" link) it stays casually dismissible.
+   */
+  requireAck?: boolean;
 }
 
 type Stage = 'intro' | 'form' | 'done';
+
+// Inline info glyph — SVG only (no emoji as icons), inherits currentColor.
+function InfoIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 7.5h.01" />
+    </svg>
+  );
+}
 
 /**
  * Shown in the studio to remind users that if a generated model isn't right
@@ -16,7 +44,7 @@ type Stage = 'intro' | 'form' | 'done';
  * request fans out to Discord with their selfie + splat so we can verify it, and
  * shows up in the /admin/refunds queue. Styled to match ImproveShapeUpDialog.
  */
-export default function RefundRequestDialog({ projectId, onClose }: RefundRequestDialogProps) {
+export default function RefundRequestDialog({ projectId, onClose, requireAck = false }: RefundRequestDialogProps) {
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const [stage, setStage] = useState<Stage>('intro');
@@ -66,7 +94,9 @@ export default function RefundRequestDialog({ projectId, onClose }: RefundReques
         transition: 'background 320ms ease',
         pointerEvents: shown ? 'auto' : 'none',
       }}
-      onClick={close}
+      // The proactive reminder must be acknowledged — only the casual,
+      // user-opened variant dismisses on backdrop click.
+      onClick={requireAck ? undefined : close}
     >
       <div
         className="relative flex flex-col gap-5 rounded-3xl"
@@ -83,19 +113,49 @@ export default function RefundRequestDialog({ projectId, onClose }: RefundReques
           transition: 'opacity 320ms ease, transform 360ms cubic-bezier(.2,.85,.2,1)',
         }}
       >
+        {/* The proactive reminder must be acknowledged — no quick close X. */}
+        {!requireAck && (
+          <button
+            onClick={close}
+            aria-label="Close"
+            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-[var(--biscuit)]"
+            style={{ background: 'none', border: 'none', color: 'var(--smoke)', cursor: 'pointer' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        )}
+
         {stage === 'intro' && (
           <>
-            <div className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">
-                Not quite right?
-              </span>
-              <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.15 }}>
-                We&rsquo;ll make it right
-              </h2>
+            <div className="flex flex-col gap-3">
+              {requireAck && (
+                <span
+                  className="flex items-center justify-center rounded-2xl"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    background: 'color-mix(in srgb, var(--tomato) 14%, transparent)',
+                    color: 'var(--tomato)',
+                  }}
+                >
+                  <InfoIcon />
+                </span>
+              )}
+              <div className="flex flex-col gap-1">
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">
+                  Not quite right?
+                </span>
+                <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.15 }}>
+                  Unhappy with your model?
+                </h2>
+              </div>
             </div>
 
             <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
-              Unhappy with your model? We&rsquo;re sorry if this one didn&rsquo;t come out right. Our technology is still
+              We&rsquo;re sorry if this one didn&rsquo;t come out right. Our technology is still
               improving, and it can sometimes produce unexpected results. If your model isn&rsquo;t
               what you hoped for, we&rsquo;ll make it right.
             </p>

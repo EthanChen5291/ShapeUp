@@ -61,7 +61,8 @@ export function LogoHomeLink({
   label = 'Go home',
   homeIcon = false,
   textScale = 1,
-}: { onClick?: () => void; cream?: boolean; small?: boolean; label?: string; homeIcon?: boolean; textScale?: number }) {
+  wordmarkSlot,
+}: { onClick?: () => void; cream?: boolean; small?: boolean; label?: string; homeIcon?: boolean; textScale?: number; wordmarkSlot?: React.ReactNode }) {
   const [bouncing, setBouncing] = useState(false);
   const color = cream ? 'text-[var(--cream)]' : 'text-[var(--ink)]';
   const mascotColor = cream ? 'rgba(245,241,234,0.88)' : 'currentColor';
@@ -99,9 +100,13 @@ export function LogoHomeLink({
           </span>
         </span>
       </button>
-      <span style={{ fontWeight: 700, letterSpacing: '0.06em', fontSize: textScale !== 1 ? baseTextPx * textScale : undefined }}>
-        Shape <span style={{ display: 'inline' }}>Up</span>
-      </span>
+      {wordmarkSlot !== undefined ? (
+        wordmarkSlot
+      ) : (
+        <span style={{ fontWeight: 700, letterSpacing: '0.06em', fontSize: textScale !== 1 ? baseTextPx * textScale : undefined }}>
+          Shape <span style={{ display: 'inline' }}>Up</span>
+        </span>
+      )}
     </div>
   );
 }

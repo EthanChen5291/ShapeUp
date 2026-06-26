@@ -16,7 +16,7 @@ import EditPanel from '@/components/EditPanel';
 import ProjectNameEditor from '@/components/ProjectNameEditor';
 import FeedbackToast from '@/components/FeedbackToast';
 import RefundRequestDialog from '@/components/RefundRequestDialog';
-import InferenceNote from '@/components/InferenceNote';
+import InferenceNoticeDialog from '@/components/InferenceNoticeDialog';
 import { useFeedbackPrompt } from '@/hooks/useFeedbackPrompt';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
@@ -455,32 +455,42 @@ export default function StudioPage() {
     feedbackPrompt.registerInitialRender();
   }, [effectiveSplatUrl, feedbackPrompt.isReady, feedbackPrompt.registerInitialRender]);
 
-  // Inference disclaimer badge: show once, the first time this project's model
-  // is generated. Persisted per-project so it never reappears on refresh.
+  // Inference disclaimer: an acknowledgment-required modal the first time this
+  // project's model is generated. (Was an auto-fading badge that new users
+  // dismissed as unimportant.) The "seen" flag is written only on acknowledge,
+  // so refreshing before acknowledging shows it again.
   const [showInferenceNote, setShowInferenceNote] = useState(false);
+  const inferenceGateRef = useRef(false);
   useEffect(() => {
-    if (!effectiveSplatUrl || !projectId) return;
-    const key = `inferenceNoteSeen_${projectId}`;
-    if (localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
+    if (!effectiveSplatUrl || !projectId || inferenceGateRef.current) return;
+    inferenceGateRef.current = true;
+    if (localStorage.getItem(`inferenceNoteSeen_${projectId}`)) return;
     setShowInferenceNote(true);
   }, [effectiveSplatUrl, projectId]);
 
-  // Token-refund reminder. Shown once per project a few seconds after the model
-  // lands (so it doesn't crowd the inference badge), reminding the user they can
-  // request a refund if the result drifted. Also openable any time via the
-  // "Not happy?" link in the scene bar. Persisted so it never reappears.
+  const acknowledgeInferenceNote = useCallback(() => {
+    if (projectId) localStorage.setItem(`inferenceNoteSeen_${projectId}`, '1');
+    setShowInferenceNote(false);
+  }, [projectId]);
+
+  // Token-refund reminder. `refundIsReminder` marks the proactive, acknowledgment-
+  // required notice shown once per project right after the inference notice is
+  // dismissed; false is the casual dialog opened from the "not happy?" link.
+  // Holding it until the inference notice is handled keeps the two new-account
+  // notices sequential, never stacked.
   const [showRefund, setShowRefund] = useState(false);
+  const [refundIsReminder, setRefundIsReminder] = useState(false);
   useEffect(() => {
-    if (!effectiveSplatUrl || !projectId) return;
-    const key = `refundReminderSeen_${projectId}`;
-    if (localStorage.getItem(key)) return;
+    if (!effectiveSplatUrl || !projectId || showInferenceNote) return;
+    if (localStorage.getItem(`refundReminderSeen_${projectId}`)) return;
+    if (!localStorage.getItem(`inferenceNoteSeen_${projectId}`)) return;
     const t = setTimeout(() => {
-      localStorage.setItem(key, '1');
+      localStorage.setItem(`refundReminderSeen_${projectId}`, '1');
+      setRefundIsReminder(true);
       setShowRefund(true);
-    }, 6000);
+    }, 2500);
     return () => clearTimeout(t);
-  }, [effectiveSplatUrl, projectId]);
+  }, [effectiveSplatUrl, projectId, showInferenceNote]);
 
   // Generate thumbnail from front-facing splat render when splat first loads
   const splatThumbnailTriggered = useRef(false);
@@ -671,11 +681,16 @@ export default function StudioPage() {
   // ── 3D Studio ──
   return (
     <main className={`fixed inset-0 overflow-hidden bg-tomato-shop flex ${isMobile ? 'flex-col' : ''}`}>
-      <div className={`absolute z-20 flex flex-col ${isMobile ? 'top-3 left-4 gap-1' : 'top-3.5 left-6 gap-1.5'}`}>
-        <LogoHomeLink cream small label="Back to home" onClick={() => router.push('/dashboard')} homeIcon={isMobile} textScale={isMobile ? 1.2 : 1} />
-        {project && (
-          <ProjectNameEditor projectId={projectId} name={project.name} compact={isMobile} />
-        )}
+      <div className={`absolute z-20 flex items-center ${isMobile ? 'top-3 left-4' : 'top-3.5 left-6'}`}>
+        <LogoHomeLink
+          cream
+          small
+          label="Back to home"
+          onClick={() => router.push('/dashboard')}
+          homeIcon={isMobile}
+          textScale={isMobile ? 1.2 : 1}
+          wordmarkSlot={project ? <ProjectNameEditor projectId={projectId} name={project.name} compact={isMobile} /> : undefined}
+        />
       </div>
 
       {isMobile && (
@@ -919,17 +934,11 @@ export default function StudioPage() {
             }
           />
 
-          {!menuHidden && showInferenceNote && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-              <InferenceNote variant="model" tone="badge" fadeAfterMs={8400} />
-            </div>
-          )}
-
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
               <button
-                onClick={() => setShowRefund(true)}
+                onClick={() => { setRefundIsReminder(false); setShowRefund(true); }}
                 className="font-mono text-[9px] uppercase tracking-[0.18em] underline underline-offset-2 transition-colors"
                 style={{ color: 'rgba(255,248,234,0.5)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--butter)')}
@@ -1145,8 +1154,16 @@ export default function StudioPage() {
         editCount={feedbackPrompt.editCount}
       />
 
+      {showInferenceNote && (
+        <InferenceNoticeDialog onAcknowledge={acknowledgeInferenceNote} />
+      )}
+
       {showRefund && (
-        <RefundRequestDialog projectId={projectId} onClose={() => setShowRefund(false)} />
+        <RefundRequestDialog
+          projectId={projectId}
+          requireAck={refundIsReminder}
+          onClose={() => setShowRefund(false)}
+        />
       )}
     </main>
   );

@@ -7,6 +7,29 @@ export interface ImproveShapeUpDialogProps {
   onChoice: (optIn: boolean) => void | Promise<void>;
 }
 
+// Small SVG check used in the reassurance list — vector, not a unicode/emoji glyph.
+function CheckRow({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--tomato, #d94e3a)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mt-[2px] shrink-0"
+        aria-hidden
+      >
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+      <span>{children}</span>
+    </li>
+  );
+}
+
 /**
  * One-time "Improve ShapeUp?" opt-in shown after a new user reaches the dashboard.
  * Fades in over a dimmed backdrop. Scoped to anonymous usage analytics only — it
@@ -56,9 +79,12 @@ export default function ImproveShapeUpDialog({ onChoice }: ImproveShapeUpDialogP
           transition: 'opacity 320ms ease, transform 360ms cubic-bezier(.2,.85,.2,1)',
         }}
       >
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">Optional</span>
-          <h2 className="font-display italic text-[var(--ink)]" style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.15 }}>
+          <h2
+            className="font-sans text-[var(--ink)]"
+            style={{ fontSize: 23, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em' }}
+          >
             Help improve ShapeUp?
           </h2>
         </div>
@@ -67,10 +93,10 @@ export default function ImproveShapeUpDialog({ onChoice }: ImproveShapeUpDialogP
           Share anonymous usage data — which features you tap, where the app feels slow, and crashes — so we can make ShapeUp better. You can change this anytime in Settings.
         </p>
 
-        <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-1.5">
-          <li>✓ Anonymous — never tied to your identity</li>
-          <li>✓ Never includes your scans, photos, or face data</li>
-          <li>✓ Never sold or shared with third parties</li>
+        <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-2">
+          <CheckRow>Anonymous — never tied to your identity</CheckRow>
+          <CheckRow>Never includes your scans, photos, or face data</CheckRow>
+          <CheckRow>Never sold or shared with third parties</CheckRow>
         </ul>
 
         <div className="flex gap-3 pt-1">
