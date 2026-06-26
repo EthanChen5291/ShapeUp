@@ -1530,28 +1530,28 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .pne-root {
   display: inline-flex;
   align-items: center;
-  gap: 0.45em;
-  max-width: min(48vw, 360px);
+  gap: 0.3em;
+  max-width: min(46vw, 480px);
 }
-.pne-compact { max-width: 56vw; }
+.pne-compact { max-width: 60vw; }
 
-/* Name + editor share one type ramp (the original SHAPE UP wordmark style) so the
-   box never jumps on toggle. Inputs don't inherit font, so set it explicitly. */
+/* Name + editor share one type ramp so the box never jumps on toggle. Inputs
+   don't inherit font, so set it explicitly. */
 .pne-name,
 .pne-input,
 .pne-sizer {
-  font-family: var(--font-dmsans), sans-serif;
-  font-size: 13px;
-  font-weight: 700;
+  font-family: var(--font-fraunces), serif;
+  font-size: 21px;
+  font-weight: 600;
   font-style: normal;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  line-height: 1.15;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--cream);
 }
 .pne-compact .pne-name,
 .pne-compact .pne-input,
-.pne-compact .pne-sizer { font-size: 15.6px; }
+.pne-compact .pne-sizer { font-size: 16px; }
 
 .pne-name {
   display: inline-block;
@@ -1604,8 +1604,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 21px;
+  width: 31px;
+  height: 22px;
   padding: 0;
   border-radius: 999px;
   border: 1px solid rgba(255, 248, 234, 0.24);
@@ -1619,11 +1619,12 @@ input[type="range"].slider-warm::-moz-range-thumb {
     background 220ms ease, border-color 220ms ease,
     color 220ms ease, box-shadow 220ms ease;
 }
+.pne-compact .pne-toggle { width: 27px; height: 19px; }
 /* Extend the tap target to ~44px without disturbing the visual chip. */
 .pne-toggle::before {
   content: '';
   position: absolute;
-  inset: -12px -8px;
+  inset: -11px -8px;
 }
 .pne-toggle:hover {
   transform: scale(1.08);

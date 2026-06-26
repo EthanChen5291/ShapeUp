@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { track } from '@/lib/analytics';
 
 export interface RefundRequestDialogProps {
   projectId: string;
@@ -76,6 +77,7 @@ export default function RefundRequestDialog({ projectId, onClose, requireAck = f
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status})`);
+      track('refund_requested', { projectId });
       setStage('done');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');

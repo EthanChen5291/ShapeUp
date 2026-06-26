@@ -67,6 +67,21 @@ function PostHogIdentify() {
         email: user.primaryEmailAddress?.emailAddress,
         name: user.fullName ?? undefined,
       });
+      // Fire a one-time signup event for genuinely new accounts. We can't ask
+      // Clerk "did this user just sign up", so we treat an account created in
+      // the last 10 minutes as a signup and guard with localStorage so it fires
+      // at most once per user per browser (survives re-mounts and re-logins).
+      try {
+        const createdAt = user.createdAt?.getTime();
+        const isRecent = createdAt != null && Date.now() - createdAt < 10 * 60 * 1000;
+        const guardKey = `ph_signup_${user.id}`;
+        if (isRecent && !localStorage.getItem(guardKey)) {
+          localStorage.setItem(guardKey, '1');
+          ph.capture('user_signed_up');
+        }
+      } catch {
+        // localStorage unavailable / analytics must never break auth.
+      }
     } else if (!isSignedIn) {
       // Logged out: detach the previous identity from this browser session.
       ph.reset();

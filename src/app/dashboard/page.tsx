@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { HairParams, UserHeadProfile } from '@/types';
 import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import { track } from '@/lib/analytics';
 import { getVisitorId } from '@/lib/visitorId';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import ImproveShapeUpDialog from '@/components/ImproveShapeUpDialog';
@@ -2074,6 +2075,7 @@ export default function DashboardPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') {
       setPaymentSuccess(true);
+      track('purchase_completed', { source: 'dashboard' });
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -2178,6 +2180,7 @@ export default function DashboardPage() {
     let projectId: Id<'projects'>;
     try {
       projectId = await createProject({ name: generateUniqueCutName(allProjects ?? []) });
+      track('project_created', { source: 'new_scan' });
       const { imageDataUrl: _i, maskDataUrl: _m, classifierFrames: _c, ...cleanScan } =
         profileWithMeasurements.faceScanData ?? {} as never;
       const profileToSave = {
@@ -2248,6 +2251,7 @@ export default function DashboardPage() {
     setReuseCreating(true);
     try {
       const projectId = await createProject({ name: generateUniqueCutName(allProjects ?? []), seedFromDefaultScan: true });
+      track('project_created', { source: 'reuse_scan' });
       setShowReusePopup(false);
       markAccessed({ projectId }).catch(() => {});
       startLoading();

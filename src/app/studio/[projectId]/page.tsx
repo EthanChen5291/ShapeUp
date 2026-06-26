@@ -10,6 +10,7 @@ import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { verticalSwipe } from '@/lib/swipeGesture';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
+import { track } from '@/lib/analytics';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
 import EditPanel from '@/components/EditPanel';
@@ -227,6 +228,7 @@ export default function StudioPage() {
   useEffect(() => {
     if (searchParams.get('payment') === 'success') {
       setPaymentSuccess(true);
+      track('purchase_completed', { source: 'studio' });
       router.replace(`/studio/${projectId}`);
     }
   }, [searchParams, projectId, router]);
@@ -1056,6 +1058,7 @@ export default function StudioPage() {
               sessionId={sessionId}
               latestImageUrl={imageUrl}
               onImageUpdated={(url) => {
+                track('image_generated', { projectId });
                 feedbackPrompt.registerEdit(); // success moment — Nth edit may surface the rating toast
                 setDisplayImageUrl(url);
                 setPreviewExpanded(false);
