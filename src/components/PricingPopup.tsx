@@ -196,10 +196,14 @@ function PlanCTAButton({ variant, children, onClick, disabled }: {
   );
 }
 
-export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
+export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy }: {
   onDismiss: () => void;
   returnUrl?: string;
   outOfTokens?: boolean;
+  // Optional gate: return true to take over a buy (e.g. send a signed-out
+  // visitor through sign-in first). Returning false/undefined proceeds to
+  // checkout as normal. The dashboard omits this, so its behavior is unchanged.
+  interceptBuy?: (planId: PlanId) => boolean | void;
 }) {
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -215,8 +219,9 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
     setTimeout(onDismiss, 400);
   };
 
-  const handleBuy = async (planId: string) => {
+  const handleBuy = async (planId: PlanId) => {
     if (loading) return;
+    if (interceptBuy?.(planId)) return;
     setLoading(planId);
     try {
       await startCheckout({ plan: planId, returnUrl, source: 'pricing_popup' });

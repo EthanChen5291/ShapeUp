@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useMutation } from 'convex/react';
+import { useUser, useClerk } from '@clerk/nextjs';
 import { api } from '@convex/_generated/api';
-import { BarberMascot } from '@/components/AppUI';
+import { BarberMascot, BouncyButton } from '@/components/AppUI';
+import { PricingPopup } from '@/components/PricingPopup';
+import { startCheckout } from '@/lib/checkout';
 
 /* Topics mirror convex/contact.ts CONTACT_TOPICS. Each one routes the message
    internally and tells the sender we know what they're here for. */
@@ -22,12 +25,12 @@ type Status = 'idle' | 'loading' | 'done' | 'error';
 
 /* Self-serve shortcuts. Many people clicking "contact us" actually want one of
    these — surfacing them up front gets them an answer faster than waiting on a
-   reply, and keeps the inbox for things that genuinely need us. */
+   reply, and keeps the inbox for things that genuinely need us. ("Pricing &
+   plans" is handled separately below — it opens the same menu as the dashboard
+   rather than navigating away.) */
 const QUICK_LINKS: { label: string; desc: string; href: string }[] = [
-  { label: 'Refund a render', desc: 'Not happy with a 3D model? Request tokens back from the studio.', href: '/dashboard' },
   { label: 'Delete my data', desc: 'Wipe your photo, scans, and account whenever you want.', href: '/delete-my-data' },
   { label: 'Privacy policy', desc: 'Exactly what we store, and what we never do with it.', href: '/privacy' },
-  { label: 'Pricing & plans', desc: 'What a scan costs and what each plan includes.', href: '/pricing' },
 ];
 
 const FAQS: { q: string; a: React.ReactNode }[] = [
@@ -51,6 +54,30 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
 
 export default function ContactPage() {
   const submitMessage = useMutation(api.contact.submitMessage);
+  const { isSignedIn } = useUser();
+  const { openSignIn } = useClerk();
+
+  // Pricing: open the exact same menu the dashboard uses. Signed-out visitors
+  // are routed through sign-in first, then dropped straight into checkout.
+  const [showPricing, setShowPricing] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isSignedIn && pendingPlan) {
+      const plan = pendingPlan;
+      setPendingPlan(null);
+      startCheckout({ plan, returnUrl: '/contact', source: 'contact_pricing' });
+    }
+  }, [isSignedIn, pendingPlan]);
+
+  const interceptBuy = (planId: string) => {
+    if (!isSignedIn) {
+      setPendingPlan(planId);
+      openSignIn();
+      return true;
+    }
+    return false;
+  };
 
   const [topic, setTopic] = useState<TopicId>('support');
   const [name, setName] = useState('');
@@ -89,7 +116,8 @@ export default function ContactPage() {
       />
 
       <div className="relative" style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 24px 80px' }}>
-        {/* ── Nav ── */}
+        {/* ── Nav ── mirrors the landing top bar so the dashboard / pricing
+            buttons stay reachable from here. */}
         <nav className="flex items-center justify-between" aria-label="Contact">
           <Link href="/" className="flex items-center gap-2 group" style={{ textDecoration: 'none' }}>
             <div style={{ width: 40 }}><BarberMascot isStatic color="var(--ink)" /></div>
@@ -97,26 +125,31 @@ export default function ContactPage() {
               shape<em style={{ color: 'var(--tomato)' }}>up</em>
             </div>
           </Link>
-          <Link
-            href="/"
-            className="font-mono"
-            style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--smoke)', textDecoration: 'none' }}
-          >
-            ← back to home
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <button
+              onClick={() => setShowPricing(true)}
+              className="font-serif italic nav-link-squiggle contact-nav-hide-sm"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
+            >
+              pricing
+            </button>
+            <BouncyButton
+              onClick={() => { window.location.href = '/dashboard'; }}
+              className="btn-tomato btn-lift-half"
+              style={{ padding: '11px 22px', fontSize: 13, borderRadius: 10 }}
+            >
+              dashboard
+            </BouncyButton>
+          </div>
         </nav>
 
         {/* ── Header ── */}
         <header style={{ textAlign: 'center', margin: '52px auto 44px', maxWidth: 620 }}>
-          <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--tomato)', marginBottom: 16 }}>
-            we&rsquo;re listening
-          </p>
-          <h1 className="type-chonk" style={{ fontSize: 'clamp(2.4rem, 5vw, 3.4rem)', lineHeight: 1.04, color: 'var(--ink)' }}>
-            Talk to a <em style={{ color: 'var(--tomato)' }}>real human</em>.
+          <h1 className="type-chonk" style={{ fontSize: 'clamp(2.6rem, 5.4vw, 3.6rem)', lineHeight: 1.04, color: 'var(--ink)' }}>
+            Contact <em style={{ color: 'var(--tomato)' }}>Us</em>
           </h1>
-          <p className="font-serif italic" style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '20px auto 0', lineHeight: 1.55 }}>
-            Question, bug, refund, or a barbershop you want us to meet — we read every message and reply within a day.
-          </p>
         </header>
 
         {/* ── Body: form + sidebar ── */}
@@ -144,12 +177,9 @@ export default function ContactPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} noValidate>
-                <h2 id="contact-form-heading" className="font-display" style={{ fontStyle: 'italic', fontSize: 22, color: 'var(--ink)', marginBottom: 4 }}>
+                <h2 id="contact-form-heading" className="font-display" style={{ fontStyle: 'italic', fontSize: 22, color: 'var(--ink)', marginBottom: 22 }}>
                   Send us a note
                 </h2>
-                <p className="font-sans" style={{ fontSize: 13.5, color: 'var(--smoke)', marginBottom: 22 }}>
-                  Pick what it&rsquo;s about so it reaches the right person.
-                </p>
 
                 {/* Topic chips */}
                 <fieldset style={{ border: 0, padding: 0, margin: '0 0 22px' }}>
@@ -252,23 +282,19 @@ export default function ContactPage() {
                 >
                   {status === 'loading' ? 'Sending…' : 'Send message →'}
                 </button>
-
-                <p className="font-sans" style={{ fontSize: 12, color: 'var(--smoke)', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
-                  We&rsquo;ll only use your email to reply. No lists, no spam.
-                </p>
               </form>
             )}
           </section>
 
           {/* Sidebar */}
           <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Direct channels */}
-            <div className="contact-card" style={{ background: 'var(--ink)', borderRadius: 20, padding: '26px 24px', color: 'var(--cream)' }}>
-              <p className="font-mono" style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,248,234,0.5)', marginBottom: 16 }}>
+            {/* Direct channels — soft blue, low-contrast against the page */}
+            <div className="contact-channels" style={{ borderRadius: 20, padding: '26px 24px' }}>
+              <p className="font-mono" style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#5a7ba0', marginBottom: 16 }}>
                 prefer to reach out directly?
               </p>
 
-              <a href="mailto:shapeup.ai@gmail.com" className="contact-channel">
+              <a href="mailto:ethan@tryshapeup.cc" className="contact-channel">
                 <span className="contact-channel-icon" aria-hidden>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="4" width="20" height="16" rx="3" />
@@ -276,12 +302,12 @@ export default function ContactPage() {
                   </svg>
                 </span>
                 <span>
-                  <span className="contact-channel-label">Email us</span>
-                  <span className="contact-channel-value">shapeup.ai@gmail.com</span>
+                  <span className="contact-channel-label">Email Me</span>
+                  <span className="contact-channel-value">ethan@tryshapeup.cc</span>
                 </span>
               </a>
 
-              <a href="https://instagram.com/unchopped_" target="_blank" rel="noopener noreferrer" className="contact-channel">
+              <a href="https://instagram.com/tryshapeup" target="_blank" rel="noopener noreferrer" className="contact-channel">
                 <span className="contact-channel-icon" aria-hidden>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
@@ -291,13 +317,13 @@ export default function ContactPage() {
                 </span>
                 <span>
                   <span className="contact-channel-label">DM us on Instagram</span>
-                  <span className="contact-channel-value">@unchopped_</span>
+                  <span className="contact-channel-value">@tryshapeup</span>
                 </span>
               </a>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 16, borderTop: '1px solid rgba(255,248,234,0.12)' }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#52ca78', boxShadow: '0 0 0 3px rgba(82,202,120,0.22)', flexShrink: 0 }} />
-                <span className="font-sans" style={{ fontSize: 12.5, color: 'rgba(255,248,234,0.62)', lineHeight: 1.5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, paddingTop: 16, borderTop: '1px solid rgba(90,123,160,0.22)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3fae6a', boxShadow: '0 0 0 3px rgba(63,174,106,0.22)', flexShrink: 0 }} />
+                <span className="font-sans" style={{ fontSize: 12.5, color: '#476081', lineHeight: 1.5 }}>
                   Typically replies within a business day.
                 </span>
               </div>
@@ -321,6 +347,17 @@ export default function ContactPage() {
                     </svg>
                   </Link>
                 ))}
+                {/* Opens the exact same pricing menu the dashboard uses. */}
+                <button type="button" onClick={() => setShowPricing(true)} className="contact-quick-link" style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: 'calc(100% + 24px)' }}>
+                  <span>
+                    <span className="contact-quick-label">Pricing &amp; plans</span>
+                    <span className="contact-quick-desc">What a scan costs and what each plan includes.</span>
+                  </span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="contact-quick-arrow" aria-hidden>
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
               </div>
             </div>
           </aside>
@@ -329,7 +366,7 @@ export default function ContactPage() {
         {/* ── FAQ ── */}
         <section aria-labelledby="contact-faq-heading" style={{ maxWidth: 720, margin: '64px auto 0' }}>
           <h2 id="contact-faq-heading" className="type-chonk" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.1rem)', textAlign: 'center', color: 'var(--ink)', marginBottom: 28 }}>
-            quick <em style={{ color: 'var(--tomato)' }}>answers</em>.
+            <em style={{ color: 'var(--tomato)' }}>FAQ</em>
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {FAQS.map((item, i) => {
@@ -359,6 +396,14 @@ export default function ContactPage() {
           </div>
         </section>
       </div>
+
+      {showPricing && (
+        <PricingPopup
+          onDismiss={() => setShowPricing(false)}
+          returnUrl="/contact"
+          interceptBuy={interceptBuy}
+        />
+      )}
     </main>
   );
 }
