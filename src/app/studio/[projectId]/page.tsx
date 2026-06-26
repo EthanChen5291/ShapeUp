@@ -718,9 +718,12 @@ export default function StudioPage() {
       </div>
 
       <div className={`min-w-0 relative flex items-center justify-center ${isMobile ? 'h-[46vh] flex-shrink-0 p-2 pt-20' : 'flex-1 p-6 pt-24'}`}>
-        {(displayImageUrl ?? imageUrl) && (() => { const displayImg = displayImageUrl ?? imageUrl; return (
+        {(() => {
+          const displayImg = displayImageUrl ?? imageUrl;
+          if (!displayImg) return null;
+          const polaroidEl = (
           <div
-            className={`absolute z-10 polaroid ${isMobile ? 'top-20 left-2' : 'top-24 left-6'} ${previewExpanded ? '' : 'wonky-l'}`}
+            className={`absolute z-10 polaroid ${isMobile ? 'top-0 left-0' : 'top-24 left-6'} ${previewExpanded ? '' : 'wonky-l'}`}
             style={{
               // `.polaroid` sets position:relative (unlayered, beats the Tailwind
               // `absolute` class), which would put the polaroid in-flow and steal a
@@ -732,10 +735,12 @@ export default function StudioPage() {
               ...(isMobile && !previewExpanded ? { outline: '1px solid rgba(42,32,26,0.35)', outlineOffset: 0 } : {}),
               width: previewExpanded ? 'min(55vh, 46vw)' : (isMobile ? 156 : 100),
               padding: '6px 6px 22px',
-              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.32s ease',
-              // Mobile: tucked away (swiped up) → slide off the top and disable hits.
+              pointerEvents: 'auto' as const,
+              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
+              // Mobile: tucked away (swiped up) → slide straight up and let the
+              // render rectangle's top edge cover it (no fade — it's clipped, same x).
               ...(isMobile && polaroidHidden
-                ? { transform: 'translateY(calc(-100% - 5rem))', opacity: 0, pointerEvents: 'none' as const }
+                ? { transform: 'translateY(calc(-100% - 5rem))', pointerEvents: 'none' as const }
                 : {}),
               cursor: isMobile ? 'default' : (previewExpanded ? 'zoom-out' : 'zoom-in'),
             }}
@@ -783,34 +788,47 @@ export default function StudioPage() {
               </div>
             )}
           </div>
-        ); })()}
+          );
 
-        {/* Mobile: when the polaroid is tucked away, a down-arrow tab clings to the render's
-            top-left corner. Tap (or swipe down) to bring the photo back. */}
-        {isMobile && (displayImageUrl ?? imageUrl) && (
-          <button
-            type="button"
-            aria-label="Show photo"
-            onClick={() => setPolaroidHidden(false)}
-            onTouchStart={(e) => { polaroidTouchStartY.current = e.touches[0].clientY; }}
-            onTouchEnd={(e) => {
-              if (verticalSwipe(polaroidTouchStartY.current, e.changedTouches[0].clientY) === 'down') setPolaroidHidden(false);
-            }}
-            style={{
-              position: 'absolute', top: 'calc(5rem + 1px)', left: '0.5rem', zIndex: 11,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 44, height: 22, padding: 0, border: 0,
-              background: 'var(--chalk)', borderRadius: '0 0 9px 0',
-              boxShadow: '0 6px 12px -6px rgba(0,0,0,0.4)', cursor: 'pointer',
-              transition: 'opacity 0.3s ease, transform 0.3s ease',
-              opacity: polaroidHidden ? 1 : 0,
-              transform: polaroidHidden ? 'translateY(0)' : 'translateY(-8px)',
-              pointerEvents: polaroidHidden ? 'auto' : 'none',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--char)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-          </button>
-        )}
+          // Mobile: down-arrow tab to bring the photo back. Sits at the same x as the
+          // up-arrow (centered on the polaroid), tucked against the render's top edge.
+          const downArrow = (
+            <button
+              type="button"
+              aria-label="Show photo"
+              onClick={() => setPolaroidHidden(false)}
+              onTouchStart={(e) => { polaroidTouchStartY.current = e.touches[0].clientY; }}
+              onTouchEnd={(e) => {
+                if (verticalSwipe(polaroidTouchStartY.current, e.changedTouches[0].clientY) === 'down') setPolaroidHidden(false);
+              }}
+              style={{
+                // left:78 = half the mobile polaroid width (156), so the tab is centered
+                // on the polaroid's x — exactly where the up-arrow lives.
+                position: 'absolute', top: 0, left: 78, zIndex: 11,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 44, height: 22, padding: 0, border: 0,
+                background: 'var(--chalk)', borderRadius: '0 0 9px 9px',
+                boxShadow: '0 6px 12px -6px rgba(0,0,0,0.4)', cursor: 'pointer',
+                transition: 'opacity 0.3s ease, transform 0.3s ease',
+                opacity: polaroidHidden ? 1 : 0,
+                transform: polaroidHidden ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(-8px)',
+                pointerEvents: polaroidHidden ? 'auto' : 'none',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--char)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+          );
+
+          if (!isMobile) return polaroidEl;
+          // Mobile: clip the polaroid + tab against the render rectangle's bounds so the
+          // photo is covered as it slides up out of the scene instead of fading away.
+          return (
+            <div style={{ position: 'absolute', top: '5rem', left: '0.5rem', right: '0.5rem', bottom: '0.5rem', overflow: 'hidden', pointerEvents: 'none', zIndex: 10 }}>
+              {polaroidEl}
+              {downArrow}
+            </div>
+          );
+        })()}
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
           {/* Click-outside backdrop — closes palette when clicking anywhere in the scene */}

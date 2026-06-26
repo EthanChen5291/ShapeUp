@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as contact from "../contact.js";
 import type * as facelifts from "../facelifts.js";
 import type * as feedback from "../feedback.js";
 import type * as freeGen from "../freeGen.js";
@@ -39,6 +40,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  contact: typeof contact;
   facelifts: typeof facelifts;
   feedback: typeof feedback;
   freeGen: typeof freeGen;

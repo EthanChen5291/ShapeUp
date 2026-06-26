@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { BarberMascot, BouncyButton, Reveal } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { startCheckout } from '@/lib/checkout';
 
 /* ─────────────── Face Video Swiper ─────────────── */
 const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mp4`);
@@ -2133,13 +2134,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     sessionStorage.setItem('preCheckoutCredits', String(meUser?.credits ?? 0));
     setCheckoutLoading(planId);
     try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
+      await startCheckout({ plan: planId, source: 'landing_page' });
     } finally { setCheckoutLoading(null); }
   };
 

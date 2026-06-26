@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BarberMascot } from '@/components/AppUI';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { startCheckout } from '@/lib/checkout';
 
 const PLANS = [
   {
@@ -218,13 +219,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens }: {
     if (loading) return;
     setLoading(planId);
     try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId, returnUrl }),
-      });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
+      await startCheckout({ plan: planId, returnUrl, source: 'pricing_popup' });
     } finally {
       setLoading(null);
     }

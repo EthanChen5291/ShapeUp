@@ -12,6 +12,7 @@ import { HairParams, UserHeadProfile } from '@/types';
 import { ensureMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { track } from '@/lib/analytics';
+import { startCheckout } from '@/lib/checkout';
 import { getVisitorId } from '@/lib/visitorId';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import ImproveShapeUpDialog from '@/components/ImproveShapeUpDialog';
@@ -1144,9 +1145,8 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         return;
       }
       if (submitRes.status === 401) {
-        const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
-        const { url } = await checkout.json() as { url?: string };
-        if (url) { window.location.href = url; return; }
+        const url = await startCheckout({ source: 'facelift_out_of_credits' });
+        if (url) return;
       }
       if (submitRes.status === 403) {
         setFaceliftStatus('idle');

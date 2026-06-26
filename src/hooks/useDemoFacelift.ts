@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { startCheckout } from '@/lib/checkout';
 
 export type DemoFaceliftStatus = 'idle' | 'processing' | 'done' | 'error';
 
@@ -37,9 +38,8 @@ export function useDemoFacelift(originalImageUrl: string | null) {
       });
 
       if (res.status === 402 || res.status === 401) {
-        const checkout = await fetch('/api/stripe/checkout', { method: 'POST' });
-        const { url } = await checkout.json() as { url?: string };
-        if (url) { window.location.href = url; return; }
+        const url = await startCheckout({ source: 'demo_facelift_out_of_credits' });
+        if (url) return;
       }
       if (!res.ok) {
         const body = await res.text().catch(() => '');

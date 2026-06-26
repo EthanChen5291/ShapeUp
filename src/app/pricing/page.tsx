@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useUser, useClerk } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { startCheckout } from '@/lib/checkout';
 
 /* ── Brand logo mark (self-contained, no shared import) ── */
 function ScissorsMark({ size = 28 }: { color?: string; size?: number }) {
@@ -77,13 +78,7 @@ export default function PricingPage() {
   const runCheckout = async (planId: string) => {
     setLoading(planId);
     try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
+      await startCheckout({ plan: planId, source: 'pricing_page' });
     } finally { setLoading(null); }
   };
 
