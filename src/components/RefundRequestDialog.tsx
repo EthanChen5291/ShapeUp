@@ -95,7 +95,7 @@ export default function RefundRequestDialog({ projectId, onClose }: RefundReques
             </div>
 
             <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
-              We&rsquo;re sorry if this one didn&rsquo;t come out right. Our technology is still
+              Unhappy with your model? We&rsquo;re sorry if this one didn&rsquo;t come out right. Our technology is still
               improving, and it can sometimes produce unexpected results. If your model isn&rsquo;t
               what you hoped for, we&rsquo;ll make it right.
             </p>

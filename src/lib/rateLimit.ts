@@ -24,6 +24,12 @@ export const RATE_LIMITS = {
   saveScanIp: { limit: 30, windowMs: 60 * 60_000, label: 'save-scan:ip' },
   faceliftUser: { limit: 5, windowMs: 10 * 60_000, label: 'facelift:user' },
   faceliftIp: { limit: 20, windowMs: 10 * 60_000, label: 'facelift:ip' },
+  // A warmup fires once per edit attempt (including ones that never reach
+  // facelift), so it must be looser than faceliftUser — but still bounded: a
+  // wake costs a GPU cold start. Its own bucket so warmups never eat into the
+  // real generation quota.
+  faceliftWarmupUser: { limit: 40, windowMs: 10 * 60_000, label: 'facelift-warmup:user' },
+  faceliftWarmupIp: { limit: 120, windowMs: 10 * 60_000, label: 'facelift-warmup:ip' },
 } as const;
 
 export function getClientIp(req: NextRequest | Request): string {

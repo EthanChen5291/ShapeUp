@@ -360,6 +360,13 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     if (!originalImageUrlRef.current) originalImageUrlRef.current = latestImageUrl;
     const imageForGemini = originalImageUrlRef.current;
 
+    // Pre-warm the Modal GPU container in parallel with Gemini. Image generation
+    // takes ~8-12s and the container's cold start is ~6-8s, so waking it now
+    // overlaps that cold start with Gemini instead of stacking it onto the
+    // facelift step that follows. Fire-and-forget: a miss just means the facelift
+    // call pays the cold start as before, so failures are swallowed.
+    void fetch('/api/facelift/warmup', { method: 'POST' }).catch(() => {});
+
     try {
       console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: imageForGemini, sessionId, prompt: submittedPrompt });
       const geminiRes = await fetch('/api/gemini-hair-edit', {

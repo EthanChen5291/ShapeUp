@@ -12,9 +12,31 @@ import { ReactNode, useEffect, useState } from 'react';
 
 type Variant = 'scan' | 'model' | 'edit' | 'inline';
 
+// Inline sparkle that flows with the badge copy (baseline-nudged), replacing the
+// ✨ emoji so the glyph renders consistently and inherits the text color.
+function SparkleIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      style={{ display: 'inline-block', verticalAlign: '-1.5px', marginRight: 5, flexShrink: 0 }}
+    >
+      <path d="M12 3l1.8 4.9L18.7 9 13.8 10.8 12 15.7l-1.8-4.9L5.3 9l4.9-1.1z" />
+      <path d="M19 14l.7 1.8L21.5 16.5l-1.8.7L19 19l-.7-1.8L16.5 16.5l1.8-.7z" />
+    </svg>
+  );
+}
+
 const PRESETS: Record<Exclude<Variant, 'inline'>, ReactNode> = {
   scan: <>We infer shape, hairline, and proportions from your photos — expect a great likeness, not a measurement.</>,
-  model: <>✨ Built from your photos — some details are our best guess.</>,
+  model: <><SparkleIcon /> Built from your photos — some details are our best guess.</>,
   edit: <>Real results vary — bring it to your barber as a reference!</>,
 };
 
@@ -45,9 +67,9 @@ export default function InferenceNote({ variant = 'inline', children, className 
       <div
         className={`pointer-events-none select-none rounded-full font-sans ${className}`}
         style={{
-          background: 'rgba(20,16,12,0.55)',
-          backdropFilter: 'blur(6px)',
-          color: 'rgba(255,248,234,0.82)',
+          background: '#ffffff',
+          color: 'var(--char)',
+          boxShadow: '0 10px 28px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(42,32,26,0.06)',
           fontSize: 12.7,
           lineHeight: 1.3,
           padding: '6.3px 12.6px',

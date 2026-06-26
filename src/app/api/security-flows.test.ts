@@ -175,6 +175,41 @@ describe('scan and generation APIs', () => {
     expect(deductCredit.mock.calls.some(([, args]) => JSON.stringify(args) === '{}')).toBe(false);
   });
 
+  test('/api/facelift/warmup wakes the Modal GPU without consuming a generation', async () => {
+    const { api } = await import('@convex/_generated/api');
+    // The only mutation the warmup path may make is the durable rate-limit
+    // consume — never freeGen.consumeGeneration.
+    const mutation = vi.fn().mockResolvedValue({ limited: false, label: null, retryAfterSeconds: 0 });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('FACELIFT_URL', 'https://ml.shapeup.test');
+    vi.stubEnv('FACELIFT_SHARED_SECRET', 'server-only-secret');
+    vi.doMock('@clerk/nextjs/server', () => ({
+      auth: vi.fn().mockResolvedValue({
+        userId: 'user_123',
+        getToken: vi.fn().mockResolvedValue('convex.jwt'),
+      }),
+    }));
+    vi.doMock('convex/browser', () => ({
+      ConvexHttpClient: vi.fn(function ConvexHttpClient() {
+        return { setAuth: vi.fn(), query: vi.fn(), mutation };
+      }),
+    }));
+
+    const { POST } = await import('./facelift/warmup/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/facelift/warmup', { method: 'POST' }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, warmed: true });
+    // Woke Modal with the shared secret it gates /warmup on...
+    expect(fetchMock).toHaveBeenCalledWith('https://ml.shapeup.test/warmup', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ 'X-ShapeUp-Facelift-Secret': 'server-only-secret' }),
+    }));
+    // ...but never spent the user's credit or free generation.
+    expect(mutation.mock.calls.every(([ref]) => ref !== api.freeGen.consumeGeneration)).toBe(true);
+  });
+
   test('/api/facelift forwards the GPU shared secret and rejects malformed PLY before S3 upload', async () => {
     const uploadToS3 = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ply_b64: 'not-a-valid-ply' }), { status: 200 }));

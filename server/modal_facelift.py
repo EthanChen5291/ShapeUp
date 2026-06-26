@@ -205,9 +205,13 @@ def ply_to_splat(ply_bytes: bytes) -> bytes:
 
 @app.cls(
     gpu="L40S",
-    # Scale to zero as fast as the client allows (must be > 0). Effectively "no warm
-    # window" — fine while traffic is ~zero; bump this up once requests start clustering.
-    scaledown_window=5,
+    # Kept just long enough that a container warmed in parallel with Gemini (the
+    # /warmup route, fired when an edit starts) survives the ~8-12s image
+    # generation and is still up when the real /process_image lands a moment
+    # later. Cold start is ~6-8s, so warming at t=0 → warm by t≈8 → this 10s idle
+    # window holds it to t≈18, past the t≈10-15 facelift arrival. Bump higher
+    # only once requests start clustering enough to justify more idle GPU spend.
+    scaledown_window=10,
     # Hard cap on concurrent GPUs — bounds peak demo spend regardless of load.
     # The app-side monthly GPU-seconds guard (convex/gpuUsage.ts) bounds total.
     max_containers=2,
@@ -277,6 +281,23 @@ class FaceLiftServer:
         max_pixels = 12_000_000
         s3 = boto3.client("s3")  # creds + region come from the attached AWS secret
         bucket = os.environ["AWS_S3_BUCKET_NAME"]
+
+        @api.post("/warmup")
+        async def warmup(
+            x_shapeup_facelift_secret: str | None = Header(default=None),
+        ):
+            # Cheap container wake. Hitting any route spins up a container and
+            # runs @modal.enter(snap=True) (the ~6-8s snapshot restore), so by
+            # the time we return, the GPU is loaded and ready for the real
+            # /process_image that follows once Gemini finishes. Does NO
+            # inference and touches no GPU, but it does cost a cold start, so it
+            # carries the same shared-secret gate as /process_image — a wake is
+            # a (small) spend lever and must not be anonymous.
+            if shared_secret and x_shapeup_facelift_secret != shared_secret:
+                print("[facelift] warmup 401 — bad or missing shared secret", flush=True)
+                raise HTTPException(401, "Unauthorized")
+            print("[facelift] warmup — container ready", flush=True)
+            return {"ok": True}
 
         @api.post("/process_image")
         async def process_image(
