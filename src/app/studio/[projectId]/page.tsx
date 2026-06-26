@@ -8,6 +8,7 @@ import { Id } from '@convex/_generated/dataModel';
 import { useRouter, useParams } from 'next/navigation';
 import { HairMeasurementBBox, HairParams, UserHeadProfile } from '@/types';
 import { buildHairMeasurementSnapshot } from '@/lib/hairMeasurementSnapshot';
+import { verticalSwipe } from '@/lib/swipeGesture';
 import { buildCurrentProfilePayload } from '@/lib/llmPayload';
 import { mockUserHeadProfile } from '@/data/mockProfile';
 import { useDemoFacelift } from '@/hooks/useDemoFacelift';
@@ -244,6 +245,10 @@ export default function StudioPage() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [editLoopPrompt, setEditLoopPrompt] = useState('');
   const [previewExpanded, setPreviewExpanded] = useState(false);
+  // Mobile-only: swipe the "you" polaroid up (or tap its tab) to tuck it away,
+  // leaving a small down-arrow tab at the render's top-left corner to bring it back.
+  const [polaroidHidden, setPolaroidHidden] = useState(false);
+  const polaroidTouchStartY = useRef(0);
   const [sceneBackground, setSceneBackground] = useState(() => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     return isDark
@@ -706,10 +711,19 @@ export default function StudioPage() {
               ...(isMobile && !previewExpanded ? { outline: '1px solid rgba(42,32,26,0.35)', outlineOffset: 0 } : {}),
               width: previewExpanded ? 'min(55vh, 46vw)' : (isMobile ? 156 : 100),
               padding: '6px 6px 22px',
-              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1)',
-              cursor: previewExpanded ? 'zoom-out' : 'zoom-in',
+              transition: 'width 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.32s ease',
+              // Mobile: tucked away (swiped up) → slide off the top and disable hits.
+              ...(isMobile && polaroidHidden
+                ? { transform: 'translateY(calc(-100% - 5rem))', opacity: 0, pointerEvents: 'none' as const }
+                : {}),
+              cursor: isMobile ? 'default' : (previewExpanded ? 'zoom-out' : 'zoom-in'),
             }}
-            onClick={() => setPreviewExpanded(v => !v)}
+            // Mobile keeps the small profile (no tap-to-enlarge); desktop still toggles.
+            onClick={isMobile ? undefined : () => setPreviewExpanded(v => !v)}
+            onTouchStart={isMobile ? (e) => { polaroidTouchStartY.current = e.touches[0].clientY; } : undefined}
+            onTouchEnd={isMobile ? (e) => {
+              if (verticalSwipe(polaroidTouchStartY.current, e.changedTouches[0].clientY) === 'up') setPolaroidHidden(true);
+            } : undefined}
           >
             <div style={{ aspectRatio: '1', overflow: 'hidden', borderRadius: 2, background: '#1c1510' }}>
               {!polaroidImgError ? (
@@ -721,6 +735,23 @@ export default function StudioPage() {
               )}
             </div>
             <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
+            {/* Mobile: up-arrow tab fused to the polaroid's bottom edge — tap (or swipe up) to tuck away. */}
+            {isMobile && (
+              <button
+                type="button"
+                aria-label="Hide photo"
+                onClick={(e) => { e.stopPropagation(); setPolaroidHidden(true); }}
+                style={{
+                  position: 'absolute', left: '50%', top: 'calc(100% - 1px)', transform: 'translateX(-50%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 44, height: 19, padding: 0, border: 0,
+                  background: 'var(--chalk)', borderRadius: '0 0 7px 7px',
+                  boxShadow: '0 6px 10px -6px rgba(0,0,0,0.35)', cursor: 'pointer',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--char)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+              </button>
+            )}
             {editSaveError && (
               <div
                 className="absolute left-0 right-0 top-full mt-2 rounded-md px-2 py-1.5 text-[10px] leading-tight font-mono"
@@ -732,6 +763,33 @@ export default function StudioPage() {
             )}
           </div>
         ); })()}
+
+        {/* Mobile: when the polaroid is tucked away, a down-arrow tab clings to the render's
+            top-left corner. Tap (or swipe down) to bring the photo back. */}
+        {isMobile && (displayImageUrl ?? imageUrl) && (
+          <button
+            type="button"
+            aria-label="Show photo"
+            onClick={() => setPolaroidHidden(false)}
+            onTouchStart={(e) => { polaroidTouchStartY.current = e.touches[0].clientY; }}
+            onTouchEnd={(e) => {
+              if (verticalSwipe(polaroidTouchStartY.current, e.changedTouches[0].clientY) === 'down') setPolaroidHidden(false);
+            }}
+            style={{
+              position: 'absolute', top: 'calc(5rem + 1px)', left: '0.5rem', zIndex: 11,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 44, height: 22, padding: 0, border: 0,
+              background: 'var(--chalk)', borderRadius: '0 0 9px 0',
+              boxShadow: '0 6px 12px -6px rgba(0,0,0,0.4)', cursor: 'pointer',
+              transition: 'opacity 0.3s ease, transform 0.3s ease',
+              opacity: polaroidHidden ? 1 : 0,
+              transform: polaroidHidden ? 'translateY(0)' : 'translateY(-8px)',
+              pointerEvents: polaroidHidden ? 'auto' : 'none',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--char)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+          </button>
+        )}
 
         <div className="relative w-full h-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg, #241a14 0%, #17110d 100%)', border: '1px solid rgba(255,248,234,0.12)', boxShadow: '0 40px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,248,234,0.08)' }}>
           {/* Click-outside backdrop — closes palette when clicking anywhere in the scene */}
