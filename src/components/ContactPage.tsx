@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import { BarberMascot, BouncyButton } from '@/components/AppUI';
+import { BarberMascot } from '@/components/AppUI';
 
 /* Topics mirror convex/contact.ts CONTACT_TOPICS. Each one routes the message
    internally and tells the sender we know what they're here for. */
@@ -244,14 +244,14 @@ export default function ContactPage() {
                   </p>
                 )}
 
-                <BouncyButton
+                <button
                   type="submit"
                   disabled={status === 'loading'}
-                  className="btn-tomato"
+                  className="btn-tomato btn-lift-half transition-transform hover:scale-[1.02] active:scale-[0.99]"
                   style={{ marginTop: 22, width: '100%', padding: '14px 22px', fontSize: 15, borderRadius: 12 }}
                 >
                   {status === 'loading' ? 'Sending…' : 'Send message →'}
-                </BouncyButton>
+                </button>
 
                 <p className="font-sans" style={{ fontSize: 12, color: 'var(--smoke)', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
                   We&rsquo;ll only use your email to reply. No lists, no spam.

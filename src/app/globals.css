@@ -1492,6 +1492,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
+  min-width: 0; /* allow the project-name slot to shrink + truncate on narrow screens */
+  max-width: 100%;
   font-family: var(--font-dmsans), sans-serif;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1545,9 +1547,17 @@ input[type="range"].slider-warm::-moz-range-thumb {
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
+  min-width: 0;
   max-width: min(46vw, 480px);
+  /* Sit the lockup at the logo's baseline so the name's bottom lines up with the
+     bottom of the mascot, then lift a hair for optical balance. */
+  align-self: flex-end;
+  padding-bottom: 3px;
 }
-.pne-compact { max-width: 60vw; }
+.pne-compact {
+  max-width: 100%;
+  padding-bottom: 2px;
+}
 
 /* Name + editor share one type ramp so the box never jumps on toggle. Inputs
    don't inherit font, so set it explicitly. */
@@ -1568,7 +1578,8 @@ input[type="range"].slider-warm::-moz-range-thumb {
 .pne-compact .pne-sizer { font-size: 16px; }
 
 .pne-name {
-  display: inline-block;
+  display: block;
+  min-width: 0;
   max-width: 100%;
   padding: 0;
   margin: 0;
@@ -1586,8 +1597,10 @@ input[type="range"].slider-warm::-moz-range-thumb {
 
 .pne-field {
   position: relative;
-  display: inline-block;
+  display: block;
+  min-width: 0;
   max-width: 100%;
+  overflow: hidden;
 }
 .pne-sizer {
   display: inline-block;

@@ -683,7 +683,7 @@ export default function StudioPage() {
   // ── 3D Studio ──
   return (
     <main className={`fixed inset-0 overflow-hidden bg-tomato-shop flex ${isMobile ? 'flex-col' : ''}`}>
-      <div className={`absolute z-20 flex items-center ${isMobile ? 'top-3 left-4' : 'top-3.5 left-6'}`}>
+      <div className={`absolute z-20 flex items-center ${isMobile ? 'top-3 left-4 max-w-[56vw] min-w-0' : 'top-3.5 left-6'}`}>
         <LogoHomeLink
           cream
           small

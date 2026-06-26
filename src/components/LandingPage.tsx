@@ -2233,16 +2233,22 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 24, ...(isMobile ? { gap: 12 } : {}) }}>
-            <button
-              onClick={scrollToHowItWorks}
-              className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
-              onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
-              onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
-            >
-              how it works
-            </button>
-            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />
+            {/* Desktop fits all three. Mobile only has room for two, so "how it
+                works" is dropped there, leaving pricing + contact us. */}
+            {!isMobile && (
+              <>
+                <button
+                  onClick={scrollToHowItWorks}
+                  className="font-serif italic nav-link-squiggle"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+                  onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
+                  onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
+                >
+                  how it works
+                </button>
+                <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
+              </>
+            )}
             <button
               onClick={scrollToPricing}
               className="font-serif italic nav-link-squiggle"
@@ -2252,6 +2258,16 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             >
               pricing
             </button>
+            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />
+            <Link
+              href="/contact"
+              className="font-serif italic nav-link-squiggle"
+              style={{ textDecoration: 'none', color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
+            >
+              contact us
+            </Link>
           </div>
           <BouncyButton
             onClick={() => { window.location.href = '/dashboard'; }}
@@ -2731,7 +2747,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 { label: 'Terms', href: '/terms' },
                 { label: 'Biometric notice', href: '/biometric-notice' },
                 { label: 'Delete my data', href: '/delete-my-data' },
-                { label: 'Contact', href: 'mailto:shapeup.ai@gmail.com' },
+                { label: 'Contact', href: '/contact' },
               ].map(({ label, href }, i) => (
                 <span key={label}>
                   <a
