@@ -11,8 +11,9 @@ import { EditReport, sanitizeEditReport } from '@/lib/editReport';
 import { computeChipFlightKeyframes, CHIP_FLIGHT_OPTIONS } from './editPanelChipFlight';
 import { nextSelectedChip, resolveApplyPrompt } from './editPanelChipSelection';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberVideoCard from '@/components/BarberVideoCard';
 import { PricingPopup } from '@/components/PricingPopup';
@@ -200,6 +201,24 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState('');
   const [freshCut, setFreshCut] = useState(false);
+
+  // Render-station occupancy: the GPU facelift step is capped at N concurrent
+  // containers on Modal, which silently queues extra requests. We claim a
+  // "station" row in Convex around that step and subscribe to its live status so
+  // we can tell the user when they're waiting in line vs actually rendering.
+  const claimStation = useMutation(api.renderStations.claim);
+  const heartbeatStation = useMutation(api.renderStations.heartbeat);
+  const releaseStation = useMutation(api.renderStations.release);
+  const stationJobIdRef = useRef<Id<'renderStations'> | null>(null);
+  const stationHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [stationJobId, setStationJobId] = useState<Id<'renderStations'> | null>(null);
+  const station = useQuery(
+    api.renderStations.status,
+    stationJobId ? { jobId: stationJobId } : 'skip',
+  );
+  // Only treat as "queued" while the 3D step is actually running — a stale
+  // status reading must never block the UI.
+  const isQueued = phase === 'hairstep' && station?.status === 'queued';
 
   // Recovery state: true while we're polling Convex after a mid-hairstep refresh
   const [isRecovering, setIsRecovering] = useState(false);
@@ -407,6 +426,20 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
 
       setPhase('hairstep');
 
+      // Claim a render station before the GPU step so the UI can show whether
+      // this render is running or waiting in line behind Modal's container cap.
+      // Best-effort: if the claim fails we just don't show queue state.
+      try {
+        const claim = await claimStation({ sessionId: sessionId ?? undefined });
+        stationJobIdRef.current = claim.jobId;
+        setStationJobId(claim.jobId);
+        if (stationHeartbeatRef.current) clearInterval(stationHeartbeatRef.current);
+        stationHeartbeatRef.current = setInterval(() => {
+          const id = stationJobIdRef.current;
+          if (id) void heartbeatStation({ jobId: id }).catch(() => {});
+        }, 3000);
+      } catch { /* queue UI is a nicety, never block the render on it */ }
+
       // newImageUrl is already a data:image/png;base64,… URL — pass directly to facelift.
       const fingerprint = await getVisitorId();
       const faceliftRes = await fetch('/api/facelift', {
@@ -443,6 +476,15 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       // Cancel intervals immediately — don't wait for the useEffect round-trip
       if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
+      // Give up the render station so the next person in line advances. The row
+      // also ages out on its own if this never runs (crash/refresh).
+      if (stationHeartbeatRef.current) { clearInterval(stationHeartbeatRef.current); stationHeartbeatRef.current = null; }
+      if (stationJobIdRef.current) {
+        const id = stationJobIdRef.current;
+        stationJobIdRef.current = null;
+        void releaseStation({ jobId: id }).catch(() => {});
+        setStationJobId(null);
+      }
       // If the page is unloading (user refreshed), skip the phase reset so the sessionStorage
       // entry survives and the recovery logic can restore the loading UI on the next load.
       if (!isUnloadingRef.current) {
@@ -475,6 +517,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   };
 
   useEffect(() => () => emptyHintTimers.current.forEach(clearTimeout), []);
+
+  // On unmount mid-render (e.g. navigating away), stop the heartbeat and release
+  // the station. If this doesn't run, the row ages out on its own.
+  useEffect(() => () => {
+    if (stationHeartbeatRef.current) clearInterval(stationHeartbeatRef.current);
+    const id = stationJobIdRef.current;
+    if (id) void releaseStation({ jobId: id }).catch(() => {});
+  }, [releaseStation]);
 
   // ── Rotating placeholder + barber chatter ─────────────────────────
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
@@ -893,16 +943,18 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                   <span className={`stage-pip ${
                     hairstepProgress >= 100
                       ? 'stage-pip-done'
-                      : phase === 'hairstep'
-                        ? 'stage-pip-active stage-pip-3d'
-                        : 'stage-pip-idle'
+                      : isQueued
+                        ? 'stage-pip-idle'
+                        : phase === 'hairstep'
+                          ? 'stage-pip-active stage-pip-3d'
+                          : 'stage-pip-idle'
                   }`} />
                   <span className={`font-serif italic text-xs ${phase === 'hairstep' || hairstepProgress > 0 ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
-                    Sculpting in 3D
+                    {isQueued ? 'Waiting for a chair' : 'Sculpting in 3D'}
                   </span>
                 </div>
                 <span className="font-mono text-[10px] text-[var(--smoke)]">
-                  {hairstepProgress >= 100 ? '✓' : phase === 'gemini' ? '—' : hairstepProgress < 1 ? '…' : `${Math.round(hairstepProgress)}%`}
+                  {hairstepProgress >= 100 ? '✓' : phase === 'gemini' ? '—' : isQueued ? 'in line' : hairstepProgress < 1 ? '…' : `${Math.round(hairstepProgress)}%`}
                 </span>
               </div>
               <div
@@ -914,14 +966,22 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                 aria-valuenow={Math.round(hairstepProgress)}
               >
                 <div
-                  className="progress-fill progress-fill-3d"
-                  style={{ width: `${hairstepProgress}%` }}
+                  className={`progress-fill progress-fill-3d${isQueued ? ' progress-fill-queued' : ''}`}
+                  style={{ width: isQueued ? '100%' : `${hairstepProgress}%` }}
                 >
-                  {hairstepProgress > 0 && hairstepProgress < 100 && (
+                  {(isQueued || (hairstepProgress > 0 && hairstepProgress < 100)) && (
                     <div className="progress-shimmer" aria-hidden />
                   )}
                 </div>
               </div>
+              {isQueued && (
+                <p className="font-sans text-[10.5px] leading-snug text-[var(--smoke)] mt-1.5 flex items-center gap-1.5" aria-live="polite">
+                  <span aria-hidden className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--tomato)' }} />
+                  {station && station.queuePosition > 1
+                    ? `All ${station.capacity} chairs full — you're #${station.queuePosition} in line. Hang tight, your render starts the moment one frees up.`
+                    : `All chairs full — you're next up. Your render starts the moment one frees up.`}
+                </p>
+              )}
             </div>
 
             {/* Rotating barber chatter */}

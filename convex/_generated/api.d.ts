@@ -24,6 +24,7 @@ import type * as projects from "../projects.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as redeem from "../redeem.js";
 import type * as refunds from "../refunds.js";
+import type * as renderStations from "../renderStations.js";
 import type * as sessions from "../sessions.js";
 import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   rateLimits: typeof rateLimits;
   redeem: typeof redeem;
   refunds: typeof refunds;
+  renderStations: typeof renderStations;
   sessions: typeof sessions;
   stripe: typeof stripe;
   users: typeof users;

@@ -211,4 +211,21 @@ export default defineSchema({
     .index("by_token", ["tokenIdentifier"])
     .index("by_token_and_project", ["tokenIdentifier", "projectId"]),
 
+  // In-flight 3D renders (the GPU-bound facelift step). One row per active render;
+  // the client heartbeats `heartbeatAt` while its render runs and deletes the row
+  // when it finishes. The Modal backend caps concurrent GPUs at
+  // RENDER_STATION_CAPACITY (server/modal_facelift.py `max_containers`), so once
+  // that many rows are live the next render is queued behind them. Ordering the
+  // live rows by `_creationTime` (FIFO) lets us tell each client whether it holds
+  // a station or is waiting, and at what position. High-churn heartbeats live on
+  // their own table (per Convex guidelines) so they don't contend with anything.
+  // Stale rows (client crashed / tab closed) stop counting once `heartbeatAt`
+  // ages past the liveness window and are reaped opportunistically on claim.
+  renderStations: defineTable({
+    // Informational link back to the render's session (debugging only).
+    sessionId: v.optional(v.string()),
+    // Last liveness ping; refreshed by the client every few seconds.
+    heartbeatAt: v.number(),
+  }).index("by_heartbeat", ["heartbeatAt"]),
+
 });
