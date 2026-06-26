@@ -456,6 +456,7 @@ const IconDownload = (p: { size?: number }) => <SIcon {...p}><path d="M12 3v12M7
 const IconCheck = (p: { size?: number }) => <SIcon {...p}><path d="M20 6 9 17l-5-5" /></SIcon>;
 const IconPencil = (p: { size?: number }) => <SIcon {...p}><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M13.5 6.5l3 3" /></SIcon>;
 const IconTrash = (p: { size?: number }) => <SIcon {...p}><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /></SIcon>;
+const IconInfo = (p: { size?: number }) => <SIcon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></SIcon>;
 
 /* ─── Settings Floor ─── */
 // Rendered as its own level inside the dashboard floor slider (not a popup), so
@@ -477,6 +478,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
 
   const [revokingConsent, setRevokingConsent] = useState(false);
   const [consentRevoked, setConsentRevoked] = useState(false);
+  const [showConsentInfo, setShowConsentInfo] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -678,20 +680,34 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <div style={{ borderTop: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }} />
 
             {/* Biometric consent */}
-            <div className="flex flex-col gap-1.5 rounded-xl p-3.5" style={{ background: 'var(--biscuit)' }}>
+            <div className="flex flex-col gap-2.5 rounded-xl p-3.5" style={{ background: 'var(--biscuit)' }}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Biometric consent</span>
                 <span className="font-mono text-[10px] rounded-full px-2 py-0.5" style={{ color: consentDate && !consentRevoked ? 'var(--moss)' : 'var(--smoke)', background: consentDate && !consentRevoked ? 'color-mix(in srgb, var(--moss) 14%, transparent)' : 'color-mix(in srgb, var(--ink) 7%, transparent)' }}>
-                  {consentDate && !consentRevoked ? `granted ${consentDate}` : 'not granted'}
+                  {consentDate && !consentRevoked ? consentDate : 'not granted'}
                 </span>
               </div>
-              <p className="font-sans text-[11.5px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
-                {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It&apos;s stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
-              </p>
-              {(consentDate && !consentRevoked) && (
-                <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11.5px] font-semibold self-start mt-1" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 9, padding: '5px 13px', opacity: revokingConsent ? 0.5 : 1 }}>
-                  {revokingConsent ? '…' : 'Revoke consent'}
-                </BouncyButton>
+
+              {/* "What's that?" reveals the consent notice in an expandable bubble */}
+              <div style={{ display: 'grid', gridTemplateRows: showConsentInfo ? '1fr' : '0fr', transition: 'grid-template-rows 300ms cubic-bezier(0.4,0,0.2,1)' }}>
+                <div style={{ overflow: 'hidden' }}>
+                  <p className="font-sans text-[11.5px] leading-snug rounded-lg px-3 py-2.5" style={{ color: 'var(--char)', margin: '0 0 2px', background: 'color-mix(in srgb, var(--ink) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }}>
+                    {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It&apos;s stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
+                  </p>
+                </div>
+              </div>
+
+              {!consentRevoked && (
+                <div className="flex items-center justify-between gap-2">
+                  <button onClick={() => setShowConsentInfo(v => !v)} aria-expanded={showConsentInfo} className="font-sans text-[11.5px] font-semibold flex items-center gap-1.5" style={{ background: 'none', border: 'none', color: 'var(--denim)', cursor: 'pointer', padding: 0 }}>
+                    <IconInfo size={14} /> What&apos;s that?
+                  </button>
+                  {(consentDate && !consentRevoked) && (
+                    <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11.5px] font-semibold flex-shrink-0" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 9, padding: '5px 13px', opacity: revokingConsent ? 0.5 : 1 }}>
+                      {revokingConsent ? '…' : 'Revoke consent'}
+                    </BouncyButton>
+                  )}
+                </div>
               )}
               {consentRevoked && <span className="font-sans text-[11.5px] flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--moss)' }}><IconCheck size={14} /> Consent revoked. Your facial scans have been deleted.</span>}
             </div>
