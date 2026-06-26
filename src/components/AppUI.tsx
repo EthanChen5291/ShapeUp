@@ -135,6 +135,7 @@ export function BouncyButton({
   children,
   onMouseEnter,
   onMouseLeave,
+  type = 'button',
 }: {
   onClick?: () => void;
   className?: string;
@@ -143,6 +144,7 @@ export function BouncyButton({
   children: React.ReactNode;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  type?: 'button' | 'submit' | 'reset';
 }) {
   const [bouncing, setBouncing] = useState(false);
   const handleClick = () => {
@@ -153,6 +155,7 @@ export function BouncyButton({
   };
   return (
     <button
+      type={type}
       onClick={handleClick}
       disabled={disabled}
       onMouseEnter={onMouseEnter}
