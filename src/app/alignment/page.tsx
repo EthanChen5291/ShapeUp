@@ -68,7 +68,9 @@ async function callFacelift(imageDataUrl: string, tag: string, log: (s: string) 
   log(`[${tag}] → /api/facelift (${imageDataUrl.length} chars)`);
   const res = await fetch('/api/facelift', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageDataUrl, outputName: `alignment-${tag}` }),
+    // Alignment parses ply positions (fetchPositions), so it needs the raw .ply —
+    // opt in explicitly (the API skips the .ply upload unless needPly is true).
+    body: JSON.stringify({ imageDataUrl, outputName: `alignment-${tag}`, needPly: true }),
   });
   if (!res.ok) throw new Error(`[${tag}] HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   const data = await res.json() as Partial<FaceliftResult> & { error?: string };

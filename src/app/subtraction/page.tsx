@@ -167,7 +167,9 @@ async function callFacelift(
   const res = await fetch('/api/facelift', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ imageDataUrl, outputName: `subtraction-${tag}` }),
+    // Subtraction diffs two Gaussian clouds, so it needs the raw .ply — opt in
+    // explicitly (the API skips the ~40 MB .ply upload unless needPly is true).
+    body:    JSON.stringify({ imageDataUrl, outputName: `subtraction-${tag}`, needPly: true }),
   });
 
   log(`response status: ${res.status} in ${Date.now() - t0}ms`);
