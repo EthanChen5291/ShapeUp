@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Fraunces, DM_Sans, JetBrains_Mono, Montserrat } from 'next/font/google';
 import { ConvexClerkProvider } from '@/components/ConvexClerkProvider';
+import { PostHogProvider } from '@/components/PostHogProvider';
 import { NavLoadingProvider } from '@/components/NavLoadingOverlay';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import './globals.css';
@@ -84,13 +85,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             .font-sans    { font-family: var(--font-dmsans), system-ui, sans-serif !important; }
             .font-mono    { font-family: var(--font-jetbrains), ui-monospace, monospace !important; }
           `}</style>
-          <ConvexClerkProvider>
-            <SettingsProvider>
-              <NavLoadingProvider>
-                {children}
-              </NavLoadingProvider>
-            </SettingsProvider>
-          </ConvexClerkProvider>
+          <PostHogProvider>
+            <ConvexClerkProvider>
+              <SettingsProvider>
+                <NavLoadingProvider>
+                  {children}
+                </NavLoadingProvider>
+              </SettingsProvider>
+            </ConvexClerkProvider>
+          </PostHogProvider>
         </body>
       </html>
     </ClerkProvider>

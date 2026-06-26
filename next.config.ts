@@ -27,12 +27,22 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
+  // Required so PostHog's trailing-slash API endpoints proxy correctly.
+  skipTrailingSlashRedirect: true,
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: securityHeaders,
       },
+    ];
+  },
+  // Reverse proxy for PostHog (US cloud) so analytics traffic flows through our
+  // own origin and isn't blocked by ad-blockers. Mirrors NEXT_PUBLIC_POSTHOG_HOST=/ingest.
+  async rewrites() {
+    return [
+      { source: '/ingest/static/:path*', destination: 'https://us-assets.i.posthog.com/static/:path*' },
+      { source: '/ingest/:path*', destination: 'https://us.i.posthog.com/:path*' },
     ];
   },
 };

@@ -437,6 +437,26 @@ function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCo
   );
 }
 
+/* ─── Settings icons (inline, Lucide-style 2px stroke — no emoji glyphs) ─── */
+const svgBase = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+const SIcon = ({ d, size = 18, children }: { d?: string; size?: number; children?: React.ReactNode }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} aria-hidden>{d ? <path d={d} /> : children}</svg>
+);
+const IconUser = (p: { size?: number }) => <SIcon {...p}><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></SIcon>;
+const IconContrast = (p: { size?: number }) => <SIcon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" /></SIcon>;
+const IconGauge = (p: { size?: number }) => <SIcon {...p}><path d="M12 13l4-4" /><path d="M3.5 17a9 9 0 1 1 17 0" /></SIcon>;
+const IconScan = (p: { size?: number }) => <SIcon {...p}><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" /><path d="M9 10.5a3 3 0 0 1 6 0" /><path d="M8.5 15c1 1 5.5 1 7 0" /></SIcon>;
+const IconShield = (p: { size?: number }) => <SIcon {...p}><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></SIcon>;
+const IconSun = (p: { size?: number }) => <SIcon {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></SIcon>;
+const IconMonitor = (p: { size?: number }) => <SIcon {...p}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></SIcon>;
+const IconMoon = (p: { size?: number }) => <SIcon {...p}><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" /></SIcon>;
+const IconZap = (p: { size?: number }) => <SIcon {...p}><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></SIcon>;
+const IconSparkle = (p: { size?: number }) => <SIcon {...p}><path d="M12 3l1.8 4.9L18.7 9 13.8 10.8 12 15.7l-1.8-4.9L5.3 9l4.9-1.1z" /><path d="M19 14l.7 1.8L21.5 16.5l-1.8.7L19 19l-.7-1.8L16.5 16.5l1.8-.7z" /></SIcon>;
+const IconDownload = (p: { size?: number }) => <SIcon {...p}><path d="M12 3v12M7 11l5 5 5-5M5 21h14" /></SIcon>;
+const IconCheck = (p: { size?: number }) => <SIcon {...p}><path d="M20 6 9 17l-5-5" /></SIcon>;
+const IconPencil = (p: { size?: number }) => <SIcon {...p}><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M13.5 6.5l3 3" /></SIcon>;
+const IconTrash = (p: { size?: number }) => <SIcon {...p}><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /></SIcon>;
+
 /* ─── Settings Floor ─── */
 // Rendered as its own level inside the dashboard floor slider (not a popup), so
 // it lerps into view past the other floors. No close affordance — you leave it
@@ -517,26 +537,37 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
     }
   };
 
-  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--char)' }}>{children}</span>
+  // Section card: a raised --cream surface that separates each settings group
+  // from the --biscuit page. Border + tile tint are mode-agnostic (built from
+  // --ink / the accent), so they hold up in both light and dark.
+  const Card = ({ Icon, title, subtitle, accent, children }: { Icon: (p: { size?: number }) => React.ReactElement; title: string; subtitle?: string; accent: string; children: React.ReactNode }) => (
+    <section style={{ background: 'var(--cream)', borderRadius: 18, border: '1px solid color-mix(in srgb, var(--ink) 9%, transparent)', boxShadow: 'var(--shadow-sm)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="flex items-center gap-3">
+        <span style={{ width: 36, height: 36, borderRadius: 11, display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${accent} 15%, transparent)`, color: accent, flexShrink: 0 }}><Icon size={19} /></span>
+        <div className="flex flex-col" style={{ gap: 1 }}>
+          <span className="font-sans" style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)', letterSpacing: '-0.01em' }}>{title}</span>
+          {subtitle && <span className="font-sans" style={{ fontSize: 11.5, color: 'var(--smoke)', lineHeight: 1.35 }}>{subtitle}</span>}
+        </div>
+      </div>
+      {children}
+    </section>
   );
-  const Divider = () => <div style={{ borderTop: '1px dashed rgba(74,58,46,0.15)', margin: '0 0' }} />;
 
   // `on` is a fixed (mode-independent) foreground that contrasts with the
   // accent fill — dark text on the light/yellow accents, light text on the
   // dark ones. Avoids using --cream/--ink, which flip in dark mode.
   // `glyph` overrides the selected icon/dot color independently of the `on` text color.
   // Light shows a bright offwhite sun against the mustard fill — yellow-on-yellow would blend.
-  const themeOptions: { value: Theme; label: string; icon: string; color: string; on: string; glyph?: string }[] = [
-    { value: 'light', label: 'Light', icon: '☀', color: 'var(--mustard)', on: '#3d2e0c', glyph: 'var(--cream)' },
-    { value: 'system', label: 'System', icon: '◐', color: 'var(--caramel)', on: '#fff8ea' },
-    { value: 'dark', label: 'Dark', icon: '☾', color: 'var(--denim)', on: '#fff8ea' },
+  const themeOptions: { value: Theme; label: string; Icon: (p: { size?: number }) => React.ReactElement; color: string; on: string; glyph?: string }[] = [
+    { value: 'light', label: 'Light', Icon: IconSun, color: 'var(--mustard)', on: '#3d2e0c', glyph: 'var(--cream)' },
+    { value: 'system', label: 'System', Icon: IconMonitor, color: 'var(--caramel)', on: '#fff8ea' },
+    { value: 'dark', label: 'Dark', Icon: IconMoon, color: 'var(--denim)', on: '#fff8ea' },
   ];
 
-  const qualityOptions: { value: RenderQuality; label: string; desc: string; color: string; on: string; glyph?: string }[] = [
-    { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device', color: 'var(--moss)', on: '#fff8ea' },
-    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens', color: 'var(--denim)', on: '#fff8ea' },
-    { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition', color: 'var(--terracotta)', on: '#fff8ea' },
+  const qualityOptions: { value: RenderQuality; label: string; desc: string; Icon: (p: { size?: number }) => React.ReactElement; color: string; on: string; glyph?: string }[] = [
+    { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device', Icon: IconZap, color: 'var(--moss)', on: '#fff8ea' },
+    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens', Icon: IconGauge, color: 'var(--denim)', on: '#fff8ea' },
+    { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition', Icon: IconSparkle, color: 'var(--terracotta)', on: '#fff8ea' },
   ];
 
   const consentDate = userQuery?.biometricConsentAt
@@ -547,156 +578,157 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   // the user is signed in, so gate the whole floor behind a sign-in prompt.
   if (isSignedIn === false) {
     return (
-      <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
         <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>Settings</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 48, gap: 16 }}>
-          <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'var(--char)' }}>Sign in to manage your account, appearance, render quality, and privacy settings.</p>
+        <section style={{ background: 'var(--cream)', borderRadius: 18, border: '1px solid color-mix(in srgb, var(--ink) 9%, transparent)', boxShadow: 'var(--shadow-sm)', padding: '40px 28px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, textAlign: 'center' }}>
+          <span style={{ width: 52, height: 52, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'color-mix(in srgb, var(--tomato) 14%, transparent)', color: 'var(--tomato)' }}><IconUser size={26} /></span>
+          <p style={{ margin: 0, maxWidth: 360, fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'var(--char)' }}>Sign in to manage your account, appearance, render quality, and privacy settings.</p>
           <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-tomato" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
           {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
-        </div>
+        </section>
       </div>
     );
   }
 
   return (
-      <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>Settings</h2>
+      <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36, marginBottom: 2 }}>Settings</h2>
 
           {/* ── Account ── */}
-          <div className="flex flex-col gap-3">
-            <SectionLabel>Account</SectionLabel>
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="w-full font-sans text-[15px] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', color: editingUsername ? 'var(--ink)' : 'var(--smoke)', border: usernameError ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'opacity 280ms ease, color 280ms ease' }} />
-                {/* Gray scrim shown while the field is locked */}
-                <div aria-hidden style={{ position: 'absolute', inset: 0, borderRadius: 12, background: 'rgba(120,120,120,0.14)', opacity: editingUsername ? 0 : 1, transition: 'opacity 280ms ease', pointerEvents: 'none' }} />
+          <Card Icon={IconUser} title="Account" subtitle="Your public display name" accent="var(--tomato)">
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2.5">
+                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="flex-1 font-sans text-[15px] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', color: editingUsername ? 'var(--ink)' : 'var(--smoke)', border: usernameError ? '1.5px solid var(--tomato)' : editingUsername ? '1.5px solid color-mix(in srgb, var(--terracotta) 60%, transparent)' : '1.5px solid color-mix(in srgb, var(--ink) 8%, transparent)', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'border-color 220ms ease, color 220ms ease' }} />
+                {!editingUsername ? (
+                  <BouncyButton onClick={() => setEditingUsername(true)} className="font-sans text-[13px] flex items-center gap-1.5" style={{ flexShrink: 0, padding: '0 18px', borderRadius: 12, background: 'color-mix(in srgb, var(--ink) 7%, transparent)', color: 'var(--ink)', fontWeight: 600, border: 'none' }}>
+                    <IconPencil size={15} /> Edit
+                  </BouncyButton>
+                ) : (
+                  <div className="flex gap-2" style={{ flexShrink: 0 }}>
+                    <BouncyButton onClick={() => { setEditingUsername(false); setUsernameValue(userQuery?.username ?? ''); setUsernameError(''); }} className="font-sans text-[13px]" style={{ padding: '0 16px', borderRadius: 12, background: 'color-mix(in srgb, var(--ink) 7%, transparent)', color: 'var(--char)', fontWeight: 600, border: 'none' }}>
+                      Cancel
+                    </BouncyButton>
+                    <BouncyButton onClick={handleSaveUsername} disabled={usernameLoading || usernameValue.trim().length < 2} className="font-sans text-[13px] flex items-center gap-1.5" style={{ padding: '0 20px', borderRadius: 12, background: usernameSaved ? 'var(--moss)' : 'var(--terracotta)', color: 'var(--cream)', fontWeight: 600, whiteSpace: 'nowrap', border: 'none', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1, transition: 'background 220ms ease' }}>
+                      {usernameSaved ? <><IconCheck size={15} /> Saved</> : usernameLoading ? '…' : 'Save'}
+                    </BouncyButton>
+                  </div>
+                )}
               </div>
-              <BouncyButton onClick={() => { if (!editingUsername) setEditingUsername(true); }} className="btn-ink font-sans text-[13px]" style={{ padding: '10px 20px' }}>
-                Edit
-              </BouncyButton>
-              {/* Save lerps in to the right of Edit once the field is unlocked */}
-              <div style={{ overflow: 'hidden', display: 'flex', maxWidth: editingUsername ? 140 : 0, opacity: editingUsername ? 1 : 0, transform: editingUsername ? 'translateX(0)' : 'translateX(-8px)', transition: 'max-width 320ms cubic-bezier(0.34,1.08,0.64,1), opacity 280ms ease, transform 320ms cubic-bezier(0.34,1.08,0.64,1)' }}>
-                <BouncyButton onClick={handleSaveUsername} disabled={usernameLoading || usernameValue.trim().length < 2} className="font-sans text-[13px]" style={{ height: '100%', padding: '0 22px', borderRadius: 6, background: 'var(--terracotta)', color: 'var(--cream)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', border: 'none', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1 }}>
-                  {usernameSaved ? '✓ Saved' : usernameLoading ? '…' : 'Save'}
-                </BouncyButton>
-              </div>
+              {usernameError && <span className="font-sans text-[12.5px]" style={{ color: 'var(--tomato)' }}>{usernameError}</span>}
             </div>
-            {usernameError && <span className="font-sans text-[13px] text-[var(--tomato)]">{usernameError}</span>}
-          </div>
-
-          <Divider />
+          </Card>
 
           {/* ── Appearance ── */}
-          <div className="flex flex-col gap-3">
-            <SectionLabel>Appearance</SectionLabel>
-            <div className="flex gap-2">
-              {themeOptions.map(opt => (
-                <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 transition-all font-sans text-[12px]" style={{ background: theme === opt.value ? opt.color : 'var(--biscuit)', color: theme === opt.value ? opt.on : 'var(--char)', border: theme === opt.value ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 22%, transparent)`, fontWeight: theme === opt.value ? 600 : 400 }}>
-                  <span style={{ fontSize: opt.value === 'system' ? 16 : 19.2, color: theme === opt.value ? (opt.glyph ?? opt.on) : opt.color }}>{opt.icon}</span>
-                  {opt.label}
-                </button>
-              ))}
+          <Card Icon={IconContrast} title="Appearance" subtitle="Theme for the app interface" accent="var(--caramel)">
+            <div className="flex gap-2.5">
+              {themeOptions.map(opt => {
+                const active = theme === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => updateTheme(opt.value)} className="flex-1 flex flex-col items-center gap-2 rounded-2xl py-4 transition-all font-sans text-[12.5px]" style={{ background: active ? opt.color : 'var(--biscuit)', color: active ? opt.on : 'var(--char)', border: active ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 24%, transparent)`, fontWeight: active ? 600 : 500, boxShadow: active ? '0 6px 16px -8px color-mix(in srgb, ' + opt.color + ' 70%, transparent)' : 'none' }}>
+                    <span style={{ color: active ? (opt.glyph ?? opt.on) : opt.color, transition: 'color 200ms' }}><opt.Icon size={20} /></span>
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-
-          <Divider />
+          </Card>
 
           {/* ── Render Quality ── */}
-          <div className="flex flex-col gap-3">
-            <SectionLabel>Render Quality</SectionLabel>
-            <div className="flex flex-col gap-2">
-              {qualityOptions.map(opt => (
-                <button key={opt.value} onClick={() => updateRenderQuality(opt.value)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all" style={{ background: renderQuality === opt.value ? opt.color : 'var(--biscuit)', color: renderQuality === opt.value ? opt.on : 'var(--ink)', border: renderQuality === opt.value ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 22%, transparent)` }}>
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: renderQuality === opt.value ? (opt.glyph ?? opt.on) : opt.color, transition: 'background 200ms' }} />
-                  <div className="flex flex-col">
-                    <span className="font-sans text-[13px] font-semibold">{opt.label}</span>
-                    <span className="font-sans text-[11px]" style={{ opacity: 0.8 }}>{opt.desc}</span>
-                  </div>
-                </button>
-              ))}
+          <Card Icon={IconGauge} title="Render Quality" subtitle="How sharply hairstyles render" accent="var(--denim)">
+            <div className="flex flex-col gap-2.5">
+              {qualityOptions.map(opt => {
+                const active = renderQuality === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => updateRenderQuality(opt.value)} className="flex items-center gap-3.5 rounded-2xl px-4 py-3.5 text-left transition-all" style={{ background: active ? opt.color : 'var(--biscuit)', color: active ? opt.on : 'var(--ink)', border: active ? '1.5px solid transparent' : `1.5px solid color-mix(in srgb, ${opt.color} 24%, transparent)`, boxShadow: active ? '0 6px 16px -8px color-mix(in srgb, ' + opt.color + ' 70%, transparent)' : 'none' }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', flexShrink: 0, background: active ? 'rgba(255,255,255,0.18)' : `color-mix(in srgb, ${opt.color} 14%, transparent)`, color: active ? (opt.glyph ?? opt.on) : opt.color }}><opt.Icon size={18} /></span>
+                    <div className="flex flex-col" style={{ gap: 1 }}>
+                      <span className="font-sans text-[13.5px] font-semibold">{opt.label}</span>
+                      <span className="font-sans text-[11.5px]" style={{ opacity: active ? 0.85 : 0.7 }}>{opt.desc}</span>
+                    </div>
+                    <span aria-hidden style={{ marginLeft: 'auto', width: 18, height: 18, borderRadius: '50%', flexShrink: 0, border: active ? 'none' : `2px solid color-mix(in srgb, ${opt.color} 40%, transparent)`, background: active ? (opt.glyph ?? opt.on) : 'transparent', display: 'grid', placeItems: 'center', color: opt.color }}>
+                      {active && <IconCheck size={12} />}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
-
-          <Divider />
+          </Card>
 
           {/* ── 3D Scan ── */}
-          <div className="flex flex-col gap-3">
-            <SectionLabel>3D Scan</SectionLabel>
+          <Card Icon={IconScan} title="3D Scan" accent="var(--moss)">
             <div className="flex items-center justify-between gap-4">
-              <p className="font-sans text-[13px] text-[var(--char)] leading-snug" style={{ flex: 1 }}>Rebuild your 3D head model from a new photo.</p>
-              <BouncyButton onClick={onRescan} className="btn btn-cream" style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>✂ Rescan</BouncyButton>
+              <p className="font-sans text-[13px] leading-snug" style={{ flex: 1, color: 'var(--char)', margin: 0 }}>Rebuild your 3D head model from a new photo.</p>
+              <BouncyButton onClick={onRescan} className="btn btn-cream flex items-center gap-2" style={{ padding: '10px 18px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}><ScissorsDownIcon size={15} /> Rescan</BouncyButton>
             </div>
-          </div>
-
-          <Divider />
+          </Card>
 
           {/* ── Privacy & Data ── */}
-          <div className="flex flex-col gap-4">
-            <SectionLabel>Privacy & Data</SectionLabel>
-
+          <Card Icon={IconShield} title="Privacy & Data" accent="var(--cherry)">
             {/* AI training opt-out */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Improve ShapeUp</span>
-                <span className="font-sans text-[11px] text-[var(--char)]">We use your information to enhance our user experience.</span>
+                <span className="font-sans text-[11.5px]" style={{ color: 'var(--smoke)' }}>We use your information to enhance our user experience.</span>
               </div>
-              <button onClick={() => updateAiTrainingOptOut(!aiTrainingOptOut)} className="relative flex-shrink-0" style={{ width: 42, height: 24, borderRadius: 12, background: !aiTrainingOptOut ? 'var(--smoke)' : 'var(--terracotta)', border: 'none', cursor: 'pointer', transition: 'background 220ms ease', padding: 0 }} aria-checked={!aiTrainingOptOut} role="switch">
-                <span style={{ position: 'absolute', top: 3, left: !aiTrainingOptOut ? 3 : 21, width: 18, height: 18, borderRadius: '50%', background: 'var(--cream)', transition: 'left 220ms ease', display: 'block' }} />
+              <button onClick={() => updateAiTrainingOptOut(!aiTrainingOptOut)} className="relative flex-shrink-0" style={{ width: 44, height: 26, borderRadius: 13, background: !aiTrainingOptOut ? 'color-mix(in srgb, var(--ink) 22%, transparent)' : 'var(--terracotta)', border: 'none', cursor: 'pointer', transition: 'background 220ms ease', padding: 0 }} aria-checked={!aiTrainingOptOut} role="switch">
+                <span style={{ position: 'absolute', top: 3, left: !aiTrainingOptOut ? 3 : 21, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left 220ms cubic-bezier(0.34,1.2,0.64,1)', display: 'block' }} />
               </button>
             </div>
 
+            <div style={{ borderTop: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }} />
+
             {/* Biometric consent */}
-            <div className="flex flex-col gap-1.5 rounded-xl p-3" style={{ background: 'var(--biscuit)' }}>
+            <div className="flex flex-col gap-1.5 rounded-xl p-3.5" style={{ background: 'var(--biscuit)' }}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Biometric consent</span>
-                {consentDate && !consentRevoked ? (
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>granted {consentDate}</span>
-                ) : (
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--char)' }}>not granted</span>
-                )}
+                <span className="font-mono text-[10px] rounded-full px-2 py-0.5" style={{ color: consentDate && !consentRevoked ? 'var(--moss)' : 'var(--smoke)', background: consentDate && !consentRevoked ? 'color-mix(in srgb, var(--moss) 14%, transparent)' : 'color-mix(in srgb, var(--ink) 7%, transparent)' }}>
+                  {consentDate && !consentRevoked ? `granted ${consentDate}` : 'not granted'}
+                </span>
               </div>
-              <p className="font-sans text-[11px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
+              <p className="font-sans text-[11.5px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
                 {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'} — We use your scan only to build your personal 3D model. It&apos;s stored securely, never sold or shared, and you can revoke consent and delete it anytime. Please note: if you revoke consent, we will not be able to generate any more models by state law.
               </p>
               {(consentDate && !consentRevoked) && (
-                <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11px] self-start mt-1" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 8, padding: '4px 12px', opacity: revokingConsent ? 0.5 : 1 }}>
+                <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11.5px] font-semibold self-start mt-1" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 9, padding: '5px 13px', opacity: revokingConsent ? 0.5 : 1 }}>
                   {revokingConsent ? '…' : 'Revoke consent'}
                 </BouncyButton>
               )}
-              {consentRevoked && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>✓ Consent revoked. Your facial scans have been deleted.</span>}
+              {consentRevoked && <span className="font-sans text-[11.5px] flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--moss)' }}><IconCheck size={14} /> Consent revoked. Your facial scans have been deleted.</span>}
             </div>
 
             {/* Download data */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Download my data</span>
-                <span className="font-sans text-[11px] text-[var(--char)]">Export your account info as JSON (GDPR / CCPA).</span>
+                <span className="font-sans text-[11.5px]" style={{ color: 'var(--smoke)' }}>Export your account info as JSON (GDPR / CCPA).</span>
               </div>
-              <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12px] flex-shrink-0" style={{ background: 'rgba(58,107,147,0.1)', border: '1px solid var(--denim)', color: 'var(--denim)', borderRadius: 10, padding: '7px 14px', opacity: !userQuery ? 0.4 : 1 }}>
-                ↓ Export
+              <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12.5px] font-semibold flex items-center gap-1.5 flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--denim) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--denim) 45%, transparent)', color: 'var(--denim)', borderRadius: 10, padding: '8px 14px', opacity: !userQuery ? 0.4 : 1 }}>
+                <IconDownload size={15} /> Export
               </BouncyButton>
             </div>
 
+            <div style={{ borderTop: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }} />
+
             {/* Delete account */}
-            <div className="flex flex-col gap-2 rounded-xl p-3" style={{ background: 'rgba(169,49,31,0.06)', border: '1px solid rgba(169,49,31,0.18)' }}>
+            <div className="flex flex-col gap-2 rounded-xl p-3.5" style={{ background: 'color-mix(in srgb, var(--cherry) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--cherry) 20%, transparent)' }}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-sans text-[13px] font-semibold" style={{ color: 'var(--cherry)' }}>Delete account</span>
-                  <span className="font-sans text-[11px] text-[var(--char)]">Permanently removes your data. This cannot be undone.</span>
+                  <span className="font-sans text-[11.5px]" style={{ color: 'var(--char)' }}>Permanently removes your data. This cannot be undone.</span>
                 </div>
-                <BouncyButton onClick={handleDeleteAccount} disabled={deleting} onMouseEnter={() => setDeleteHover(true)} onMouseLeave={() => setDeleteHover(false)} className="font-sans text-[12px] flex-shrink-0" style={{ background: (deleteConfirm || deleteHover) ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: (deleteConfirm || deleteHover) ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '7px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms ease, color 200ms ease' }}>
-                  {deleting ? '…' : deleteConfirm ? 'Confirm delete' : 'Delete'}
+                <BouncyButton onClick={handleDeleteAccount} disabled={deleting} onMouseEnter={() => setDeleteHover(true)} onMouseLeave={() => setDeleteHover(false)} className="font-sans text-[12.5px] font-semibold flex items-center gap-1.5 flex-shrink-0" style={{ background: (deleteConfirm || deleteHover) ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: (deleteConfirm || deleteHover) ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '8px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms ease, color 200ms ease' }}>
+                  <IconTrash size={15} /> {deleting ? '…' : deleteConfirm ? 'Confirm delete' : 'Delete'}
                 </BouncyButton>
               </div>
               {deleteConfirm && !deleting && (
                 <div className="flex items-center gap-2">
-                  <span className="font-sans text-[11px]" style={{ color: 'var(--cherry)' }}>All scans, projects, and your account will be deleted.</span>
-                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11px]" style={{ background: 'none', border: 'none', color: 'var(--char)', cursor: 'pointer', padding: 0 }}>Cancel</button>
+                  <span className="font-sans text-[11.5px]" style={{ color: 'var(--cherry)' }}>All scans, projects, and your account will be deleted.</span>
+                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11.5px] font-semibold" style={{ background: 'none', border: 'none', color: 'var(--char)', cursor: 'pointer', padding: 0 }}>Cancel</button>
                 </div>
               )}
-              {deleteError && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{deleteError}</span>}
+              {deleteError && <span className="font-sans text-[11.5px]" style={{ color: 'var(--tomato)' }}>{deleteError}</span>}
             </div>
-          </div>
+          </Card>
       </div>
   );
 }
