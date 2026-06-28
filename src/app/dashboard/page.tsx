@@ -25,6 +25,7 @@ import ConfettiBurst from '@/components/ConfettiBurst';
 import { PricingPopup } from '@/components/PricingPopup';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings, type Theme, type RenderQuality } from '@/contexts/SettingsContext';
+import { useT } from '@/lib/i18n';
 import { captureReferralFromUrl, clearPendingReferralCode, getPendingReferralCode } from '@/lib/referral';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 
@@ -96,6 +97,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
   const { user: clerkUser, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const isMobile = useIsMobile();
+  const t = useT();
   const [showSignIn, setShowSignIn] = useState(false);
   const userQuery = useQuery(api.users.getMe);
   const [open, setOpen] = useState(false);
@@ -300,16 +302,16 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
               {/* ── Hero: plan + token balance + primary CTA ── */}
               <div ref={heroRef} className="tokens-widget" style={isMobile ? { gap: 14, padding: '16px 16px 18px' } : undefined}>
                 <div className="tokens-widget__row">
-                  <span className="tokens-widget__label">Tokens</span>
-                  <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{planName} plan</span>
+                  <span className="tokens-widget__label">{t('Tokens')}</span>
+                  <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{t('{plan} plan', { plan: planName })}</span>
                 </div>
                 <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.availableGenerations ?? 0)} /></span>
                 <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: isMobile ? 16 : 12, ...(isMobile ? { padding: '22px 16px 21px', fontSize: 19 } : {}) }}>
                   <span className="btn-tokens-cta__shimmer" />
-                  <span className="btn-tokens-cta__text">Get more tokens</span>
+                  <span className="btn-tokens-cta__text">{t('Get more tokens')}</span>
                 </BouncyButton>
                 <BouncyButton onClick={() => setShowRefer(true)} className="btn-refer-cta w-full" style={{ marginTop: isMobile ? 12 : 8, ...(isMobile ? { padding: '15px 14px 14px', fontSize: 16 } : {}) }}>
-                  <span className="btn-refer-cta__text">Refer a friend for <span className="btn-refer-cta__hl">6 tokens</span></span>
+                  <span className="btn-refer-cta__text">{t('Refer a friend for')} <span className="btn-refer-cta__hl">{t('6 tokens')}</span></span>
                 </BouncyButton>
               </div>
 
@@ -320,12 +322,12 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                     value={redeemValue}
                     onChange={e => { setRedeemValue(e.target.value.toUpperCase()); setRedeemErr(''); setRedeemMsg(''); }}
                     onKeyDown={e => { if (e.key === 'Enter') handleRedeem(); }}
-                    placeholder="REDEEM A CODE"
+                    placeholder={t('REDEEM A CODE')}
                     className={`flex-1 font-mono tracking-wider text-[var(--ink)] rounded-xl px-3 ${isMobile ? 'text-[15px] py-3.5' : 'text-[13px] py-2.5'}`}
                     style={{ background: 'var(--biscuit)', border: redeemErr ? '1.5px solid var(--tomato)' : '1.5px solid transparent', outline: 'none' }}
                   />
                   <BouncyButton onClick={handleRedeem} disabled={redeeming || !redeemValue.trim()} className={`btn-ink font-sans ${isMobile ? 'text-[15px]' : 'text-[13px]'}`} style={{ padding: isMobile ? '12px 22px' : '8px 18px', opacity: redeeming || !redeemValue.trim() ? 0.45 : 1 }}>
-                    {redeeming ? '…' : 'Redeem'}
+                    {redeeming ? '…' : t('Redeem')}
                   </BouncyButton>
                 </div>
                 {redeemMsg && <span className="font-sans text-[11px]" style={{ color: 'var(--moss)' }}>{redeemMsg}</span>}
@@ -338,7 +340,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                 <span className="btn-barber360__icon" aria-hidden>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v5h-5" /></svg>
                 </span>
-                <span className="btn-barber360__text">Show my barber a 360°</span>
+                <span className="btn-barber360__text">{t('Show my barber a 360°')}</span>
                 <span className="btn-barber360__chev" aria-hidden>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
                 </span>
@@ -351,10 +353,10 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                   style={{ background: 'none', border: 'none', padding: isMobile ? '6px 2px' : '4px 2px', lineHeight: 1 }}
                 >
                   <span style={{ fontSize: isMobile ? 24 : 20, display: 'block', lineHeight: 1 }}>⚙</span>
-                  <span className={`font-sans uppercase tracking-wider ${isMobile ? 'text-[15px]' : 'text-[13px]'}`}>Settings</span>
+                  <span className={`font-sans uppercase tracking-wider ${isMobile ? 'text-[15px]' : 'text-[13px]'}`}>{t('Settings')}</span>
                 </BouncyButton>
                 <BouncyButton onClick={() => { setOpen(false); signOut(); }} className={`font-sans uppercase tracking-wider text-[var(--smoke)] hover:text-[var(--tomato)] transition-colors ${isMobile ? 'text-[15px]' : 'text-[13px]'}`} style={{ background: 'none', border: 'none', paddingRight: 2 }}>
-                  Sign out
+                  {t('Sign out')}
                 </BouncyButton>
               </div>
             </div>
@@ -380,6 +382,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
 
 /* ─── Referral Popup ─── */
 function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCode: string | null; copied: boolean; onCopy: () => void; onDismiss: () => void }) {
+  const t = useT();
   const [phase, setPhase] = useState<'entering' | 'open' | 'closing'>('entering');
   const link = referralCode && typeof window !== 'undefined' ? `${window.location.origin}/?ref=${referralCode}` : '';
 
@@ -409,27 +412,27 @@ function ReferralPopup({ referralCode, copied, onCopy, onDismiss }: { referralCo
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
 
           <div className="flex flex-col gap-2">
-            <span className="refer-pop__badge">✦ Refer a friend</span>
+            <span className="refer-pop__badge">✦ {t('Refer a friend')}</span>
             <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 26, lineHeight: 1.1 }}>
-              Get <span style={{ color: 'var(--terracotta)' }}>6 tokens</span> together
+              {t('Get')} <span style={{ color: 'var(--terracotta)' }}>{t('6 tokens')}</span> {t('together')}
             </h2>
             <p className="font-sans text-[13px] leading-relaxed" style={{ color: 'var(--char)' }}>
-              Share your invite link. When a friend signs up and completes their first scan, <strong>you both get 3 tokens</strong> — 6 in total. There’s no limit, so invite as many friends as you like.
+              {t('Share your invite link. When a friend signs up and completes their first scan, you both get 3 tokens — 6 in total. There’s no limit, so invite as many friends as you like.')}
             </p>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--caramel)' }}>Your invite link</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--caramel)' }}>{t('Your invite link')}</span>
             <div className="flex gap-2">
               <input
                 readOnly
-                value={link || 'Generating your link…'}
+                value={link || t('Generating your link…')}
                 onFocus={e => e.currentTarget.select()}
                 className="flex-1 font-mono text-[12px] text-[var(--ink)] rounded-xl px-3 py-2.5"
                 style={{ background: 'var(--biscuit)', border: '1.5px solid transparent', outline: 'none', textOverflow: 'ellipsis' }}
               />
               <BouncyButton onClick={onCopy} disabled={!referralCode} className="btn-ink font-sans text-[13px]" style={{ padding: '8px 18px', whiteSpace: 'nowrap', opacity: referralCode ? 1 : 0.45 }}>
-                {copied ? '✓ Copied' : 'Copy'}
+                {copied ? `✓ ${t('Copied')}` : t('Copy')}
               </BouncyButton>
             </div>
           </div>
@@ -459,6 +462,7 @@ const IconCheck = (p: { size?: number }) => <SIcon {...p}><path d="M20 6 9 17l-5
 const IconPencil = (p: { size?: number }) => <SIcon {...p}><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M13.5 6.5l3 3" /></SIcon>;
 const IconTrash = (p: { size?: number }) => <SIcon {...p}><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /></SIcon>;
 const IconInfo = (p: { size?: number }) => <SIcon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></SIcon>;
+const IconGlobe = (p: { size?: number }) => <SIcon {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></SIcon>;
 
 /* ─── Settings Floor ─── */
 // Rendered as its own level inside the dashboard floor slider (not a popup), so
@@ -470,7 +474,8 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   const userQuery = useQuery(api.users.getMe);
   const setUsernameMutation = useMutation(api.users.setUsername);
   const deleteAccountMutation = useMutation(api.users.deleteCurrentUserData);
-  const { theme, renderQuality, aiTrainingOptOut, updateTheme, updateRenderQuality, updateAiTrainingOptOut } = useSettings();
+  const { theme, renderQuality, language, aiTrainingOptOut, updateTheme, updateRenderQuality, updateLanguage, updateAiTrainingOptOut } = useSettings();
+  const t = useT();
 
   const [usernameValue, setUsernameValue] = useState(userQuery?.username ?? '');
   const [usernameError, setUsernameError] = useState('');
@@ -492,7 +497,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
     try {
       await setUsernameMutation({ username: usernameValue.trim() });
       setUsernameSaved(true); setEditingUsername(false); setTimeout(() => setUsernameSaved(false), 2000);
-    } catch (err) { setUsernameError(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Please try again.'); }
+    } catch (err) { setUsernameError(err instanceof ConvexError ? String(err.data) : t('Something went wrong. Please try again.')); }
     finally { setUsernameLoading(false); }
   };
 
@@ -536,7 +541,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
       await deleteAccountMutation();
       window.location.href = '/';
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Something went wrong');
+      setDeleteError(err instanceof Error ? err.message : t('Something went wrong'));
       setDeleting(false);
     }
   };
@@ -563,19 +568,24 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   // `glyph` overrides the selected icon/dot color independently of the `on` text color.
   // Light shows a bright offwhite sun against the mustard fill — yellow-on-yellow would blend.
   const themeOptions: { value: Theme; label: string; Icon: (p: { size?: number }) => React.ReactElement; color: string; on: string; glyph?: string }[] = [
-    { value: 'light', label: 'Light', Icon: IconSun, color: 'var(--mustard)', on: '#3d2e0c', glyph: 'var(--cream)' },
-    { value: 'system', label: 'System', Icon: IconMonitor, color: 'var(--caramel)', on: '#fff8ea' },
-    { value: 'dark', label: 'Dark', Icon: IconMoon, color: 'var(--denim)', on: '#fff8ea' },
+    { value: 'light', label: t('Light'), Icon: IconSun, color: 'var(--mustard)', on: '#3d2e0c', glyph: 'var(--cream)' },
+    { value: 'system', label: t('System'), Icon: IconMonitor, color: 'var(--caramel)', on: '#fff8ea' },
+    { value: 'dark', label: t('Dark'), Icon: IconMoon, color: 'var(--denim)', on: '#fff8ea' },
   ];
 
   const qualityOptions: { value: RenderQuality; label: string; desc: string; Icon: (p: { size?: number }) => React.ReactElement; color: string; on: string; glyph?: string }[] = [
-    { value: 'performance', label: 'Performance', desc: 'Lighter render, faster on any device', Icon: IconZap, color: 'var(--moss)', on: '#fff8ea' },
-    { value: 'balanced', label: 'Balanced', desc: 'Default — looks great on most screens', Icon: IconGauge, color: 'var(--denim)', on: '#fff8ea' },
-    { value: 'high', label: 'High', desc: '3× pass render for maximum hair definition', Icon: IconSparkle, color: 'var(--terracotta)', on: '#fff8ea' },
+    { value: 'performance', label: t('Performance'), desc: t('Lighter render, faster on any device'), Icon: IconZap, color: 'var(--moss)', on: '#fff8ea' },
+    { value: 'balanced', label: t('Balanced'), desc: t('Default — looks great on most screens'), Icon: IconGauge, color: 'var(--denim)', on: '#fff8ea' },
+    { value: 'high', label: t('High'), desc: t('3× pass render for maximum hair definition'), Icon: IconSparkle, color: 'var(--terracotta)', on: '#fff8ea' },
+  ];
+
+  const languageOptions: { value: string; label: string; sublabel: string }[] = [
+    { value: 'en', label: 'English', sublabel: 'English' },
+    { value: 'es', label: 'Español', sublabel: 'Spanish' },
   ];
 
   const consentDate = userQuery?.biometricConsentAt
-    ? new Date(userQuery.biometricConsentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    ? new Date(userQuery.biometricConsentAt).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
 
   // Settings live behind auth — there's nothing to configure (or persist) until
@@ -583,11 +593,11 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
   if (isSignedIn === false) {
     return (
       <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>Settings</h2>
+        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36 }}>{t('Settings')}</h2>
         <section style={{ background: 'var(--cream)', borderRadius: 18, border: '1px solid color-mix(in srgb, var(--ink) 9%, transparent)', boxShadow: 'var(--shadow-sm)', padding: '40px 28px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, textAlign: 'center' }}>
           <span style={{ width: 52, height: 52, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'color-mix(in srgb, var(--tomato) 14%, transparent)', color: 'var(--tomato)' }}><IconUser size={26} /></span>
-          <p style={{ margin: 0, maxWidth: 360, fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'var(--char)' }}>Sign in to manage your account, appearance, render quality, and privacy settings.</p>
-          <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-tomato" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+          <p style={{ margin: 0, maxWidth: 360, fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'var(--char)' }}>{t('Sign in to manage your account, appearance, render quality, and privacy settings.')}</p>
+          <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-tomato" style={{ padding: '11px 26px', fontSize: 13 }}>{t('Sign in')}</BouncyButton>
           {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
         </section>
       </div>
@@ -596,24 +606,24 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
 
   return (
       <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36, marginBottom: 2 }}>Settings</h2>
+        <h2 className="font-display italic text-[var(--ink)]" style={{ fontWeight: 600, fontSize: 36, marginBottom: 2 }}>{t('Settings')}</h2>
 
           {/* ── Account ── */}
-          <Card Icon={IconUser} title="Account" subtitle="Your public display name" accent="var(--tomato)">
+          <Card Icon={IconUser} title={t('Account')} subtitle={t('Your public display name')} accent="var(--tomato)">
             <div className="flex flex-col gap-2">
               <div className="flex gap-2.5">
-                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder="your username" className="flex-1 font-sans text-[15px] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', color: editingUsername ? 'var(--ink)' : 'var(--smoke)', border: usernameError ? '1.5px solid var(--tomato)' : editingUsername ? '1.5px solid color-mix(in srgb, var(--terracotta) 60%, transparent)' : '1.5px solid color-mix(in srgb, var(--ink) 8%, transparent)', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'border-color 220ms ease, color 220ms ease' }} />
+                <input type="text" value={usernameValue} disabled={!editingUsername} onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); setUsernameSaved(false); }} placeholder={t('your username')} className="flex-1 font-sans text-[15px] rounded-xl px-4 py-3" style={{ background: 'var(--biscuit)', color: editingUsername ? 'var(--ink)' : 'var(--smoke)', border: usernameError ? '1.5px solid var(--tomato)' : editingUsername ? '1.5px solid color-mix(in srgb, var(--terracotta) 60%, transparent)' : '1.5px solid color-mix(in srgb, var(--ink) 8%, transparent)', outline: 'none', cursor: editingUsername ? 'text' : 'default', transition: 'border-color 220ms ease, color 220ms ease' }} />
                 {!editingUsername ? (
                   <BouncyButton onClick={() => setEditingUsername(true)} className="font-sans text-[13px] flex items-center gap-1.5" style={{ flexShrink: 0, padding: '0 18px', borderRadius: 12, background: 'color-mix(in srgb, var(--ink) 7%, transparent)', color: 'var(--ink)', fontWeight: 600, border: 'none' }}>
-                    <IconPencil size={15} /> Edit
+                    <IconPencil size={15} /> {t('Edit')}
                   </BouncyButton>
                 ) : (
                   <div className="flex gap-2" style={{ flexShrink: 0 }}>
                     <BouncyButton onClick={() => { setEditingUsername(false); setUsernameValue(userQuery?.username ?? ''); setUsernameError(''); }} className="font-sans text-[13px]" style={{ padding: '0 16px', borderRadius: 12, background: 'color-mix(in srgb, var(--ink) 7%, transparent)', color: 'var(--char)', fontWeight: 600, border: 'none' }}>
-                      Cancel
+                      {t('Cancel')}
                     </BouncyButton>
                     <BouncyButton onClick={handleSaveUsername} disabled={usernameLoading || usernameValue.trim().length < 2} className="font-sans text-[13px] flex items-center gap-1.5" style={{ padding: '0 20px', borderRadius: 12, background: usernameSaved ? 'var(--moss)' : 'var(--terracotta)', color: 'var(--cream)', fontWeight: 600, whiteSpace: 'nowrap', border: 'none', opacity: usernameLoading || usernameValue.trim().length < 2 ? 0.45 : 1, transition: 'background 220ms ease' }}>
-                      {usernameSaved ? <><IconCheck size={15} /> Saved</> : usernameLoading ? '…' : 'Save'}
+                      {usernameSaved ? <><IconCheck size={15} /> {t('Saved')}</> : usernameLoading ? '…' : t('Save')}
                     </BouncyButton>
                   </div>
                 )}
@@ -623,7 +633,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
           </Card>
 
           {/* ── Appearance ── */}
-          <Card Icon={IconContrast} title="Appearance" subtitle="Theme for the app interface" accent="var(--caramel)">
+          <Card Icon={IconContrast} title={t('Appearance')} subtitle={t('Theme for the app interface')} accent="var(--caramel)">
             <div className="flex gap-2.5">
               {themeOptions.map(opt => {
                 const active = theme === opt.value;
@@ -638,7 +648,7 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
           </Card>
 
           {/* ── Render Quality ── */}
-          <Card Icon={IconGauge} title="Render Quality" subtitle="How sharply hairstyles render" accent="var(--denim)">
+          <Card Icon={IconGauge} title={t('Render Quality')} subtitle={t('How sharply hairstyles render')} accent="var(--denim)">
             <div className="flex flex-col gap-2.5">
               {qualityOptions.map(opt => {
                 const active = renderQuality === opt.value;
@@ -658,21 +668,36 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             </div>
           </Card>
 
+          {/* ── Language ── */}
+          <Card Icon={IconGlobe} title={t('Language')} subtitle={t('App display language')} accent="var(--terracotta)">
+            <div className="flex gap-2.5">
+              {languageOptions.map(opt => {
+                const active = language === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => updateLanguage(opt.value)} className="flex-1 flex flex-col items-center gap-1 rounded-2xl py-4 transition-all font-sans" style={{ background: active ? 'var(--terracotta)' : 'var(--biscuit)', color: active ? '#fff8ea' : 'var(--char)', border: active ? '1.5px solid transparent' : '1.5px solid color-mix(in srgb, var(--terracotta) 24%, transparent)', fontWeight: active ? 600 : 500, boxShadow: active ? '0 6px 16px -8px color-mix(in srgb, var(--terracotta) 70%, transparent)' : 'none' }}>
+                    <span className="text-[14px]" style={{ fontWeight: 600 }}>{opt.label}</span>
+                    <span className="text-[11px]" style={{ opacity: active ? 0.85 : 0.6 }}>{t(opt.sublabel)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
           {/* ── 3D Scan ── */}
-          <Card Icon={IconScan} title="3D Scan" accent="var(--moss)">
+          <Card Icon={IconScan} title={t('3D Scan')} accent="var(--moss)">
             <div className="flex items-center justify-between gap-4">
-              <p className="font-sans text-[13px] leading-snug" style={{ flex: 1, color: 'var(--char)', margin: 0 }}>Rebuild your 3D head model from a new photo.</p>
-              <BouncyButton onClick={onRescan} className="btn btn-cream flex items-center gap-2" style={{ padding: '10px 18px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}><ScissorsDownIcon size={15} /> Rescan</BouncyButton>
+              <p className="font-sans text-[13px] leading-snug" style={{ flex: 1, color: 'var(--char)', margin: 0 }}>{t('Rebuild your 3D head model from a new photo.')}</p>
+              <BouncyButton onClick={onRescan} className="btn btn-cream flex items-center gap-2" style={{ padding: '10px 18px', fontSize: 13, fontWeight: 700, flexShrink: 0 }}><ScissorsDownIcon size={15} /> {t('Rescan')}</BouncyButton>
             </div>
           </Card>
 
           {/* ── Privacy & Data ── */}
-          <Card Icon={IconShield} title="Privacy & Data" accent="var(--cherry)">
+          <Card Icon={IconShield} title={t('Privacy & Data')} accent="var(--cherry)">
             {/* AI training opt-out */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
-                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Improve ShapeUp</span>
-                <span className="font-sans text-[11.5px]" style={{ color: 'var(--smoke)' }}>We use your information to enhance our user experience.</span>
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">{t('Improve ShapeUp')}</span>
+                <span className="font-sans text-[11.5px]" style={{ color: 'var(--smoke)' }}>{t('We use your information to enhance our user experience.')}</span>
               </div>
               <button onClick={() => updateAiTrainingOptOut(!aiTrainingOptOut)} className="relative flex-shrink-0" style={{ width: 44, height: 26, borderRadius: 13, background: !aiTrainingOptOut ? 'color-mix(in srgb, var(--ink) 22%, transparent)' : 'var(--terracotta)', border: 'none', cursor: 'pointer', transition: 'background 220ms ease', padding: 0 }} aria-checked={!aiTrainingOptOut} role="switch">
                 <span style={{ position: 'absolute', top: 3, left: !aiTrainingOptOut ? 3 : 21, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left 220ms cubic-bezier(0.34,1.2,0.64,1)', display: 'block' }} />
@@ -684,9 +709,9 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             {/* Biometric consent */}
             <div className="flex flex-col gap-2.5 rounded-xl p-3.5" style={{ background: 'var(--biscuit)' }}>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Biometric consent</span>
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">{t('Biometric consent')}</span>
                 <span className="font-mono text-[10px] rounded-full px-2 py-0.5" style={{ color: consentDate && !consentRevoked ? 'var(--moss)' : 'var(--smoke)', background: consentDate && !consentRevoked ? 'color-mix(in srgb, var(--moss) 14%, transparent)' : 'color-mix(in srgb, var(--ink) 7%, transparent)' }}>
-                  {consentDate && !consentRevoked ? consentDate : 'not granted'}
+                  {consentDate && !consentRevoked ? consentDate : t('not granted')}
                 </span>
               </div>
 
@@ -695,9 +720,9 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
                 <div style={{ overflow: 'hidden' }}>
                   <div className="rounded-lg px-3 py-2.5 flex flex-col gap-1.5" style={{ background: 'color-mix(in srgb, var(--ink) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--ink) 8%, transparent)' }}>
                     <p className="font-sans text-[11.5px] leading-snug" style={{ color: 'var(--char)', margin: 0 }}>
-                      This is your go-ahead for us to turn your selfie into a personal 3D head model — the magic that lets you try on cuts and see how they actually sit on you. Your scan stays yours: kept private and just for your models. You can revoke this anytime and we&apos;ll delete it. One heads-up — once you revoke, state law means we can&apos;t build any new models for you.
+                      {t("This is your go-ahead for us to turn your selfie into a personal 3D head model — the magic that lets you try on cuts and see how they actually sit on you. Your scan stays yours: kept private and just for your models. You can revoke this anytime and we'll delete it. One heads-up — once you revoke, state law means we can't build any new models for you.")}
                     </p>
-                    <span className="font-mono text-[9.5px]" style={{ color: 'var(--smoke)' }}>policy {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'}</span>
+                    <span className="font-mono text-[9.5px]" style={{ color: 'var(--smoke)' }}>{t('policy')} {userQuery?.biometricConsentVersion ?? 'biometric-notice-2026-06-08'}</span>
                   </div>
                 </div>
               </div>
@@ -705,26 +730,26 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
               {!consentRevoked && (
                 <div className="flex items-center justify-between gap-2">
                   <button onClick={() => setShowConsentInfo(v => !v)} aria-expanded={showConsentInfo} className="font-sans text-[11.5px] font-semibold flex items-center gap-1.5" style={{ background: 'none', border: 'none', color: 'var(--denim)', cursor: 'pointer', padding: 0 }}>
-                    <IconInfo size={14} /> What&apos;s that?
+                    <IconInfo size={14} /> {t("What's that?")}
                   </button>
                   {(consentDate && !consentRevoked) && (
                     <BouncyButton onClick={handleRevokeConsent} disabled={revokingConsent} className="font-sans text-[11.5px] font-semibold flex-shrink-0" style={{ background: 'none', border: '1px solid var(--tomato)', color: 'var(--tomato)', borderRadius: 9, padding: '5px 13px', opacity: revokingConsent ? 0.5 : 1 }}>
-                      {revokingConsent ? '…' : 'Revoke consent'}
+                      {revokingConsent ? '…' : t('Revoke consent')}
                     </BouncyButton>
                   )}
                 </div>
               )}
-              {consentRevoked && <span className="font-sans text-[11.5px] flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--moss)' }}><IconCheck size={14} /> Consent revoked. Your facial scans have been deleted.</span>}
+              {consentRevoked && <span className="font-sans text-[11.5px] flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--moss)' }}><IconCheck size={14} /> {t('Consent revoked. Your facial scans have been deleted.')}</span>}
             </div>
 
             {/* Download data */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-0.5">
-                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">Download my data</span>
-                <span className="font-sans text-[11.5px]" style={{ color: 'var(--smoke)' }}>Export your account info as JSON (GDPR / CCPA).</span>
+                <span className="font-sans text-[13px] font-semibold text-[var(--ink)]">{t('Download my data')}</span>
+                <span className="font-sans text-[11.5px]" style={{ color: 'var(--smoke)' }}>{t('Export your account info as JSON (GDPR / CCPA).')}</span>
               </div>
               <BouncyButton onClick={handleDownloadData} disabled={!userQuery} className="font-sans text-[12.5px] font-semibold flex items-center gap-1.5 flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--denim) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--denim) 45%, transparent)', color: 'var(--denim)', borderRadius: 10, padding: '8px 14px', opacity: !userQuery ? 0.4 : 1 }}>
-                <IconDownload size={15} /> Export
+                <IconDownload size={15} /> {t('Export')}
               </BouncyButton>
             </div>
 
@@ -734,17 +759,17 @@ function SettingsPopup({ onRescan }: { onRescan: () => void }) {
             <div className="flex flex-col gap-2 rounded-xl p-3.5" style={{ background: 'color-mix(in srgb, var(--cherry) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--cherry) 20%, transparent)' }}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-sans text-[13px] font-semibold" style={{ color: 'var(--cherry)' }}>Delete account</span>
-                  <span className="font-sans text-[11.5px]" style={{ color: 'var(--char)' }}>Permanently removes your data. This cannot be undone.</span>
+                  <span className="font-sans text-[13px] font-semibold" style={{ color: 'var(--cherry)' }}>{t('Delete account')}</span>
+                  <span className="font-sans text-[11.5px]" style={{ color: 'var(--char)' }}>{t('Permanently removes your data. This cannot be undone.')}</span>
                 </div>
                 <BouncyButton onClick={handleDeleteAccount} disabled={deleting} onMouseEnter={() => setDeleteHover(true)} onMouseLeave={() => setDeleteHover(false)} className="font-sans text-[12.5px] font-semibold flex items-center gap-1.5 flex-shrink-0" style={{ background: (deleteConfirm || deleteHover) ? 'var(--cherry)' : 'none', border: '1px solid var(--cherry)', color: (deleteConfirm || deleteHover) ? 'var(--cream)' : 'var(--cherry)', borderRadius: 10, padding: '8px 14px', opacity: deleting ? 0.5 : 1, transition: 'background 200ms ease, color 200ms ease' }}>
-                  <IconTrash size={15} /> {deleting ? '…' : deleteConfirm ? 'Confirm delete' : 'Delete'}
+                  <IconTrash size={15} /> {deleting ? '…' : deleteConfirm ? t('Confirm delete') : t('Delete')}
                 </BouncyButton>
               </div>
               {deleteConfirm && !deleting && (
                 <div className="flex items-center gap-2">
-                  <span className="font-sans text-[11.5px]" style={{ color: 'var(--cherry)' }}>All scans, projects, and your account will be deleted.</span>
-                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11.5px] font-semibold" style={{ background: 'none', border: 'none', color: 'var(--char)', cursor: 'pointer', padding: 0 }}>Cancel</button>
+                  <span className="font-sans text-[11.5px]" style={{ color: 'var(--cherry)' }}>{t('All scans, projects, and your account will be deleted.')}</span>
+                  <button onClick={() => setDeleteConfirm(false)} className="font-sans text-[11.5px] font-semibold" style={{ background: 'none', border: 'none', color: 'var(--char)', cursor: 'pointer', padding: 0 }}>{t('Cancel')}</button>
                 </div>
               )}
               {deleteError && <span className="font-sans text-[11.5px]" style={{ color: 'var(--tomato)' }}>{deleteError}</span>}
@@ -769,6 +794,7 @@ function ScissorsDownIcon({ size = 16 }: { size?: number }) {
 
 /* ─── Scan Now Popup ─── */
 function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss: () => void }) {
+  const t = useT();
   const [show, setShow] = useState(false);
   const [closing, setClosing] = useState(false);
   useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
@@ -779,9 +805,9 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
           <div style={{ width: 52 }}><BarberMascot /></div>
-          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>Scan now!</h2>
-          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>Drop in the chair and start styling yourself in 3D!</p>
-          <BouncyButton onClick={onLetsDo} className="btn btn-tomato w-full" style={{ padding: '20px 48px', fontSize: 26, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em' }}>Take Picture</BouncyButton>
+          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>{t('Scan now!')}</h2>
+          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>{t('Drop in the chair and start styling yourself in 3D!')}</p>
+          <BouncyButton onClick={onLetsDo} className="btn btn-tomato w-full" style={{ padding: '20px 48px', fontSize: 26, fontFamily: 'var(--font-fraunces), Georgia, serif', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, letterSpacing: '-0.02em' }}>{t('Take Picture')}</BouncyButton>
         </div>
       </div>
     </div>
@@ -790,17 +816,18 @@ function ScanNowPopup({ onLetsDo, onDismiss }: { onLetsDo: () => void; onDismiss
 
 /* ─── Project Limit Popup ─── */
 function ProjectLimitPopup({ onDismiss }: { onDismiss: () => void }) {
+  const t = useT();
   const [show, setShow] = useState(false);
   const [closing, setClosing] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
+  useEffect(() => { const timer = setTimeout(() => setShow(true), 16); return () => clearTimeout(timer); }, []);
   const dismiss = () => { setClosing(true); setTimeout(onDismiss, 420); };
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }} onClick={dismiss}>
       <div onClick={e => e.stopPropagation()} style={{ transition: 'transform 380ms cubic-bezier(.2,.85,.2,1)', transform: closing ? 'translateY(100vh)' : show ? 'translateY(0)' : 'translateY(-100vh)' }}>
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, maxWidth: 420, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
-          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>You&rsquo;ve hit the limit of {MAX_PROJECTS_PER_USER} cuts. Delete one to make room for a fresh style.</p>
-          <BouncyButton onClick={dismiss} className="btn btn-tomato w-full" style={{ padding: '14px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em' }}>Got it</BouncyButton>
+          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>{t("You've hit the limit of {max} cuts. Delete one to make room for a fresh style.", { max: MAX_PROJECTS_PER_USER })}</p>
+          <BouncyButton onClick={dismiss} className="btn btn-tomato w-full" style={{ padding: '14px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em' }}>{t('Got it')}</BouncyButton>
         </div>
       </div>
     </div>
@@ -812,9 +839,10 @@ function ProjectLimitPopup({ onDismiss }: { onDismiss: () => void }) {
 // up a new project from that scan instantly (free, no GPU rebuild) or capture a
 // fresh selfie. "Ask each time" — we never auto-pick for them.
 function ReuseScanPopup({ onReuse, onNewSelfie, onDismiss, creating }: { onReuse: () => void; onNewSelfie: () => void; onDismiss: () => void; creating: boolean }) {
+  const t = useT();
   const [show, setShow] = useState(false);
   const [closing, setClosing] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setShow(true), 16); return () => clearTimeout(t); }, []);
+  useEffect(() => { const timer = setTimeout(() => setShow(true), 16); return () => clearTimeout(timer); }, []);
   const dismiss = () => { if (creating) return; setClosing(true); setTimeout(onDismiss, 420); };
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ background: show && !closing ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0)', transition: 'background 400ms ease' }} onClick={dismiss}>
@@ -822,18 +850,18 @@ function ReuseScanPopup({ onReuse, onNewSelfie, onDismiss, creating }: { onReuse
         <div className="relative rounded-3xl flex flex-col items-center gap-5" style={{ background: 'var(--cream)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.45)', minWidth: 380, maxWidth: 440, padding: '44px 44px 40px' }}>
           <button onClick={dismiss} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full text-[var(--smoke)] hover:text-[var(--ink)] hover:bg-[var(--biscuit)] transition-all text-sm">✕</button>
           <div style={{ width: 52 }}><BarberMascot /></div>
-          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>New project</h2>
-          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>Start from your saved scan, or take a fresh selfie.</p>
+          <h2 className="font-display italic text-[var(--ink)] text-center" style={{ fontWeight: 600, fontSize: 28 }}>{t('New project')}</h2>
+          <p className="font-sans text-[var(--smoke)] text-center leading-snug" style={{ fontSize: 15 }}>{t('Start from your saved scan, or take a fresh selfie.')}</p>
           <div className="flex flex-col gap-3 w-full" style={{ marginTop: 4 }}>
             <BouncyButton onClick={onReuse} disabled={creating} className="btn btn-tomato w-full" style={{ padding: '16px 32px', fontSize: 18, fontFamily: 'var(--font-fraunces), Georgia, serif', fontWeight: 800, letterSpacing: '-0.01em', opacity: creating ? 0.7 : 1 }}>
-              {creating ? 'Setting up…' : '✂ Use my selfie'}
+              {creating ? t('Setting up…') : `✂ ${t('Use my selfie')}`}
             </BouncyButton>
             <BouncyButton onClick={onNewSelfie} disabled={creating} className="btn btn-cream w-full" style={{ position: 'relative', padding: '13px 32px', fontSize: 15, fontWeight: 700, opacity: creating ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img src="/shapeup_token.png" alt="token" draggable={false} style={{ position: 'absolute', left: 16, width: '1.1em', height: '1.1em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} />
-              Take a new selfie
+              {t('Take a new selfie')}
             </BouncyButton>
           </div>
-          <p className="font-sans text-center" style={{ fontSize: 11, color: 'var(--caramel)', margin: 0 }}>Reusing your scan is free — no token spent.</p>
+          <p className="font-sans text-center" style={{ fontSize: 11, color: 'var(--caramel)', margin: 0 }}>{t('Reusing your scan is free — no token spent.')}</p>
         </div>
       </div>
     </div>
@@ -883,14 +911,15 @@ const BUILD_PHRASES = [
   'Almost there',
 ];
 function BuildSubtitle() {
+  const t = useT();
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setIdx(i => i + 1), 4000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setIdx(i => i + 1), 4000);
+    return () => clearInterval(timer);
   }, []);
   return (
     <p key={idx} className="chatter-line" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, fontWeight: 600, color: 'rgba(255,248,234,0.8)', marginTop: 4, fontStyle: 'italic', textAlign: 'center' }}>
-      {BUILD_PHRASES[idx % BUILD_PHRASES.length]}…
+      {t(BUILD_PHRASES[idx % BUILD_PHRASES.length])}…
     </p>
   );
 }
@@ -920,9 +949,10 @@ const SELFIE_REQS = [
 
 /* ─── Live Checklist ─── */
 function LiveChecklist({ checks }: { checks: ChecksMap | null }) {
+  const t = useT();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 330 }}>
-      <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 18, fontWeight: 600, color: 'rgba(255,248,234,0.5)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 24 }}>The barber&rsquo;s checklist</p>
+      <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 18, fontWeight: 600, color: 'rgba(255,248,234,0.5)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 24 }}>{t('The barber’s checklist')}</p>
       {CHECK_ORDER.map((key: CheckKey, i: number) => {
         const state = checks?.[key] ?? 'idle';
         return (
@@ -934,7 +964,7 @@ function LiveChecklist({ checks }: { checks: ChecksMap | null }) {
                 </svg>
               ) : <span className="lchk-dot" />}
             </span>
-            <span className="lchk-label font-sans">{CHECK_META[key].label}</span>
+            <span className="lchk-label font-sans">{t(CHECK_META[key].label)}</span>
           </div>
         );
       })}
@@ -949,7 +979,7 @@ function LiveChecklist({ checks }: { checks: ChecksMap | null }) {
           color: 'rgba(255,248,234,0.55)',
         }}
       >
-        Sit against a plain, solid-color wall with no bright window or lamp behind your head — it keeps your hair sharp for the 3D model!
+        {t('Sit against a plain, solid-color wall with no bright window or lamp behind your head — it keeps your hair sharp for the 3D model!')}
       </p>
     </div>
   );
@@ -985,6 +1015,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
   needsUsername?: boolean;
   askMainSelfie?: boolean;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const panelRef = useRef<HTMLDivElement>(null);
   const wasFirstScanRef = useRef(needsUsername);
@@ -1059,7 +1090,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
       setTimeout(() => setExpanded(true), 120);
       setTimeout(() => { setPhase('camera'); setContentVisible(true); }, 500);
       setTimeout(() => setShowRequirements(true), 900);
-    } catch (err: unknown) { setUsernameError(err instanceof ConvexError ? String(err.data) : 'Something went wrong. Please try again.'); setUsernameLoading(false); }
+    } catch (err: unknown) { setUsernameError(err instanceof ConvexError ? String(err.data) : t('Something went wrong. Please try again.')); setUsernameLoading(false); }
   };
 
   const processCapture = useCallback(async (dataUrl: string): Promise<{ profile: UserHeadProfile; sessionId: string | null; url: string | null; scanS3Key: string | null }> => {
@@ -1240,21 +1271,21 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
             {phase === 'processing' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', maxWidth: 320, alignItems: 'center' }}>
                 <p style={{ fontFamily: 'var(--font-fraunces)', fontStyle: 'italic', fontVariationSettings: "'SOFT' 50, 'WONK' 1, 'opsz' 144", fontSize: 20, fontWeight: 600, color: 'var(--cream)', opacity: 0.85, marginBottom: 4, textAlign: 'center' }}>
-                  {faceliftStatus === 'error' ? 'Something went wrong' : 'Analyzing your look...'}
+                  {faceliftStatus === 'error' ? t('Something went wrong') : t('Analyzing your look...')}
                 </p>
                 {faceliftStatus !== 'error' && <ArtistSpinner />}
                 {faceliftStatus === 'processing' && (
                   <>
                     <BuildSubtitle />
-                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'rgba(255,248,234,0.35)', marginTop: 2, fontStyle: 'italic', textAlign: 'center' }}>Please allow up to 2 minutes while we build your 3D model</p>
+                    <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 11, color: 'rgba(255,248,234,0.35)', marginTop: 2, fontStyle: 'italic', textAlign: 'center' }}>{t('Please allow up to 2 minutes while we build your 3D model')}</p>
                   </>
                 )}
                 {faceliftStatus === 'error' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-                    <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'rgba(255,100,80,0.8)', lineHeight: 1.4, wordBreak: 'break-word' }}>{faceliftError ?? 'Unknown error'}</p>
+                    <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'rgba(255,100,80,0.8)', lineHeight: 1.4, wordBreak: 'break-word' }}>{faceliftError ?? t('Unknown error')}</p>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" onClick={() => { setFaceliftStatus('idle'); setFaceliftError(null); setPhase('processing'); runFacelift(); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--tomato)', color: 'var(--cream)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
-                      <button type="button" onClick={() => { faceliftAbortRef.current?.abort(); setFaceliftStatus('idle'); setFaceliftError(null); setPhase('camera'); setCaptured(null); setCapturedDataUrl(null); setCameraKey(k => k + 1); }} style={{ flex: 1, padding: '8px 12px', background: 'rgba(255,248,234,0.08)', color: 'rgba(255,248,234,0.6)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, cursor: 'pointer' }}>Retake photo</button>
+                      <button type="button" onClick={() => { setFaceliftStatus('idle'); setFaceliftError(null); setPhase('processing'); runFacelift(); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--tomato)', color: 'var(--cream)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('Try again')}</button>
+                      <button type="button" onClick={() => { faceliftAbortRef.current?.abort(); setFaceliftStatus('idle'); setFaceliftError(null); setPhase('camera'); setCaptured(null); setCapturedDataUrl(null); setCameraKey(k => k + 1); }} style={{ flex: 1, padding: '8px 12px', background: 'rgba(255,248,234,0.08)', color: 'rgba(255,248,234,0.6)', border: 'none', borderRadius: 8, fontFamily: 'var(--font-dmsans)', fontSize: 12, cursor: 'pointer' }}>{t('Retake photo')}</button>
                     </div>
                   </div>
                 )}
@@ -1266,7 +1297,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px 20px', flexShrink: 0, borderBottom: '1px solid rgba(255,248,234,0.07)', position: 'relative' }}>
               <h2 id="scan-popup-title" className="type-chonk text-[var(--cream)] select-none" style={{ fontSize: 'clamp(1.8rem, 3.5vw, 3rem)', lineHeight: 1 }}>
-                {phase === 'username' ? "Let's meet you" : 'Take a selfie!'}
+                {phase === 'username' ? t("Let's meet you") : t('Take a selfie!')}
               </h2>
               <button type="button" aria-label="Close scan dialog" onClick={dismiss} className="absolute right-7 w-9 h-9 flex items-center justify-center transition-all" style={{ color: 'rgba(255,248,234,0.5)', fontSize: '2em' }}>✕</button>
             </div>
@@ -1274,10 +1305,10 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 28px', position: 'relative', minHeight: 0, opacity: contentVisible ? 1 : 0, transition: 'opacity 280ms ease' }}>
               {phase === 'username' && (
                 <form onSubmit={handleUsernameSubmit} style={{ width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <h2 className="type-chonk" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: 'var(--cream)', lineHeight: 1, margin: 0 }}>Set up!</h2>
+                  <h2 className="type-chonk" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: 'var(--cream)', lineHeight: 1, margin: 0 }}>{t('Set up!')}</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <label htmlFor="scan-username" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 13, color: 'rgba(255,248,234,0.5)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, margin: 0 }}>Choose a username</label>
-                    <p id="scan-username-help" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, color: 'rgba(255,248,234,0.6)', margin: 0, lineHeight: 1.5 }}>Letters, numbers, and underscores only.</p>
+                    <label htmlFor="scan-username" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 13, color: 'rgba(255,248,234,0.5)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, margin: 0 }}>{t('Choose a username')}</label>
+                    <p id="scan-username-help" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, color: 'rgba(255,248,234,0.6)', margin: 0, lineHeight: 1.5 }}>{t('Letters, numbers, and underscores only.')}</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <input
@@ -1286,7 +1317,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
                       type="text"
                       value={usernameValue}
                       onChange={e => { setUsernameValue(e.target.value); setUsernameError(''); }}
-                      placeholder="e.g. freshcuts_mike"
+                      placeholder={t('e.g. freshcuts_mike')}
                       maxLength={20}
                       aria-invalid={usernameError ? 'true' : 'false'}
                       aria-describedby={usernameError ? 'scan-username-error scan-username-help' : 'scan-username-help'}
@@ -1295,7 +1326,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
                     {usernameError && <p id="scan-username-error" role="alert" style={{ fontFamily: 'var(--font-dmsans)', fontSize: 12, color: 'rgba(220,80,60,0.9)', margin: 0 }}>{usernameError}</p>}
                   </div>
                   <button type="submit" disabled={usernameLoading || usernameValue.trim().length < 2} style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, fontWeight: 700, padding: '13px 0', borderRadius: 14, border: 'none', background: usernameLoading || usernameValue.trim().length < 2 ? 'rgba(255,248,234,0.12)' : 'var(--cream)', color: usernameLoading || usernameValue.trim().length < 2 ? 'rgba(255,248,234,0.3)' : 'var(--ink)', cursor: usernameLoading || usernameValue.trim().length < 2 ? 'default' : 'pointer', width: '100%', transition: 'background 200ms ease, color 200ms ease', letterSpacing: '0.04em' }}>
-                    {usernameLoading ? 'Saving…' : 'Continue →'}
+                    {usernameLoading ? t('Saving…') : `${t('Continue')} →`}
                   </button>
                 </form>
               )}
@@ -1319,22 +1350,22 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
 
               {phase === 'verify' && (
                 <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: `translateX(-50%) translateY(${showVerifyBtns ? '0px' : '80px'})`, transition: 'transform 430ms cubic-bezier(.2,.85,.2,1)', display: 'flex', gap: 12, zIndex: 10 }}>
-                  <BouncyButton onClick={handleRetake} className="btn btn-cream" style={{ padding: '13px 30px', fontSize: 14 }}>↺ Retake</BouncyButton>
-                  <BouncyButton onClick={handleProceed} className="btn btn-tomato" style={{ padding: '13px 30px', fontSize: 14 }}>✓ Proceed</BouncyButton>
+                  <BouncyButton onClick={handleRetake} className="btn btn-cream" style={{ padding: '13px 30px', fontSize: 14 }}>↺ {t('Retake')}</BouncyButton>
+                  <BouncyButton onClick={handleProceed} className="btn btn-tomato" style={{ padding: '13px 30px', fontSize: 14 }}>✓ {t('Proceed')}</BouncyButton>
                 </div>
               )}
 
               {phase === 'main-selfie' && (
                 <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, textAlign: 'center' }}>
                   <h2 className="type-chonk text-[var(--cream)] select-none" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', lineHeight: 1.1, margin: 0 }}>
-                    Make this your main selfie?
+                    {t('Make this your main selfie?')}
                   </h2>
                   <p style={{ fontFamily: 'var(--font-dmsans)', fontSize: 14, color: 'rgba(255,248,234,0.55)', margin: 0, lineHeight: 1.5, maxWidth: 320 }}>
-                    Your main selfie is the one new projects start from. You can keep your current one if you prefer.
+                    {t('Your main selfie is the one new projects start from. You can keep your current one if you prefer.')}
                   </p>
                   <div style={{ display: 'flex', gap: 12 }}>
-                    <BouncyButton onClick={() => handleMainSelfieChoice(false)} className="btn btn-cream" style={{ padding: '13px 36px', fontSize: 14 }}>No</BouncyButton>
-                    <BouncyButton onClick={() => handleMainSelfieChoice(true)} className="btn btn-tomato" style={{ padding: '13px 36px', fontSize: 14 }}>Yes</BouncyButton>
+                    <BouncyButton onClick={() => handleMainSelfieChoice(false)} className="btn btn-cream" style={{ padding: '13px 36px', fontSize: 14 }}>{t('No')}</BouncyButton>
+                    <BouncyButton onClick={() => handleMainSelfieChoice(true)} className="btn btn-tomato" style={{ padding: '13px 36px', fontSize: 14 }}>{t('Yes')}</BouncyButton>
                   </div>
                 </div>
               )}
@@ -1343,7 +1374,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         </div>
 
         <div style={{ padding: '10px 28px', textAlign: 'center', borderTop: '1px solid rgba(255,248,234,0.06)', flexShrink: 0 }}>
-          <span className="font-display italic text-sm" style={{ color: 'rgba(255,248,234,0.35)' }}>the looking glass ✂</span>
+          <span className="font-display italic text-sm" style={{ color: 'rgba(255,248,234,0.35)' }}>{t('the looking glass')} ✂</span>
         </div>
       </div>
 
@@ -1409,8 +1440,9 @@ function stampDate(ms: number) {
 
 /* ─── Delete Confirm Popup ─── */
 function DeleteConfirmPopup({ projectName, onConfirm, onCancel }: { projectName: string; onConfirm: () => void; onCancel: () => void }) {
+  const t = useT();
   const [visible, setVisible] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setVisible(true), 16); return () => clearTimeout(t); }, []);
+  useEffect(() => { const timer = setTimeout(() => setVisible(true), 16); return () => clearTimeout(timer); }, []);
   const cancel = () => { setVisible(false); setTimeout(onCancel, 260); };
   const confirm = () => { setVisible(false); setTimeout(onConfirm, 260); };
   return createPortal(
@@ -1423,14 +1455,14 @@ function DeleteConfirmPopup({ projectName, onConfirm, onCancel }: { projectName:
         style={{ background: 'var(--cream)', borderRadius: 24, padding: '36px 44px', boxShadow: '0 32px 80px -20px rgba(0,0,0,0.5)', border: '1px solid rgba(42,32,26,0.1)', minWidth: 340, maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 20, transform: visible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.96)', opacity: visible ? 1 : 0, transition: 'transform 280ms cubic-bezier(.2,.85,.2,1), opacity 260ms ease' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <h3 className="font-display" style={{ fontSize: 22, fontWeight: 700, fontStyle: 'italic', color: 'var(--ink)', margin: 0 }}>Delete this cut?</h3>
+          <h3 className="font-display" style={{ fontSize: 22, fontWeight: 700, fontStyle: 'italic', color: 'var(--ink)', margin: 0 }}>{t('Delete this cut?')}</h3>
           <p className="font-sans" style={{ fontSize: 14, color: 'var(--smoke)', margin: 0, lineHeight: 1.5 }}>
-            Are you sure you want to delete <strong style={{ color: 'var(--ink)' }}>{projectName}</strong>?
+            {t('Are you sure you want to delete')} <strong style={{ color: 'var(--ink)' }}>{projectName}</strong>?
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <BouncyButton onClick={cancel} className="btn btn-cream flex-1 font-sans" style={{ padding: '12px 0', fontSize: 14 }}>No, keep it</BouncyButton>
-          <BouncyButton onClick={confirm} className="flex-1 font-sans" style={{ padding: '12px 0', fontSize: 14, fontWeight: 700, background: 'var(--cherry)', color: 'var(--cream)', border: 'none', borderRadius: 14 }}>Yes, delete</BouncyButton>
+          <BouncyButton onClick={cancel} className="btn btn-cream flex-1 font-sans" style={{ padding: '12px 0', fontSize: 14 }}>{t('No, keep it')}</BouncyButton>
+          <BouncyButton onClick={confirm} className="flex-1 font-sans" style={{ padding: '12px 0', fontSize: 14, fontWeight: 700, background: 'var(--cherry)', color: 'var(--cream)', border: 'none', borderRadius: 14 }}>{t('Yes, delete')}</BouncyButton>
         </div>
       </div>
     </div>,
@@ -1538,6 +1570,7 @@ function ProjectCard({ project, onClick, pickMode = false, onPick, rotate = 0, o
 
 /* ─── Add Project Button ─── */
 function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?: boolean }) {
+  const t = useT();
   const [animPhase, setAnimPhase] = useState<'pre' | 'falling' | 'impact' | 'done'>('pre');
   const [hovered, setHovered] = useState(false);
   useEffect(() => {
@@ -1556,7 +1589,7 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
         <span className="text-[var(--ink)] font-sans font-bold fresh-sheet-plus" style={{ fontSize: 34, opacity: 0.72, lineHeight: 1, display: 'block', transform: hovered ? 'rotate(90deg) scale(1.18)' : 'rotate(0deg) scale(1)', animation: isImpact ? 'empty-impact-shared 3.4s linear both' : 'none' }}>
           <span style={{ display: 'block', animation: isImpact ? 'empty-plus-swell 0.45s cubic-bezier(.2,.85,.2,1) both' : 'none' }}>+</span>
         </span>
-        <span className="font-display fresh-sheet-label" style={{ opacity: hovered ? 1 : 0, transform: hovered ? 'translateY(0)' : 'translateY(6px)' }}>new cut</span>
+        <span className="font-display fresh-sheet-label" style={{ opacity: hovered ? 1 : 0, transform: hovered ? 'translateY(0)' : 'translateY(6px)' }}>{t('new cut')}</span>
       </BouncyButton>
     </div>
   );
@@ -1564,15 +1597,16 @@ function AddProjectButton({ onClick, isEmpty }: { onClick: () => void; isEmpty?:
 
 /* ─── Saved Empty State ─── */
 function SavedEmptyState({ onBrowse }: { onBrowse: () => void }) {
+  const t = useT();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 64, gap: 26 }}>
       <div className="saved-ghost">
         <svg className="saved-ghost-frame" aria-hidden><rect rx="14" ry="14" fill="none" stroke="rgba(252,245,228,0.3)" strokeWidth="1.5" strokeDasharray="8 7" /></svg>
         <svg className="saved-ghost-bookmark" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="rgba(212,175,55,0.9)" strokeWidth="2" strokeLinejoin="round" aria-hidden><path d="M5 3H19V21L12 15.5L5 21Z" /></svg>
-        <span className="font-display saved-ghost-caption">your keepers go here</span>
+        <span className="font-display saved-ghost-caption">{t('your keepers go here')}</span>
       </div>
-      <p style={{ margin: 0, maxWidth: 380, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>Nothing pinned yet. Tap the bookmark on any cut and it lands on this wall.</p>
-      <BouncyButton onClick={onBrowse} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>✂ Browse my cuts</BouncyButton>
+      <p style={{ margin: 0, maxWidth: 380, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>{t('Nothing pinned yet. Tap the bookmark on any cut and it lands on this wall.')}</p>
+      <BouncyButton onClick={onBrowse} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>✂ {t('Browse my cuts')}</BouncyButton>
     </div>
   );
 }
@@ -1599,19 +1633,21 @@ function ExploreFloor() {
 
 /* ─── Floor headers ─── */
 function HomeTitle({ count, compact = false }: { count?: number; compact?: boolean }) {
+  const t = useT();
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, ...(compact ? { gap: 12 } : {}) }}>
-      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, ...(compact ? { fontSize: '3.8rem' } : {}) }}>My{' '}<span className="hl-swipe-wrap"><span className="hl-swipe" aria-hidden /><span style={{ position: 'relative' }}>Cuts</span></span></h1>
+      <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: 'var(--ink)', lineHeight: 0.88, ...(compact ? { fontSize: '3.8rem' } : {}) }}>{t('My')}{' '}<span className="hl-swipe-wrap"><span className="hl-swipe" aria-hidden /><span style={{ position: 'relative' }}>{t('Cuts')}</span></span></h1>
       {count !== undefined && !compact && <span key={count} className="font-mono count-ticket">№ {String(count).padStart(2, '0')}</span>}
     </div>
   );
 }
 
 function SavedTitle({ count, compact = false }: { count?: number; compact?: boolean }) {
+  const t = useT();
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, ...(compact ? { gap: 12 } : {}) }}>
       <h1 className="type-chonk" style={{ margin: 0, fontSize: 'clamp(4.5rem, 7vw, 6.5rem)', color: '#fcf5e4', lineHeight: 0.88, position: 'relative', display: 'inline-block', ...(compact ? { fontSize: '2.9rem' } : {}) }}>
-        Saved
+        {t('Saved##title')}
         <svg className="gold-scribble" viewBox="0 0 220 18" preserveAspectRatio="none" aria-hidden><path d="M4 12 C 40 4, 72 16, 110 9 S 185 4, 216 11" fill="none" stroke="rgba(212,175,55,0.85)" strokeWidth="4" strokeLinecap="round" pathLength="1" /></svg>
       </h1>
       {count !== undefined && count > 0 && <span key={count} className="font-mono count-ticket count-ticket-gold">№ {String(count).padStart(2, '0')}</span>}
@@ -1621,6 +1657,7 @@ function SavedTitle({ count, compact = false }: { count?: number; compact?: bool
 
 /* ─── Scan Result Popup ─── */
 function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinue: () => void }) {
+  const t = useT();
   const [interacting, setInteracting] = useState(false);
   const [rotation, setRotation] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1637,10 +1674,10 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
           <div className="polaroid scan-pop-in" style={{ maxWidth: 280 }}>
             <div className="tape tape-tl" /><div className="tape tape-tr" />
             <img src={imageUrl} alt="Your scan" className="block w-full rounded-sm object-cover" style={{ aspectRatio: '1' }} />
-            <div className="absolute bottom-3 left-0 right-0 text-center"><span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>you ✂</span></div>
+            <div className="absolute bottom-3 left-0 right-0 text-center"><span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>{t('you')} ✂</span></div>
           </div>
         </div>
-        <BouncyButton onClick={onContinue} className="btn btn-tomato" style={{ padding: '12px 28px', fontSize: 14 }}>✂ Style it</BouncyButton>
+        <BouncyButton onClick={onContinue} className="btn btn-tomato" style={{ padding: '12px 28px', fontSize: 14 }}>✂ {t('Style it')}</BouncyButton>
       </div>
     </div>
   );
@@ -1650,6 +1687,7 @@ function ScanResultPopup({ imageUrl, onContinue }: { imageUrl: string; onContinu
 function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, profilePillPulse = false, celebratePurchase = false, isSignedIn }: {
   onAdd: () => void; onOpenProject: (project: ProjectDoc) => void; showScanNow: boolean; onScanNow: () => void; onRescan: () => void; profilePillPulse?: boolean; celebratePurchase?: boolean; isSignedIn?: boolean | null;
 }) {
+  const t = useT();
   const [showSignIn, setShowSignIn] = useState(false);
   const isMobile = useIsMobile();
   const projects = useQuery(api.projects.list) as ProjectDoc[] | undefined;
@@ -1869,7 +1907,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...(big ? { width: 24, height: 24 } : {}) }}>
           <span style={{ display: 'flex', ...(big ? { transform: 'scale(1.2)', transformOrigin: 'center' } : {}) }}>{item.icon}</span>
         </span>
-        <span>{item.key}</span>
+        <span>{t(item.key)}</span>
       </button>
     );
   };
@@ -1880,7 +1918,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
       style={{ border: 'none', cursor: 'pointer', background: settingsActive ? (dark ? 'rgba(232,97,77,0.18)' : 'rgba(232,97,77,0.1)') : 'transparent', color: settingsActive ? 'var(--coral)' : dark ? 'rgba(252,245,228,0.7)' : 'var(--ink)', padding: '10px 0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, width: 66, fontSize: 9.5, fontFamily: 'var(--font-dmsans)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', outline: settingsActive ? `1.5px solid rgba(232,97,77,${dark ? '0.35' : '0.28'})` : '1.5px solid transparent', transition: 'background 160ms ease, color 160ms ease, outline-color 160ms ease' }}
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-      <span>settings</span>
+      <span>{t('settings')}</span>
     </button>
   );
 
@@ -1888,8 +1926,8 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
     <main className="relative overflow-hidden" style={{ height: '100vh', background: 'var(--biscuit-lt)' }}>
       {barberPickMode && (
         <div className="barber-pick-banner" style={{ position: 'fixed', top: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 10000, display: 'flex', alignItems: 'center', gap: 14, background: 'var(--ink)', color: 'var(--cream)', padding: '10px 12px 10px 18px', borderRadius: 9999, boxShadow: '0 14px 40px -10px rgba(0,0,0,0.45)' }}>
-          <span className="font-sans text-[13px]" style={{ fontWeight: 600 }}>✂ Pick a cut to show your barber a 360°</span>
-          <button onClick={() => setBarberPickMode(false)} className="font-sans text-[12px]" style={{ background: 'rgba(252,245,228,0.14)', color: 'var(--cream)', border: 'none', borderRadius: 9999, padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+          <span className="font-sans text-[13px]" style={{ fontWeight: 600 }}>✂ {t('Pick a cut to show your barber a 360°')}</span>
+          <button onClick={() => setBarberPickMode(false)} className="font-sans text-[12px]" style={{ background: 'rgba(252,245,228,0.14)', color: 'var(--cream)', border: 'none', borderRadius: 9999, padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>{t('Cancel')}</button>
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr', height: '100vh', opacity: menuVisible ? 1 : 0, transition: 'opacity 400ms ease', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
@@ -1944,11 +1982,11 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248, ...(isMobile ? { width: '100%' } : {}) }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: isDark ? 'rgba(245,241,234,0.6)' : 'rgba(42,32,26,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid var(--search-floor0-border)', borderRadius: 9999, background: isDark ? 'rgba(245,241,234,0.05)' : 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.28)' : 'rgba(42,32,26,0.28)')} />
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t('find a style...')} style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid var(--search-floor0-border)', borderRadius: 9999, background: isDark ? 'rgba(245,241,234,0.05)' : 'rgba(42,32,26,0.05)', fontSize: 14, color: 'var(--ink)', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.5)')} onBlur={e => (e.target.style.borderColor = document.documentElement.classList.contains('dark') ? 'rgba(255,255,255,0.28)' : 'rgba(42,32,26,0.28)')} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
-                  {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.55)' : (isDark ? 'rgba(245,241,234,0.28)' : 'rgba(42,32,26,0.28)')}`, background: activeTab === t ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : (isDark ? 'rgba(245,241,234,0.7)' : 'rgba(42,32,26,0.7)'), letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
+                  {['all', 'recent'].map(tab => <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === tab ? 'rgba(232,97,77,0.55)' : (isDark ? 'rgba(245,241,234,0.28)' : 'rgba(42,32,26,0.28)')}`, background: activeTab === tab ? 'rgba(232,97,77,0.08)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === tab ? 'var(--coral)' : (isDark ? 'rgba(245,241,234,0.7)' : 'rgba(42,32,26,0.7)'), letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t(tab)}</button>)}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28, marginTop: 24, ...(isMobile ? { gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 } : {}) }}>
                   <AddProjectButton onClick={onAdd} isEmpty={displayProjects !== undefined && displayProjects.length === 0} />
@@ -1960,7 +1998,7 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                 </div>
                 {showScanNow && !(displayProjects && displayProjects.length > 0) && (
                   <div className="mt-8 flex justify-center scan-btn-pop">
-                    <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)', display: 'inline-flex', alignItems: 'center', gap: 8 }}><ScissorsDownIcon /> Scan now</BouncyButton>
+                    <BouncyButton onClick={onScanNow} className="btn" style={{ padding: '12px 28px', fontSize: 14, background: 'var(--coral)', color: 'var(--offwhite)', boxShadow: '0 4px 20px -4px rgba(232,97,77,0.4)', display: 'inline-flex', alignItems: 'center', gap: 8 }}><ScissorsDownIcon /> {t('Scan now')}</BouncyButton>
                   </div>
                 )}
               </div>
@@ -1984,21 +2022,21 @@ function MainMenu({ onAdd, onOpenProject, showScanNow, onScanNow, onRescan, prof
                   <div style={{ flex: 1 }} />
                   <div style={{ position: 'relative', width: 248, ...(isMobile ? { width: '100%' } : {}) }}>
                     <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'rgba(252,245,228,0.55)', fontSize: 14, pointerEvents: 'none' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5L22 22" /></svg></span>
-                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="find a style..." style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(252,245,228,0.45)', borderRadius: 9999, background: 'rgba(252,245,228,0.08)', fontSize: 14, color: '#fcf5e4', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.6)')} onBlur={e => (e.target.style.borderColor = 'rgba(252,245,228,0.45)')} />
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t('find a style...')} style={{ width: '100%', padding: '10px 14px 10px 38px', border: '1.5px solid rgba(252,245,228,0.45)', borderRadius: 9999, background: 'rgba(252,245,228,0.08)', fontSize: 14, color: '#fcf5e4', fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'rgba(232,97,77,0.6)')} onBlur={e => (e.target.style.borderColor = 'rgba(252,245,228,0.45)')} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 28, alignItems: 'center' }}>
-                  {['all', 'recent'].map(t => <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === t ? 'rgba(232,97,77,0.6)' : 'rgba(252,245,228,0.28)'}`, background: activeTab === t ? 'rgba(232,97,77,0.15)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === t ? 'var(--coral)' : 'rgba(252,245,228,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t}</button>)}
+                  {['all', 'recent'].map(tab => <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '7px 17px', border: `1.5px solid ${activeTab === tab ? 'rgba(232,97,77,0.6)' : 'rgba(252,245,228,0.28)'}`, background: activeTab === tab ? 'rgba(232,97,77,0.15)' : 'transparent', borderRadius: 9999, cursor: 'pointer', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: 13, color: activeTab === tab ? 'var(--coral)' : 'rgba(252,245,228,0.7)', letterSpacing: '0.02em', transition: 'all 160ms ease' }}>{t(tab)}</button>)}
                 </div>
                 {isSignedIn === false ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 64, gap: 20 }}>
                     <div className="saved-ghost">
                       <svg className="saved-ghost-frame" aria-hidden><rect rx="14" ry="14" fill="none" stroke="rgba(252,245,228,0.3)" strokeWidth="1.5" strokeDasharray="8 7" /></svg>
                       <svg className="saved-ghost-bookmark" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="rgba(212,175,55,0.9)" strokeWidth="2" strokeLinejoin="round" aria-hidden><path d="M5 3H19V21L12 15.5L5 21Z" /></svg>
-                      <span className="font-display saved-ghost-caption">sign in to see your keepers</span>
+                      <span className="font-display saved-ghost-caption">{t('sign in to see your keepers')}</span>
                     </div>
-                    <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>Your saved cuts live here. Sign in to bookmark styles and build your collection.</p>
-                    <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>Sign in</BouncyButton>
+                    <p style={{ margin: 0, maxWidth: 360, textAlign: 'center', fontFamily: 'var(--font-dmsans)', fontSize: 14, lineHeight: 1.55, color: 'rgba(252,245,228,0.55)' }}>{t('Your saved cuts live here. Sign in to bookmark styles and build your collection.')}</p>
+                    <BouncyButton onClick={() => setShowSignIn(true)} className="btn btn-cream" style={{ padding: '11px 26px', fontSize: 13 }}>{t('Sign in')}</BouncyButton>
                     {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} />}
                   </div>
                 ) : savedProjects && savedProjects.length === 0 ? <SavedEmptyState onBrowse={() => setActiveNav('home')} /> : (

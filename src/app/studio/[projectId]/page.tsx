@@ -27,6 +27,7 @@ import { useSearchParams } from 'next/navigation';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { useT } from '@/lib/i18n';
 
 const HairScene = dynamic(() => import('@/components/HairScene'), { ssr: false });
 const HairRecommendationsBar = dynamic(() => import('@/components/HairRecommendationsBar'), { ssr: false });
@@ -35,6 +36,7 @@ type RawHairBBox = Omit<HairMeasurementBBox, 'width' | 'height' | 'depth'>;
 
 
 function FaceliftLoader({ demoStatus }: { demoStatus: string }) {
+  const t = useT();
   const frozen = demoStatus === 'error';
   const r = 20;
   const circumference = 2 * Math.PI * r;
@@ -48,13 +50,13 @@ function FaceliftLoader({ demoStatus }: { demoStatus: string }) {
         </svg>
       </div>
       {frozen ? (
-        <span className="font-mono text-[10px] text-[var(--butter)] opacity-85">Error — check console</span>
+        <span className="font-mono text-[10px] text-[var(--butter)] opacity-85">{t('Error — check console')}</span>
       ) : (
-        <span className="font-serif italic text-xs text-[var(--cream)]" style={{ opacity: 0.5 }}>Building your 3D model…</span>
+        <span className="font-serif italic text-xs text-[var(--cream)]" style={{ opacity: 0.5 }}>{t('Building your 3D model…')}</span>
       )}
       {!frozen && (
         <span className="font-sans text-[10px] text-center text-[var(--cream)]" style={{ opacity: 0.4, maxWidth: 240, lineHeight: 1.4 }}>
-          We infer shape, hairline &amp; proportions from your photos — a great likeness, not a measurement.
+          {t('We infer shape, hairline & proportions from your photos — a great likeness, not a measurement.')}
         </span>
       )}
     </div>
@@ -69,6 +71,7 @@ interface DemoToolboxProps {
 }
 
 function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxProps) {
+  const t = useT();
   const currentParams = profile.currentStyle.params;
   const llmPayload = buildCurrentProfilePayload(profile);
   const liveMeasurementsJson = JSON.stringify(llmPayload.measurementSnapshot, null, 2);
@@ -101,26 +104,26 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
       <div className="flex items-center gap-3">
         <span className="inline-block w-2 h-7 barber-pole" />
         <div>
-          <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
-          <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
+          <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">{t('The barber’s')}</div>
+          <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>{t('Toolbox')}</h2>
         </div>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="relative flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="pill pill-tomato">new request</span>
+          <span className="pill pill-tomato">{t('new request')}</span>
           <span className="font-mono text-[10px] text-[var(--smoke)]">✂</span>
         </div>
         <textarea
           className="input-soft w-full rounded-xl px-3 py-2 text-sm resize-none h-20 placeholder:text-[var(--smoke)]"
           style={{ fontStyle: 'italic' }}
-          placeholder='"Messy taper fade, please."'
+          placeholder={t('"Messy taper fade, please."')}
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
           onKeyDown={handleKeyDown}
         />
         <div className="flex gap-2">
-          <button type="submit" className="btn btn-tomato flex-1" style={{ padding: '10px 16px', fontSize: 13 }}>✂ Render in 3D</button>
-          <button type="button" disabled className="btn btn-denim opacity-40 cursor-not-allowed" style={{ padding: '10px 14px', fontSize: 13 }}>🎙 Voice</button>
+          <button type="submit" className="btn btn-tomato flex-1" style={{ padding: '10px 16px', fontSize: 13 }}>✂ {t('Render in 3D')}</button>
+          <button type="button" disabled className="btn btn-denim opacity-40 cursor-not-allowed" style={{ padding: '10px 14px', fontSize: 13 }}>🎙 {t('Voice')}</button>
         </div>
         {hint !== 'hidden' && (
           <div
@@ -134,18 +137,18 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
             }}
           >
             <span>✂</span>
-            <span>Enter your desired hairstyle in the toolbox!</span>
+            <span>{t('Enter your desired hairstyle in the toolbox!')}</span>
           </div>
         )}
       </form>
       <div className="flex flex-col gap-4">
-        <p className="font-mono text-[10px] text-[var(--smoke)] uppercase tracking-[0.18em]">Hair Parameters</p>
+        <p className="font-mono text-[10px] text-[var(--smoke)] uppercase tracking-[0.18em]">{t('Hair Parameters')}</p>
         {(['pc1', 'pc2', 'pc3', 'pc4', 'pc5', 'pc6'] as const).map((key, i) => {
           const labels = ['Hair length', 'Width', 'Ponytail-ness', 'Density', 'Wavyness', 'Parting'];
           return (
             <div key={key} className="flex flex-col gap-1">
               <div className="flex justify-between text-sm">
-                <span>{labels[i]}</span>
+                <span>{t(labels[i])}</span>
                 <span className="font-mono text-[12px] text-[var(--smoke)]">{(currentParams[key] ?? 0).toFixed(2)}</span>
               </div>
               <input type="range" min={-3} max={3} step={0.1} value={currentParams[key] ?? 0} disabled onChange={() => {}} className="slider-warm w-full opacity-40 cursor-not-allowed" />
@@ -155,18 +158,18 @@ function DemoToolbox({ profile, prompt, onPromptChange, onSubmit }: DemoToolboxP
       </div>
       <div className="flex flex-col gap-2 pt-4 border-t border-dashed border-[var(--char)]/20">
         <div className="flex items-baseline justify-between">
-          <span className="pill pill-denim">live measurements</span>
-          <span className="font-mono text-[10px] text-[var(--smoke)]">auto</span>
+          <span className="pill pill-denim">{t('live measurements')}</span>
+          <span className="font-mono text-[10px] text-[var(--smoke)]">{t('auto')}</span>
         </div>
         <textarea readOnly value={liveMeasurementsJson} className="input-soft w-full rounded-xl p-3 font-mono text-[11px] leading-snug resize-none h-40 focus:outline-none" style={{ fontStyle: 'normal' }} />
       </div>
       <div className="flex flex-col gap-3 pt-4 border-t border-dashed border-[var(--char)]/20">
-        <span className="pill pill-tomato">take it to your barber</span>
-        <button disabled className="btn btn-cream opacity-40 cursor-not-allowed" style={{ padding: '10px 16px', fontSize: 13 }}>📜 Barber&rsquo;s order</button>
+        <span className="pill pill-tomato">{t('take it to your barber')}</span>
+        <button disabled className="btn btn-cream opacity-40 cursor-not-allowed" style={{ padding: '10px 16px', fontSize: 13 }}>📜 {t('Barber’s order')}</button>
       </div>
       <div className="mt-auto pt-4 border-t border-dashed border-[var(--char)]/20 font-mono text-[10px] text-[var(--smoke)] flex items-center justify-between">
-        <span>preset · <span className="text-[var(--ink)]">{profile.currentStyle.preset}</span></span>
-        <span>type · <span className="text-[var(--ink)]">{profile.currentStyle.hairType}</span></span>
+        <span>{t('preset')} · <span className="text-[var(--ink)]">{profile.currentStyle.preset}</span></span>
+        <span>{t('type')} · <span className="text-[var(--ink)]">{profile.currentStyle.hairType}</span></span>
       </div>
     </div>
   );
@@ -204,6 +207,7 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 export default function StudioPage() {
+  const t = useT();
   const { isSignedIn } = useUser();
   const router = useRouter();
   const params = useParams();
@@ -602,7 +606,7 @@ export default function StudioPage() {
     return (
       <main className="fixed inset-0 flex items-center justify-center bg-tomato-shop">
         <div className="text-center text-[var(--cream)]">
-          <p className="font-mono text-sm opacity-60">Project not found</p>
+          <p className="font-mono text-sm opacity-60">{t('Project not found')}</p>
           <button onClick={() => router.push('/dashboard')} className="mt-4 btn btn-cream" style={{ padding: '10px 24px', fontSize: 13 }}>
             ← Dashboard
           </button>
@@ -648,7 +652,7 @@ export default function StudioPage() {
                 )}
               </div>
               <div className="absolute bottom-3 left-0 right-0 text-center">
-                <span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>you ✂</span>
+                <span className="font-display text-[var(--char)] text-lg" style={{ fontStyle: 'italic', fontWeight: 500 }}>{t('you')} ✂</span>
               </div>
             </div>
             <FaceliftLoader demoStatus={demoStatus} />
@@ -656,7 +660,7 @@ export default function StudioPage() {
         </div>
         <aside className={`flex flex-col p-4 gap-4 relative overflow-hidden ${isMobile ? 'w-full flex-shrink-0 max-h-[48vh]' : 'w-80 flex-shrink-0 self-start h-[70vh]'}`}>
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">{t('the toolbox')}</span>
             <div className="flex items-center gap-2">
               <button disabled className="btn-ink opacity-40 cursor-not-allowed" style={{ padding: '6px 12px', fontSize: 10 }}>✦ Recommend</button>
               <button onClick={() => router.push('/dashboard')} className="btn-tomato" style={{ padding: '11px 22px', fontSize: 18, borderRadius: 20, outline: '2px solid #ffffff', outlineOffset: 2, color: '#ffffff', boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.1)' }}>✂ Home</button>
@@ -713,7 +717,7 @@ export default function StudioPage() {
 
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none text-center ${isMobile ? 'hidden' : ''}`}>
         <h2 className="type-chonk text-[var(--cream)]" style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', opacity: 0.96, ...(isMobile ? { fontSize: '1.5rem' } : {}) }}>
-          THE <em style={{ color: 'var(--butter)' }}>studio</em>
+          {t('THE')} <em style={{ color: 'var(--butter)' }}>{t('studio')}</em>
         </h2>
       </div>
 
@@ -760,12 +764,12 @@ export default function StudioPage() {
                 </div>
               )}
             </div>
-            <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>you</div>
+            <div className="absolute bottom-1 inset-x-0 text-center font-display text-[var(--char)] text-sm" style={{ fontStyle: 'italic', fontWeight: 500 }}>{t('you')}</div>
             {/* Mobile: up-arrow tab fused to the polaroid's bottom edge — tap (or swipe up) to tuck away. */}
             {isMobile && (
               <button
                 type="button"
-                aria-label="Hide photo"
+                aria-label={t("Hide photo")}
                 onClick={(e) => { e.stopPropagation(); setPolaroidHidden(true); }}
                 style={{
                   position: 'absolute', left: '50%', top: 'calc(100% - 1px)', transform: 'translateX(-50%)',
@@ -795,7 +799,7 @@ export default function StudioPage() {
           const downArrow = (
             <button
               type="button"
-              aria-label="Show photo"
+              aria-label={t("Show photo")}
               onClick={() => setPolaroidHidden(false)}
               onTouchStart={(e) => { polaroidTouchStartY.current = e.touches[0].clientY; }}
               onTouchEnd={(e) => {
@@ -956,7 +960,7 @@ export default function StudioPage() {
 
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">live · 3d sculpt</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">{t('live · 3d sculpt')}</span>
               <button
                 onClick={() => { setRefundIsReminder(false); setShowRefund(true); }}
                 className="font-mono text-[9px] uppercase tracking-[0.18em] underline underline-offset-2 transition-colors"
@@ -1022,7 +1026,7 @@ export default function StudioPage() {
               className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4"
               style={{ background: 'rgba(23,17,13,0.78)', backdropFilter: 'blur(3px)' }}
               role="status"
-              aria-label="Rendering your barber video"
+              aria-label={t('Rendering your barber video')}
             >
               <div style={{ position: 'relative', width: 76, height: 76 }}>
                 <svg width="76" height="76" viewBox="0 0 76 76" style={{ transform: 'rotate(-90deg)' }}>
@@ -1063,7 +1067,7 @@ export default function StudioPage() {
               <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.156em', height: '2.156em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.6em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.availableGenerations ?? 0} />
             </span>
             <AddTokensButton onClick={() => setShowPricing(true)} />
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">the toolbox</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">{t('the toolbox')}</span>
             {paymentSuccess && (
               <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
             )}

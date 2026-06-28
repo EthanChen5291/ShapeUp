@@ -79,6 +79,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (userQuery.aiTrainingOptOut != null) setAiTrainingOptOut(userQuery.aiTrainingOptOut);
   }, [userQuery]);
 
+  // Reflect the chosen language on <html lang> for a11y / browser hints.
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.lang = language || 'en';
+  }, [language]);
+
   // Apply theme to <html>
   useEffect(() => {
     const apply = (dark: boolean) => {

@@ -20,6 +20,7 @@ import { PricingPopup } from '@/components/PricingPopup';
 import InferenceNote from '@/components/InferenceNote';
 import HairPreviewBubble, { type CutPreview } from '@/components/HairPreviewBubble';
 import { type Gender, loadGender, saveGender } from '@/components/editPanelGender';
+import { useT } from '@/lib/i18n';
 
 
 interface EditPanelProps {
@@ -185,6 +186,7 @@ function ScissorsIcon({ size = 15 }: { size?: number }) {
 }
 
 export default function EditPanel({ isMobile = false, profile, onParamsChange, sessionId, latestImageUrl, onImageUpdated, onPlyReady, onUncertain, userCredits, paywallDisabled = false, isAllowlisted = false, projectId, projectName, onRequestVideo, videoState = 'idle', videoProgress = 0, videoUrl, videoExt = 'mp4' }: EditPanelProps) {
+  const t = useT();
   const [prompt, setPrompt] = useState('');
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
@@ -529,16 +531,16 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   // ── Rotating placeholder + barber chatter ─────────────────────────
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setPlaceholderIdx(i => (i + 1) % PROMPT_PLACEHOLDERS.length), 4200);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setPlaceholderIdx(i => (i + 1) % PROMPT_PLACEHOLDERS.length), 4200);
+    return () => clearInterval(timer);
   }, []);
 
   const [chatterIdx, setChatterIdx] = useState(0);
   useEffect(() => {
     if (!isBusy) return;
     setChatterIdx(0);
-    const t = setInterval(() => setChatterIdx(i => i + 1), 2600);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setChatterIdx(i => i + 1), 2600);
+    return () => clearInterval(timer);
   }, [isBusy, phase]);
   const chatterList = CHATTER[phase === 'hairstep' ? 'hairstep' : 'gemini'];
   const chatter = chatterList[chatterIdx % chatterList.length];
@@ -614,16 +616,16 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
         try { sessionStorage.removeItem(sessionKey); } catch { /* ignore */ }
       }
       if (pipelineHadErrorRef.current) {
-        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2200);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2200);
+        return () => clearTimeout(timer);
       } else {
         // Both bars complete simultaneously when facelift output arrives
         setGeminiProgress(100);
         setHairstepProgress(100);
         setFreshCut(true);
-        const t = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1600);
+        const timer = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1600);
         const t2 = setTimeout(() => setFreshCut(false), 2100);
-        return () => { clearTimeout(t); clearTimeout(t2); };
+        return () => { clearTimeout(timer); clearTimeout(t2); };
       }
     }
   }, [phase]);
@@ -679,7 +681,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       aria-describedby="hair-edit-prompt-chips"
       className={`input-soft w-full rounded-xl px-3 py-2 text-sm resize-none placeholder:text-[var(--smoke)] ${isMobile ? 'h-16' : 'h-20'}`}
       style={{ fontStyle: 'italic' }}
-      placeholder={PROMPT_PLACEHOLDERS[placeholderIdx]}
+      placeholder={t(PROMPT_PLACEHOLDERS[placeholderIdx])}
       value={prompt}
       maxLength={MAX_PROMPT_LENGTH}
       onChange={(e) => setPrompt(e.target.value)}
@@ -693,14 +695,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     <button
       type="submit"
       disabled={isBusy}
-      aria-label="Apply hair edit request"
+      aria-label={t('Apply hair edit request')}
       className="btn btn-tomato btn-snap flex-1"
       style={{ padding: isMobile ? '10px 12px' : '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
     >
       {isBusy ? (
-        <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? 'Styling…' : 'Rendering…'}</>
+        <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? t('Styling…') : t('Rendering…')}</>
       ) : (
-        <span className="inline-flex items-center gap-1.5"><ScissorsIcon />Apply</span>
+        <span className="inline-flex items-center gap-1.5"><ScissorsIcon />{t('Apply')}</span>
       )}
     </button>
   );
@@ -708,14 +710,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   return (
     <>
     <div className={`flex-shrink-0 rounded-2xl ${isMobile ? 'overflow-visible relative' : 'overflow-hidden'}`} style={{ background: 'var(--biscuit-lt)', border: '1px solid rgba(42,32,26,0.1)', boxShadow: '0 30px 60px -24px rgba(0,0,0,0.45)' }}>
-    <aside className={`relative flex flex-col text-[var(--ink)] ${isMobile ? 'gap-3 px-4 pt-8 pb-3' : 'gap-6 px-5 pt-6 pb-2'}`} aria-label="Hair editor controls">
+    <aside className={`relative flex flex-col text-[var(--ink)] ${isMobile ? 'gap-3 px-4 pt-8 pb-3' : 'gap-6 px-5 pt-6 pb-2'}`} aria-label={t('Hair editor controls')}>
       <div className="sr-only" aria-live="polite" aria-atomic="true">{liveStatus}</div>
 
       {/* FRESH CUT stamp — slams in when a render lands */}
       {freshCut && (
         <div className="stamp-fresh" aria-hidden>
-          <span>FRESH CUT</span>
-          <span className="stamp-fresh-sub inline-flex items-center gap-1"><ScissorsIcon size={12} /> shapeup approved</span>
+          <span>{t('FRESH CUT')}</span>
+          <span className="stamp-fresh-sub inline-flex items-center gap-1"><ScissorsIcon size={12} /> {t('shapeup approved')}</span>
         </div>
       )}
 
@@ -737,14 +739,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           }}
         >
           <span className="inline-block w-2 h-7 barber-pole" />
-          <h2 className="font-display italic text-[var(--ink)] leading-none" style={{ fontWeight: 500, fontSize: '1.625rem' }}>Toolbox</h2>
+          <h2 className="font-display italic text-[var(--ink)] leading-none" style={{ fontWeight: 500, fontSize: '1.625rem' }}>{t('Toolbox')}</h2>
         </div>
       ) : (
         <div className="flex items-center gap-3">
           <span className="inline-block w-2 h-7 barber-pole" />
           <div>
-            <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">The barber&rsquo;s</div>
-            <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>Toolbox</h2>
+            <div className="font-sans text-[10px] uppercase tracking-wider text-[var(--smoke)]">{t('The barber’s')}</div>
+            <h2 className="font-display italic text-2xl text-[var(--ink)] leading-none" style={{ fontWeight: 500 }}>{t('Toolbox')}</h2>
           </div>
           <span className={`tb-status ml-auto ${isBusy || videoState === 'recording' || videoState === 'encoding' ? 'tb-status-busy' : 'tb-status-open'}`}>
             <span className="tb-status-dot" />
@@ -757,7 +759,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       <form onSubmit={(e) => { e.preventDefault(); handleApply(); }} className={`flex flex-col ${isMobile ? 'gap-2' : 'gap-3'}`}>
         {!isMobile && (
           <div className="flex items-center justify-between">
-            <label htmlFor="hair-edit-prompt" className="pill pill-tomato">new request</label>
+            <label htmlFor="hair-edit-prompt" className="pill pill-tomato">{t('new request')}</label>
             <span className="font-mono text-[10px] text-[var(--smoke)]">{prompt.length}/{MAX_PROMPT_LENGTH}</span>
           </div>
         )}
@@ -814,7 +816,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
               onClick={() => { setChipPage(p => p + 1); clearChipSelection(); }}
               className="chip-refresh"
               aria-label={`Show more trending ${gender === 'mens' ? "men's" : "women's"} cuts`}
-              title="More trending cuts"
+              title={t("More trending cuts")}
             >
               <svg
                 key={chipPage}
@@ -920,7 +922,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
               <div
                 className="progress-track"
                 role="progressbar"
-                aria-label="Sketching the cut progress"
+                aria-label={t("Sketching the cut progress")}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(geminiProgress)}
@@ -960,7 +962,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
               <div
                 className="progress-track"
                 role="progressbar"
-                aria-label="Sculpting in 3D progress"
+                aria-label={t("Sculpting in 3D progress")}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(hairstepProgress)}
@@ -986,14 +988,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
 
             {/* Rotating barber chatter */}
             <p key={chatter} className="chatter-line font-serif italic text-[11.5px] text-[var(--smoke)] text-center">
-              {chatter}
+              {t(chatter)}
             </p>
           </div>
           </div>
         </div>
         {pipelineError && (
           <div className="error-shake px-3 py-2 rounded-lg bg-[rgba(217,78,58,0.08)] border border-[rgba(217,78,58,0.3)] text-[var(--cherry)] text-xs font-serif italic">
-            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">oops</span>
+            <span className="font-sans text-[9px] uppercase tracking-wider mr-2 font-semibold not-italic">{t('oops')}</span>
             {pipelineError}
           </div>
         )}

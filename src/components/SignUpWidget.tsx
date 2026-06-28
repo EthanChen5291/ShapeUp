@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { useSignIn, useSignUp } from '@clerk/nextjs/legacy';
 import Link from 'next/link';
 import { BouncyButton } from '@/components/AppUI';
+import { useT } from '@/lib/i18n';
 
 export interface SignUpWidgetProps {
   onEnter: () => void;
@@ -14,6 +15,7 @@ export interface SignUpWidgetProps {
 }
 
 export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRedirect, redirectUrlComplete = '/' }: SignUpWidgetProps) {
+  const t = useT();
   const { signUp, setActive } = useSignUp();
   const { signIn } = useSignIn();
   const { isSignedIn } = useUser();
@@ -72,7 +74,7 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
           boxShadow: '0 8px 28px -6px rgba(217,78,58,0.45)',
         }}
       >
-        Go to dashboard →
+        {t('Go to dashboard')} →
       </BouncyButton>
     );
   }
@@ -290,11 +292,11 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
             className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
           >
-            ← back
+            ← {t("back")}
           </button>
           <div style={{ marginBottom: 4 }}>
-            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>Check your inbox</p>
-            <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>We sent a 6-digit code to {email}</p>
+            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>{t('Check your inbox')}</p>
+            <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>{t('We sent a 6-digit code to {email}', { email })}</p>
           </div>
           <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
             <input
@@ -304,10 +306,10 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
               placeholder="123456"
               style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: s.codeFontSize, textAlign: 'center' }}
             />
-            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{t(error)}</p>}
             <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
               style={{ ...inputStyle, padding: s.btnPadding, background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: s.btnFontSize, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
-              {submitting ? 'Verifying…' : 'Verify →'}
+              {submitting ? t('Verifying…') : `${t('Verify')} →`}
             </button>
           </form>
         </>
@@ -321,12 +323,12 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
             className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
           >
-            ← back
+            ← {t("back")}
           </button>
           <div style={{ marginBottom: 4 }}>
-            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>Two-factor authentication</p>
+            <p className="font-sans" style={{ fontWeight: 600, fontSize: s.titleFontSize, color: 'var(--ink)', margin: '0 0 4px' }}>{t('Two-factor authentication')}</p>
             <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>
-              {secondFactorStrategy === 'phone_code' ? `Enter the code sent to your phone` : `Enter the code sent to ${email}`}
+              {secondFactorStrategy === 'phone_code' ? t('Enter the code sent to your phone') : t('Enter the code sent to {email}', { email })}
             </p>
           </div>
           <form onSubmit={handle2FA} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
@@ -337,10 +339,10 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
               placeholder="123456"
               style={{ ...inputStyle, letterSpacing: '0.25em', fontSize: s.codeFontSize, textAlign: 'center' }}
             />
-            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{t(error)}</p>}
             <button type="submit" disabled={submitting || code.length < 6} className="btn-tomato"
               style={{ ...inputStyle, padding: s.btnPadding, background: undefined, border: 'none', fontFamily: 'var(--font-dmsans)', fontWeight: 700, fontSize: s.btnFontSize, opacity: submitting || code.length < 6 ? 0.5 : 1, cursor: submitting || code.length < 6 ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease', color: 'var(--cream)' }}>
-              {submitting ? 'Verifying…' : 'Verify →'}
+              {submitting ? t('Verifying…') : `${t('Verify')} →`}
             </button>
           </form>
         </>
@@ -354,7 +356,7 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
             className="font-sans text-[var(--smoke)] hover:text-[var(--ink)] transition-colors text-left"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: s.backFontSize, marginBottom: 2 }}
           >
-            ← back
+            ← {t("back")}
           </button>
           <p className="font-sans" style={{ fontSize: s.subtitleFontSize, color: 'var(--smoke)', margin: 0 }}>{email}</p>
           <form onSubmit={handlePassword} style={{ display: 'flex', flexDirection: 'column', gap: s.formGap }}>
@@ -362,15 +364,15 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
               autoFocus type="password" autoComplete="new-password"
               value={password}
               onChange={e => { setPassword(e.target.value); setError(''); }}
-              placeholder="password"
+              placeholder={t('password')}
               style={inputStyle}
               onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
               onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
             />
-            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+            {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{t(error)}</p>}
             <button type="submit" disabled={submitting || !password} className="btn-tomato"
               style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !password ? 0.5 : 1, cursor: submitting || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-              {submitting ? 'One sec…' : 'Continue →'}
+              {submitting ? t('One sec…') : `${t('Continue')} →`}
             </button>
           </form>
         </>
@@ -394,15 +396,15 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
                 type="password" autoComplete="current-password"
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
-                placeholder="password"
+                placeholder={t('password')}
                 style={inputStyle}
                 onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
                 onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
               />
-              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{t(error)}</p>}
               <button type="submit" disabled={submitting || !email.trim() || !password} className="btn-tomato"
                 style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: submitting || !email.trim() || !password ? 0.5 : 1, cursor: submitting || !email.trim() || !password ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-                {submitting ? 'One sec…' : 'Continue →'}
+                {submitting ? t('One sec…') : `${t('Continue')} →`}
               </button>
             </form>
           ) : (
@@ -416,17 +418,17 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
                 onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
                 onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
               />
-              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{error}</p>}
+              {error && <p className="font-sans" style={{ fontSize: s.errorFontSize, color: 'var(--tomato)', margin: 0 }}>{t(error)}</p>}
               <button type="submit" disabled={!email.trim()} className="btn-tomato"
                 style={{ padding: s.btnPadding, borderRadius: s.btnRadius, fontSize: s.btnFontSize, fontFamily: 'var(--font-dmsans)', fontWeight: 700, border: 'none', opacity: !email.trim() ? 0.5 : 1, cursor: !email.trim() ? 'not-allowed' : 'pointer', transition: 'opacity 150ms ease' }}>
-                Continue with email →
+                {t('Continue with email')} →
               </button>
             </form>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: s.orGap }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
-            <span className="font-mono" style={{ fontSize: s.orFontSize, color: 'var(--smoke)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>or</span>
+            <span className="font-mono" style={{ fontSize: s.orFontSize, color: 'var(--smoke)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{t('or')}</span>
             <div style={{ flex: 1, height: 1, background: 'rgba(42,32,26,0.1)' }} />
           </div>
 
@@ -450,14 +452,14 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
             }}
           >
             <GoogleIcon />
-            Continue with Google
+            {t('Continue with Google')}
           </button>
 
           <p className="font-mono signup-legal-note" style={{ fontSize: s.noteFontSize, color: 'rgba(42,32,26,0.38)', textAlign: 'center', margin: 0, letterSpacing: '0.06em' }}>
-            Free to start · No credit card · By continuing, you agree to the{' '}
-            <Link href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</Link>
-            {' '}and{' '}
-            <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</Link>
+            {t('Free to start · No credit card · By continuing, you agree to the')}{' '}
+            <Link href="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>{t('Terms')}</Link>
+            {' '}{t('and')}{' '}
+            <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'underline' }}>{t('Privacy Policy')}</Link>
           </p>
         </>
       )}

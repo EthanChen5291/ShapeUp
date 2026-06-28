@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BarberMascot } from '@/components/AppUI';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { startCheckout } from '@/lib/checkout';
+import { useT } from '@/lib/i18n';
 
 const PLANS = [
   {
@@ -231,13 +232,14 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
   // What the free card's CTA does (e.g. start sign-up / enter the app).
   onFree?: () => void;
 }) {
+  const t = useT();
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 16);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setVisible(true), 16);
+    return () => clearTimeout(timer);
   }, []);
 
   const dismiss = () => {
@@ -332,7 +334,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                 lineHeight: 0.95, margin: 0,
                 letterSpacing: '-0.03em',
               }}>
-                {outOfTokens ? 'out of tokens' : 'top up your cuts'}
+                {outOfTokens ? t('out of tokens') : t('top up your cuts')}
               </h2>
               <p style={{
                 fontFamily: 'var(--font-fraunces), Georgia, serif',
@@ -342,8 +344,8 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                 margin: 0, maxWidth: 400, lineHeight: 1.35,
               }}>
                 {outOfTokens
-                  ? 'Get more to keep the fresh cuts coming.'
-                  : 'See yourself in the cut before you sit in the chair.'}
+                  ? t('Get more to keep the fresh cuts coming.')
+                  : t('See yourself in the cut before you sit in the chair.')}
               </p>
             </div>
 
@@ -391,14 +393,14 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                     color: plan.featured ? 'rgba(80,150,255,0.9)' : 'rgba(255,248,234,0.58)',
                     marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
                   }}>
-                    {plan.label}
+                    {t(plan.label)}
                     {plan.featured && (
                       <span style={{
                         background: 'rgba(80,150,255,0.2)',
                         color: 'rgba(80,150,255,0.9)',
                         borderRadius: 9999, padding: '2px 8px', fontSize: 9,
                       }}>
-                        popular
+                        {t('popular')}
                       </span>
                     )}
                   </div>
@@ -429,7 +431,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                       fontFamily: 'var(--font-dmsans), sans-serif',
                       fontSize: 17, fontWeight: 700, color: 'var(--cream)',
                     }}>
-                      {plan.tokenLabel}
+                      {t(plan.tokenLabel)}
                     </span>
                   </div>
 
@@ -438,7 +440,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                     fontSize: 14, color: 'rgba(255,248,234,0.64)', lineHeight: 1.55,
                     margin: '0 0 20px', flex: 1,
                   }}>
-                    {plan.line}
+                    {t(plan.line)}
                   </p>
 
                   <PlanCTAButton
@@ -446,7 +448,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                     onClick={() => (plan.id === 'free' ? onFree?.() : handleBuy(plan.id))}
                     disabled={plan.id === 'free' ? false : !!loading}
                   >
-                    {loading === plan.id ? '…' : plan.cta}
+                    {loading === plan.id ? '…' : t(plan.cta)}
                   </PlanCTAButton>
                 </div>
               ))}
@@ -465,7 +467,7 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
                 fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em',
                 color: 'rgba(255,248,234,0.42)',
               }}>
-                one-time purchase · no subscription · secured by stripe
+                {t('one-time purchase · no subscription · secured by stripe')}
               </span>
             </div>
           </div>

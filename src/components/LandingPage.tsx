@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { BarberMascot, BouncyButton, Reveal } from '@/components/AppUI';
 import SignUpWidget from '@/components/SignUpWidget';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { useT } from '@/lib/i18n';
 import { startCheckout } from '@/lib/checkout';
 
 /* ─────────────── Face Video Swiper ─────────────── */
@@ -1050,6 +1051,7 @@ const GLIMPSE_STAGE_WIDTH = 868;
 const GLIMPSE_STAGE_HEIGHT = 960;
 
 function GlimpseSection() {
+  const t = useT();
   const isMobile = useIsMobile();
   // The orbit stage is laid out at its 868px design width. On mobile that
   // overflows the viewport, so we shrink the whole stage with a transform.
@@ -1186,7 +1188,7 @@ function GlimpseSection() {
         className="font-serif"
         style={{ fontSize: 'clamp(1.9rem, 3.6vw, 3rem)', color: 'var(--cream)', marginBottom: 50, lineHeight: 1.25, letterSpacing: '-0.01em' }}
       >
-        Get a glimpse of all{' '}
+        {t('Get a glimpse of all')}{' '}
         <em
           className="font-display"
           style={{
@@ -1197,9 +1199,9 @@ function GlimpseSection() {
             fontSize: '1.18em',
           }}
         >
-          &ldquo;you&rdquo;
+          &ldquo;{t('you')}&rdquo;
         </em>{' '}
-        could be.
+        {t('could be.')}
       </h2>
       </Reveal>
 
@@ -1310,7 +1312,7 @@ function GlimpseSection() {
                 margin: 0,
               }}
             >
-              {style.name}
+              {t(style.name)}
             </p>
             <p
               className="font-mono"
@@ -1322,7 +1324,7 @@ function GlimpseSection() {
                 margin: '6px 0 0',
               }}
             >
-              {style.sub}
+              {t(style.sub)}
             </p>
           </div>
         ))}
@@ -1744,6 +1746,7 @@ function TraceBorderCta({
 }
 
 function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingClick: (planId: string) => void; checkoutLoading: string | null }) {
+  const t = useT();
   const isMobile = useIsMobile();
   return (
     <div id="pricing" style={{ padding: '0 0 72px' }}>
@@ -1757,10 +1760,10 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
         {/* Header */}
         <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16, ...(isMobile ? { padding: '36px 20px' } : {}) }}>
           <h2 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
-            pricing
+            {t('pricing')}
           </h2>
           <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 20, color: 'rgba(255,248,234,0.72)', margin: 0, maxWidth: 460, lineHeight: 1.3 }}>
-            See yourself in the cut before you sit in the chair.
+            {t('See yourself in the cut before you sit in the chair.')}
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
             <div style={{
@@ -1771,7 +1774,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
               borderRadius: 18, padding: '16px 32px', textAlign: 'center',
             }}>
               <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,248,234,0.62)', marginBottom: 8 }}>
-                avg barber visit
+                {t('avg barber visit')}
               </div>
               <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 1, letterSpacing: '-0.03em' }}>
                 $45
@@ -1788,7 +1791,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
               borderRadius: 18, padding: '16px 32px', textAlign: 'center',
             }}>
               <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(82,202,120,0.9)', marginBottom: 8 }}>
-                1 haircut generation
+                {t('1 haircut generation')}
               </div>
               <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: '#52ca78', lineHeight: 1, letterSpacing: '-0.03em' }}>
                 8¢
@@ -1832,10 +1835,10 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                   color: isFeatured ? 'rgba(80,150,255,0.9)' : 'rgba(255,248,234,0.58)',
                   marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  {plan.label}
+                  {t(plan.label)}
                   {isFeatured && (
                     <span style={{ background: 'rgba(80,150,255,0.2)', color: 'rgba(80,150,255,0.9)', borderRadius: 9999, padding: '2px 8px', fontSize: 9 }}>
-                      popular
+                      {t('popular')}
                     </span>
                   )}
                 </div>
@@ -1855,7 +1858,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                   fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
                   color: 'rgba(255,248,234,0.48)', marginBottom: 20,
                 }}>
-                  {plan.perToken ? '' : plan.sub}
+                  {plan.perToken ? '' : t(plan.sub)}
                 </div>
 
                 <div style={{ borderTop: '1px solid rgba(255,248,234,0.13)', marginBottom: 18 }} />
@@ -1869,7 +1872,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                     <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: 26, height: 26, borderRadius: '50%', display: 'block' }} />
                   </div>
                   <span style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--cream)' }}>
-                    {plan.tokenLabel}
+                    {t(plan.tokenLabel)}
                   </span>
                 </div>
 
@@ -1878,7 +1881,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                   fontSize: 13, color: 'rgba(255,248,234,0.64)', lineHeight: 1.55,
                   margin: '0 0 24px', flex: 1,
                 }}>
-                  {plan.line}
+                  {t(plan.line)}
                 </p>
 
                 <PricingCTAButton
@@ -1886,7 +1889,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
                   onClick={() => onPricingClick(plan.id)}
                   disabled={checkoutLoading === plan.id}
                 >
-                  {checkoutLoading === plan.id ? '…' : plan.cta}
+                  {checkoutLoading === plan.id ? '…' : t(plan.cta)}
                 </PricingCTAButton>
               </div>
             );
@@ -1896,7 +1899,7 @@ function LandingPricingCards({ onPricingClick, checkoutLoading }: { onPricingCli
         {/* Footer note inside the box */}
         <div style={{ padding: '20px 56px 24px', borderTop: '1px solid rgba(255,248,234,0.13)', textAlign: 'center' }}>
           <span style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.42)' }}>
-            one-time purchase · no subscription · secured by stripe
+            {t('one-time purchase · no subscription · secured by stripe')}
           </span>
         </div>
       </div>
@@ -2090,6 +2093,7 @@ function NeonCornersOverlay({ color, seed }: { color: string; seed: number }) {
 }
 
 function LandingPage({ onEnter }: { onEnter: () => void }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const swipeTriggerRef = useRef<((dir: 'up' | 'down') => void) | null>(null);
   const faceScrollRef = useRef<{ goNext: () => void; goPrev: () => void } | null>(null);
@@ -2274,7 +2278,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             className="btn-tomato btn-lift-half"
             style={{ padding: '11px 22px', fontSize: 13, borderRadius: 10 }}
           >
-            dashboard
+            {t('dashboard')}
           </BouncyButton>
         </nav>
 
@@ -2294,22 +2298,22 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
             <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '8px 20px', marginTop: 8 }}>
               <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10, ...(isMobile ? { fontSize: 12 } : {}) }}>✦</span>
-              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8, ...(isMobile ? { fontSize: 13, letterSpacing: '0.14em' } : {}) }}>Free to try · No credit card · 3D preview in ~60 sec</span>
+              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8, ...(isMobile ? { fontSize: 13, letterSpacing: '0.14em' } : {}) }}>{t('Free to try · No credit card · 3D preview in ~60 sec')}</span>
             </div>
             <div
               className="type-chonk"
               style={{ fontSize: 'clamp(2rem, 3.8vw, 3rem)', marginTop: 16, color: 'var(--ink)', lineHeight: 1.05, ...(isMobile ? { fontSize: 'clamp(2.5rem, 4.8vw, 3.7rem)', marginTop: 26, lineHeight: 1.1 } : {}) }}
             >
-              <div className="hero-rise delay-100">see it first.</div>
-              <div className="hero-rise delay-200"><em style={{ color: 'var(--tomato)' }}>love</em> it more.</div>
+              <div className="hero-rise delay-100">{t('see it first.')}</div>
+              <div className="hero-rise delay-200"><em style={{ color: 'var(--tomato)' }}>{t('love')}</em> {t('it more.')}</div>
             </div>
 
             <p
               className="font-serif italic hero-rise delay-300"
               style={{ fontSize: 18, color: 'var(--char)', maxWidth: 480, margin: '22px auto 0', lineHeight: 1.5, ...(isMobile ? { fontSize: 16, maxWidth: 520, margin: '28px auto 0', lineHeight: 1.62 } : {}) }}
             >
-              Take one selfie. See 10+ haircuts on your actual 3D face.
-              <br />Walk into the barber knowing exactly what you want.
+              {t('Take one selfie. See 10+ haircuts on your actual 3D face.')}
+              <br />{t('Walk into the barber knowing exactly what you want.')}
             </p>
 
             <div className="hero-rise delay-400" style={{ display: 'flex', justifyContent: 'center', marginTop: 34 }}>
@@ -2350,7 +2354,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         <div style={{ padding: '58px 0 0' }}>
           <Reveal>
             <p className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--tomato)', textAlign: 'center', marginBottom: 22 }}>
-              sound familiar?
+              {t('sound familiar?')}
             </p>
           </Reveal>
           <Reveal delay={80}>
@@ -2358,15 +2362,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               className="type-chonk"
               style={{ fontSize: 'clamp(1.9rem, 3.2vw, 2.8rem)', color: 'var(--ink)', textAlign: 'center', lineHeight: 1.05, marginBottom: 18 }}
             >
-              You describe it.
+              {t('You describe it.')}
               <br />
-              <em style={{ color: 'var(--tomato)' }}>They hear something different.</em>
+              <em style={{ color: 'var(--tomato)' }}>{t('They hear something different.')}</em>
             </h2>
           </Reveal>
           <Reveal delay={160}>
             <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 17, color: 'var(--char)', textAlign: 'center', maxWidth: 500, margin: '0 auto 56px', lineHeight: 1.65 }}>
-              You walk out of the barber disappointed — not because your barber was bad,
-              but because there was no way to show exactly what you meant.
+              {t('You walk out of the barber disappointed — not because your barber was bad, but because there was no way to show exactly what you meant.')}
             </p>
           </Reveal>
 
@@ -2398,13 +2401,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                     className="font-display"
                     style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: 'var(--tomato)', lineHeight: 1 }}
                   >
-                    {item.stat}
+                    {t(item.stat)}
                   </div>
                   <div className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.62)', marginBottom: 4 }}>
-                    {item.label}
+                    {t(item.label)}
                   </div>
                   <div className="font-sans" style={{ fontSize: 15, color: 'var(--char)', lineHeight: 1.6 }}>
-                    {item.desc}
+                    {t(item.desc)}
                   </div>
                 </div>
               </Reveal>
@@ -2414,7 +2417,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           {/* Bridge line */}
           <Reveal delay={120}>
             <p style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: 18, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.7, maxWidth: 600, margin: '48px auto' }}>
-              We show you how any hairstyle looks on your face. Then, we give your barber the steps to make it happen.
+              {t('We show you how any hairstyle looks on your face. Then, we give your barber the steps to make it happen.')}
             </p>
           </Reveal>
         </div>
@@ -2442,13 +2445,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 {/* Content */}
                 <div style={{ position: 'relative', zIndex: 1, padding: '34px 26px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontFamily: 'Montserrat, sans-serif', fontStyle: 'italic', fontWeight: 900, fontSize: 'clamp(1.5rem, 2.1vw, 2rem)', color: '#4fd6c0', lineHeight: 1 }}>
-                    {item.stat}
+                    {t(item.stat)}
                   </div>
                   <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,255,255,0.72)', marginBottom: 4 }}>
-                    {item.label}
+                    {t(item.label)}
                   </div>
                   <div style={{ fontFamily: 'var(--font-dmsans), sans-serif', fontSize: 15, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
-                    {item.desc}
+                    {t(item.desc)}
                   </div>
                 </div>
               </div>
@@ -2470,12 +2473,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               className="type-chonk"
               style={{ fontSize: 'clamp(1.9rem, 3.2vw, 2.8rem)', color: 'var(--ink)', textAlign: 'center', lineHeight: 1.05, marginBottom: 14 }}
             >
-              how it <em style={{ color: 'var(--tomato)' }}>works</em>.
+              {t('how it')} <em style={{ color: 'var(--tomato)' }}>{t('works')}</em>.
             </h2>
           </Reveal>
           <Reveal delay={160}>
             <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', textAlign: 'center', maxWidth: 460, margin: '0 auto 52px', lineHeight: 1.55 }}>
-              This demo is live — send a message and try it yourself.
+              {t('This demo is live — send a message and try it yourself.')}
             </p>
           </Reveal>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, alignItems: 'stretch', position: 'relative', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
@@ -2498,8 +2501,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   <Image src="/1.png" alt="Step 1" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>Selfie</span>
-                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>30 seconds</span>
+                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>{t('Selfie')}</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>{t('30 seconds')}</span>
                 </div>
               </div>
               {/* Body — one selfie, polaroid treatment */}
@@ -2515,7 +2518,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   />
                   <div style={{ position: 'absolute', bottom: 9, left: 0, right: 0, textAlign: 'center' }}>
                     <span className="font-display" style={{ fontStyle: 'italic', fontWeight: 500, fontSize: 15, color: 'var(--char)' }}>
-                      just one selfie ✂
+                      {t('just one selfie')} ✂
                     </span>
                   </div>
                 </div>
@@ -2541,14 +2544,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   <Image src="/2.png" alt="Step 2" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>Describe</span>
-                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>text it like a friend</span>
+                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>{t('Describe')}</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>{t('text it like a friend')}</span>
                 </div>
               </div>
               {/* Body */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: '24px 16px 20px', gap: 10 }}>
                 <DescribePhoneDemo onSend={setDescribeActiveIdx} />
-                <span className="font-mono" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(42,32,26,0.35)' }}>↑ tap send — step 3 updates live</span>
+                <span className="font-mono" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(42,32,26,0.35)' }}>↑ {t('tap send — step 3 updates live')}</span>
               </div>
             </div>
             </Reveal>
@@ -2571,8 +2574,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   <Image src="/3.png" alt="Step 3" width={50} height={50} style={{ width: 50, height: 50, objectFit: 'contain' }} />
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>Show your barber</span>
-                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>your 3D preview, live</span>
+                  <span style={{ fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif", fontSize: 22, fontWeight: 800, color: '#F5F1EA', letterSpacing: '0.01em', textTransform: 'uppercase', lineHeight: 1 }}>{t('Show your barber')}</span>
+                  <span className="font-mono" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(245,241,234,0.42)' }}>{t('your 3D preview, live')}</span>
                 </div>
               </div>
               {/* Body */}
@@ -2620,7 +2623,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         <Reveal>
         <div style={{ textAlign: 'center', padding: '72px 0 16px' }}>
           <p className="font-serif italic" style={{ fontSize: 17, color: 'var(--char)', opacity: 0.6, margin: '0 0 20px' }}>
-            Ready to see your next cut?
+            {t('Ready to see your next cut?')}
           </p>
           <TraceBorderCta
             onClick={() => { window.location.href = '/dashboard'; }}
@@ -2634,10 +2637,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               letterSpacing: '-0.01em',
             }}
           >
-            Preview My Cut — It&apos;s Free →
+            {t("Preview My Cut — It's Free")} →
           </TraceBorderCta>
           <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.38)', marginTop: 14 }}>
-            takes about 60 seconds · no account required
+            {t('takes about 60 seconds · no account required')}
           </p>
         </div>
         </Reveal>
@@ -2663,7 +2666,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <Reveal>
           <div style={{ textAlign: 'center', padding: '0 0 72px' }}>
             <p className="font-display" style={{ fontStyle: 'italic', fontVariationSettings: "'SOFT' 100, 'WONK' 0, 'opsz' 144", fontWeight: 700, fontSize: 'clamp(1.1rem, 1.8vw, 1.4rem)', color: 'rgba(255,248,234,0.6)', margin: '0 0 20px' }}>
-              Pick your style.
+              {t('Pick your style.')}
             </p>
             <TraceBorderCta
               onClick={() => { window.location.href = '/dashboard'; }}
@@ -2677,10 +2680,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 letterSpacing: '-0.01em',
               }}
             >
-              Try It Free — No Card Needed →
+              {t('Try It Free — No Card Needed')} →
             </TraceBorderCta>
             <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.3)', marginTop: 14 }}>
-              takes about 60 seconds
+              {t('takes about 60 seconds')}
             </p>
           </div>
           </Reveal>
@@ -2694,8 +2697,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             ].map((item, i) => (
               <Reveal key={i} delay={i * 100}>
                 <div className="trust-card">
-                  <div className="font-sans" style={{ fontSize: 15, fontWeight: 600, color: 'var(--cream)', marginBottom: 8 }}>{item.title}</div>
-                  <div className="font-sans" style={{ fontSize: 13, color: 'rgba(255,248,234,0.5)', lineHeight: 1.6 }}>{item.body}</div>
+                  <div className="font-sans" style={{ fontSize: 15, fontWeight: 600, color: 'var(--cream)', marginBottom: 8 }}>{t(item.title)}</div>
+                  <div className="font-sans" style={{ fontSize: 13, color: 'rgba(255,248,234,0.5)', lineHeight: 1.6 }}>{t(item.body)}</div>
                 </div>
               </Reveal>
             ))}
@@ -2757,7 +2760,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                     onMouseEnter={e => ((e.target as HTMLElement).style.color = 'rgba(255,248,234,0.6)')}
                     onMouseLeave={e => ((e.target as HTMLElement).style.color = 'rgba(255,248,234,0.3)')}
                   >
-                    {label}
+                    {t(label)}
                   </a>
                   {i < 4 && <span className="font-mono" style={{ fontSize: 10, color: 'rgba(255,248,234,0.15)', margin: '0 14px' }}>·</span>}
                 </span>
@@ -2804,14 +2807,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.16em',
                 color: 'rgba(255,248,234,0.45)', margin: '0 0 10px',
               }}>
-                {pendingAction.type === 'free' ? 'create your account' : 'sign in to purchase'}
+                {pendingAction.type === 'free' ? t('create your account') : t('sign in to purchase')}
               </p>
               <h2 className="auth-modal-heading" style={{
                 fontFamily: 'var(--font-fraunces), Georgia, serif',
                 fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 900,
                 color: 'var(--cream)', letterSpacing: '-0.03em', lineHeight: 0.95, margin: 0,
               }}>
-                {pendingAction.type === 'free' ? 'Start exploring.' : 'One step away.'}
+                {pendingAction.type === 'free' ? t('Start exploring.') : t('One step away.')}
               </h2>
             </div>
             <SignUpWidget

@@ -5,6 +5,7 @@ import { useUser, useClerk } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startCheckout } from '@/lib/checkout';
+import { useT } from '@/lib/i18n';
 
 /* ── Brand logo mark (self-contained, no shared import) ── */
 function ScissorsMark({ size = 28 }: { color?: string; size?: number }) {
@@ -69,6 +70,7 @@ const PLANS = [
 ] as const;
 
 export default function PricingPage() {
+  const t = useT();
   const { isSignedIn } = useUser();
   const { openSignIn } = useClerk();
   const router = useRouter();
@@ -144,7 +146,7 @@ export default function PricingPage() {
           onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
           onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.65')}
         >
-          ← back
+          ← {t('back')}
         </Link>
       </nav>
 
@@ -161,10 +163,10 @@ export default function PricingPage() {
         {/* ── Header ── */}
         <div style={{ padding: '52px 56px 52px', borderBottom: '1px solid rgba(255,248,234,0.14)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
           <h1 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
-            pricing
+            {t('pricing')}
           </h1>
           <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 20, color: 'rgba(255,248,234,0.72)', margin: 0, maxWidth: 460, lineHeight: 1.3 }}>
-            See yourself in the cut before you sit in the chair.
+            {t('See yourself in the cut before you sit in the chair.')}
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
             <div style={{
@@ -175,7 +177,7 @@ export default function PricingPage() {
               borderRadius: 18, padding: '16px 32px', textAlign: 'center',
             }}>
               <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,248,234,0.62)', marginBottom: 8 }}>
-                avg barber visit
+                {t('avg barber visit')}
               </div>
               <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 1, letterSpacing: '-0.03em' }}>
                 $45
@@ -192,7 +194,7 @@ export default function PricingPage() {
               borderRadius: 18, padding: '16px 32px', textAlign: 'center',
             }}>
               <div style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(82,202,120,0.9)', marginBottom: 8 }}>
-                1 AI look
+                {t('1 AI look')}
               </div>
               <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(1.9rem, 2.6vw, 2.6rem)', fontWeight: 900, color: '#52ca78', lineHeight: 1, letterSpacing: '-0.03em' }}>
                 8¢
@@ -249,13 +251,13 @@ export default function PricingPage() {
                   marginBottom: 14,
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
-                  {plan.label}
+                  {t(plan.label)}
                   {isFeatured && (
                     <span style={{
                       background: 'rgba(217,78,58,0.2)', color: 'var(--tomato)',
                       borderRadius: 9999, padding: '2px 8px', fontSize: 9,
                     }}>
-                      popular
+                      {t('popular')}
                     </span>
                   )}
                 </div>
@@ -278,7 +280,7 @@ export default function PricingPage() {
                   color: 'rgba(255,248,234,0.48)',
                   marginBottom: 20,
                 }}>
-                  {plan.perToken ? '' : plan.sub}
+                  {plan.perToken ? '' : t(plan.sub)}
                 </div>
 
                 {/* Divider */}
@@ -298,7 +300,7 @@ export default function PricingPage() {
                     fontSize: 15, fontWeight: 700,
                     color: 'var(--cream)',
                   }}>
-                    {plan.tokenLabel}
+                    {t(plan.tokenLabel)}
                   </span>
                 </div>
 
@@ -308,7 +310,7 @@ export default function PricingPage() {
                   fontSize: 13, color: 'rgba(255,248,234,0.64)', lineHeight: 1.55,
                   margin: '0 0 24px', flex: 1,
                 }}>
-                  {plan.line}
+                  {t(plan.line)}
                 </p>
 
                 {/* CTA */}
@@ -340,7 +342,7 @@ export default function PricingPage() {
                     btn.style.boxShadow = isFeatured ? '0 4px 18px rgba(217,78,58,0.28)' : 'none';
                   }}
                 >
-                  {loading === plan.id ? '…' : plan.cta}
+                  {loading === plan.id ? '…' : t(plan.cta)}
                 </button>
               </div>
             );
@@ -350,7 +352,7 @@ export default function PricingPage() {
         {/* ── Footer note inside the box ── */}
         <div style={{ padding: '20px 56px 24px', borderTop: '1px solid rgba(255,248,234,0.13)', textAlign: 'center' }}>
           <span style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.42)' }}>
-            one-time purchase · no subscription · secured by stripe
+            {t('one-time purchase · no subscription · secured by stripe')}
           </span>
         </div>
       </div>
