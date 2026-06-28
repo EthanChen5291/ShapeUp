@@ -1,11 +1,11 @@
 'use client';
 
-// /subtraction — Hair Extraction Lab
+// /admin/subtraction — Hair Extraction Lab
 // Flow:
 //  1. Capture  — user takes a photo
 //  2. BaldGen  — client-side canvas manipulation creates a "bald" version
 //  3. Scan×2   — both images run through FaceLift in parallel → two PLY files
-//  4. Subtract — /api/subtraction/subtract isolates the "hair" gaussians
+//  4. Subtract — /api/admin/subtraction/subtract isolates the "hair" gaussians
 //  5. Done     — render the hair splat + show debug info
 
 import dynamic from 'next/dynamic';
@@ -166,12 +166,12 @@ async function callSubtract(
   const log = (s: string) => { dbg(`[callSubtract] ${s}`); pushLog(`[subtract] ${s}`); };
   const t0  = Date.now();
 
-  log(`POSTing to /api/subtraction/subtract...`);
+  log(`POSTing to /api/admin/subtraction/subtract...`);
   log(`  originalPlyUrl: ${originalPlyUrl.substring(0, 80)}...`);
   log(`  baldPlyUrl: ${baldPlyUrl.substring(0, 80)}...`);
   log(`  opts: ${JSON.stringify(opts ?? {})}`);
 
-  const res = await fetch('/api/subtraction/subtract', {
+  const res = await fetch('/api/admin/subtraction/subtract', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ originalPlyUrl, baldPlyUrl, ...opts }),
@@ -745,7 +745,7 @@ export default function SubtractionPage() {
         <span style={{ fontSize: 14, fontWeight: 700, color: '#ffe39a', letterSpacing: '0.08em' }}>
           HAIR EXTRACTION LAB
         </span>
-        <span style={{ color: '#443', marginLeft: 'auto', fontSize: 11 }}>/subtraction</span>
+        <span style={{ color: '#443', marginLeft: 'auto', fontSize: 11 }}>/admin/subtraction</span>
       </div>
 
       <div style={{ flex: 1, display: 'flex', gap: 0, maxWidth: 1100, margin: '0 auto', width: '100%', padding: '24px 16px' }}>
@@ -1157,9 +1157,9 @@ export default function SubtractionPage() {
           <div style={{ marginTop: 8 }}>
             <button
               onClick={async () => {
-                pushLog('[test-runner] calling GET /api/subtraction/subtract/test...');
+                pushLog('[test-runner] calling GET /api/admin/subtraction/subtract/test...');
                 try {
-                  const res  = await fetch('/api/subtraction/subtract');
+                  const res  = await fetch('/api/admin/subtraction/subtract');
                   const data = await res.json() as { allPassed: boolean; results: { name: string; passed: boolean; error?: string }[] };
                   pushLog(`[test-runner] allPassed=${data.allPassed}`);
                   data.results.forEach(r => {
@@ -1180,7 +1180,7 @@ export default function SubtractionPage() {
                 fontSize: 11,
               }}
             >
-              Run API Tests (GET /api/subtraction/subtract)
+              Run API Tests (GET /api/admin/subtraction/subtract)
             </button>
           </div>
         </div>

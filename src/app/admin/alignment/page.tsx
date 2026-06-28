@@ -1,6 +1,6 @@
 'use client';
 
-// /alignment — Hair-on-Head Alignment Lab
+// /admin/alignment — Hair-on-Head Alignment Lab
 // Flow (NO subtraction, NO fetch — the hair ply is uploaded by the user):
 //  0. Upload    — user supplies a hair ply (.ply); parsed + splatted in-browser
 //  1. Capture   — user takes / uploads a photo
@@ -50,7 +50,7 @@ function initialSteps(): Record<StepId, StepState> {
   };
 }
 
-// ─── pipeline callers (mirror /subtraction) ─────────────────────────────────────
+// ─── pipeline callers (mirror /admin/subtraction) ─────────────────────────────────────
 
 async function generateBaldImage(imageDataUrl: string, log: (s: string) => void): Promise<string> {
   log('sending image to Gemini for baldify (~15-30s)...');
@@ -85,7 +85,7 @@ async function fetchPositions(plyUrl: string, log: (s: string) => void): Promise
   return g.positions;
 }
 
-// ─── camera overlay (mirrors /subtraction) ──────────────────────────────────────
+// ─── camera overlay (mirrors /admin/subtraction) ──────────────────────────────────────
 
 function drawOverlay(ctx: CanvasRenderingContext2D, W: number, H: number, captured: boolean) {
   const cx = W / 2, cy = H * 0.46, rx = W * 0.32, ry = H * 0.40;
@@ -421,8 +421,8 @@ export default function AlignmentPage() {
         <Link href="/dashboard" style={{ color: '#887', textDecoration: 'none', fontSize: 12 }}>← dashboard</Link>
         <span style={{ color: '#443' }}>|</span>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#ffe39a', letterSpacing: '0.08em' }}>HAIR ALIGNMENT LAB</span>
-        <Link href="/subtraction" style={{ color: '#665', textDecoration: 'none', fontSize: 11, marginLeft: 12 }}>subtraction →</Link>
-        <span style={{ color: '#443', marginLeft: 'auto', fontSize: 11 }}>/alignment</span>
+        <Link href="/admin/subtraction" style={{ color: '#665', textDecoration: 'none', fontSize: 11, marginLeft: 12 }}>subtraction →</Link>
+        <span style={{ color: '#443', marginLeft: 'auto', fontSize: 11 }}>/admin/alignment</span>
       </div>
 
       <div style={{ flex: 1, display: 'flex', gap: 0, maxWidth: 1180, margin: '0 auto', width: '100%', padding: '24px 16px' }}>

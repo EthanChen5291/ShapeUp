@@ -710,7 +710,7 @@ if (process.env.NODE_ENV === 'development') {
   }, 0);
 }
 
-// ─── GET /api/subtraction/subtract/test — runs all tests, returns results ─────
+// ─── GET /api/admin/subtraction/subtract/test — runs all tests, returns results ─────
 export async function GET() {
   dbg('GET /test: running all inline tests...');
   const results: { name: string; passed: boolean; error?: string }[] = [];
@@ -730,7 +730,7 @@ export async function GET() {
   return NextResponse.json({ allPassed, results }, { status: allPassed ? 200 : 500 });
 }
 
-// ─── POST /api/subtraction/subtract ──────────────────────────────────────────
+// ─── POST /api/admin/subtraction/subtract ──────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   dbg('POST: received request');
