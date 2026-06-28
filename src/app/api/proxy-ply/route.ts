@@ -43,8 +43,23 @@ export async function GET(req: NextRequest) {
     targetUrl = url!;
   }
 
+  // In local dev, stream the bytes through to avoid S3 CORS issues.
+  // In production (Vercel) redirect instead to avoid the 4.5 MB response size cap.
+  if (process.env.NODE_ENV === 'development') {
+    const upstream = await fetch(targetUrl);
+    if (!upstream.ok || !upstream.body) {
+      return NextResponse.json({ error: `Upstream fetch failed (${upstream.status})` }, { status: 502 });
+    }
+    return new NextResponse(upstream.body, {
+      status: 200,
+      headers: {
+        'Content-Type': upstream.headers.get('Content-Type') ?? 'application/octet-stream',
+        'Content-Length': upstream.headers.get('Content-Length') ?? '',
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
   console.log(`[proxy-ply] redirecting to ${targetUrl.slice(0, 80)}…`);
-  // 307 preserves the GET and is not cached, so each request re-resolves a fresh
-  // (possibly re-signed) URL.
   return NextResponse.redirect(targetUrl, 307);
 }

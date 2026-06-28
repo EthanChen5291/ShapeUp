@@ -2709,7 +2709,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               {/* Instagram */}
               <a
-                href="https://instagram.com/unchopped_"
+                href="https://www.instagram.com/tryshapeup/"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'rgba(255,248,234,0.6)', opacity: 0.7, transition: 'opacity 140ms ease' }}
