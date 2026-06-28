@@ -274,21 +274,19 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* Visual layer: clip top 10% + blob mask. Kept separate from the event container so wheel/touch hit area is unaffected. */}
+      {/* Visual layer: circular frame + border. Kept separate from the event container so wheel/touch hit area is unaffected. */}
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'absolute',
+        left: '50%', top: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '68%',
+        aspectRatio: '1 / 1',
+        borderRadius: '50%',
         overflow: 'hidden',
-        clipPath: 'inset(10% 0 0 0)',
-        WebkitMaskImage: 'url(/blob.png)',
-        WebkitMaskSize: '100% 100%',
-        WebkitMaskRepeat: 'no-repeat',
-        maskImage: 'url(/blob.png)',
-        maskSize: '100% 100%',
-        maskRepeat: 'no-repeat',
         pointerEvents: 'none',
       } as React.CSSProperties}>
-        {/* 15% scale-down wrapper */}
-        <div style={{ position: 'absolute', inset: 0, transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+        {/* overfill wrapper — video covers the circle so no rectangular edge shows */}
+        <div style={{ position: 'absolute', inset: 0, transform: 'scale(1.2)', transformOrigin: 'center center' }}>
           {FACE_VIDS.map((src, i) => (
             // Per-face transform + opacity wrapper
             <div
@@ -318,7 +316,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
-                    clipPath: (i === 1 || i === 2 || i === 3) ? 'inset(0 0 2% 0)' : undefined,
+                    clipPath: (i === 1 || i === 2 || i === 3) ? 'inset(1.5% 0 2% 0)' : 'inset(1.5% 0 1.5% 0)',
                   }}
                 />
               </div>
