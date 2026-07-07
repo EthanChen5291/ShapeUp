@@ -1,13 +1,14 @@
 // POST { imageDataUrl, outputName?, needPly? } → { jobId, splatUrl, plyUrl, videoUrl }
-// Tries FaceLift upstreams in priority order (OSCAR first when up, Modal as the
-// reliable fallback). Modal converts PLY → splat and uploads to S3 from inside
-// the GPU container, returning just the S3 keys. OSCAR returns base64, so for
+// Tries reconstruction upstreams in priority order (secondary worker first
+// when up, primary worker as the reliable fallback). The primary worker
+// converts PLY → splat and uploads to S3 from inside the GPU container,
+// returning just the S3 keys. The secondary worker returns base64, so for
 // that path this handler converts PLY → splat and uploads to S3 itself.
 // The raw ~40 MB .ply is only uploaded when needPly is true (it dominates the
 // upload time and the viewer never uses it — only flows that diff two Gaussian
 // clouds, e.g. hair subtraction, need it); otherwise plyUrl comes back null.
 
-export const maxDuration = 300; // Vercel Hobby cap; Modal work must finish within 5 min.
+export const maxDuration = 300; // Vercel Hobby cap; upstream work must finish within 5 min.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ConvexError } from 'convex/values';
@@ -135,9 +136,10 @@ function isValidS3Key(value: unknown): value is string {
 }
 
 // A successful upstream returns one of two shapes:
-//  - 's3'     → Modal already converted PLY → splat and uploaded both to S3;
-//               we get the keys back and skip all local processing.
-//  - 'base64' → OSCAR returns base64 PLY; the route converts + uploads itself.
+//  - 's3'     → the primary worker already converted PLY → splat and uploaded
+//               both to S3; we get the keys back and skip all local processing.
+//  - 'base64' → the secondary worker returns base64 PLY; the route converts +
+//               uploads itself.
 type UpstreamResult =
   | { ok: true; kind: 's3'; jobId: string; plyKey: string | null; splatKey: string; elapsedS: number | null }
   | { ok: true; kind: 'base64'; plyBuffer: Buffer; videoBuffer: Buffer | null; elapsedS: number | null }
@@ -145,8 +147,9 @@ type UpstreamResult =
 
 // One synchronous attempt against a single upstream's /process_image. Any
 // failure — network error, non-200, malformed JSON, or a missing/oversized
-// payload (e.g. OSCAR's async `{job_id}` response) — is returned as a soft
-// failure so the caller can fall back to the next upstream instead of erroring.
+// payload (e.g. the secondary worker's async `{job_id}` response) — is
+// returned as a soft failure so the caller can fall back to the next upstream
+// instead of erroring.
 async function callFaceliftUpstream(url: string, form: FormData): Promise<UpstreamResult> {
   let upstream: Response;
   try {
@@ -181,11 +184,12 @@ async function callFaceliftUpstream(url: string, form: FormData): Promise<Upstre
 
   const elapsedS = typeof data.elapsed_s === 'number' && data.elapsed_s > 0 ? data.elapsed_s : null;
 
-  // Modal (S3-from-container): already converted + uploaded, returns S3 keys.
-  // Prefer this whenever the upstream signals it (either key present), and
-  // reject keys outside the facelifts/ prefix before we ever sign them. The
-  // .ply is optional (Modal omits it / returns null when need_ply was false),
-  // so only the splat key is mandatory; a present ply key must still be valid.
+  // Primary worker (S3-from-container): already converted + uploaded, returns
+  // S3 keys. Prefer this whenever the upstream signals it (either key
+  // present), and reject keys outside the facelifts/ prefix before we ever
+  // sign them. The .ply is optional (the primary worker omits it / returns
+  // null when need_ply was false), so only the splat key is mandatory; a
+  // present ply key must still be valid.
   if (data.splat_s3_key !== undefined || data.ply_s3_key !== undefined) {
     if (!isValidS3Key(data.splat_s3_key)) {
       return { ok: false, reason: 'missing or invalid splat_s3_key' };
@@ -201,7 +205,7 @@ async function callFaceliftUpstream(url: string, form: FormData): Promise<Upstre
     return { ok: true, kind: 's3', jobId, plyKey, splatKey: data.splat_s3_key, elapsedS };
   }
 
-  // OSCAR (base64): the route decodes, converts, and uploads.
+  // Secondary worker (base64): the route decodes, converts, and uploads.
   const plyBuffer = decodeBoundedBase64(data.ply_b64, MAX_PLY_BYTES);
   if (!plyBuffer) return { ok: false, reason: 'missing or invalid ply_s3_key / ply_b64' };
 
@@ -297,8 +301,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsedImage.error }, { status: 400 });
   }
 
-  // GPU budget guard: refuse before spinning up Modal so the container scales
-  // to zero and billing stops once the monthly GPU-seconds cap is hit.
+  // GPU budget guard: refuse before spinning up the primary worker so the
+  // container scales to zero and billing stops once the monthly GPU-seconds
+  // cap is hit.
   try {
     if (await convex.query(api.gpuUsage.isOverBudget, {})) {
       console.warn('[facelift] POST: rejected — monthly GPU budget reached', {
@@ -363,14 +368,15 @@ export async function POST(req: NextRequest) {
   const buildForm = () => {
     const form = new FormData();
     form.append('image', imageBlob, `face.${uploadExt}`);
-    // Modal skips the heavy .ply S3 upload unless this is set.
+    // The primary worker skips the heavy .ply S3 upload unless this is set.
     form.append('need_ply', needPly ? 'true' : 'false');
     return form;
   };
 
-  // Try upstreams in priority order (OSCAR first when it's up, Modal as the
-  // reliable fallback). We only surface an error if every upstream fails — a
-  // single OSCAR failure transparently falls through to Modal.
+  // Try upstreams in priority order (secondary worker first when it's up,
+  // primary worker as the reliable fallback). We only surface an error if
+  // every upstream fails — a single secondary-worker failure transparently
+  // falls through to the primary worker.
   const upstreams = await resolveFaceliftUpstreams();
   let result: Extract<UpstreamResult, { ok: true }> | null = null;
   const failures: string[] = [];
@@ -403,8 +409,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Resolve the final S3 keys. Modal already converted + uploaded (kind 's3');
-  // OSCAR (kind 'base64') is converted and uploaded here.
+  // Resolve the final S3 keys. The primary worker already converted +
+  // uploaded (kind 's3'); the secondary worker (kind 'base64') is converted
+  // and uploaded here.
   let jobId: string;
   let plyKey: string | null = null;
   let splatKey: string;

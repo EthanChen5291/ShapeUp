@@ -1,43 +1,29 @@
 """
-Modal deployment for FaceLift head reconstruction (brubru6707/facelift).
+Primary GPU worker deployment for head reconstruction (auto-scaling, always on).
 
-Usage
------
-First-time setup (once per machine):
-    pip install modal
-    modal setup          # authenticates via browser
-
-Dev (hot-reload, ephemeral URL):
-    modal serve server/modal_facelift.py
-
-Production deploy (stable URL):
-    modal deploy server/modal_facelift.py
-
-After deploying, copy the printed web-endpoint URL into FACELIFT_URL in .env.local.
-No ngrok needed — Modal handles HTTPS.
-
-Adding a teammate
------------------
-modal.com → your workspace → Settings → Members → Invite member.
+See the platform CLI's own docs for setup, dev/prod deploy commands, and team
+invites — not duplicated here. After deploying, copy the printed web-endpoint
+URL into FACELIFT_URL in .env.local.
 
 Memory snapshot
 ---------------
-On first deploy the container downloads ~7 GB of weights into the Volume and
-Modal snapshots CPU RAM + GPU VRAM. Subsequent cold starts restore from the
-snapshot in ~10–15 s. The snapshot materialises after ~3–5 cold boots.
+On first deploy the container downloads the model weights into the Volume and
+the platform snapshots CPU RAM + GPU VRAM. Subsequent cold starts restore from
+the snapshot in ~10–15 s. The snapshot materialises after ~3–5 cold boots.
 
 Weights location
 ----------------
-The repo's inference.py downloads HF weights to {FACELIFT_DIR}/checkpoints/.
-We mount the weights Volume there so downloads survive across deploys.
+The reconstruction model's inference.py downloads its weights to
+{FACELIFT_DIR}/checkpoints/. We mount the weights Volume there so downloads
+survive across deploys.
 
 Synchronous design
 ------------------
-POST /process_image accepts a multipart image, runs FaceLift inference
+POST /process_image accepts a multipart image, runs reconstruction inference
 (~15–20 s on L40S), and returns JSON with base64-encoded PLY.
 The Next.js route.ts decodes, converts PLY → splat, and uploads both to S3.
-An asyncio.Lock serialises GPU access within a container; Modal auto-scales
-to additional containers for concurrent users.
+An asyncio.Lock serialises GPU access within a container; the platform
+auto-scales to additional containers for concurrent users.
 """
 
 import modal
@@ -100,9 +86,12 @@ image = (
     .run_commands(
         "pip install facenet-pytorch --no-deps",
         "pip install ninja wheel",
-        # Clone the optimised fork with its diff-gaussian-rasterization submodule
+        # Clone the reconstruction model with its diff-gaussian-rasterization submodule.
+        # Functional dependency — this container build step must reference the
+        # real source repo, so the URL below isn't genericized like the prose
+        # elsewhere in this file.
         f"git clone --recurse-submodules https://github.com/brubru6707/facelift {FACELIFT_DIR}",
-        # Build CUDA extension from the bundled submodule (matches what Oscar does)
+        # Build CUDA extension from the bundled submodule (matches the secondary worker's build)
         # Targets: A100 (8.0), A10G (8.6), L40S (8.9)
         f"TORCH_CUDA_ARCH_LIST='8.0;8.6;8.9' pip install --no-build-isolation {FACELIFT_DIR}/diff-gaussian-rasterization",
     )
@@ -205,9 +194,9 @@ def ply_to_splat(ply_bytes: bytes) -> bytes:
 
 @app.cls(
     gpu="L40S",
-    # Kept just long enough that a container warmed in parallel with Gemini (the
-    # /warmup route, fired when an edit starts) survives the ~8-12s image
-    # generation and is still up when the real /process_image lands a moment
+    # Kept just long enough that a container warmed in parallel with the image
+    # model (the /warmup route, fired when an edit starts) survives the ~8-12s
+    # image generation and is still up when the real /process_image lands a moment
     # later. Cold start is ~6-8s, so warming at t=0 → warm by t≈8 → this 10s idle
     # window holds it to t≈18, past the t≈10-15 facelift arrival. Bump higher
     # only once requests start clustering enough to justify more idle GPU spend.
@@ -289,7 +278,7 @@ class FaceLiftServer:
             # Cheap container wake. Hitting any route spins up a container and
             # runs @modal.enter(snap=True) (the ~6-8s snapshot restore), so by
             # the time we return, the GPU is loaded and ready for the real
-            # /process_image that follows once Gemini finishes. Does NO
+            # /process_image that follows once the image model finishes. Does NO
             # inference and touches no GPU, but it does cost a cold start, so it
             # carries the same shared-secret gate as /process_image — a wake is
             # a (small) spend lever and must not be anonymous.

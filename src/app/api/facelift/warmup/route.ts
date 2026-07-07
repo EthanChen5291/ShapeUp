@@ -1,11 +1,11 @@
 // POST /api/facelift/warmup — best-effort GPU pre-warm.
 //
 // Fired (fire-and-forget) by the client the instant an edit starts, in parallel
-// with /api/gemini-hair-edit. Gemini image generation takes ~8-12s; the Modal
-// FaceLift container's cold start is ~6-8s. Waking the container now overlaps
-// that cold start with Gemini instead of stacking it after — so by the time the
-// real /api/facelift call lands (just after Gemini returns the image), the GPU
-// is already loaded.
+// with /api/gemini-hair-edit. Image-model generation takes ~8-12s; the primary
+// worker's container cold start is ~6-8s. Waking the container now overlaps
+// that cold start with the image edit instead of stacking it after — so by the
+// time the real /api/facelift call lands (just after the edited image comes
+// back), the GPU is already loaded.
 //
 // Deliberately does NONE of the gating /api/facelift does — no biometric
 // consent, no GPU-budget check, and crucially no consumeGeneration. A warmup
@@ -38,17 +38,18 @@ export async function POST(req: NextRequest) {
   if (rateLimited) return rateLimited;
 
   // Only warm the upstream that would actually serve the next request. When
-  // OSCAR is up it's first in priority and is always warm (a manual GPU box with
-  // no cold start), so Modal would only be a fallback — waking it then is wasted
-  // GPU spend. So we warm only when Modal is the primary upstream.
+  // the secondary worker is up it's first in priority and is always warm (a
+  // manual GPU box with no cold start), so the primary worker would only be a
+  // fallback — waking it then is wasted GPU spend. So we warm only when the
+  // primary worker is the top upstream.
   const upstreams = await resolveFaceliftUpstreams();
-  const primary = upstreams[0];
-  if (!primary || primary.name !== 'Modal') {
+  const top = upstreams[0];
+  if (!top || top.name !== 'primary') {
     return NextResponse.json({ ok: true, warmed: false });
   }
 
   try {
-    const res = await fetch(`${primary.url}/warmup`, {
+    const res = await fetch(`${top.url}/warmup`, {
       method: 'POST',
       headers: getFaceliftHeaders(),
       signal: AbortSignal.timeout(WARMUP_TIMEOUT_MS),

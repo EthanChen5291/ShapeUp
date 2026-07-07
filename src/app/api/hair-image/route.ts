@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   );
 
   const data = await res.json();
-  console.log('[hair-image] Gemini response:', JSON.stringify(data, null, 2));
+  console.log('[hair-image] image model response:', JSON.stringify(data, null, 2));
   const imgData = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inline_data)?.inline_data;
   if (!imgData) return NextResponse.json({ error: 'No image returned', detail: data }, { status: 500 });
 

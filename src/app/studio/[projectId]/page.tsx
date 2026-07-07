@@ -1087,7 +1087,7 @@ export default function StudioPage() {
                 setPolaroidImgError(false);
                 setPolaroidKey(k => k + 1);
                 setEditSaveError(null);
-                // Upload the Gemini-edited image to S3 and persist under lastEditImageS3Key,
+                // Upload the model-edited image to S3 and persist under lastEditImageS3Key,
                 // keeping lastImageS3Key (original scan) intact for drift prevention.
                 // Every step is checked and surfaced — a silent failure here loses the
                 // edit on refresh, which is exactly the bug that hid behind a swallowed catch.

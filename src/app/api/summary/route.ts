@@ -11,7 +11,7 @@ import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
 import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 
-const GEMINI_API_URL =
+const IMAGE_MODEL_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 export async function POST(req: NextRequest) {
@@ -71,7 +71,7 @@ Desired style parameters (0.0 = none, 2.0 = maximum for lengths; 0.0–1.0 for o
 Write the barber instruction card now.`;
 
   try {
-    const response = await fetch(GEMINI_API_URL, {
+    const response = await fetch(IMAGE_MODEL_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ Write the barber instruction card now.`;
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('[/api/summary] Gemini error:', err);
+      console.error('[/api/summary] image model error:', err);
       return NextResponse.json({ error: 'LLM request failed' }, { status: 500 });
     }
 

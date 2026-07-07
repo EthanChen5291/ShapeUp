@@ -1,9 +1,9 @@
 // ============================================================
 // renderStations — live occupancy of the GPU render "chairs".
 //
-// The 3D facelift step runs on Modal with a hard cap of
+// The 3D facelift step runs on the primary GPU worker with a hard cap of
 // `max_containers` GPUs (server/modal_facelift.py). When every GPU is
-// busy, Modal silently QUEUES the next request inside the synchronous
+// busy, the worker silently QUEUES the next request inside the synchronous
 // /process_image call — the caller just waits, with no signal that it's
 // in line. To surface that wait in the UI we track occupancy ourselves:
 // each client inserts one row when it starts a render, heartbeats while
@@ -11,8 +11,8 @@
 // client's FIFO rank among them) tells us whether that client holds a
 // chair or is waiting, and at what position.
 //
-// This is an APPROXIMATION of Modal's internal queue, not a readout of
-// it — Modal exposes no per-request queue position. It's honest at the
+// This is an APPROXIMATION of the worker's internal queue, not a readout
+// of it — it exposes no per-request queue position. It's honest at the
 // scale that matters (a handful of simultaneous demo users) and degrades
 // safely: a crashed/abandoned client stops heartbeating and its row ages
 // out of the live set within STALE_AFTER_MS, so it can never wedge the

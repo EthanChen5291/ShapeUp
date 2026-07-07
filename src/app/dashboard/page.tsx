@@ -2211,7 +2211,7 @@ export default function DashboardPage() {
     // An earlier version derived `pictures/${sid}/scan.png`, which stopped
     // matching once save-scan switched to random UUIDs, so lastImageS3Key /
     // thumbnailS3Key pointed at a nonexistent object: 404s from /api/img (black
-    // polaroid) and "Could not load source image" from gemini-hair-edit.
+    // polaroid) and "Could not load source image" from the edit endpoint.
     // It's null when upload failed (save-scan then returns the data: URL in `url`).
 
     // Create a Convex project for this scan

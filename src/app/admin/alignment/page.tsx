@@ -4,7 +4,7 @@
 // Flow (NO subtraction, NO fetch — the hair ply is uploaded by the user):
 //  0. Upload    — user supplies a hair ply (.ply); parsed + splatted in-browser
 //  1. Capture   — user takes / uploads a photo
-//  2. Baldify   — Gemini removes the hair → bald photo
+//  2. Baldify   — image model removes the hair → bald photo
 //  3. Scan      — bald photo runs through FaceLift → head ply
 //  4. Align     — snap the uploaded hair ply onto the head ply via SIX strategies
 //  5. Done      — render head + hair together; switch/tune the alignment live
@@ -43,7 +43,7 @@ const STEP_ORDER: StepId[] = ['capture', 'bald_gen', 'head_scan', 'aligning', 'd
 function initialSteps(): Record<StepId, StepState> {
   return {
     capture:   { status: 'pending', label: '1 · Capture' },
-    bald_gen:  { status: 'pending', label: '2 · Baldify (Gemini)' },
+    bald_gen:  { status: 'pending', label: '2 · Baldify (image model)' },
     head_scan: { status: 'pending', label: '3 · Scan bald → head ply' },
     aligning:  { status: 'pending', label: '4 · Align hair onto head' },
     done:      { status: 'pending', label: '5 · Head + hair in 3D' },
@@ -53,14 +53,14 @@ function initialSteps(): Record<StepId, StepState> {
 // ─── pipeline callers (mirror /admin/subtraction) ─────────────────────────────────────
 
 async function generateBaldImage(imageDataUrl: string, log: (s: string) => void): Promise<string> {
-  log('sending image to Gemini for baldify (~15-30s)...');
+  log('sending image to the image model for baldify (~15-30s)...');
   const res = await fetch('/api/baldify', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ imageDataUrl }),
   });
-  if (!res.ok) throw new Error(`Gemini baldify failed: HTTP ${res.status} — ${(await res.text().catch(() => '')).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`image model baldify failed: HTTP ${res.status} — ${(await res.text().catch(() => '')).slice(0, 200)}`);
   const data = await res.json() as { baldifiedDataUrl?: string; error?: string };
-  if (data.error || !data.baldifiedDataUrl) throw new Error(data.error ?? 'Gemini returned no image');
+  if (data.error || !data.baldifiedDataUrl) throw new Error(data.error ?? 'image model returned no image');
   return data.baldifiedDataUrl;
 }
 
@@ -335,7 +335,7 @@ export default function AlignmentPage() {
     // ── head ply: baldify the photo, then FaceLift the bald image ──
     let head: FaceliftResult;
     try {
-      updateStep('bald_gen', { status: 'running', detail: 'Gemini baldify (~15-30s)...' });
+      updateStep('bald_gen', { status: 'running', detail: 'image model baldify (~15-30s)...' });
       const baldStart = Date.now();
       const baldUrl = await generateBaldImage(capturedUrl, pushLog);
       updateStep('bald_gen', { status: 'done', detail: 'bald photo ready', timing: Date.now() - baldStart });
@@ -441,7 +441,7 @@ export default function AlignmentPage() {
               <canvas ref={canvasRef} width={640} height={640} style={{ width: '100%', aspectRatio: '1/1', display: 'block', background: '#0e0c09' }} />
               <div style={{ padding: '16px 20px', borderTop: '1px solid #2a2218' }}>
                 <p style={{ fontSize: 13, color: '#b0a090', marginBottom: 12 }}>
-                  Upload your hair ply, then take or upload a photo. Gemini makes a bald version, FaceLift reconstructs the head, and your uploaded hair ply is snapped onto it — six different ways. No subtraction, no fetch.
+                  Upload your hair ply, then take or upload a photo. The image model makes a bald version, FaceLift reconstructs the head, and your uploaded hair ply is snapped onto it — six different ways. No subtraction, no fetch.
                 </p>
 
                 {/* ── step 0: upload hair ply (parsed in-browser, never fetched) ── */}
@@ -499,7 +499,7 @@ export default function AlignmentPage() {
                 <img src={capturedDataUrl} alt="original" style={{ width: '100%', display: 'block', border: '1px solid #2a2218' }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, color: '#665', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bald (Gemini)</div>
+                <div style={{ fontSize: 10, color: '#665', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Bald (image model)</div>
                 {baldDataUrl
                   ? <img src={baldDataUrl} alt="bald" style={{ width: '100%', display: 'block', border: '1px solid #2a2218' }} />
                   : <div style={{ width: '100%', aspectRatio: '1/1', background: '#1a1610', border: '1px solid #2a2218', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#443' }}>generating…</div>}

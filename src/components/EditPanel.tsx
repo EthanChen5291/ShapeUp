@@ -149,16 +149,16 @@ const PIPELINE_SESSION_PREFIX = 'shapeup-pipeline:';
 const PIPELINE_MAX_AGE_MS = 5 * 60 * 1000;
 
 interface PipelineSessionState {
-  phase: 'gemini' | 'hairstep';
-  geminiProgress: number;
+  phase: 'sketch' | 'hairstep';
+  sketchProgress: number;
   hairstepProgress: number;
   startedAt: number;
-  // Saved prompt lets us auto-restart a gemini-phase pipeline after a refresh
+  // Saved prompt lets us auto-restart a sketch-phase pipeline after a refresh
   prompt?: string;
 }
 
-const CHATTER: Record<'gemini' | 'hairstep', string[]> = {
-  gemini: [
+const CHATTER: Record<'sketch' | 'hairstep', string[]> = {
+  sketch: [
     'Sketching the cut…',
     'Reading your curl pattern…',
     'Combing through the details…',
@@ -199,13 +199,13 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   const processingRef = useRef(false);
   const pipelineHadErrorRef = useRef(false);
   const originalImageUrlRef = useRef<string | null>(null);
-  const [phase, setPhase] = useState<'idle' | 'gemini' | 'hairstep'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'sketch' | 'hairstep'>('idle');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState('');
   const [freshCut, setFreshCut] = useState(false);
 
   // Render-station occupancy: the GPU facelift step is capped at N concurrent
-  // containers on Modal, which silently queues extra requests. We claim a
+  // containers on the primary worker, which silently queues extra requests. We claim a
   // "station" row in Convex around that step and subscribe to its live status so
   // we can tell the user when they're waiting in line vs actually rendering.
   const claimStation = useMutation(api.renderStations.claim);
@@ -226,7 +226,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   const [isRecovering, setIsRecovering] = useState(false);
   const recoveryStartedAtRef = useRef<number | null>(null);
   // Carries restored progress into the phase useEffect so it doesn't reset to 0
-  const restoredProgressRef = useRef<{ gemini: number; hairstep: number } | null>(null);
+  const restoredProgressRef = useRef<{ sketch: number; hairstep: number } | null>(null);
   // Set to true on beforeunload so the finally block skips cleanup (preserving sessionStorage for recovery)
   const isUnloadingRef = useRef(false);
 
@@ -306,14 +306,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       }
       if (saved.phase === 'hairstep') {
         // Carry saved progress into the phase useEffect so it doesn't reset to 0
-        restoredProgressRef.current = { gemini: saved.geminiProgress, hairstep: saved.hairstepProgress };
+        restoredProgressRef.current = { sketch: saved.sketchProgress, hairstep: saved.hairstepProgress };
         processingRef.current = true;
         setPhase('hairstep');
         recoveryStartedAtRef.current = saved.startedAt;
         setIsRecovering(true);
         setLiveStatus('Reconnecting to your 3D render…');
       } else {
-        // Gemini phase: the in-flight request died with the page and its result is gone,
+        // Sketch phase: the in-flight request died with the page and its result is gone,
         // so there's nothing to reconnect to. Restore the prompt and tell the user to retry
         // rather than leaving a spinner up with no work behind it.
         if (saved.prompt) {
@@ -375,26 +375,26 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     pipelineHadErrorRef.current = false;
     pendingPromptRef.current = submittedPrompt;
     setPipelineError(null);
-    setPhase('gemini');
+    setPhase('sketch');
 
     // Always edit from the original selfie to prevent facial drift across iterations.
     if (!originalImageUrlRef.current) originalImageUrlRef.current = latestImageUrl;
-    const imageForGemini = originalImageUrlRef.current;
+    const imageForEdit = originalImageUrlRef.current;
 
-    // Pre-warm the Modal GPU container in parallel with Gemini. Image generation
+    // Pre-warm the primary-worker GPU container in parallel with the image edit. Image generation
     // takes ~8-12s and the container's cold start is ~6-8s, so waking it now
-    // overlaps that cold start with Gemini instead of stacking it onto the
+    // overlaps that cold start with the image edit instead of stacking it onto the
     // facelift step that follows. Fire-and-forget: a miss just means the facelift
     // call pays the cold start as before, so failures are swallowed.
     void fetch('/api/facelift/warmup', { method: 'POST' }).catch(() => {});
 
     try {
-      console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: imageForGemini, sessionId, prompt: submittedPrompt });
-      const geminiRes = await fetch('/api/gemini-hair-edit', {
+      console.log('[EditPanel] submitting to gemini-hair-edit', { imageUrl: imageForEdit, sessionId, prompt: submittedPrompt });
+      const editRes = await fetch('/api/gemini-hair-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl: imageForGemini,
+          imageUrl: imageForEdit,
           prompt: submittedPrompt,
           sessionId,
           currentProfile: buildCurrentProfilePayload({
@@ -403,33 +403,33 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           }),
         }),
       });
-      console.log('[EditPanel] gemini-hair-edit HTTP status:', geminiRes.status);
-      const geminiRaw = await geminiRes.text();
-      console.log('[EditPanel] gemini-hair-edit raw response:', geminiRaw.slice(0, 300));
-      let geminiData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string; editReport?: unknown };
-      try { geminiData = JSON.parse(geminiRaw); }
+      console.log('[EditPanel] gemini-hair-edit HTTP status:', editRes.status);
+      const editRaw = await editRes.text();
+      console.log('[EditPanel] gemini-hair-edit raw response:', editRaw.slice(0, 300));
+      let editData: { ok: boolean; newImageUrl?: string; error?: string; detail?: string; editReport?: unknown };
+      try { editData = JSON.parse(editRaw); }
       catch {
         pipelineHadErrorRef.current = true;
-        setPipelineError('Gemini returned non-JSON (HTTP ' + geminiRes.status + ').');
+        setPipelineError('Image model returned non-JSON (HTTP ' + editRes.status + ').');
         return;
       }
-      if (!geminiData.ok || !geminiData.newImageUrl) {
-        const msg = (geminiData.error ?? 'Unknown Gemini error') + (geminiData.detail ? ' — ' + geminiData.detail : '');
-        console.error('[EditPanel] gemini-hair-edit failed:', geminiData);
+      if (!editData.ok || !editData.newImageUrl) {
+        const msg = (editData.error ?? 'Unknown image model error') + (editData.detail ? ' — ' + editData.detail : '');
+        console.error('[EditPanel] gemini-hair-edit failed:', editData);
         pipelineHadErrorRef.current = true;
-        setPipelineError('Gemini failed: ' + msg);
+        setPipelineError('Image edit failed: ' + msg);
         return;
       }
-      const newImageUrl = geminiData.newImageUrl;
+      const newImageUrl = editData.newImageUrl;
       onImageUpdated(newImageUrl);
-      setLastEditReport(sanitizeEditReport(geminiData.editReport ?? null));
+      setLastEditReport(sanitizeEditReport(editData.editReport ?? null));
       setLiveStatus('Updated hairstyle image generated. Starting 3D render.');
       setPrompt('');
 
       setPhase('hairstep');
 
       // Claim a render station before the GPU step so the UI can show whether
-      // this render is running or waiting in line behind Modal's container cap.
+      // this render is running or waiting in line behind the primary worker's container cap.
       // Best-effort: if the claim fails we just don't show queue state.
       try {
         const claim = await claimStation({ sessionId: sessionId ?? undefined });
@@ -476,7 +476,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       }
     } finally {
       // Cancel intervals immediately — don't wait for the useEffect round-trip
-      if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
+      if (sketchIntervalRef.current) { clearInterval(sketchIntervalRef.current); sketchIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
       // Give up the render station so the next person in line advances. The row
       // also ages out on its own if this never runs (crash/refresh).
@@ -542,14 +542,14 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     const timer = setInterval(() => setChatterIdx(i => i + 1), 2600);
     return () => clearInterval(timer);
   }, [isBusy, phase]);
-  const chatterList = CHATTER[phase === 'hairstep' ? 'hairstep' : 'gemini'];
+  const chatterList = CHATTER[phase === 'hairstep' ? 'hairstep' : 'sketch'];
   const chatter = chatterList[chatterIdx % chatterList.length];
 
-  const [geminiProgress, setGeminiProgress] = useState(0);
+  const [sketchProgress, setSketchProgress] = useState(0);
   const [hairstepProgress, setHairstepProgress] = useState(0);
-  const geminiIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sketchIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hairstepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevPhaseRef = useRef<'idle' | 'gemini' | 'hairstep'>('idle');
+  const prevPhaseRef = useRef<'idle' | 'sketch' | 'hairstep'>('idle');
   // Tracks the prompt currently being processed so it can be saved to sessionStorage for recovery
   const pendingPromptRef = useRef<string>('');
 
@@ -564,35 +564,35 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     const sessionKey = pipelineSessionKeyRef.current;
     const startedAt = Date.now();
 
-    if (phase === 'gemini') {
-      if (geminiIntervalRef.current) clearInterval(geminiIntervalRef.current);
-      const initGemini = restored?.gemini ?? 0;
+    if (phase === 'sketch') {
+      if (sketchIntervalRef.current) clearInterval(sketchIntervalRef.current);
+      const initSketch = restored?.sketch ?? 0;
       const initHairstep = restored?.hairstep ?? 0;
-      setGeminiProgress(initGemini);
+      setSketchProgress(initSketch);
       setHairstepProgress(initHairstep);
       const savedPrompt = pendingPromptRef.current;
       if (sessionKey) {
-        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: initGemini, hairstepProgress: initHairstep, startedAt, prompt: savedPrompt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'sketch', sketchProgress: initSketch, hairstepProgress: initHairstep, startedAt, prompt: savedPrompt } satisfies PipelineSessionState)); } catch { /* ignore */ }
       }
       // 400ms ticks, 2% per tick → ~88% over ~17.6s with 1.4s CSS ease-out transition for silk-smooth animation
-      geminiIntervalRef.current = setInterval(() => {
-        setGeminiProgress(p => {
+      sketchIntervalRef.current = setInterval(() => {
+        setSketchProgress(p => {
           const next = p < 88 ? p + 2 : p;
           if (sessionKey) {
-            try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'gemini', geminiProgress: next, hairstepProgress: 0, startedAt, prompt: savedPrompt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+            try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'sketch', sketchProgress: next, hairstepProgress: 0, startedAt, prompt: savedPrompt } satisfies PipelineSessionState)); } catch { /* ignore */ }
           }
           return next;
         });
       }, 400);
     } else if (phase === 'hairstep') {
-      if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
-      setGeminiProgress(100);
+      if (sketchIntervalRef.current) { clearInterval(sketchIntervalRef.current); sketchIntervalRef.current = null; }
+      setSketchProgress(100);
       if (hairstepIntervalRef.current) clearInterval(hairstepIntervalRef.current);
       const initHairstep = restored?.hairstep ?? 0;
       setHairstepProgress(initHairstep);
       // Use the startedAt already in sessionStorage if recovering (don't overwrite it)
       if (sessionKey && !restored) {
-        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', geminiProgress: 100, hairstepProgress: initHairstep, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
+        try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', sketchProgress: 100, hairstepProgress: initHairstep, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
       }
       // 800ms ticks, 0.8% per tick → ~84% over ~84s; facelift typically 20–60s so bar is mid-range when done
       hairstepIntervalRef.current = setInterval(() => {
@@ -602,7 +602,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
             try {
               const raw = sessionStorage.getItem(sessionKey);
               const prev2 = raw ? (JSON.parse(raw) as PipelineSessionState) : null;
-              sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', geminiProgress: 100, hairstepProgress: next, startedAt: prev2?.startedAt ?? startedAt } satisfies PipelineSessionState));
+              sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', sketchProgress: 100, hairstepProgress: next, startedAt: prev2?.startedAt ?? startedAt } satisfies PipelineSessionState));
             } catch { /* ignore */ }
           }
           return next;
@@ -610,20 +610,20 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       }, 800);
     } else if (phase === 'idle' && prev !== 'idle') {
       // Intervals were already killed in the finally block; kill again defensively
-      if (geminiIntervalRef.current) { clearInterval(geminiIntervalRef.current); geminiIntervalRef.current = null; }
+      if (sketchIntervalRef.current) { clearInterval(sketchIntervalRef.current); sketchIntervalRef.current = null; }
       if (hairstepIntervalRef.current) { clearInterval(hairstepIntervalRef.current); hairstepIntervalRef.current = null; }
       if (sessionKey) {
         try { sessionStorage.removeItem(sessionKey); } catch { /* ignore */ }
       }
       if (pipelineHadErrorRef.current) {
-        const timer = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 2200);
+        const timer = setTimeout(() => { setSketchProgress(0); setHairstepProgress(0); }, 2200);
         return () => clearTimeout(timer);
       } else {
         // Both bars complete simultaneously when facelift output arrives
-        setGeminiProgress(100);
+        setSketchProgress(100);
         setHairstepProgress(100);
         setFreshCut(true);
-        const timer = setTimeout(() => { setGeminiProgress(0); setHairstepProgress(0); }, 1600);
+        const timer = setTimeout(() => { setSketchProgress(0); setHairstepProgress(0); }, 1600);
         const t2 = setTimeout(() => setFreshCut(false), 2100);
         return () => { clearTimeout(timer); clearTimeout(t2); };
       }
@@ -700,7 +700,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       style={{ padding: isMobile ? '10px 12px' : '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
     >
       {isBusy ? (
-        <><span className="btn-spinner" aria-hidden />{phase === 'gemini' ? t('Styling…') : t('Rendering…')}</>
+        <><span className="btn-spinner" aria-hidden />{phase === 'sketch' ? t('Styling…') : t('Rendering…')}</>
       ) : (
         <span className="inline-flex items-center gap-1.5"><ScissorsIcon />{t('Apply')}</span>
       )}
@@ -898,25 +898,25 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
             className="pipeline-wrapper"
             role="status"
             aria-live="polite"
-            aria-label={phase === 'gemini' ? 'Sketching hair edit' : 'Rendering hairstyle in 3D'}
+            aria-label={phase === 'sketch' ? 'Sketching hair edit' : 'Rendering hairstyle in 3D'}
           >
-            {/* Stage 1 — Blueprint (Gemini) */}
+            {/* Stage 1 — Blueprint */}
             <div className="pipeline-stage">
               <div className="pipeline-stage-header">
                 <div className="flex items-center gap-2">
                   <span className={`stage-pip ${
-                    geminiProgress >= 100
+                    sketchProgress >= 100
                       ? 'stage-pip-done'
-                      : phase === 'gemini'
+                      : phase === 'sketch'
                         ? 'stage-pip-active stage-pip-blueprint'
                         : 'stage-pip-idle'
                   }`} />
-                  <span className={`font-serif italic text-xs ${phase === 'gemini' ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
+                  <span className={`font-serif italic text-xs ${phase === 'sketch' ? 'text-[var(--ink)]' : 'text-[var(--smoke)]'}`}>
                     Sketching the cut
                   </span>
                 </div>
                 <span className="font-mono text-[10px] text-[var(--smoke)]">
-                  {geminiProgress >= 100 ? '✓' : geminiProgress < 1 ? '—' : `${Math.round(geminiProgress)}%`}
+                  {sketchProgress >= 100 ? '✓' : sketchProgress < 1 ? '—' : `${Math.round(sketchProgress)}%`}
                 </span>
               </div>
               <div
@@ -925,13 +925,13 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                 aria-label={t("Sketching the cut progress")}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={Math.round(geminiProgress)}
+                aria-valuenow={Math.round(sketchProgress)}
               >
                 <div
                   className="progress-fill progress-fill-blueprint"
-                  style={{ width: `${geminiProgress}%` }}
+                  style={{ width: `${sketchProgress}%` }}
                 >
-                  {geminiProgress > 0 && geminiProgress < 100 && (
+                  {sketchProgress > 0 && sketchProgress < 100 && (
                     <div className="progress-shimmer" aria-hidden />
                   )}
                 </div>
@@ -956,7 +956,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
                   </span>
                 </div>
                 <span className="font-mono text-[10px] text-[var(--smoke)]">
-                  {hairstepProgress >= 100 ? '✓' : phase === 'gemini' ? '—' : isQueued ? 'in line' : hairstepProgress < 1 ? '…' : `${Math.round(hairstepProgress)}%`}
+                  {hairstepProgress >= 100 ? '✓' : phase === 'sketch' ? '—' : isQueued ? 'in line' : hairstepProgress < 1 ? '…' : `${Math.round(hairstepProgress)}%`}
                 </span>
               </div>
               <div

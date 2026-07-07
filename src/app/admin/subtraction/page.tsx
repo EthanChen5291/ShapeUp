@@ -85,7 +85,7 @@ function initialSteps(): Record<StepId, StepState> {
   };
 }
 
-// ─── bald image generation via Gemini AI ─────────────────────────────────────
+// ─── bald image generation via the image model ─────────────────────────────────────
 
 async function generateBaldImage(
   imageDataUrl: string,
@@ -93,7 +93,7 @@ async function generateBaldImage(
 ): Promise<{ baldDataUrl: string }> {
   const log = (s: string) => { dbg(`[generateBaldImage] ${s}`); pushLog(s); };
 
-  log('sending image to Gemini AI for baldification (~15-30s)...');
+  log('sending image to the image model for baldification (~15-30s)...');
   const t0  = Date.now();
 
   const res = await fetch('/api/baldify', {
@@ -102,18 +102,18 @@ async function generateBaldImage(
     body:    JSON.stringify({ imageDataUrl }),
   });
 
-  log(`Gemini response: HTTP ${res.status} in ${Date.now() - t0}ms`);
+  log(`image model response: HTTP ${res.status} in ${Date.now() - t0}ms`);
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Gemini baldify failed: HTTP ${res.status} — ${text.substring(0, 300)}`);
+    throw new Error(`image model baldify failed: HTTP ${res.status} — ${text.substring(0, 300)}`);
   }
 
   const data = await res.json() as { baldifiedDataUrl?: string; error?: string };
-  if (data.error) throw new Error(`Gemini baldify error: ${data.error}`);
-  if (!data.baldifiedDataUrl) throw new Error('Gemini returned no image');
+  if (data.error) throw new Error(`image model baldify error: ${data.error}`);
+  if (!data.baldifiedDataUrl) throw new Error('image model returned no image');
 
-  log(`Gemini baldification done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${data.baldifiedDataUrl.length} chars`);
+  log(`image model baldification done in ${((Date.now() - t0) / 1000).toFixed(1)}s — ${data.baldifiedDataUrl.length} chars`);
   return { baldDataUrl: data.baldifiedDataUrl };
 }
 
@@ -525,7 +525,7 @@ export default function SubtractionPage() {
     pushLog('=== pipeline start ===');
 
     // ── Step 2: bald gen + Step 3: original scan (parallel) ──────────────────
-    updateStep('bald_gen',      { status: 'running', detail: 'Sending to Gemini AI for baldification (~15-30s)...' });
+    updateStep('bald_gen',      { status: 'running', detail: 'Sending to the image model for baldification (~15-30s)...' });
     updateStep('original_scan', { status: 'running', detail: 'Sending to FaceLift server (~20s)...' });
 
     const baldGenStart      = Date.now();
@@ -561,7 +561,7 @@ export default function SubtractionPage() {
         pushLog(`[bald_gen] done in ${(baldGenElapsed / 1000).toFixed(2)}s`);
         updateStep('bald_gen', {
           status: 'done',
-          detail: `Gemini AI baldification applied`,
+          detail: `image model baldification applied`,
           timing: baldGenElapsed,
         });
         setBaldDataUrl(baldUrl);
@@ -1189,7 +1189,7 @@ export default function SubtractionPage() {
       {/* ── how it works footer ── */}
       <div style={{ borderTop: '1px solid #2a2218', padding: '14px 24px', background: '#0e0c09', fontSize: 11, color: '#443', lineHeight: 1.8 }}>
         <strong style={{ color: '#665' }}>How it works:</strong>
-        {' '}(1) capture photo → (2) Gemini AI removes hair to generate a bald version → (3) both images go through FaceLift 3D reconstruction → (4) server-side voxel subtraction keeps only gaussians present in original but absent in bald version → (5) result converted to .splat and rendered in-browser
+        {' '}(1) capture photo → (2) the image model removes hair to generate a bald version → (3) both images go through FaceLift 3D reconstruction → (4) server-side voxel subtraction keeps only gaussians present in original but absent in bald version → (5) result converted to .splat and rendered in-browser
       </div>
     </div>
   );

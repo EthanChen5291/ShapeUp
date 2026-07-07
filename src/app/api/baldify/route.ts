@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
 
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '');
-    console.error('[/api/baldify] Gemini error', upstream.status, text);
-    return NextResponse.json({ error: `Gemini error: ${text}` }, { status: 502 });
+    console.error('[/api/baldify] image model error', upstream.status, text);
+    return NextResponse.json({ error: `image model error: ${text}` }, { status: 502 });
   }
 
   const data = await upstream.json();
@@ -84,5 +84,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ error: 'Gemini returned no image' }, { status: 500 });
+  return NextResponse.json({ error: 'image model returned no image' }, { status: 500 });
 }

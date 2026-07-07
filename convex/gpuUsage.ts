@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 /**
- * Monthly Modal GPU-seconds metering + budget guard.
+ * Monthly primary-worker GPU-seconds metering + budget guard.
  *
  * Set the cap with:  npx convex env set GPU_BUDGET_SECONDS 3600
  * Leave it unset (or 0) to disable the guard entirely.

@@ -1,8 +1,8 @@
 // ============================================================
 // LLM System Prompt — Edit Loop
 //
-// Drop this string into the `system` field of any LLM API call
-// (Claude, Gemini, GPT-4o-mini, etc.) that handles hair edits.
+// Drop this string into the `system` field of any LLM API call that handles
+// hair edits.
 //
 // Server-side system prompt for /api/edit.
 // ============================================================

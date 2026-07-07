@@ -1,7 +1,7 @@
 """
-Gemini-based hair removal (baldifier).
-Replaces the SegFormer + Telea inpainting pipeline with a single Gemini
-image-editing call, which produces far more photorealistic results.
+Image-model-based hair removal (baldifier).
+Replaces the SegFormer + Telea inpainting pipeline with a single image-editing
+call, which produces far more photorealistic results.
 """
 
 import os
@@ -59,7 +59,7 @@ def inpaint_hair(image_path: str, output_path: str, device: torch.device | None 
             img.save(output_path)
             return output_path
 
-    raise RuntimeError("Gemini returned no image")
+    raise RuntimeError("image model returned no image")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """
-FaceLift head reconstruction server (OSCAR box).
+3D reconstruction server (secondary GPU worker — manually-powered box).
 
 Synchronous design — matches server/modal_facelift.py and what the Next.js
 route (src/app/api/facelift/route.ts) expects:
@@ -12,31 +12,14 @@ route (src/app/api/facelift/route.ts) expects:
 
 The route decodes the PLY, converts PLY → splat, and uploads both (+ video) to
 S3. There is no job-poll/download protocol: the caller blocks on this one
-request, so OSCAR and Modal are drop-in interchangeable behind
-resolveFaceliftUpstreams() in src/lib/facelift.ts.
+request, so this box and the primary GPU worker are drop-in interchangeable
+behind resolveFaceliftUpstreams() in src/lib/facelift.ts.
 
-Setup:
-1. Clone FaceLift and set up its conda env:
-       git clone https://github.com/weijielyu/FaceLift ~/FaceLift
-       cd ~/FaceLift
-       bash setup_env.sh
-       conda activate facelift
-
-2. Model weights auto-download from wlyu/OpenFaceLift on first run (~7-9 GB).
-
-3. Install Flask into the facelift conda env:
-       pip install flask
-
-4. Set FACELIFT_DIR if FaceLift is not at ~/FaceLift:
-       export FACELIFT_DIR=/path/to/FaceLift
-
-5. Run (within the facelift conda env):
-       python facelift_server.py
-
-6. Expose via ngrok:
-       ngrok http 5002
-
-   Then point OSCAR_FACELIFT_URL (.env / Vercel) at the ngrok URL.
+Setup: clone the reconstruction model repo, set up its conda env, install
+Flask into that env, set FACELIFT_DIR to point at the clone, run this file
+within the env, and expose it via ngrok — then point the secondary-worker URL
+(.env / Vercel) at the ngrok URL. See private setup notes for the exact repo
+and weights sources.
 """
 
 import base64

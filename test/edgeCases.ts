@@ -30,13 +30,13 @@ function makeProfile(over: { params?: Partial<HairParams>; baseline?: [number, n
   };
 }
 
-// ── 1. QA-doc repro: take_down zone + Gemini says "hold the length" ──
+// ── 1. QA-doc repro: take_down zone + model says "hold the length" ──
 console.log('\n1. Anti-hallucination guards (QA doc issue #1, #4)');
 {
   const profile = makeProfile({ baseline: [1, 1, 1], estimated: [0.5, 0.4, 0.5], params: { topLength: 0.6, sideLength: 0.4, backLength: 0.5 } });
   const ctx = computeZoneDeltas(profile);
   const feas = analyzeOrderFeasibility(ctx, profile);
-  const badGemini = {
+  const badModelOutput = {
     styleName: 'Textured Crop',
     hairRead: { pattern: '1B · straight', density: 'medium', note: 'lies flat' },
     zones: [
@@ -50,7 +50,7 @@ console.log('\n1. Anti-hallucination guards (QA doc issue #1, #4)');
     askFor: 'Give me a default: short everywhere.',
     maintenance: '3–4 weeks',
   };
-  const order = validateBarberOrder(badGemini, ctx, profile, feas);
+  const order = validateBarberOrder(badModelOutput, ctx, profile, feas);
   const top = order.zones.find(z => z.zone === 'top')!;
   const sides = order.zones.find(z => z.zone === 'sides')!;
   const back = order.zones.find(z => z.zone === 'back')!;
@@ -122,10 +122,10 @@ console.log('\n6. Mixed');
   const top = fb.zones.find(z => z.zone === 'top')!;
   check('grow zone says leave it', /leave it|growing/i.test(top.move), top.move);
   check('grow zone flagged growOut', top.growOut === true);
-  // Even if Gemini writes cutting language for the grow zone, it's overridden:
+  // Even if the model writes cutting language for the grow zone, it's overridden:
   const evil = { zones: [{ zone: 'top', move: 'Chop it down to 1 inch.', technique: 'scissor', spec: '1 in', confidence: 0.9 }] };
   const validated = validateBarberOrder(evil, ctx, profile, feas);
-  check('Gemini cutting-language on grow zone is overridden', /leave it|growing/i.test(validated.zones.find(z => z.zone === 'top')!.move));
+  check('model cutting-language on grow zone is overridden', /leave it|growing/i.test(validated.zones.find(z => z.zone === 'top')!.move));
 }
 
 // ── 7. Clarify questions ──

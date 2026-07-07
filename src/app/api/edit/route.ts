@@ -4,7 +4,8 @@
 // Body: { system: string, message: string }
 // Response: LLMEditResponse JSON
 //
-// Uses Gemini OpenAI-compatible endpoint (same quota as direct REST calls).
+// Uses the image model's OpenAI-compatible endpoint (same quota as direct
+// REST calls).
 //
 // ETHAN: set GEMINI_API_KEY in .env.local
 // ============================================================
@@ -21,7 +22,7 @@ import { RATE_LIMITS, getClientIp, hashIdentifier } from '@/lib/rateLimit';
 import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 
-const GEMINI_API_URL =
+const IMAGE_MODEL_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 export async function POST(req: NextRequest) {
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   const message = buildDelimitedEditMessage(instruction as string, body.currentProfile);
 
   try {
-    const response = await fetch(GEMINI_API_URL, {
+    const response = await fetch(IMAGE_MODEL_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('[/api/edit] Gemini error:', err);
+      console.error('[/api/edit] image model error:', err);
       return NextResponse.json({ error: 'LLM request failed' }, { status: 500 });
     }
 

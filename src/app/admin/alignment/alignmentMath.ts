@@ -3,7 +3,7 @@
 // alignmentMath.ts — six strategies for snapping a hair ply onto a bald head ply.
 //
 // The hair gaussians were extracted (subtracted) from the ORIGINAL scan, while the
-// bald head came from a SEPARATE FaceLift run on the Gemini-baldified photo. Those two
+// bald head came from a SEPARATE FaceLift run on the model-baldified photo. Those two
 // runs do not share an exact coordinate frame, so we need a transform that places the
 // hair shell back on top of the scalp. Each "solution" below computes that transform a
 // different way and returns it as a decomposed { position, quaternion, scale } so it can

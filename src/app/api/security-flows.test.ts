@@ -175,7 +175,7 @@ describe('scan and generation APIs', () => {
     expect(deductCredit.mock.calls.some(([, args]) => JSON.stringify(args) === '{}')).toBe(false);
   });
 
-  test('/api/facelift/warmup wakes the Modal GPU without consuming a generation', async () => {
+  test('/api/facelift/warmup wakes the primary GPU worker without consuming a generation', async () => {
     const { api } = await import('@convex/_generated/api');
     // The only mutation the warmup path may make is the durable rate-limit
     // consume — never freeGen.consumeGeneration.
@@ -201,7 +201,7 @@ describe('scan and generation APIs', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, warmed: true });
-    // Woke Modal with the shared secret it gates /warmup on...
+    // Woke the primary worker with the shared secret it gates /warmup on...
     expect(fetchMock).toHaveBeenCalledWith('https://ml.shapeup.test/warmup', expect.objectContaining({
       method: 'POST',
       headers: expect.objectContaining({ 'X-ShapeUp-Facelift-Secret': 'server-only-secret' }),
@@ -399,7 +399,7 @@ describe('LLM API hardening', () => {
     }));
   });
 
-  test('/api/edit rejects oversized prompts before calling Gemini', async () => {
+  test('/api/edit rejects oversized prompts before calling the image model', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -417,7 +417,7 @@ describe('LLM API hardening', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test('/api/edit rejects malformed Gemini outputs instead of returning raw model data', async () => {
+  test('/api/edit rejects malformed image-model outputs instead of returning raw model data', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ preset: 'buzz', params: { topLength: 99 } }) } }],
     }), { status: 200 })));
@@ -435,7 +435,7 @@ describe('LLM API hardening', () => {
     expect(res.status).toBe(422);
   });
 
-  test('/api/summary rejects oversized payloads before calling Gemini', async () => {
+  test('/api/summary rejects oversized payloads before calling the image model', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 

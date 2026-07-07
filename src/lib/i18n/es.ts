@@ -447,7 +447,7 @@ export const es: Record<string, string> = {
   '"Keep the length, just add texture."': '"Conserva el largo, solo añade textura."',
   '"Mid fade, clean line-up."': '"Mid fade, perfilado limpio."',
   '"Curly on top, skin fade sides."': '"Rizado arriba, skin fade a los lados."',
-  // chatter — gemini
+  // chatter — sketch
   'Sketching the cut…': 'Bosquejando el corte…',
   'Reading your curl pattern…': 'Leyendo tu patrón de rizos…',
   'Combing through the details…': 'Repasando los detalles…',
