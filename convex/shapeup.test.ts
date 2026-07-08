@@ -20,7 +20,7 @@ function authed(clerkId = 'user_123') {
 }
 
 describe('users and credits', () => {
-  test('creates the current user from the authenticated Clerk identity', async () => {
+  test('creates the current user from the authenticated Clerk identity with the welcome bundle', async () => {
     const t = authed();
 
     const userId = await t.mutation(api.users.getOrCreate, {});
@@ -29,13 +29,17 @@ describe('users and credits', () => {
     expect(me?._id).toBe(userId);
     expect(me?.clerkId).toBe('user_123');
     expect(me?.tokenIdentifier).toBe('https://clerk.test|user_123');
-    expect(me?.credits).toBe(0);
+    // A real (non-disposable) email earns the one-time welcome bundle at creation.
+    expect(me?.credits).toBe(5);
+    expect(me?.welcomeGrantedAt).toBeTruthy();
   });
 
   test('deductCredit rejects users with no credits', async () => {
     const t = authed();
 
-    await t.mutation(api.users.getOrCreate, {});
+    const userId = await t.mutation(api.users.getOrCreate, {});
+    // Spend down the welcome bundle so we exercise the zero-credit path.
+    await t.run(async (ctx) => ctx.db.patch(userId, { credits: 0 }));
 
     await expect(t.mutation(api.users.deductCredit, {})).rejects.toThrow(/out of credits/);
   });

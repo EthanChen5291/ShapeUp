@@ -25,10 +25,22 @@ export default defineSchema({
     referredBy: v.optional(v.string()),
     // Highest-ranked plan ever purchased; drives the displayed plan tier.
     topPlan: v.optional(v.union(v.literal("starter"), v.literal("popular"), v.literal("pro"))),
-    // When this account consumed its one-time free generation. A per-account
-    // flag is only as strong as the cost of a new account, so it's paired with
-    // the device/IP signals in freeGenGrants — see convex/freeGen.ts.
-    freeGenUsedAt: v.optional(v.number()),
+    // Monthly free-generation quota: 3/month, reset (not accumulated) each
+    // calendar month. freeGenMonthKey is the "YYYY-MM" bucket freeGenUsedInMonth
+    // applies to; a stale bucket means nothing's been used yet this month. A
+    // per-account counter is only as strong as the cost of a new account, so
+    // it's paired with the device/IP signals in freeGenGrants — see
+    // convex/freeGen.ts and convex/lib/freeGen.ts.
+    freeGenMonthKey: v.optional(v.string()),
+    freeGenUsedInMonth: v.optional(v.number()),
+    // One-time welcome bundle (WELCOME_BUNDLE_CREDITS) granted at account
+    // creation; the timestamp flag makes the grant idempotent across the
+    // several getOrCreate paths. See convex/users.ts.
+    welcomeGrantedAt: v.optional(v.number()),
+    // One-time phone-verification bonus (PHONE_BONUS_CREDITS), granted after a
+    // verified phone number is attached via Clerk. Server-verified against
+    // Clerk's backend before granting — see src/app/api/phone-bonus/claim.
+    phoneBonusGrantedAt: v.optional(v.number()),
     // Feedback-prompt throttling. Prompted = last time the star toast was shown
     // (incl. dismissals); Submitted = last time a rating was actually sent.
     lastFeedbackPromptAt: v.optional(v.number()),
@@ -138,7 +150,7 @@ export default defineSchema({
   // physical device / network even when a user spins up many accounts.
   // See convex/freeGen.ts.
   freeGenGrants: defineTable({
-    signalType: v.union(v.literal("fingerprint"), v.literal("ip")),
+    signalType: v.union(v.literal("fingerprint"), v.literal("ip"), v.literal("phone")),
     signalHash: v.string(),
     userId: v.id("users"),
     grantedAt: v.number(),

@@ -6,6 +6,8 @@ import { enforceMutationRateLimit } from "./lib/rateLimit";
 import { maybeAttachReferral, uniqueReferralCode } from "./lib/referrals";
 import { isOnEmailAllowlist } from "./lib/allowlist";
 import { hairParamsValidator, lastProfileValidator } from "./validators";
+import { freeGenRemainingForUser } from "./lib/freeGen";
+import { isDisposableEmailDomain } from "./lib/disposableEmail";
 
 // Plan ranking — higher index = more premium. Drives the displayed plan tier.
 const PLAN_RANK = ["starter", "popular", "pro"] as const;
@@ -14,6 +16,28 @@ type PlanId = (typeof PLAN_RANK)[number];
 const BIOMETRIC_CONSENT_VERSION = "biometric-notice-2026-06-08";
 const USERNAME_CHANGE_LIMIT = 5;
 const USERNAME_CHANGE_WINDOW_MS = 60 * 60 * 1000;
+
+// One-time acquisition grants (in credits). Welcome lands at account creation;
+// the phone bonus lands after a verified phone is attached (see claimPhoneBonus).
+export const WELCOME_BUNDLE_CREDITS = 5;
+export const PHONE_BONUS_CREDITS = 5;
+
+/**
+ * The patch that grants the one-time welcome bundle, or `{}` if the user has
+ * already received it or has no permanent (non-disposable) email. Idempotent
+ * via `welcomeGrantedAt`, so it's safe to fold into every getOrCreate
+ * resolution path — each human is credited exactly once, and pre-bundle
+ * accounts get backfilled the next time they load the app.
+ */
+function welcomeGrantPatch(
+  user: { credits: number; welcomeGrantedAt?: number; email?: string },
+  identityEmail?: string,
+): { credits: number; welcomeGrantedAt: number } | Record<string, never> {
+  if (user.welcomeGrantedAt) return {};
+  const email = (user.email || identityEmail || "").toLowerCase().trim();
+  if (!email || isDisposableEmailDomain(email)) return {};
+  return { credits: user.credits + WELCOME_BUNDLE_CREDITS, welcomeGrantedAt: Date.now() };
+}
 
 export const getMe = query({
   args: {},
@@ -26,12 +50,11 @@ export const getMe = query({
       .unique();
     if (!user) return null;
 
-    // The unused one-time free generation behaves like a trailing credit in the
+    // The unused monthly free generations behave like trailing credits in the
     // UI: paid credits are always spent first, so `availableGenerations` is what
-    // the user can actually run right now. Allowlisted demo accounts bypass
-    // billing entirely, so they're effectively unlimited (surfaced as 1 here so
-    // gates don't lock them out). See convex/freeGen.ts.
-    const freeGenRemaining = user.freeGenUsedAt ? 0 : 1;
+    // the user can actually run right now. They reset (not accumulate) each
+    // calendar month — see convex/lib/freeGen.ts and convex/freeGen.ts.
+    const freeGenRemaining = freeGenRemainingForUser(user);
     return {
       ...user,
       freeGenRemaining,
@@ -63,6 +86,12 @@ export const getOrCreate = mutation({
       if (!existing.email && identity.email) {
         patch.email = identity.email;
       }
+      // Welcome bundle (also backfills accounts that predate it). Uses the
+      // freshly-backfilled email when we just set it above.
+      Object.assign(
+        patch,
+        welcomeGrantPatch({ ...existing, email: (patch.email as string | undefined) ?? existing.email }, identity.email),
+      );
       if (Object.keys(patch).length > 0) {
         await ctx.db.patch(existing._id, patch);
       }
@@ -80,6 +109,7 @@ export const getOrCreate = mutation({
         email: identity.email ?? pending.email,
         username: identity.nickname ?? pending.username,
         referralCode: pending.referralCode ?? (await uniqueReferralCode(ctx)),
+        ...welcomeGrantPatch({ ...pending, email: identity.email ?? pending.email }, identity.email),
       });
       await maybeAttachReferral(ctx, pending._id, args.referralCode);
       return pending._id;
@@ -106,18 +136,24 @@ export const getOrCreate = mutation({
           clerkId: identity.subject,
           username: byEmail.username ?? identity.nickname ?? undefined,
           referralCode: byEmail.referralCode ?? (await uniqueReferralCode(ctx)),
+          ...welcomeGrantPatch(byEmail, identity.email),
         });
         await maybeAttachReferral(ctx, byEmail._id, args.referralCode);
         return byEmail._id;
       }
     }
 
+    // Fresh account: seed the welcome bundle inline when the email is a real,
+    // non-disposable address (Sybil backstop). welcomeGrantPatch keeps the two
+    // creation-time paths — this insert and the adopt patches above — in sync.
+    const welcome = welcomeGrantPatch({ credits: 0, email: identity.email }, identity.email);
     const userId = await ctx.db.insert("users", {
       tokenIdentifier: identity.tokenIdentifier,
       clerkId: identity.subject,
       email: identity.email,
       username: identity.nickname ?? undefined,
-      credits: 0,
+      credits: welcome.credits ?? 0,
+      welcomeGrantedAt: welcome.welcomeGrantedAt,
       referralCode: await uniqueReferralCode(ctx),
     });
     await maybeAttachReferral(ctx, userId, args.referralCode);

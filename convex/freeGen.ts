@@ -1,6 +1,7 @@
 import { mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { isDisposableEmailDomain } from "./lib/disposableEmail";
+import { FREE_GEN_MONTHLY_CAP, currentMonthKey, freeGenRemainingForUser } from "./lib/freeGen";
 
 // Loose per-IP cap on free generations — shared offices, dorms, and CGNAT mean
 // many legit users can share one IP, so this is a backstop, not the main gate.
@@ -12,9 +13,11 @@ const FREE_GEN_IP_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
  *
  * Order of precedence:
  *   1. Paid credits — always spent first when available.
- *   2. One-time free generation — only at zero credits, and only if the request
- *      clears the anti-Sybil gates (per-account flag, verified non-disposable
- *      email, device fingerprint, per-IP cap).
+ *   2. Monthly free generations (FREE_GEN_MONTHLY_CAP/month, reset — not
+ *      accumulated — each calendar month) — only at zero credits, and only if
+ *      the request clears the anti-Sybil gates (per-account monthly counter,
+ *      verified non-disposable email, device fingerprint capped at the same
+ *      monthly rate, per-IP cap).
  *
  * The whole handler runs as a single serializable Convex transaction, so
  * concurrent requests from the same account can't double-spend either path
@@ -22,7 +25,7 @@ const FREE_GEN_IP_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
  *
  * `ipHash` / `fingerprintHash` are pre-hashed by the calling route (we never
  * store raw IPs or fingerprints). `fingerprintHash` is optional: when the
- * client can't produce one, the account flag + IP cap + email gate still apply.
+ * client can't produce one, the account counter + IP cap + email gate still apply.
  */
 export const consumeGeneration = mutation({
   args: {
@@ -45,9 +48,13 @@ export const consumeGeneration = mutation({
       return { path: "paid" as const, creditsRemaining: user.credits - 1 };
     }
 
-    // 2. Free-generation path. One per account, ever.
-    if (user.freeGenUsedAt) {
-      throw new ConvexError({ code: "out_of_credits", message: "You're out of credits. Add more to keep creating." });
+    // 2. Free-generation path: FREE_GEN_MONTHLY_CAP per account per calendar
+    // month. Unused ones don't roll over — freeGenRemainingForUser treats a
+    // stale month bucket as zero used.
+    const monthKey = currentMonthKey();
+    const remaining = freeGenRemainingForUser(user);
+    if (remaining <= 0) {
+      throw new ConvexError({ code: "out_of_credits", message: "You're out of free generations for this month. Add credits to keep creating." });
     }
 
     // Require a verified, non-disposable email so throwaway inboxes can't farm.
@@ -69,17 +76,21 @@ export const consumeGeneration = mutation({
       throw new ConvexError({ code: "email_required", message: "A permanent email address is required for the free generation." });
     }
 
-    // Device-fingerprint Sybil check: one free generation per physical device,
-    // regardless of how many accounts it creates.
+    // Device-fingerprint Sybil check: a physical device is capped at the same
+    // monthly rate as an account, so spinning up N accounts on one device can't
+    // exceed what one honest account would get in a month.
+    const [monthYearStr, monthNumStr] = monthKey.split("-");
+    const monthStartMs = Date.UTC(Number(monthYearStr), Number(monthNumStr) - 1, 1);
     if (fingerprintHash) {
-      const prior = await ctx.db
+      const recentFingerprintGrants = await ctx.db
         .query("freeGenGrants")
         .withIndex("by_signal", (q) =>
           q.eq("signalType", "fingerprint").eq("signalHash", fingerprintHash),
         )
-        .first();
-      if (prior) {
-        throw new ConvexError({ code: "free_gen_used", message: "This device has already used its free generation." });
+        .order("desc")
+        .take(FREE_GEN_MONTHLY_CAP + 1);
+      if (recentFingerprintGrants.filter((g) => g.grantedAt >= monthStartMs).length >= FREE_GEN_MONTHLY_CAP) {
+        throw new ConvexError({ code: "free_gen_used", message: "This device has already used its free generations for this month." });
       }
     }
 
@@ -94,10 +105,13 @@ export const consumeGeneration = mutation({
       throw new ConvexError({ code: "network_limited", message: "Too many free generations from this network. Add credits to continue." });
     }
 
-    // Commit the entitlement: mark the account and record the signals. All in
-    // this one transaction, so it's atomic with the checks above.
+    // Commit the entitlement: bump this month's counter and record the
+    // signals. All in this one transaction, so it's atomic with the checks
+    // above. usedThisMonth is 0 whenever the stored bucket is stale (a new
+    // month), which is exactly the "doesn't accumulate" reset behavior.
+    const usedThisMonth = user.freeGenMonthKey === monthKey ? (user.freeGenUsedInMonth ?? 0) : 0;
     const now = Date.now();
-    await ctx.db.patch(user._id, { freeGenUsedAt: now });
+    await ctx.db.patch(user._id, { freeGenMonthKey: monthKey, freeGenUsedInMonth: usedThisMonth + 1 });
     await ctx.db.insert("freeGenGrants", {
       signalType: "ip",
       signalHash: ipHash,

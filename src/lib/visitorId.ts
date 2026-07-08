@@ -1,4 +1,4 @@
-// Stable per-device visitor id, used to bind the one-time free generation to a
+// Stable per-device visitor id, used to bind the monthly free generations to a
 // physical device (anti-Sybil). Best-effort: if FingerprintJS fails to load or
 // run, we return "" and the server falls back to its account + IP gates.
 //

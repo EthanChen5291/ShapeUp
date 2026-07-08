@@ -9,7 +9,7 @@
 //
 // Deliberately does NONE of the gating /api/facelift does — no biometric
 // consent, no GPU-budget check, and crucially no consumeGeneration. A warmup
-// must never spend a credit or the user's free generation. It only authenticates
+// must never spend a credit or one of the user's free generations. It only authenticates
 // (a wake costs a cold start, so it can't be anonymous) and rate-limits.
 
 import { NextRequest, NextResponse } from 'next/server';

@@ -96,6 +96,7 @@ export const es: Record<string, string> = {
   // ── Tokens / profile menu ──
   'Tokens': 'Fichas',
   '{plan} plan': 'Plan {plan}',
+  'Includes {n} free/month · resets monthly, unused don\'t roll over': 'Incluye {n} gratis/mes · se reinicia cada mes, lo no usado no se acumula',
   'Get more tokens': 'Obtener más fichas',
   'Refer a friend for': 'Invita a un amigo por',
   '6 tokens': '6 fichas',
@@ -232,20 +233,47 @@ export const es: Record<string, string> = {
   'one-time': 'pago único',
   'Prebaked styles': 'Estilos prediseñados',
   '8 AI looks': '8 estilos con IA',
-  '30 AI looks': '30 estilos con IA',
-  '100 AI looks': '100 estilos con IA',
+  '50 AI looks': '50 estilos con IA',
+  '200 AI looks': '200 estilos con IA',
   'Start free': 'Empezar gratis',
   'Try 8 looks': 'Probar 8 estilos',
-  'Get 30 looks': 'Obtener 30 estilos',
-  'Get 100 looks': 'Obtener 100 estilos',
+  'Get 50 looks': 'Obtener 50 estilos',
+  'Get 200 looks': 'Obtener 200 estilos',
   'Browse 30+ expert-curated styles rendered on your 3D scan — no generation needed, no cost ever.':
     'Explora más de 30 estilos seleccionados por expertos renderizados en tu escaneo 3D: sin generación, sin costo nunca.',
-  '8 custom renders. Enough to test a fade, a crop, and a taper before your next appointment.':
-    '8 renders personalizados. Suficiente para probar un fade, un crop y un taper antes de tu próxima cita.',
-  '30 looks to explore. Find what works for your face shape, then walk in with a reference photo.':
-    '30 estilos para explorar. Encuentra lo que va con tu rostro y llega con una foto de referencia.',
-  'Serious about your hair. 100 looks at 15¢ each — experiment until you find a signature style.':
-    'En serio con tu cabello. 100 estilos a 15¢ cada uno: experimenta hasta encontrar tu estilo distintivo.',
+  '8 custom renders for less than a buck. Test a fade, a crop, and a taper before your next appointment.':
+    '8 renders personalizados por menos de un dólar. Prueba un fade, un crop y un taper antes de tu próxima cita.',
+  '50 looks to explore. Find what works for your face shape, then walk in with a reference photo.':
+    '50 estilos para explorar. Encuentra lo que va con tu rostro y llega con una foto de referencia.',
+  'Serious about your hair. 200 looks at 7.5¢ each — experiment until you find a signature style.':
+    'En serio con tu cabello. 200 estilos a 7.5¢ cada uno: experimenta hasta encontrar tu estilo distintivo.',
+
+  // ── Phone-bonus ribbon + modal ──
+  'Free generations offer': 'Oferta de generaciones gratis',
+  'Add your phone number and get': 'Agrega tu número de teléfono y obtén',
+  '{n} free generations': '{n} generaciones gratis',
+  'one tap, fully secure': 'un toque, totalmente seguro',
+  'Claim +{n}': 'Reclamar +{n}',
+  'Dismiss offer': 'Descartar oferta',
+  '+{n} generations added!': '¡+{n} generaciones agregadas!',
+  'Get {n} free generations': 'Obtén {n} generaciones gratis',
+  'Verify your phone number and we’ll drop {n} generations into your account. We only use it to keep the bonus fair — no spam, ever.':
+    'Verifica tu número de teléfono y agregaremos {n} generaciones a tu cuenta. Solo lo usamos para que el bono sea justo: nunca spam.',
+  'Enter the 6-digit code we just texted you.': 'Ingresa el código de 6 dígitos que te enviamos por SMS.',
+  'Phone number': 'Número de teléfono',
+  'Include your country code, e.g. +1.': 'Incluye tu código de país, p. ej. +1.',
+  'Verification code': 'Código de verificación',
+  'They’re in your balance now. Go try a new look!': 'Ya están en tu saldo. ¡Prueba un nuevo look!',
+  'Text me a code': 'Envíame un código',
+  'Sending…': 'Enviando…',
+  'Verify & claim +{n}': 'Verificar y reclamar +{n}',
+  'Use a different number': 'Usar otro número',
+  'Enter a valid phone number, including country code.': 'Ingresa un número de teléfono válido, con código de país.',
+  "Couldn't send the code. Check the number and try again.": 'No se pudo enviar el código. Revisa el número e inténtalo de nuevo.',
+  'Enter the code we texted you.': 'Ingresa el código que te enviamos.',
+  'That code was incorrect or expired. Try again.': 'Ese código es incorrecto o expiró. Inténtalo de nuevo.',
+  "Couldn't grant your bonus. Please try again.": 'No se pudo otorgar tu bono. Inténtalo de nuevo.',
+  "Couldn't reach the server. Please try again.": 'No se pudo conectar con el servidor. Inténtalo de nuevo.',
 
   // ── Landing page ──
   'dashboard': 'panel',
@@ -315,8 +343,8 @@ export const es: Record<string, string> = {
   'versatile classic': 'clásico versátil',
   '1 haircut generation': '1 generación de corte',
   '8 haircut generations': '8 generaciones de corte',
-  '30 haircut generations': '30 generaciones de corte',
-  '100 haircut generations': '100 generaciones de corte',
+  '50 haircut generations': '50 generaciones de corte',
+  '200 haircut generations': '200 generaciones de corte',
   'Explorer': 'Explorador',
   'Pick your style.': 'Elige tu estilo.',
   'Try It Free — No Card Needed': 'Pruébalo gratis — Sin tarjeta',

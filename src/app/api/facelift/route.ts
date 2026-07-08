@@ -315,9 +315,10 @@ export async function POST(req: NextRequest) {
     console.error('[facelift] POST: GPU budget check failed (allowing request):', err);
   }
 
-  // Spend an entitlement: a paid credit if the user has one, otherwise their
-  // one-time free generation (gated by the anti-Sybil checks in freeGen.ts).
-  // Allowlisted demo/dev accounts bypass billing entirely.
+  // Spend an entitlement: a paid credit if the user has one, otherwise one of
+  // their monthly free generations (3/month, reset not accumulated, gated by
+  // the anti-Sybil checks in freeGen.ts). Allowlisted demo/dev accounts bypass
+  // billing entirely.
   if (process.env.DISABLE_PAYWALL !== '1' && !isDemoUser) {
     try {
       await convex.mutation(api.freeGen.consumeGeneration, {

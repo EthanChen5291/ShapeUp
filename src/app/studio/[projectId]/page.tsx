@@ -703,6 +703,7 @@ export default function StudioPage() {
         <div className="absolute top-4 right-3 z-30 flex items-center gap-2">
           <span
             className="flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-sm"
+            title={!userQuery?.topPlan ? t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 }) : undefined}
             style={{
               background: (userQuery?.availableGenerations ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
               border: (userQuery?.availableGenerations ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
@@ -1057,6 +1058,7 @@ export default function StudioPage() {
           <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
             <span
               className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
+              title={!userQuery?.topPlan ? t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 }) : undefined}
               style={{
                 background: (userQuery?.availableGenerations ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
                 border: (userQuery?.availableGenerations ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',

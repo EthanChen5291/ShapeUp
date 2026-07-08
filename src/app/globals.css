@@ -488,6 +488,172 @@ body {
   line-height: 1;
   letter-spacing: -0.02em;
 }
+.tokens-widget__note {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--caramel);
+  opacity: 0.85;
+  margin-top: -4px;
+}
+
+/* ── Phone-bonus ribbon + modal ──────────────────────────── */
+.phone-bonus-ribbon {
+  background: linear-gradient(90deg, #ffe7b0 0%, #ffd6a0 52%, #f7b892 100%);
+  border-bottom: 1px solid rgba(199, 138, 76, 0.35);
+  box-shadow: 0 2px 14px -6px rgba(42, 32, 26, 0.35);
+}
+.phone-bonus-ribbon__inner {
+  max-width: 1100px;
+  min-height: 46px;
+  margin: 0 auto;
+  padding: 6px 12px 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.phone-bonus-ribbon__badge {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(42, 32, 26, 0.1);
+  color: var(--ink);
+}
+.phone-bonus-ribbon__text {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.phone-bonus-ribbon__text strong { font-weight: 800; }
+.phone-bonus-ribbon__sub { color: rgba(42, 32, 26, 0.62); font-weight: 500; }
+.phone-bonus-ribbon__cta {
+  flex-shrink: 0;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+  background: var(--ink);
+  border: none;
+  border-radius: 999px;
+  padding: 9px 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 140ms ease, box-shadow 160ms ease, opacity 140ms ease;
+}
+.phone-bonus-ribbon__cta:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(42, 32, 26, 0.5); }
+.phone-bonus-ribbon__cta:active { transform: translateY(0); }
+.phone-bonus-ribbon__x {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin: -6px -4px -6px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: rgba(42, 32, 26, 0.5);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 140ms ease, background 140ms ease;
+}
+.phone-bonus-ribbon__x:hover { color: var(--ink); background: rgba(42, 32, 26, 0.08); }
+
+.phone-bonus-modal__badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(217, 78, 58, 0.12);
+  color: var(--tomato);
+}
+.phone-bonus-label {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--caramel);
+}
+.phone-bonus-input {
+  width: 100%;
+  min-height: 48px;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 16px; /* 16px avoids iOS auto-zoom on focus */
+  color: var(--ink);
+  background: var(--biscuit);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.phone-bonus-input:focus { border-color: var(--tomato); background: var(--biscuit-lt); }
+.phone-bonus-input--code {
+  text-align: center;
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 26px;
+  letter-spacing: 0.5em;
+  padding-left: 0.5em; /* balance the trailing letter-spacing so text stays centered */
+  font-variant-numeric: tabular-nums;
+}
+.phone-bonus-primary {
+  width: 100%;
+  min-height: 48px;
+  font-family: var(--font-dmsans), system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cream);
+  background: var(--ink);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 160ms ease, opacity 140ms ease;
+}
+.phone-bonus-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px -10px rgba(42, 32, 26, 0.55); }
+.phone-bonus-primary:active:not(:disabled) { transform: translateY(0); }
+.phone-bonus-primary:disabled { opacity: 0.5; cursor: default; }
+.phone-bonus-check {
+  background: rgba(107, 140, 79, 0.16);
+  color: var(--moss);
+  animation: phone-bonus-pop 420ms cubic-bezier(.2, .85, .2, 1);
+}
+@keyframes phone-bonus-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phone-bonus-check { animation: none; }
+  .phone-bonus-ribbon { transition: none !important; }
+}
+@media (max-width: 560px) {
+  .phone-bonus-ribbon__sub { display: none; }
+  .phone-bonus-ribbon__text { font-size: 12.5px; }
+}
+
+/* Dark mode: warm-charcoal ribbon so the offer still pops on the dark UI. */
+html.dark .phone-bonus-ribbon {
+  background: linear-gradient(90deg, #4a2f26 0%, #6b3a2c 100%);
+  border-bottom-color: rgba(217, 78, 58, 0.4);
+}
+html.dark .phone-bonus-ribbon__badge { background: rgba(255, 226, 160, 0.16); color: #ffe2a0; }
+html.dark .phone-bonus-ribbon__text { color: #f6ecd8; }
+html.dark .phone-bonus-ribbon__sub { color: rgba(246, 236, 216, 0.65); }
+html.dark .phone-bonus-ribbon__cta { background: #ffe2a0; color: #2a201a; }
+html.dark .phone-bonus-ribbon__x { color: rgba(246, 236, 216, 0.6); }
+html.dark .phone-bonus-ribbon__x:hover { color: #f6ecd8; background: rgba(255, 255, 255, 0.08); }
+html.dark .phone-bonus-modal__badge { background: rgba(217, 78, 58, 0.2); }
 
 /* ── Tokens CTA button ───────────────────────────────────── */
 .btn-tokens-cta {
@@ -3598,6 +3764,9 @@ html.dark .tokens-widget__count {
   color: #ffe2a0;
 }
 html.dark .tokens-widget__label {
+  color: #d8aa5c;
+}
+html.dark .tokens-widget__note {
   color: #d8aa5c;
 }
 /* Collapsed profile pill: deep amber in dark mode (the bright yellow glares

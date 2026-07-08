@@ -16,6 +16,7 @@ import { startCheckout } from '@/lib/checkout';
 import { getVisitorId } from '@/lib/visitorId';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import ImproveShapeUpDialog from '@/components/ImproveShapeUpDialog';
+import PhoneBonusBanner from '@/components/PhoneBonusBanner';
 import dynamic from 'next/dynamic';
 import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
 import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
@@ -306,6 +307,11 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                   <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{t('{plan} plan', { plan: planName })}</span>
                 </div>
                 <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.availableGenerations ?? 0)} /></span>
+                {planName === 'Free' && (
+                  <span className="tokens-widget__note">
+                    {t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 })}
+                  </span>
+                )}
                 <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: isMobile ? 16 : 12, ...(isMobile ? { padding: '22px 16px 21px', fontSize: 19 } : {}) }}>
                   <span className="btn-tokens-cta__shimmer" />
                   <span className="btn-tokens-cta__text">{t('Get more tokens')}</span>
@@ -2308,6 +2314,7 @@ export default function DashboardPage() {
 
   return (
     <>
+      <PhoneBonusBanner />
       <MainMenu
         onAdd={handleAddProject}
         onOpenProject={handleOpenProject}
