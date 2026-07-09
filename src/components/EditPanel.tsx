@@ -17,6 +17,7 @@ import type { Id } from '@convex/_generated/dataModel';
 import { HairParams, UserHeadProfile } from '@/types';
 import BarberVideoCard from '@/components/BarberVideoCard';
 import { PricingPopup } from '@/components/PricingPopup';
+import { FREE_MODE } from '@/lib/freeMode';
 import InferenceNote from '@/components/InferenceNote';
 import HairPreviewBubble, { type CutPreview } from '@/components/HairPreviewBubble';
 import { type Gender, loadGender, saveGender } from '@/components/editPanelGender';
@@ -357,8 +358,8 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     if (processingRef.current) return;
     if (!submittedPrompt.trim()) return;
 
-    // Gate behind paywall if out of credits
-    if (!paywallDisabled && !isAllowlisted && typeof userCredits === 'number' && userCredits <= 0) {
+    // Gate behind paywall if out of credits (skipped entirely in FREE_MODE)
+    if (!FREE_MODE && !paywallDisabled && !isAllowlisted && typeof userCredits === 'number' && userCredits <= 0) {
       setShowPricing(true);
       return;
     }
@@ -594,7 +595,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       if (sessionKey && !restored) {
         try { sessionStorage.setItem(sessionKey, JSON.stringify({ phase: 'hairstep', sketchProgress: 100, hairstepProgress: initHairstep, startedAt } satisfies PipelineSessionState)); } catch { /* ignore */ }
       }
-      // 800ms ticks, 0.8% per tick → ~84% over ~84s; facelift typically 20–60s so bar is mid-range when done
+      // ~133ms ticks, 0.8% per tick → ~84% over ~14s (6x faster than the prior ~84s pace)
       hairstepIntervalRef.current = setInterval(() => {
         setHairstepProgress(p => {
           const next = p < 84 ? p + 0.8 : p;
@@ -607,7 +608,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           }
           return next;
         });
-      }, 800);
+      }, 133);
     } else if (phase === 'idle' && prev !== 'idle') {
       // Intervals were already killed in the finally block; kill again defensively
       if (sketchIntervalRef.current) { clearInterval(sketchIntervalRef.current); sketchIntervalRef.current = null; }
@@ -1028,7 +1029,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       />
     )}
 
-    {showPricing && (
+    {!FREE_MODE && showPricing && (
       <PricingPopup
         onDismiss={() => setShowPricing(false)}
         returnUrl={projectId ? `/studio/${projectId}` : undefined}

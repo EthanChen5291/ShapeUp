@@ -248,6 +248,18 @@ export const es: Record<string, string> = {
   'Serious about your hair. 200 looks at 7.5¢ each — experiment until you find a signature style.':
     'En serio con tu cabello. 200 estilos a 7.5¢ cada uno: experimenta hasta encontrar tu estilo distintivo.',
 
+  // ── Free-for-limited-time mode ──
+  'Status': 'Estado',
+  'Limited time': 'Tiempo limitado',
+  'limited time': 'tiempo limitado',
+  'Every look is on the house for a limited time — try a fade, a crop, and a taper, all free.':
+    'Cada look corre por cuenta de la casa por tiempo limitado: prueba un fade, un crop y un taper, todo gratis.',
+  'Everything’s free right now — make as many looks as you like, on the house.':
+    'Todo es gratis ahora mismo: crea todos los looks que quieras, por cuenta de la casa.',
+  'ShapeUp is completely free!': '¡ShapeUp es completamente gratis!',
+  'We believe everyone should be able to explore their hairstyles at no cost. Because it costs us some money to run, we may add options to donate, but no payment. Try on as many hairstyles as you want and tell us what you think!':
+    'Creemos que todo el mundo debería poder explorar sus peinados sin coste alguno. Como mantenerlo nos cuesta algo de dinero, es posible que añadamos opciones para donar, pero nunca pagos obligatorios. ¡Prueba todos los peinados que quieras y dinos qué te parece!',
+
   // ── Phone-bonus ribbon + modal ──
   'Free generations offer': 'Oferta de generaciones gratis',
   'Add your phone number and get': 'Agrega tu número de teléfono y obtén',
@@ -313,10 +325,9 @@ export const es: Record<string, string> = {
   'ALL YOU NEED': 'TODO LO QUE NECESITAS',
   'One photo is all it takes. Help us secure the best cut for you.':
     'Basta una foto. Ayúdanos a conseguir el mejor corte para ti.',
-  '$2': '$2',
-  'FOR 8 HAIRSTYLES': 'POR 8 PEINADOS',
-  'Less than a coffee to see yourself in 8 different cuts.':
-    'Menos que un café para verte en 8 cortes diferentes.',
+  'FOR EVERY HAIRSTYLE': 'PARA CADA PEINADO',
+  'See yourself in as many cuts as you want — on the house, for a limited time.':
+    'Verte en todos los cortes que quieras: por cuenta de la casa, por tiempo limitado.',
   'how it': 'cómo',
   'works': 'funciona',
   'This demo is live — send a message and try it yourself.':
@@ -330,7 +341,7 @@ export const es: Record<string, string> = {
   'Show your barber': 'Muéstrale a tu barbero',
   'your 3D preview, live': 'tu vista 3D, en vivo',
   'Ready to see your next cut?': '¿Listo para ver tu próximo corte?',
-  "Preview My Cut — It's Free": 'Ver mi corte — Es gratis',
+  'Explore My Best Hairstyles': 'Explora mis mejores peinados',
   'takes about 60 seconds · no account required':
     'toma unos 60 segundos · no requiere cuenta',
   'Get a glimpse of all': 'Vislumbra todo lo que',
@@ -347,7 +358,7 @@ export const es: Record<string, string> = {
   '200 haircut generations': '200 generaciones de corte',
   'Explorer': 'Explorador',
   'Pick your style.': 'Elige tu estilo.',
-  'Try It Free — No Card Needed': 'Pruébalo gratis — Sin tarjeta',
+  'Try It Free': 'Pruébalo gratis',
   'takes about 60 seconds': 'toma unos 60 segundos',
   'Your photo stays private': 'Tu foto se mantiene privada',
   'We never sell or share your scan. Delete your data anytime from settings.':

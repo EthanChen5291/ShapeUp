@@ -42,7 +42,7 @@ interface PlyParsed {
   buf:        Buffer;
 }
 
-export function parsePlyHeader(buf: Buffer): PlyParsed {
+function parsePlyHeader(buf: Buffer): PlyParsed {
   dbg(`parsePlyHeader: buf.length=${buf.length}`);
   const END = Buffer.from('end_header\n');
   const headerEnd = buf.indexOf(END);
@@ -82,7 +82,7 @@ export function parsePlyHeader(buf: Buffer): PlyParsed {
 }
 
 // ─── TEST: parsePlyHeader ─────────────────────────────────────────────────────
-export function __test_parsePlyHeader(): void {
+function __test_parsePlyHeader(): void {
   console.log(`${TAG} __test_parsePlyHeader: running...`);
 
   const header = 'ply\nformat binary_little_endian 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nend_header\n';
@@ -107,7 +107,7 @@ export function __test_parsePlyHeader(): void {
 
 // ─── BOUNDING BOX ─────────────────────────────────────────────────────────────
 
-export function computeBoundingBox(ply: PlyParsed) {
+function computeBoundingBox(ply: PlyParsed) {
   dbg(`computeBoundingBox: computing over ${ply.vcount} vertices...`);
   let minX = Infinity,  minY = Infinity,  minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
@@ -133,7 +133,7 @@ export function computeBoundingBox(ply: PlyParsed) {
 }
 
 // ─── TEST: computeBoundingBox ─────────────────────────────────────────────────
-export function __test_computeBoundingBox(): void {
+function __test_computeBoundingBox(): void {
   console.log(`${TAG} __test_computeBoundingBox: running...`);
 
   function makeXyzPly(verts: [number, number, number][]): PlyParsed {
@@ -160,7 +160,7 @@ export function __test_computeBoundingBox(): void {
 
 // Maps a 3D position to a discrete voxel key string.
 // The `| 0` converts -0 → 0 so keys are consistent.
-export function voxelKey(x: number, y: number, z: number, voxelSize: number): string {
+function voxelKey(x: number, y: number, z: number, voxelSize: number): string {
   const vx = (Math.floor(x / voxelSize) | 0);
   const vy = (Math.floor(y / voxelSize) | 0);
   const vz = (Math.floor(z / voxelSize) | 0);
@@ -168,7 +168,7 @@ export function voxelKey(x: number, y: number, z: number, voxelSize: number): st
 }
 
 // ─── TEST: voxelKey ───────────────────────────────────────────────────────────
-export function __test_voxelKey(): void {
+function __test_voxelKey(): void {
   console.log(`${TAG} __test_voxelKey: running...`);
 
   console.assert(voxelKey(0.005, 0.005, 0.005, 0.02) === '0_0_0',   'same voxel (1)');
@@ -183,7 +183,7 @@ export function __test_voxelKey(): void {
 
 // ─── SUBTRACTION OPTIONS ─────────────────────────────────────────────────────
 
-export interface SubtractOpts {
+interface SubtractOpts {
   scaleX?:          number; // scale applied to bald PLY x coords before voxelizing (default 1.0)
   scaleY?:          number; // scale applied to bald PLY y coords before voxelizing (default 1.0)
   scaleZ?:          number; // scale applied to bald PLY z coords before voxelizing (default 1.0)
@@ -200,7 +200,7 @@ export interface SubtractOpts {
 
 // ─── BUILD VOXEL SET FROM PLY ─────────────────────────────────────────────────
 
-export function buildVoxelSet(
+function buildVoxelSet(
   ply: PlyParsed,
   voxelSize: number,
   scale?: { x: number; y: number; z: number; center?: { x: number; y: number; z: number } },
@@ -294,7 +294,7 @@ export function buildVoxelSet(
 // opts.scaleX/Y/Z are applied to the BALD PLY coordinates before voxelizing —
 // use values < 1 to shrink the bald mask (keeps more scalp), > 1 to expand it.
 
-export function subtractPly(
+function subtractPly(
   originalBuf: Buffer,
   baldBuf: Buffer,
   opts?: SubtractOpts,
@@ -515,7 +515,7 @@ export function subtractPly(
 }
 
 // ─── TEST: subtractPly ────────────────────────────────────────────────────────
-export function __test_subtractPly(): void {
+function __test_subtractPly(): void {
   console.log(`${TAG} __test_subtractPly: running...`);
 
   function makeXyzPly(verts: [number, number, number][]): Buffer {
@@ -567,7 +567,7 @@ export function __test_subtractPly(): void {
 //   [24] uint8  r, g, b, a        ( 4 bytes)
 //   [28] uint8  q0, q1, q2, q3    ( 4 bytes)
 
-export function plyToSplat(plyBuf: Buffer): Buffer {
+function plyToSplat(plyBuf: Buffer): Buffer {
   dbg('plyToSplat: starting conversion...');
   const END       = Buffer.from('end_header\n');
   const headerEnd = plyBuf.indexOf(END);
@@ -666,7 +666,7 @@ export function plyToSplat(plyBuf: Buffer): Buffer {
 }
 
 // ─── TEST: plyToSplat ─────────────────────────────────────────────────────────
-export function __test_plyToSplat(): void {
+function __test_plyToSplat(): void {
   console.log(`${TAG} __test_plyToSplat: running...`);
 
   const props  = ['x','y','z','f_dc_0','f_dc_1','f_dc_2','opacity','scale_0','scale_1','scale_2','rot_0','rot_1','rot_2','rot_3'];

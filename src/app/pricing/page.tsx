@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startCheckout } from '@/lib/checkout';
 import { useT } from '@/lib/i18n';
+import { FREE_MODE } from '@/lib/freeMode';
 
 /* ── Brand logo mark (self-contained, no shared import) ── */
 function ScissorsMark({ size = 28 }: { color?: string; size?: number }) {
@@ -31,13 +32,13 @@ const PLANS = [
   {
     id: 'starter',
     label: 'Starter',
-    price: '$0.99',
-    sub: 'one-time',
+    price: 'Free',
+    sub: 'limited time',
     tokens: 8,
-    perToken: '12¢',
+    perToken: null,
     tokenLabel: '8 AI looks',
-    line: '8 custom renders for less than a buck. Test a fade, a crop, and a taper before your next appointment.',
-    cta: 'Try 8 looks',
+    line: 'Every look is on the house for a limited time — try a fade, a crop, and a taper, all free.',
+    cta: 'Start free',
     featured: false,
     freeOnly: false,
   },
@@ -108,6 +109,51 @@ export default function PricingPage() {
     if (loading) return;
     await runCheckout(planId);
   };
+
+  // FREE_MODE: the paywall is off, so the whole pricing page collapses to a
+  // single "everything's free right now" panel — no plans, no prices.
+  if (FREE_MODE) {
+    return (
+      <div style={{ background: 'var(--biscuit)', minHeight: '100vh', padding: '28px 40px 72px', fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
+        <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1160, margin: '0 auto 52px' }}>
+          <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ScissorsMark color="#2a201a" size={65} />
+            <span style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 28, fontWeight: 900, color: 'var(--ink)', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              shape<em style={{ color: 'var(--tomato)' }}>up</em>
+            </span>
+          </Link>
+          <Link href="/" style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 15, color: 'var(--char)', opacity: 0.65, textDecoration: 'none' }}>
+            ← {t('back')}
+          </Link>
+        </nav>
+        <div style={{
+          maxWidth: 1160, margin: '0 auto', borderRadius: 36,
+          backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: 'cover', backgroundPosition: 'center',
+          border: '1px solid rgba(255,248,234,0.18)',
+          boxShadow: '0 40px 100px -28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,248,234,0.08)',
+          overflow: 'hidden',
+        }}>
+          <div style={{ padding: 'clamp(52px, 9vw, 96px) 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 20 }}>
+            <span style={{ fontFamily: 'var(--font-jetbrains), monospace', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--butter)', border: '1px solid rgba(255,231,176,0.4)', borderRadius: 999, padding: '7px 16px' }}>
+              {t('Limited time')}
+            </span>
+            <h1 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 6vw, 4.6rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
+              {t('ShapeUp is completely free!')}
+            </h1>
+            <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 20, color: 'rgba(255,248,234,0.72)', margin: 0, maxWidth: 680, lineHeight: 1.35 }}>
+              {t('We believe everyone should be able to explore their hairstyles at no cost. Because it costs us some money to run, we may add options to donate, but no payment. Try on as many hairstyles as you want and tell us what you think!')}
+            </p>
+            <button
+              onClick={() => (isSignedIn ? router.push('/dashboard') : openSignIn())}
+              style={{ marginTop: 8, fontFamily: 'var(--font-dmsans), system-ui, sans-serif', fontSize: 16, fontWeight: 700, color: 'var(--ink)', background: 'var(--butter)', border: 'none', borderRadius: 14, padding: '14px 28px', cursor: 'pointer' }}
+            >
+              {t('Start free')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: 'var(--biscuit)', minHeight: '100vh', padding: '28px 40px 72px', fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>
@@ -315,7 +361,7 @@ export default function PricingPage() {
 
                 {/* CTA */}
                 <button
-                  onClick={() => handleBuy(plan.id)}
+                  onClick={() => handleBuy(plan.price === 'Free' ? 'free' : plan.id)}
                   disabled={loading === plan.id}
                   className={isFeatured ? 'btn-tomato' : ''}
                   style={{

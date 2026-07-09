@@ -7,13 +7,14 @@ import { useUser, useClerk } from '@clerk/nextjs';
 import { api } from '@convex/_generated/api';
 import { BarberMascot, BouncyButton } from '@/components/AppUI';
 import { PricingPopup } from '@/components/PricingPopup';
+import { FREE_MODE } from '@/lib/freeMode';
 import { startCheckout } from '@/lib/checkout';
 
 /* Topics mirror convex/contact.ts CONTACT_TOPICS. Each one routes the message
    internally and tells the sender we know what they're here for. */
 const TOPICS = [
   { id: 'support', label: 'Help & support', hint: 'Something broke or my scan looks off' },
-  { id: 'billing', label: 'Billing & refunds', hint: 'A charge, tokens, or a render I want refunded' },
+  { id: 'billing', label: 'Donate to us', hint: 'Chip in to help keep ShapeUp running' },
   { id: 'privacy', label: 'Privacy & data', hint: 'Delete my photo or data, or a privacy question' },
   { id: 'partnership', label: 'Barbershop / partnership', hint: 'Work with us or bring ShapeUp to my shop' },
   { id: 'press', label: 'Press & media', hint: "I'm writing about ShapeUp" },
@@ -37,10 +38,6 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
   {
     q: 'How fast will I hear back?',
     a: <>We read everything and reply within <strong>1 business day</strong>, usually much sooner. Billing and data requests jump the queue.</>,
-  },
-  {
-    q: 'Can I get a refund?',
-    a: <>Yes. If a render didn&rsquo;t come out right, open it in your <Link href="/dashboard" className="contact-inline-link">dashboard</Link> and request your tokens back, or pick &ldquo;Billing &amp; refunds&rdquo; above and tell us what happened.</>,
   },
   {
     q: 'How do I delete my photo and data?',
@@ -155,16 +152,18 @@ export default function ContactPage() {
             >
               how it works
             </Link>
-            <span aria-hidden className="contact-nav-hide-sm" style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
-            <button
-              onClick={() => setShowPricing(true)}
-              className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
-            >
-              pricing
-            </button>
+            {!FREE_MODE && <span aria-hidden className="contact-nav-hide-sm" style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />}
+            {!FREE_MODE && (
+              <button
+                onClick={() => setShowPricing(true)}
+                className="font-serif italic nav-link-squiggle"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)' }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
+              >
+                pricing
+              </button>
+            )}
             <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
             {/* Current page — just darkens on hover, no squiggle. */}
             <Link
@@ -391,6 +390,7 @@ export default function ContactPage() {
                   </Link>
                 ))}
                 {/* Opens the exact same pricing menu the dashboard uses. */}
+                {!FREE_MODE && (
                 <button type="button" onClick={() => setShowPricing(true)} className="contact-quick-link" style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: 'calc(100% + 24px)' }}>
                   <span>
                     <span className="contact-quick-label">Pricing &amp; plans</span>
@@ -401,6 +401,7 @@ export default function ContactPage() {
                     <polyline points="12 5 19 12 12 19" />
                   </svg>
                 </button>
+                )}
               </div>
             </div>
           </aside>
@@ -440,7 +441,7 @@ export default function ContactPage() {
         </section>
       </div>
 
-      {showPricing && (
+      {!FREE_MODE && showPricing && (
         <PricingPopup
           onDismiss={() => setShowPricing(false)}
           returnUrl="/contact"

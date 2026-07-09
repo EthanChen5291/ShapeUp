@@ -12,6 +12,7 @@ import SignUpWidget from '@/components/SignUpWidget';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useT } from '@/lib/i18n';
 import { startCheckout } from '@/lib/checkout';
+import { FREE_MODE } from '@/lib/freeMode';
 
 /* ─────────────── Face Video Swiper ─────────────── */
 const FACE_VIDS = ['a','b','c','d','e'].map(l => `/landing_face1/face1${l}.mp4`);
@@ -279,7 +280,7 @@ function FaceVideoSwiper({ onSwipeUp, onSwipeDown, scrollRef, onActiveChange }: 
         position: 'absolute',
         left: '50%', top: '50%',
         transform: 'translate(-50%, -50%)',
-        width: '68%',
+        width: '82%',
         aspectRatio: '1 / 1',
         borderRadius: '50%',
         overflow: 'hidden',
@@ -1351,13 +1352,13 @@ const PRICING_PLANS = [
   {
     id: 'starter',
     label: 'Starter',
-    price: '$0.99',
-    sub: 'one-time',
+    price: 'Free',
+    sub: 'limited time',
     tokens: 8,
-    perToken: '12¢',
+    perToken: null,
     tokenLabel: '8 haircut generations',
-    line: '8 custom renders for less than a buck. Test a fade, a crop, and a taper before your next appointment.',
-    cta: 'Try 8 looks',
+    line: 'Every look is on the house for a limited time — try a fade, a crop, and a taper, all free.',
+    cta: 'Start free',
     featured: false,
     freeOnly: false,
   },
@@ -1740,6 +1741,39 @@ function TraceBorderCta({
         {children}
       </span>
     </button>
+  );
+}
+
+/* Shown in place of the pricing cards while FREE_MODE is on — same dark
+   barbershop panel, but the message is "it's all free right now." */
+function FreeForNowBanner() {
+  const t = useT();
+  const isMobile = useIsMobile();
+  return (
+    <div id="pricing" style={{ padding: '0 0 72px' }}>
+      <Reveal>
+      <div className="pricing-led-border" style={{
+        borderRadius: 36,
+        backgroundImage: 'url(/dark_charcoal.png)', backgroundSize: '768px auto', backgroundRepeat: 'repeat', backgroundPosition: 'top left',
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: isMobile ? '48px 22px' : '72px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 18 }}>
+          <span style={{
+            fontFamily: 'var(--font-jetbrains), monospace', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.22em',
+            color: 'var(--butter)', border: '1px solid rgba(255,231,176,0.4)', borderRadius: 999, padding: '7px 16px',
+          }}>
+            {t('Limited time')}
+          </span>
+          <h2 style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 'clamp(2.8rem, 5vw, 4.4rem)', fontWeight: 900, color: 'var(--cream)', lineHeight: 0.95, margin: 0, letterSpacing: '-0.03em' }}>
+            {t('ShapeUp is completely free!')}
+          </h2>
+          <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontStyle: 'italic', fontSize: 20, color: 'rgba(255,248,234,0.72)', margin: 0, maxWidth: 680, lineHeight: 1.35 }}>
+            {t('We believe everyone should be able to explore their hairstyles at no cost. Because it costs us some money to run, we may add options to donate, but no payment. Try on as many hairstyles as you want and tell us what you think!')}
+          </p>
+        </div>
+      </div>
+      </Reveal>
+    </div>
   );
 }
 
@@ -2146,8 +2180,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   };
 
   const handlePricingClick = (planId: string) => {
+    // Starter is free for a limited time — route it like the free tier, never checkout.
+    if (planId === 'free' || planId === 'starter') { handleFreeTry(); return; }
     if (!isSignedIn) { setPendingAction({ type: 'paid', planId }); return; }
-    if (planId === 'free') { onEnter(); return; }
     if (checkoutLoading) return;
     runCheckout(planId);
   };
@@ -2251,16 +2286,18 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0 }} />
               </>
             )}
-            <button
-              onClick={scrollToPricing}
-              className="font-serif italic nav-link-squiggle"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
-              onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
-              onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
-            >
-              pricing
-            </button>
-            <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />
+            {!FREE_MODE && (
+              <button
+                onClick={scrollToPricing}
+                className="font-serif italic nav-link-squiggle"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--char)', fontSize: 16, opacity: 0.7, transition: 'opacity 140ms ease, background-size 340ms cubic-bezier(.2,.85,.2,1)', ...(isMobile ? { fontSize: 15 } : {}) }}
+                onMouseEnter={e => ((e.target as HTMLElement).style.opacity = '1')}
+                onMouseLeave={e => ((e.target as HTMLElement).style.opacity = '0.7')}
+              >
+                pricing
+              </button>
+            )}
+            {!FREE_MODE && <span aria-hidden style={{ width: 1, height: 15, background: 'rgba(42,32,26,0.22)', flexShrink: 0, ...(isMobile ? { height: 18 } : {}) }} />}
             <Link
               href="/contact"
               className="font-serif italic"
@@ -2425,7 +2462,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           {([
             { stat: '60 secs', label: 'SCAN TO 3D PREVIEW', desc: 'Just one minute from selfie to full 3D model.', bgPos: '0%' },
             { stat: '1 selfie', label: 'ALL YOU NEED', desc: 'One photo is all it takes. Help us secure the best cut for you.', bgPos: '50%' },
-            { stat: '$2', label: 'FOR 8 HAIRSTYLES', desc: 'Less than a coffee to see yourself in 8 different cuts.', bgPos: '100%' },
+            { stat: 'Free', label: 'FOR EVERY HAIRSTYLE', desc: 'See yourself in as many cuts as you want — on the house, for a limited time.', bgPos: '100%' },
           ]).map((item, i) => (
             <Reveal key={i} delay={i * 100} wonk={[-0.5, 0.4, -0.4][i]}>
               <div className="value-card" style={{ '--card-wonk': `${[-0.6, 0.6, -0.4][i]}deg` } as React.CSSProperties}>
@@ -2635,10 +2672,10 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               letterSpacing: '-0.01em',
             }}
           >
-            {t("Preview My Cut — It's Free")} →
+            {t('Explore My Best Hairstyles')} →
           </TraceBorderCta>
           <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(42,32,26,0.38)', marginTop: 14 }}>
-            {t('takes about 60 seconds · no account required')}
+            {t('takes about 60 seconds')}
           </p>
         </div>
         </Reveal>
@@ -2658,7 +2695,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <GlimpseSection />
 
           {/* ── Pricing ── */}
-          <LandingPricingCards onPricingClick={handlePricingClick} checkoutLoading={checkoutLoading} />
+          {FREE_MODE ? <FreeForNowBanner /> : <LandingPricingCards onPricingClick={handlePricingClick} checkoutLoading={checkoutLoading} />}
 
           {/* ── Orbit CTA ── */}
           <Reveal>
@@ -2678,7 +2715,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 letterSpacing: '-0.01em',
               }}
             >
-              {t('Try It Free — No Card Needed')} →
+              {t('Try It Free')} →
             </TraceBorderCta>
             <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.3)', marginTop: 14 }}>
               {t('takes about 60 seconds')}

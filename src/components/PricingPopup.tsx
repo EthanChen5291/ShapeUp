@@ -10,12 +10,12 @@ const PLANS = [
   {
     id: 'starter' as const,
     label: 'Starter',
-    price: '$0.99',
-    sub: 'one-time',
-    perToken: '12¢',
+    price: 'Free',
+    sub: 'limited time',
+    perToken: '',
     tokenLabel: '8 haircut generations',
-    line: '8 custom renders for less than a buck. Test a fade, a crop, and a taper before your next appointment.',
-    cta: 'Try 8 looks',
+    line: 'Every look is on the house for a limited time — try a fade, a crop, and a taper, all free.',
+    cta: 'Start free',
     featured: false,
     accentColor: 'rgba(248,200,24,0.9)' as const,
     accentBg: 'rgba(248,200,24,0.18)' as const,
@@ -445,8 +445,8 @@ export function PricingPopup({ onDismiss, returnUrl, outOfTokens, interceptBuy, 
 
                   <PlanCTAButton
                     variant={plan.id}
-                    onClick={() => (plan.id === 'free' ? onFree?.() : handleBuy(plan.id))}
-                    disabled={plan.id === 'free' ? false : !!loading}
+                    onClick={() => (plan.id === 'free' || plan.price === 'Free' ? (onFree ? onFree() : onDismiss()) : handleBuy(plan.id))}
+                    disabled={plan.id === 'free' || plan.price === 'Free' ? false : !!loading}
                   >
                     {loading === plan.id ? '…' : t(plan.cta)}
                   </PlanCTAButton>

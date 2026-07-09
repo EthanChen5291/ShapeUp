@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { startCheckout } from '@/lib/checkout';
+import { FREE_MODE } from '@/lib/freeMode';
 
 export type DemoFaceliftStatus = 'idle' | 'processing' | 'done' | 'error';
 
@@ -37,7 +38,7 @@ export function useDemoFacelift(originalImageUrl: string | null) {
         body:    JSON.stringify({ imageDataUrl, outputName: 'original-output' }),
       });
 
-      if (res.status === 402 || res.status === 401) {
+      if (!FREE_MODE && (res.status === 402 || res.status === 401)) {
         const url = await startCheckout({ source: 'demo_facelift_out_of_credits' });
         if (url) return;
       }

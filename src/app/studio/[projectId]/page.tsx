@@ -23,6 +23,7 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { BarberMascot, LogoHomeLink, BouncyButton, ClockCounter, AddTokensButton } from '@/components/AppUI';
 import { PricingPopup } from '@/components/PricingPopup';
+import { FREE_MODE } from '@/lib/freeMode';
 import { useSearchParams } from 'next/navigation';
 import { useNavLoading } from '@/components/NavLoadingOverlay';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -221,7 +222,7 @@ export default function StudioPage() {
   const userQuery = useQuery(api.users.getMe);
   const isAllowlisted = useQuery(api.users.isAllowlisted) ?? false;
   const feedbackPrompt = useFeedbackPrompt();
-  const [paywallDisabled, setPaywallDisabled] = useState(false);
+  const [paywallDisabled, setPaywallDisabled] = useState(FREE_MODE);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
 
@@ -487,6 +488,7 @@ export default function StudioPage() {
   const [showRefund, setShowRefund] = useState(false);
   const [refundIsReminder, setRefundIsReminder] = useState(false);
   useEffect(() => {
+    if (FREE_MODE) return; // no token-refund concept while everything is free
     if (!effectiveSplatUrl || !projectId || showInferenceNote) return;
     if (localStorage.getItem(`refundReminderSeen_${projectId}`)) return;
     if (!localStorage.getItem(`inferenceNoteSeen_${projectId}`)) return;
@@ -699,7 +701,7 @@ export default function StudioPage() {
         />
       </div>
 
-      {isMobile && (
+      {isMobile && !FREE_MODE && (
         <div className="absolute top-4 right-3 z-30 flex items-center gap-2">
           <span
             className="flex items-center gap-1 px-2.5 py-1 rounded-full font-mono text-sm"
@@ -962,6 +964,7 @@ export default function StudioPage() {
           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]/70 pointer-events-none">{t('live · 3d sculpt')}</span>
+              {!FREE_MODE && (
               <button
                 onClick={() => { setRefundIsReminder(false); setShowRefund(true); }}
                 className="font-mono text-[9px] uppercase tracking-[0.18em] underline underline-offset-2 transition-colors"
@@ -971,6 +974,7 @@ export default function StudioPage() {
               >
                 not happy?
               </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {sceneControlsEnabled && (
@@ -1056,21 +1060,23 @@ export default function StudioPage() {
           <div ref={toolboxContentRef} className="flex flex-col gap-3">
           {!isMobile && (
           <div className="flex items-center gap-3 flex-shrink-0" style={{ transform: 'translateY(-12px)' }}>
-            <span
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
-              title={!userQuery?.topPlan ? t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 }) : undefined}
-              style={{
-                background: (userQuery?.availableGenerations ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
-                border: (userQuery?.availableGenerations ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
-                color: (userQuery?.availableGenerations ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
-                transition: 'background 0.3s, border-color 0.3s',
-              }}
-            >
-              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.156em', height: '2.156em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.6em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.availableGenerations ?? 0} />
-            </span>
-            <AddTokensButton onClick={() => setShowPricing(true)} />
+            {!FREE_MODE && (
+              <span
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-sm"
+                title={!userQuery?.topPlan ? t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 }) : undefined}
+                style={{
+                  background: (userQuery?.availableGenerations ?? 0) > 0 ? 'rgba(255,248,234,0.12)' : 'rgba(217,78,58,0.25)',
+                  border: (userQuery?.availableGenerations ?? 0) > 0 ? '1px solid rgba(255,248,234,0.2)' : '1px solid rgba(217,78,58,0.5)',
+                  color: (userQuery?.availableGenerations ?? 0) > 0 ? 'var(--cream)' : 'var(--butter)',
+                  transition: 'background 0.3s, border-color 0.3s',
+                }}
+              >
+                <img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.156em', height: '2.156em', borderRadius: '50%', display: 'inline-block', verticalAlign: '-0.6em', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /> <ClockCounter value={userQuery?.availableGenerations ?? 0} />
+              </span>
+            )}
+            {!FREE_MODE && <AddTokensButton onClick={() => setShowPricing(true)} />}
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--cream)]">{t('the toolbox')}</span>
-            {paymentSuccess && (
+            {!FREE_MODE && paymentSuccess && (
               <span className="font-mono text-[10px] text-[var(--butter)] animate-pulse">✦ tokens added!</span>
             )}
           </div>
@@ -1166,7 +1172,7 @@ export default function StudioPage() {
         </aside>
       )}
 
-      {showPricing && (
+      {!FREE_MODE && showPricing && (
         <PricingPopup
           returnUrl={`/studio/${projectId}`}
           onDismiss={() => setShowPricing(false)}
@@ -1185,7 +1191,7 @@ export default function StudioPage() {
         <InferenceNoticeDialog onAcknowledge={acknowledgeInferenceNote} />
       )}
 
-      {showRefund && (
+      {!FREE_MODE && showRefund && (
         <RefundRequestDialog
           projectId={projectId}
           requireAck={refundIsReminder}

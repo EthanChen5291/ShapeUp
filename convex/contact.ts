@@ -26,7 +26,7 @@ export type ContactTopic = (typeof CONTACT_TOPICS)[number];
 
 const TOPIC_LABELS: Record<string, string> = {
   support: "Help & support",
-  billing: "Billing & refunds",
+  billing: "Donate to us",
   privacy: "Privacy & data",
   partnership: "Barbershop / partnership",
   press: "Press & media",

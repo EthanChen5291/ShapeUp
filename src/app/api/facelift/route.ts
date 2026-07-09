@@ -20,6 +20,7 @@ import { enforceDurableRateLimits } from '@/lib/durableRateLimit';
 import { requireSignedIn } from '@/lib/serverAuth';
 import { parseImageDataUrl, sanitizeOutputName } from '@/lib/imageDataUrl';
 import { getFaceliftHeaders, isFaceliftConfigured, resolveFaceliftUpstreams } from '@/lib/facelift';
+import { FREE_MODE } from '@/lib/freeMode';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -318,8 +319,8 @@ export async function POST(req: NextRequest) {
   // Spend an entitlement: a paid credit if the user has one, otherwise one of
   // their monthly free generations (3/month, reset not accumulated, gated by
   // the anti-Sybil checks in freeGen.ts). Allowlisted demo/dev accounts bypass
-  // billing entirely.
-  if (process.env.DISABLE_PAYWALL !== '1' && !isDemoUser) {
+  // billing entirely. FREE_MODE (limited-time "everything free") skips it too.
+  if (!FREE_MODE && process.env.DISABLE_PAYWALL !== '1' && !isDemoUser) {
     try {
       await convex.mutation(api.freeGen.consumeGeneration, {
         ipHash: hashIdentifier(ip),

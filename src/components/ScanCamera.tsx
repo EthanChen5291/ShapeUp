@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import { UserHeadProfile } from '@/types';
+import { FREE_MODE } from '@/lib/freeMode';
 
 interface ScanCameraProps {
   hairType: 'straight' | 'wavy' | 'curly';
@@ -228,7 +229,7 @@ export default function ScanCamera({ hairType, onScanComplete, onDataUrlReady, o
     // availableGenerations folds in the user's remaining monthly free
     // generations, so a brand-new 0-credit user can still scan. getMe always
     // provides it; fall back to raw credits for safety.
-    if (!paywallDisabled && convexUser != null && (convexUser.availableGenerations ?? convexUser.credits) <= 0) {
+    if (!FREE_MODE && !paywallDisabled && convexUser != null && (convexUser.availableGenerations ?? convexUser.credits) <= 0) {
       onNoTokens?.();
       return;
     }

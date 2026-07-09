@@ -17,6 +17,7 @@ import { getVisitorId } from '@/lib/visitorId';
 import BiometricConsentDialog from '@/components/BiometricConsentDialog';
 import ImproveShapeUpDialog from '@/components/ImproveShapeUpDialog';
 import PhoneBonusBanner from '@/components/PhoneBonusBanner';
+import { FREE_MODE } from '@/lib/freeMode';
 import dynamic from 'next/dynamic';
 import type { ChecksMap, CheckKey } from '@/components/LiveScanCamera';
 import { CHECK_META, CHECK_ORDER } from '@/components/LiveScanCamera';
@@ -293,7 +294,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
           <button onClick={handleToggle} className={`flex items-center w-full ${isMobile ? 'gap-1.5' : 'gap-2'}`} style={{ cursor: 'pointer', background: 'none', border: 'none', paddingLeft: isMobile ? 9 : 8, paddingRight: isMobile ? 13 : 15, height: collapsedH }}>
             <span className="avatar-initial" style={isMobile ? { width: 34, height: 34, fontSize: 16 } : undefined}>{initial}</span>
             <span className="font-sans flex-1 text-left" style={{ fontSize: isMobile ? 17 : 15, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
-            <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, ...(isMobile ? { fontSize: 15 } : {}) }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.0125em', height: '2.0125em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.availableGenerations ?? 0)} /></span>
+            {!FREE_MODE && <span className="pill-credits" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, ...(isMobile ? { fontSize: 15 } : {}) }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '2.0125em', height: '2.0125em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)' }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.availableGenerations ?? 0)} /></span>}
             <svg width={isMobile ? 14 : 12} height={isMobile ? 14 : 12} viewBox="0 0 10 10" fill="none" style={{ color: 'var(--ink)', opacity: 0.7, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 280ms ease', flexShrink: 0 }}>
               <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -301,27 +302,39 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
           <div style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', maxHeight: open ? panelMaxH - collapsedH : 0, overflowY: open ? 'auto' : 'hidden', transition: open ? 'opacity 200ms 160ms ease' : 'opacity 100ms ease' }}>
             <div className={`flex flex-col ${isMobile ? 'gap-6' : 'gap-3.5'}`} style={{ padding: isMobile ? '16px 22px 30px' : '10px 20px 18px' }}>
               {/* ── Hero: plan + token balance + primary CTA ── */}
-              <div ref={heroRef} className="tokens-widget" style={isMobile ? { gap: 14, padding: '16px 16px 18px' } : undefined}>
-                <div className="tokens-widget__row">
-                  <span className="tokens-widget__label">{t('Tokens')}</span>
-                  <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{t('{plan} plan', { plan: planName })}</span>
+              {FREE_MODE ? (
+                <div ref={heroRef} className="tokens-widget" style={isMobile ? { gap: 10, padding: '16px 16px 18px' } : undefined}>
+                  <div className="tokens-widget__row">
+                    <span className="tokens-widget__label">{t('Status')}</span>
+                    <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: isDark ? '#f0d6a0' : 'var(--char)', background: isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{t('Limited time')}</span>
+                  </div>
+                  <span className="tokens-widget__count" style={{ marginTop: -2 }}>{t('Free')}</span>
+                  <span className="tokens-widget__note">{t('Everything’s free right now — make as many looks as you like, on the house.')}</span>
                 </div>
-                <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.availableGenerations ?? 0)} /></span>
-                {planName === 'Free' && (
-                  <span className="tokens-widget__note">
-                    {t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 })}
-                  </span>
-                )}
-                <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: isMobile ? 16 : 12, ...(isMobile ? { padding: '22px 16px 21px', fontSize: 19 } : {}) }}>
-                  <span className="btn-tokens-cta__shimmer" />
-                  <span className="btn-tokens-cta__text">{t('Get more tokens')}</span>
-                </BouncyButton>
-                <BouncyButton onClick={() => setShowRefer(true)} className="btn-refer-cta w-full" style={{ marginTop: isMobile ? 12 : 8, ...(isMobile ? { padding: '15px 14px 14px', fontSize: 16 } : {}) }}>
-                  <span className="btn-refer-cta__text">{t('Refer a friend for')} <span className="btn-refer-cta__hl">{t('6 tokens')}</span></span>
-                </BouncyButton>
-              </div>
+              ) : (
+                <div ref={heroRef} className="tokens-widget" style={isMobile ? { gap: 14, padding: '16px 16px 18px' } : undefined}>
+                  <div className="tokens-widget__row">
+                    <span className="tokens-widget__label">{t('Tokens')}</span>
+                    <span className="font-sans text-[11px]" style={{ fontWeight: 700, color: planName === 'Free' ? (isDark ? '#f0d6a0' : 'var(--char)') : 'var(--ink)', background: planName === 'Free' ? (isDark ? 'rgba(255,230,170,0.16)' : 'rgba(74,58,46,0.10)') : 'var(--butter)', borderRadius: 999, padding: '2px 10px', whiteSpace: 'nowrap' }}>{t('{plan} plan', { plan: planName })}</span>
+                  </div>
+                  <span className="tokens-widget__count" style={{ marginTop: -2, display: 'inline-flex', alignItems: 'center', gap: 8 }}><img src="/shapeup_token.png" alt="token" draggable={false} style={{ width: '0.95em', height: '0.95em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} /><ClockCounter key={clockKey} value={displayCredits !== null ? displayCredits : (user?.availableGenerations ?? 0)} /></span>
+                  {planName === 'Free' && (
+                    <span className="tokens-widget__note">
+                      {t('Includes {n} free/month · resets monthly, unused don\'t roll over', { n: 3 })}
+                    </span>
+                  )}
+                  <BouncyButton onClick={() => { setShowPricing(true); setOpen(false); }} className="btn-tokens-cta w-full" style={{ marginTop: isMobile ? 16 : 12, ...(isMobile ? { padding: '22px 16px 21px', fontSize: 19 } : {}) }}>
+                    <span className="btn-tokens-cta__shimmer" />
+                    <span className="btn-tokens-cta__text">{t('Get more tokens')}</span>
+                  </BouncyButton>
+                  <BouncyButton onClick={() => setShowRefer(true)} className="btn-refer-cta w-full" style={{ marginTop: isMobile ? 12 : 8, ...(isMobile ? { padding: '15px 14px 14px', fontSize: 16 } : {}) }}>
+                    <span className="btn-refer-cta__text">{t('Refer a friend for')} <span className="btn-refer-cta__hl">{t('6 tokens')}</span></span>
+                  </BouncyButton>
+                </div>
+              )}
 
               {/* ── Redeem a code (secondary) ── */}
+              {!FREE_MODE && (
               <div className={`border-t border-dashed border-[var(--char)]/15 flex flex-col ${isMobile ? 'pt-5 gap-3.5' : 'pt-3.5 gap-2.5'}`}>
                 <div ref={redeemBarRef} className="flex gap-2">
                   <input
@@ -340,6 +353,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
                 {redeemErr && <span className="font-sans text-[11px]" style={{ color: 'var(--tomato)' }}>{redeemErr}</span>}
                 <ConfettiBurst fireKey={confettiKey} originRef={redeemBarRef} />
               </div>
+              )}
 
               {/* ── Show my barber a 360° — quiet tertiary utility row ── */}
               <button onClick={handleBarber} className="btn-barber360" aria-label="Show my barber a 360 degree view of your cut" style={isMobile ? { paddingTop: 15, paddingBottom: 15 } : undefined}>
@@ -381,7 +395,7 @@ function ProfileMenu({ onRescan, onOpenSettings, onPick360, pulse = false, celeb
         />,
         document.body
       )}
-      {showPricing && createPortal(<PricingPopup onDismiss={() => setShowPricing(false)} />, document.body)}
+      {!FREE_MODE && showPricing && createPortal(<PricingPopup onDismiss={() => setShowPricing(false)} />, document.body)}
     </div>
   );
 }
@@ -863,11 +877,11 @@ function ReuseScanPopup({ onReuse, onNewSelfie, onDismiss, creating }: { onReuse
               {creating ? t('Setting up…') : `✂ ${t('Use my selfie')}`}
             </BouncyButton>
             <BouncyButton onClick={onNewSelfie} disabled={creating} className="btn btn-cream w-full" style={{ position: 'relative', padding: '13px 32px', fontSize: 15, fontWeight: 700, opacity: creating ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img src="/shapeup_token.png" alt="token" draggable={false} style={{ position: 'absolute', left: 16, width: '1.1em', height: '1.1em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} />
+              {!FREE_MODE && <img src="/shapeup_token.png" alt="token" draggable={false} style={{ position: 'absolute', left: 16, width: '1.1em', height: '1.1em', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(42,32,26,0.22)', flexShrink: 0 }} />}
               {t('Take a new selfie')}
             </BouncyButton>
           </div>
-          <p className="font-sans text-center" style={{ fontSize: 11, color: 'var(--caramel)', margin: 0 }}>{t('Reusing your scan is free — no token spent.')}</p>
+          {!FREE_MODE && <p className="font-sans text-center" style={{ fontSize: 11, color: 'var(--caramel)', margin: 0 }}>{t('Reusing your scan is free — no token spent.')}</p>}
         </div>
       </div>
     </div>
@@ -1041,7 +1055,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
   const [collapsing, setCollapsing] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
-  const [paywallDisabled, setPaywallDisabled] = useState(false);
+  const [paywallDisabled, setPaywallDisabled] = useState(FREE_MODE);
   const [faceliftStatus, setFaceliftStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
   const [faceliftError, setFaceliftError] = useState<string | null>(null);
   const faceliftAbortRef = useRef<AbortController | null>(null);
@@ -1384,7 +1398,7 @@ function ScanPopup({ onScanComplete, onDismiss, onNoTokens, needsUsername = fals
         </div>
       </div>
 
-      {showPricing && <PricingPopup onDismiss={() => setShowPricing(false)} />}
+      {!FREE_MODE && showPricing && <PricingPopup onDismiss={() => setShowPricing(false)} />}
       {showConsentDialog && <BiometricConsentDialog onAccept={async () => { await recordConsent({ noticeVersion: BIOMETRIC_CONSENT_VERSION }); setShowConsentDialog(false); runFacelift(); }} onCancel={() => setShowConsentDialog(false)} />}
     </div>
   );
@@ -2314,7 +2328,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PhoneBonusBanner />
+      {!FREE_MODE && <PhoneBonusBanner />}
       <MainMenu
         onAdd={handleAddProject}
         onOpenProject={handleOpenProject}
@@ -2343,7 +2357,7 @@ export default function DashboardPage() {
           onDismiss={() => setShowReusePopup(false)}
         />
       )}
-      {showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
+      {!FREE_MODE && showOutOfTokens && <PricingPopup outOfTokens onDismiss={() => setShowOutOfTokens(false)} />}
       {showLimitReached && <ProjectLimitPopup onDismiss={() => setShowLimitReached(false)} />}
       {showImprovePrompt && <ImproveShapeUpDialog onChoice={handleImproveChoice} />}
 
