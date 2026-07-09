@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import { createSplatEncoder } from '@/lib/recordSplatVideo';
+import { createWatermark } from '@/lib/splatWatermark';
 
 const FRAMES = 120;          // 4s loop at 30fps
 const FPS = 30;
@@ -113,6 +114,10 @@ export default function SplatVideoCapture({
         if (resolved) scene.background = resolved;
         else if (!scene.background) scene.background = new THREE.Color('#1c1510');
 
+        // Brand the clip with the ShapeUp corner lockup (comb + wordmark),
+        // built once and stamped into every frame's bottom-left corner.
+        const watermark = await createWatermark({ videoHeight: outH }).catch(() => null);
+
         encoder = await createSplatEncoder({ canvas: off, width: outW, height: outH, fps: FPS });
         encoder.start();
 
@@ -138,6 +143,9 @@ export default function SplatVideoCapture({
           gl.render(scene, camera);
 
           offCtx.drawImage(gl.domElement, 0, 0, outW, outH);
+          if (watermark) {
+            offCtx.drawImage(watermark.canvas, watermark.margin, outH - watermark.height - watermark.margin);
+          }
           encoder.addFrame();
           onProgress?.((i + 1) / FRAMES);
 
