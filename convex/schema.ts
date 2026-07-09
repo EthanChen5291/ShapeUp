@@ -33,6 +33,10 @@ export default defineSchema({
     // convex/freeGen.ts and convex/lib/freeGen.ts.
     freeGenMonthKey: v.optional(v.string()),
     freeGenUsedInMonth: v.optional(v.number()),
+    // DEPRECATED: legacy single-use free-gen timestamp, superseded by the
+    // monthly quota above. Retained (optional) only so pre-migration user docs
+    // still validate; safe to drop once backfilled off every user document.
+    freeGenUsedAt: v.optional(v.number()),
     // One-time welcome bundle (WELCOME_BUNDLE_CREDITS) granted at account
     // creation; the timestamp flag makes the grant idempotent across the
     // several getOrCreate paths. See convex/users.ts.
