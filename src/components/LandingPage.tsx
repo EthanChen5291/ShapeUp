@@ -2333,7 +2333,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
             <div className="hero-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: 'rgba(217,78,58,0.07)', border: '1px solid rgba(217,78,58,0.25)', borderRadius: 9999, padding: '8px 20px', marginTop: 8 }}>
               <span className="star-twinkle" style={{ color: 'var(--tomato)', fontSize: 10, ...(isMobile ? { fontSize: 12 } : {}) }}>✦</span>
-              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8, ...(isMobile ? { fontSize: 13, letterSpacing: '0.14em' } : {}) }}>{t('Free to try · No credit card · 3D preview in ~60 sec')}</span>
+              <span className="font-mono" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', opacity: 0.8, ...(isMobile ? { fontSize: 13, letterSpacing: '0.14em' } : {}) }}>{t('Completely Free For Everyone · 3D Preview in 60 Seconds')}</span>
             </div>
             <div
               className="type-chonk"
@@ -2715,7 +2715,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 letterSpacing: '-0.01em',
               }}
             >
-              {t('Try It Free')} →
+              {t('Try It For Yourself')} →
             </TraceBorderCta>
             <p className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,248,234,0.3)', marginTop: 14 }}>
               {t('takes about 60 seconds')}

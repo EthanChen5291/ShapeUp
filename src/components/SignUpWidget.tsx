@@ -387,7 +387,7 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
                 autoFocus type="email" autoComplete="email"
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError(''); }}
-                placeholder="your@email.com"
+                placeholder="bobthebuilder@email.com"
                 style={inputStyle}
                 onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
                 onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}
@@ -413,7 +413,7 @@ export default function SignUpWidget({ onEnter, large = false, onBeforeGoogleRed
                 type="email" autoComplete="email"
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError(''); }}
-                placeholder="your@email.com"
+                placeholder="bobthebuilder@email.com"
                 style={inputStyle}
                 onFocus={e => (e.target.style.borderColor = 'rgba(217,78,58,0.5)')}
                 onBlur={e => (e.target.style.borderColor = 'rgba(42,32,26,0.13)')}

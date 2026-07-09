@@ -289,8 +289,8 @@ export const es: Record<string, string> = {
 
   // ── Landing page ──
   'dashboard': 'panel',
-  'Free to try · No credit card · 3D preview in ~60 sec':
-    'Gratis para probar · Sin tarjeta de crédito · Vista 3D en ~60 seg',
+  'Completely Free For Everyone · 3D Preview in 60 Seconds':
+    'Completamente gratis para todos · Vista 3D en 60 segundos',
   'see it first.': 'míralo primero.',
   'love': 'ámalo',
   'it more.': 'aún más.',
@@ -358,7 +358,7 @@ export const es: Record<string, string> = {
   '200 haircut generations': '200 generaciones de corte',
   'Explorer': 'Explorador',
   'Pick your style.': 'Elige tu estilo.',
-  'Try It Free': 'Pruébalo gratis',
+  'Try It For Yourself': 'Pruébalo tú mismo',
   'takes about 60 seconds': 'toma unos 60 segundos',
   'Your photo stays private': 'Tu foto se mantiene privada',
   'We never sell or share your scan. Delete your data anytime from settings.':
