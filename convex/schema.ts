@@ -244,6 +244,117 @@ export default defineSchema({
     heartbeatAt: v.number(),
   }).index("by_heartbeat", ["heartbeatAt"]),
 
+  // A barber's public card: /b/<slug>. A free link-in-bio (booking, socials,
+  // Venmo/Cash App, call/text, address) whose hero block is a menu of cuts the
+  // barber does — tapping one drops the client into the ShapeUp try-on with the
+  // barber's referral code attached. The barber is the distributor; their client
+  // is the user. See convex/barberPages.ts.
+  //
+  // `links` and `styles` are capped (MAX_LINKS / MAX_STYLES in
+  // convex/lib/barberLinks.ts) so they stay small, bounded arrays — a child
+  // table would be overkill for ≤10 rows that are always read together.
+  barberPages: defineTable({
+    slug: v.string(), // [a-z0-9-]{3,30}, lowercase; unique
+    ownerUserId: v.id("users"),
+    displayName: v.string(),
+    shopName: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    links: v.array(
+      v.object({
+        kind: v.string(), // a LinkKind — see convex/lib/barberLinks.ts
+        label: v.string(),
+        url: v.string(), // normalized + safety-checked at write time
+      }),
+    ),
+    styles: v.array(v.string()), // hairstyle slugs from src/data/hairstyles.ts
+    published: v.boolean(),
+    // The barber's own inbox — never rendered on the public card. Used only to
+    // notify them when a client finishes a try-on. See convex/barberTryOn.ts.
+    contactEmail: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    // Redesign fields — all optional so existing rows stay valid.
+    avatarStorageId: v.optional(v.id("_storage")), // barber profile photo
+    bannerStorageId: v.optional(v.id("_storage")), // wide cover image behind identity
+    location: v.optional(v.string()), // short free-text, e.g. "Telegraph Ave, Oakland"
+    hours: v.optional(v.string()), // short free-text, e.g. "Tue–Sat · 9–6"
+    services: v.optional(
+      v.array(v.object({ name: v.string(), price: v.optional(v.string()) })),
+    ), // the barber's service menu
+    // Native appointment slots (see convex/lib/bookingSlots.ts). Weekly hours in
+    // the barber's own timezone; actual bookings live in barberBookings. `days`
+    // is at most 7 entries, so an inline object is fine per the array-size rule.
+    booking: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        timezone: v.string(), // IANA zone, validated at write time
+        slotMinutes: v.number(), // one of SLOT_MINUTES_OPTIONS
+        days: v.array(
+          v.object({
+            day: v.number(), // 0 (Sun) – 6 (Sat)
+            start: v.string(), // "HH:MM", 24h, barber-local
+            end: v.string(),
+          }),
+        ),
+      }),
+    ),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_owner", ["ownerUserId"]),
+
+  // A client's finished try-on, sent to the barber's chair-side inbox. This row
+  // is the durable delivery — the notification email in convex/barberTryOn.ts
+  // is best-effort on top, so "send to barber" works even when Resend isn't
+  // configured or the barber never added a contact email.
+  barberSends: defineTable({
+    pageId: v.id("barberPages"),
+    cutLabel: v.string(),
+    imageUrl: v.string(), // re-hosted in Convex storage by the client before sending
+    videoUrl: v.optional(v.string()),
+    clientRequest: v.optional(v.string()),
+    clientEmail: v.optional(v.string()),
+    clientPhone: v.optional(v.string()),
+    emailed: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_page", ["pageId"]),
+
+  // One row per appointment booked through a barber card's native scheduler.
+  // Slots are validated against barberPages.booking at write time; a cancelled
+  // row keeps its slot history but frees the time. See convex/barberBooking.ts.
+  barberBookings: defineTable({
+    pageId: v.id("barberPages"),
+    startMs: v.number(), // UTC epoch of the slot start
+    endMs: v.number(),
+    clientUserId: v.id("users"),
+    clientName: v.string(),
+    clientEmail: v.optional(v.string()),
+    clientPhone: v.optional(v.string()),
+    service: v.optional(v.string()), // a name from the barber's service menu
+    note: v.optional(v.string()),
+    status: v.union(v.literal("booked"), v.literal("cancelled")),
+    createdAt: v.number(),
+  })
+    .index("by_page_and_start", ["pageId", "startMs"])
+    .index("by_client", ["clientUserId"]),
+
+  // Scan/tap counters for a barber card, in daily buckets ("YYYY-MM-DD").
+  // High-churn (every QR scan writes) so it lives off the barberPages doc per
+  // the Convex guidelines — a busy Saturday must never contend with an edit.
+  // Bucketing keeps rows bounded and lets the barber see a trend, not a total.
+  barberPageStats: defineTable({
+    pageId: v.id("barberPages"),
+    bucket: v.string(),
+    views: v.number(),
+    tryOns: v.number(),
+    linkClicks: v.number(),
+    // Redesign counters — optional so existing daily-bucket rows stay valid.
+    // Treat missing as 0 everywhere they're read.
+    bookingClicks: v.optional(v.number()),
+    selfieStarts: v.optional(v.number()),
+    previews: v.optional(v.number()),
+    byStyle: v.optional(v.record(v.string(), v.number())), // per-hairstyle-slug try-on tap counts
+  }).index("by_page_and_bucket", ["pageId", "bucket"]),
+
   // Inbound messages from the public "Contact us" page. Works for logged-out
   // visitors, so there's no tokenIdentifier — just whatever they typed. A topic
   // routes the message (support / billing / privacy / partnership / press /

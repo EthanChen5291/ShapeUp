@@ -22,6 +22,7 @@ import InferenceNote from '@/components/InferenceNote';
 import HairPreviewBubble, { type CutPreview } from '@/components/HairPreviewBubble';
 import { type Gender, loadGender, saveGender } from '@/components/editPanelGender';
 import { useT } from '@/lib/i18n';
+import { prepareHairReference, type PreparedHairReference } from '@/lib/hairReferenceImage';
 
 
 interface EditPanelProps {
@@ -136,6 +137,7 @@ const TRENDING_CUTS: Record<Gender, string[]> = {
 };
 
 const CHIPS_PER_PAGE = 3;
+const REFERENCE_ONLY_PROMPT = 'Use the haircut in the attached reference photo as the hairstyle inspiration.';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -190,6 +192,10 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   const t = useT();
   const [prompt, setPrompt] = useState('');
   const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
+  const [hairReference, setHairReference] = useState<PreparedHairReference | null>(null);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [isPreparingReference, setIsPreparingReference] = useState(false);
   // Empty-prompt hint: 'hidden' | 'shown' | 'fading'. Shows for 3s then fades out.
   const [emptyHint, setEmptyHint] = useState<'hidden' | 'shown' | 'fading'>('hidden');
   const emptyHintTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -272,6 +278,11 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     saveGender(gender, projectId);
   }, [gender, projectId]);
 
+  useEffect(() => {
+    setHairReference(null);
+    setReferenceError(null);
+  }, [projectId]);
+
   const currentParams = history[historyIndex];
 
   // Only subscribed when recovering from a mid-hairstep refresh
@@ -324,7 +335,6 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
         sessionStorage.removeItem(key);
       }
     } catch { /* corrupt entry — ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   // When Convex delivers a fresh facelift result after recovery, deliver it.
@@ -354,7 +364,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
-  const runPromptPipeline = async (submittedPrompt: string) => {
+  const runPromptPipeline = async (submittedPrompt: string, referenceImageDataUrl?: string) => {
     if (processingRef.current) return;
     if (!submittedPrompt.trim()) return;
 
@@ -397,6 +407,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
         body: JSON.stringify({
           imageUrl: imageForEdit,
           prompt: submittedPrompt,
+          referenceImageDataUrl,
           sessionId,
           currentProfile: buildCurrentProfilePayload({
             ...profile,
@@ -426,6 +437,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       setLastEditReport(sanitizeEditReport(editData.editReport ?? null));
       setLiveStatus('Updated hairstyle image generated. Starting 3D render.');
       setPrompt('');
+      if (referenceImageDataUrl) setHairReference(null);
 
       setPhase('hairstep');
 
@@ -502,9 +514,10 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
   // Submit handler: nudge the user with a fading hint when the prompt is empty
   // instead of disabling the Apply button.
   const handleApply = () => {
-    if (isBusy) return;
+    if (isBusy || isPreparingReference) return;
     // On mobile a tap-selected suggestion is applied directly (no prompt box).
-    const promptToApply = resolveApplyPrompt(isMobile, selectedChip, prompt);
+    const resolvedPrompt = resolveApplyPrompt(isMobile, selectedChip, prompt);
+    const promptToApply = resolvedPrompt.trim() || (hairReference ? REFERENCE_ONLY_PROMPT : '');
     if (!promptToApply.trim()) {
       emptyHintTimers.current.forEach(clearTimeout);
       setEmptyHint('shown');
@@ -514,9 +527,24 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       ];
       return;
     }
-    runPromptPipeline(promptToApply);
+    void runPromptPipeline(promptToApply, hairReference?.dataUrl);
     setPrompt('');
     clearChipSelection();
+  };
+
+  const handleReferenceFile = async (file: File | undefined) => {
+    if (!file || isBusy) return;
+    setReferenceError(null);
+    setIsPreparingReference(true);
+    try {
+      const prepared = await prepareHairReference(file);
+      setHairReference(prepared);
+      setLiveStatus('Hair reference image attached.');
+    } catch (error) {
+      setReferenceError(error instanceof Error ? error.message : 'Could not attach that image.');
+    } finally {
+      setIsPreparingReference(false);
+    }
   };
 
   useEffect(() => () => emptyHintTimers.current.forEach(clearTimeout), []);
@@ -680,7 +708,7 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
       ref={promptTextareaRef}
       id="hair-edit-prompt"
       aria-describedby="hair-edit-prompt-chips"
-      className={`input-soft w-full rounded-xl px-3 py-2 text-sm resize-none placeholder:text-[var(--smoke)] ${isMobile ? 'h-16' : 'h-20'}`}
+      className={`input-soft w-full rounded-xl pl-3 pr-12 py-2 text-sm resize-none placeholder:text-[var(--smoke)] ${isMobile ? 'h-16' : 'h-20'}`}
       style={{ fontStyle: 'italic' }}
       placeholder={t(PROMPT_PLACEHOLDERS[placeholderIdx])}
       value={prompt}
@@ -692,10 +720,53 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
     />
   );
 
+  const referencePicker = (
+    <>
+      <input
+        ref={referenceInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        disabled={isBusy || isPreparingReference}
+        onChange={(event) => {
+          void handleReferenceFile(event.target.files?.[0]);
+          event.target.value = '';
+        }}
+      />
+      {hairReference ? (
+        <div className="hair-reference-thumb" title={t('Hair reference attached')}>
+          {/* A local data URL is intentional here: it is already normalized and is never fetched remotely. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={hairReference.dataUrl} alt={t('Selected haircut reference')} />
+          <button
+            type="button"
+            className="hair-reference-remove"
+            aria-label={t('Remove haircut reference')}
+            disabled={isBusy}
+            onClick={() => { setHairReference(null); setReferenceError(null); }}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="hair-reference-add"
+          aria-label={t('Add a haircut reference photo')}
+          title={t('Add haircut reference')}
+          disabled={isBusy || isPreparingReference}
+          onClick={() => referenceInputRef.current?.click()}
+        >
+          {isPreparingReference ? <span className="btn-spinner" aria-hidden /> : <span aria-hidden>+</span>}
+        </button>
+      )}
+    </>
+  );
+
   const applyButton = (
     <button
       type="submit"
-      disabled={isBusy}
+      disabled={isBusy || isPreparingReference}
       aria-label={t('Apply hair edit request')}
       className="btn btn-tomato btn-snap flex-1"
       style={{ padding: isMobile ? '10px 12px' : '14px 16px', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', borderRadius: 12 }}
@@ -768,13 +839,20 @@ export default function EditPanel({ isMobile = false, profile, onParamsChange, s
           <div className="flex gap-2 items-stretch">
             <div className="prompt-frame" style={{ flex: '0 0 50%', minWidth: 0 }}>
               {promptTextarea}
+              {referencePicker}
             </div>
             {applyButton}
           </div>
         ) : (
           <div className="prompt-frame">
             {promptTextarea}
+            {referencePicker}
           </div>
+        )}
+        {referenceError && (
+          <p role="alert" className="font-sans text-[10.5px] leading-snug text-[var(--cherry)] px-0.5">
+            {referenceError}
+          </p>
         )}
         <div id="hair-edit-prompt-chips" className="flex items-start gap-1.5">
           <div key={chipPage} className="flex flex-wrap gap-1.5 flex-1 min-w-0">

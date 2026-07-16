@@ -27,6 +27,6 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: webServerEnv,
+    env: { ...webServerEnv, BARBER_E2E_FIXTURE: '1' },
   },
 });

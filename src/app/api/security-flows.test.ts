@@ -352,6 +352,84 @@ describe('scan and generation APIs', () => {
     expect([400, 403]).toContain(res.status);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  test('/api/gemini-hair-edit rejects malformed haircut references before fetching the source', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test');
+    vi.doMock('@/lib/serverAuth', () => ({
+      requireSignedIn: vi.fn().mockResolvedValue({ response: null, session: { userId: 'user_123' } }),
+    }));
+    vi.doMock('@/lib/durableRateLimit', () => ({ enforceDurableRateLimits: vi.fn().mockResolvedValue(null) }));
+
+    const { POST } = await import('./gemini-hair-edit/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/gemini-hair-edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        imageUrl: '/api/img?key=scan.png',
+        prompt: 'match this haircut',
+        referenceImageDataUrl: 'data:text/html;base64,PHNjcmlwdD4=',
+      }),
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(expect.objectContaining({ error: expect.stringMatching(/Invalid haircut reference/) }));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('/api/gemini-hair-edit sends a valid haircut reference as a distinct second image', async () => {
+    const validPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    const generateContent = vi.fn().mockResolvedValue({
+      response: {
+        candidates: [{
+          finishReason: 'STOP',
+          content: { parts: [{ inlineData: { data: 'EDITED', mimeType: 'image/png' } }] },
+        }],
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(Buffer.from(validPngBase64, 'base64'), {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    })));
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test');
+    vi.doMock('@/lib/serverAuth', () => ({
+      requireSignedIn: vi.fn().mockResolvedValue({ response: null, session: { userId: 'user_123' } }),
+    }));
+    vi.doMock('@/lib/durableRateLimit', () => ({ enforceDurableRateLimits: vi.fn().mockResolvedValue(null) }));
+    vi.doMock('@google/generative-ai', () => ({
+      HarmCategory: {
+        HARM_CATEGORY_HARASSMENT: 'harassment',
+        HARM_CATEGORY_HATE_SPEECH: 'hate_speech',
+        HARM_CATEGORY_SEXUALLY_EXPLICIT: 'sex',
+        HARM_CATEGORY_DANGEROUS_CONTENT: 'danger',
+      },
+      HarmBlockThreshold: { BLOCK_ONLY_HIGH: 'high' },
+      GoogleGenerativeAI: vi.fn(function GoogleGenerativeAI() {
+        return { getGenerativeModel: vi.fn(() => ({ generateContent })) };
+      }),
+    }));
+
+    const { POST } = await import('./gemini-hair-edit/route');
+    const res = await POST(new NextRequest('https://shapeup.test/api/gemini-hair-edit', {
+      method: 'POST',
+      body: JSON.stringify({
+        imageUrl: '/api/img?key=scan.png',
+        prompt: 'match this haircut',
+        referenceImageDataUrl: `data:image/png;base64,${validPngBase64}`,
+      }),
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    expect(res.status).toBe(200);
+    const parts = generateContent.mock.calls[0][0];
+    expect(parts).toHaveLength(5);
+    expect(parts[0]).toMatch(/SOURCE PHOTO/);
+    expect(parts[1]).toHaveProperty('inlineData');
+    expect(parts[2]).toMatch(/HAIRCUT REFERENCE/);
+    expect(parts[3]).toHaveProperty('inlineData.mimeType', 'image/jpeg');
+    expect(parts[4]).toMatch(/Do NOT copy the reference person's face/);
+  });
 });
 
 describe('local file editing API', () => {

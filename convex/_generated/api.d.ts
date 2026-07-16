@@ -9,6 +9,9 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as barberBooking from "../barberBooking.js";
+import type * as barberPages from "../barberPages.js";
+import type * as barberTryOn from "../barberTryOn.js";
 import type * as contact from "../contact.js";
 import type * as facelifts from "../facelifts.js";
 import type * as feedback from "../feedback.js";
@@ -17,6 +20,11 @@ import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
 import type * as lib_adminAuth from "../lib/adminAuth.js";
 import type * as lib_allowlist from "../lib/allowlist.js";
+import type * as lib_barberEmail from "../lib/barberEmail.js";
+import type * as lib_barberInsights from "../lib/barberInsights.js";
+import type * as lib_barberLinks from "../lib/barberLinks.js";
+import type * as lib_bookingSlots from "../lib/bookingSlots.js";
+import type * as lib_calendarLinks from "../lib/calendarLinks.js";
 import type * as lib_contentFilter from "../lib/contentFilter.js";
 import type * as lib_disposableEmail from "../lib/disposableEmail.js";
 import type * as lib_freeGen from "../lib/freeGen.js";
@@ -42,6 +50,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  barberBooking: typeof barberBooking;
+  barberPages: typeof barberPages;
+  barberTryOn: typeof barberTryOn;
   contact: typeof contact;
   facelifts: typeof facelifts;
   feedback: typeof feedback;
@@ -50,6 +61,11 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/adminAuth": typeof lib_adminAuth;
   "lib/allowlist": typeof lib_allowlist;
+  "lib/barberEmail": typeof lib_barberEmail;
+  "lib/barberInsights": typeof lib_barberInsights;
+  "lib/barberLinks": typeof lib_barberLinks;
+  "lib/bookingSlots": typeof lib_bookingSlots;
+  "lib/calendarLinks": typeof lib_calendarLinks;
   "lib/contentFilter": typeof lib_contentFilter;
   "lib/disposableEmail": typeof lib_disposableEmail;
   "lib/freeGen": typeof lib_freeGen;

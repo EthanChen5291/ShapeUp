@@ -3424,6 +3424,65 @@ html.dark .explore-marquee-track {
   transform: rotate(6deg) scale(1.08);
 }
 
+.hair-reference-add,
+.hair-reference-thumb {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+.hair-reference-add {
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(42, 32, 26, 0.3);
+  background: rgba(255, 248, 234, 0.9);
+  color: var(--tomato);
+  font-family: var(--font-dm-sans), sans-serif;
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+.hair-reference-add:hover:not(:disabled),
+.hair-reference-add:focus-visible {
+  border-color: var(--tomato);
+  background: var(--cream);
+  transform: translateY(-1px) rotate(2deg);
+  outline: none;
+}
+.hair-reference-add:disabled { cursor: wait; opacity: 0.65; }
+.hair-reference-thumb {
+  padding: 2px;
+  background: var(--cream);
+  border: 2px solid var(--tomato);
+  box-shadow: 0 5px 12px rgba(42, 32, 26, 0.2);
+}
+.hair-reference-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.hair-reference-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--cream);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--cream);
+  font: 700 14px/1 sans-serif;
+}
+
 /* ── Button micro-interactions ──────────────────────────────────── */
 .btn.btn-snap:active:not(:disabled) {
   transform: translateY(1px) scale(0.96);
@@ -4115,5 +4174,2533 @@ html.dark .fresh-sheet {
   body {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* ============================================================
+   BARBER CARD — the public /b/<slug> page.
+
+   A dark editorial split: the barber (photo, name, shop, hours, services,
+   links) left of a diagonal seam; the ShapeUp experience (lookbook → selfie →
+   3D result) right of it. The page commits to the dark studio tokens
+   (--void/--surface/--coral) regardless of app theme, with Montserrat for
+   display type — no new palette.
+
+   Mobile-first: one column in the required order (barber summary → discovery/
+   flow → details & booking), achieved with a `display: contents` side wrapper
+   and flex `order`. The desktop split is a *container* query (not media) so
+   the builder's 400px preview frame always shows the phone layout.
+   ============================================================ */
+.bc-root {
+  --bc-bg: #0e0e10;
+  --bc-panel: #17171a;
+  --bc-card: #1c1c20;
+  --bc-line: rgba(245, 241, 234, 0.1);
+  --bc-text: var(--offwhite);
+  --bc-dim: rgba(245, 241, 234, 0.64);
+  --bc-faint: rgba(245, 241, 234, 0.42);
+  --bc-accent: var(--coral);
+  --bc-display: 'Montserrat', var(--font-dmsans), 'Helvetica Neue', sans-serif;
+
+  position: relative;
+  min-height: 100dvh;
+  background: var(--bc-bg);
+  color: var(--bc-text);
+  container-type: inline-size;
+  container-name: bcard;
+}
+
+/* Faint radial sheen so the dark field reads as a lit room, not a void. */
+.bc-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 85% 0%, rgba(232, 97, 77, 0.06), transparent 60%),
+    radial-gradient(80% 50% at 0% 100%, rgba(245, 241, 234, 0.03), transparent 60%);
+}
+
+/* A darkened glimpse of the barber work anchors the identity section without
+   competing with the profile information. The 26vw height resolves to about
+   the midpoint of the name at phone and full-card widths. */
+.bc-banner {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: clamp(200px, 26vw, 260px);
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(10, 10, 12, 0.54) 0%,
+      rgba(10, 10, 12, 0.68) 62%,
+      var(--bc-bg) 100%
+    ),
+    linear-gradient(90deg, rgba(10, 10, 12, 0.12), rgba(10, 10, 12, 0.42)),
+    var(--bc-banner-url, url('/barber_banner.png'));
+  background-size: cover;
+  background-position: center 38%;
+  background-repeat: no-repeat;
+  clip-path: inset(0 0 0 0);
+  animation: bc-banner-wipe 1050ms cubic-bezier(.2,.78,.2,1) both;
+}
+
+.bc-banner::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  top: 0;
+  opacity: 0;
+  background: rgba(245, 241, 234, 0.45);
+  filter: blur(4px);
+  box-shadow: 0 0 18px 6px rgba(245, 241, 234, 0.16);
+  animation: bc-banner-scan 1050ms cubic-bezier(.2,.78,.2,1) both;
+}
+
+@keyframes bc-banner-wipe {
+  from { clip-path: inset(0 0 100% 0); filter: blur(10px); opacity: .25; }
+  28% { opacity: 1; }
+  to { clip-path: inset(0); filter: blur(0); opacity: 1; }
+}
+@keyframes bc-banner-scan {
+  0% { top: 0; opacity: 0; }
+  12%, 72% { opacity: .8; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* The diagonal seam — drawn only on the desktop split (see container query). */
+.bc-seam {
+  display: none;
+}
+
+.bc-layout {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+/* On the phone the side wrapper dissolves so its two halves can interleave
+   with the experience panel: summary (1) → experience (2) → details (3). */
+.bc-side {
+  display: contents;
+}
+
+.bc-who {
+  order: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: calc(28px + env(safe-area-inset-top)) 22px 8px;
+}
+
+.bc-who > :not(.bc-shop), .bc-details > *, .bc-book-head .bc-book-title, .bc-book-head .bc-book-sub, .bc-choice-stack {
+  animation: bc-white-from-left 620ms cubic-bezier(.16,1,.3,1) both;
+}
+.bc-exp .bc-book-title, .bc-exp .bc-book-sub, .bc-exp .bc-choice-stack {
+  animation-name: bc-white-from-right;
+}
+.bc-shop, .bc-book-eyebrow, .bc-service-price, .bt-cut {
+  animation: bc-accent-focus 720ms ease-out both;
+}
+.bc-who > :nth-child(2), .bc-book-sub { animation-delay: 90ms; }
+.bc-who > :nth-child(3), .bc-choice-stack { animation-delay: 170ms; }
+
+@keyframes bc-white-from-left { from { opacity: 0; transform: translateX(-34px); } to { opacity: 1; transform: none; } }
+@keyframes bc-white-from-right { from { opacity: 0; transform: translateX(34px); } to { opacity: 1; transform: none; } }
+@keyframes bc-accent-focus { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: blur(0); } }
+
+.bc-exp {
+  order: 2;
+  padding: 20px 22px 8px;
+}
+
+.bc-details {
+  order: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 22px calc(48px + env(safe-area-inset-bottom));
+}
+
+/* ── who: the barber's identity ── */
+.bc-avatar {
+  width: 116px;
+  height: 116px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(245, 241, 234, 0.16);
+  box-shadow: 0 0 0 6px rgba(232, 97, 77, 0.08), 0 24px 48px -24px rgba(0, 0, 0, 0.8);
+  background: var(--bc-card);
+}
+
+.bc-avatar-mono {
+  display: grid;
+  place-items: center;
+  font-family: var(--bc-display);
+  font-weight: 700;
+  font-size: 38px;
+  letter-spacing: 0.02em;
+  color: var(--bc-accent);
+  background: linear-gradient(160deg, #232327, #17171a);
+}
+
+.bc-who-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.bc-shop {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--bc-accent);
+  margin: 0;
+}
+
+.bc-name {
+  font-family: var(--bc-display);
+  font-size: clamp(1.9rem, 8cqw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: var(--bc-text);
+  margin: 0;
+}
+
+.bc-location,
+.bc-hours {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--bc-dim);
+  margin: 0;
+}
+.bc-location { width: fit-content; text-decoration: none; transition: color 180ms ease, transform 180ms ease; }
+.bc-location:hover, .bc-location:focus-visible { color: var(--bc-text); transform: translateX(3px); }
+
+.bc-location svg,
+.bc-hours svg {
+  color: var(--bc-faint);
+  flex-shrink: 0;
+}
+
+.bc-bio {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--bc-dim);
+  margin: 0;
+  max-width: 46ch; /* readable measure, never edge-to-edge */
+}
+
+/* ── details: hours, services, links ── */
+.bc-side-heading {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--bc-faint);
+  margin: 0 0 10px;
+}
+
+.bc-services {
+  margin: 0;
+}
+
+.bc-service-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bc-service {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(245, 241, 234, 0.07);
+  font-size: 14.5px;
+}
+
+.bc-service:last-child {
+  border-bottom: none;
+}
+
+.bc-service-name {
+  color: var(--bc-text);
+}
+
+.bc-service-price {
+  font-size: 13px;
+  color: var(--bc-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bc-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bc-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--bc-card);
+  border: 1px solid var(--bc-line);
+  color: var(--bc-text);
+  text-decoration: none;
+  transition: transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 160ms ease,
+    background 160ms ease;
+}
+
+.bc-link-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  color: var(--bc-accent);
+}
+
+.bc-link-label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.bc-link:hover,
+.bc-link:focus-visible {
+  border-color: rgba(232, 97, 77, 0.5);
+  background: #202024;
+}
+
+.bc-link:active {
+  transform: scale(0.985);
+}
+
+/* The booking link is the money action — it reads as the left side's CTA. */
+.bc-link.is-booking {
+  background: var(--bc-accent);
+  border-color: var(--bc-accent);
+  color: #160907;
+}
+
+.bc-link.is-booking .bc-link-icon {
+  color: #160907;
+}
+
+.bc-link.is-booking:hover,
+.bc-link.is-booking:focus-visible {
+  background: #ef7460;
+  border-color: #ef7460;
+}
+
+.bc-foot {
+  text-align: left;
+  padding-top: 6px;
+}
+
+.bc-foot-link {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--bc-faint);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(245, 241, 234, 0.2);
+  padding-bottom: 2px;
+}
+
+.bc-foot-link:hover {
+  color: var(--bc-accent);
+  border-bottom-color: var(--bc-accent);
+}
+
+/* ── the experience panel: lookbook header, filters, grid ── */
+.bc-book {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.bc-book-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bc-book-eyebrow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--bc-accent);
+  margin: 0;
+}
+
+.bc-book-title {
+  font-family: var(--bc-display);
+  font-size: clamp(1.4rem, 6cqw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: var(--bc-text);
+  margin: 0;
+}
+
+.bc-book-sub {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--bc-dim);
+  margin: 0;
+}
+
+.bc-choice-stack { display: grid; gap: 11px; margin-top: 6px; }
+.bc-choice-btn {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%; min-height: 64px; padding: 16px 18px;
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(245,241,234,.18);
+  color: var(--bc-text); background: rgba(245,241,234,.035);
+  font-family: var(--bc-display); font-size: 15px; font-weight: 650; text-align: left;
+  cursor: pointer; transition: color 280ms ease, border-color 280ms ease, transform 280ms cubic-bezier(.16,1,.3,1);
+}
+.bc-choice-btn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--bc-text); transform: translateX(-102%); transition: transform 380ms cubic-bezier(.16,1,.3,1); }
+.bc-choice-btn:hover, .bc-choice-btn:focus-visible { color: #111113; border-color: var(--bc-text); transform: translateY(-2px); }
+.bc-choice-btn:hover::before, .bc-choice-btn:focus-visible::before { transform: none; }
+.bc-choice-btn.is-accent { border-color: rgba(232,97,77,.6); color: #160907; background: var(--bc-accent); }
+.bc-choice-btn.is-accent::before { background: #f5f1ea; }
+.bc-choice-btn.is-quiet { min-height: 48px; font-family: var(--font-dmsans); font-size: 13px; }
+
+.bc-trim { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+.bc-inline-back { width: fit-content; border: 0; background: none; color: var(--bc-dim); cursor: pointer; padding: 7px 0; }
+.bc-trim-title { margin: 0; font-family: var(--bc-display); font-size: clamp(1.5rem, 6cqw, 2rem); animation: bc-trim-type 430ms cubic-bezier(.16,1,.3,1) both; }
+@keyframes bc-trim-type { from { opacity: 0; clip-path: inset(0 100% 0 0); transform: translateX(-14px); } to { opacity: 1; clip-path: inset(0); transform: none; } }
+.bc-trim-field { display: flex; flex-direction: column; gap: 8px; animation: bc-white-from-left 500ms 130ms cubic-bezier(.16,1,.3,1) both; }
+.bc-trim-field span { color: var(--bc-accent); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; }
+.bc-trim-field textarea { min-height: 112px; resize: vertical; border-radius: 14px; border: 1px solid var(--bc-line); background: var(--bc-card); color: var(--bc-text); padding: 14px; font: inherit; }
+.bc-trim-field textarea:focus { outline: 0; border-color: var(--bc-accent); box-shadow: 0 0 0 3px rgba(232,97,77,.15); }
+
+.bc-orbit { min-height: 440px; display: grid; place-items: center; align-content: center; gap: 26px; overflow: hidden; }
+.bc-orbit-ring { position: relative; width: min(76cqw, 360px); aspect-ratio: 1; animation: bc-orbit-turn 1.7s cubic-bezier(.2,.7,.25,1) both; }
+.bc-orbit-cut { --a: calc(360deg / var(--orbit-n) * var(--orbit-i)); position: absolute; left: 50%; top: 50%; width: 68px; height: 68px; object-fit: cover; border-radius: 18px; border: 1px solid rgba(245,241,234,.18); transform: translate(-50%,-50%) rotate(var(--a)) translateY(-142px) rotate(calc(var(--a) * -1)); animation: bc-orbit-swallow 1.75s calc(var(--orbit-i) * 55ms) cubic-bezier(.5,0,.2,1) both; }
+.bc-orbit-camera { position: absolute; left: 50%; top: 50%; width: 88px; height: 88px; transform: translate(-50%,-50%); display: grid; place-items: center; border-radius: 24px; background: rgba(245,241,234,.1); border: 1px solid rgba(245,241,234,.25); color: white; backdrop-filter: blur(18px); animation: bc-camera-bump 1.9s cubic-bezier(.16,1,.3,1) both; }
+.bc-orbit-copy { margin: 0; color: var(--bc-dim); font-size: 13px; letter-spacing: .05em; }
+@keyframes bc-orbit-turn { to { transform: rotate(360deg); } }
+@keyframes bc-orbit-swallow { 0%,58% { opacity: 1; } 82% { transform: translate(-50%,-50%) rotate(var(--a)) translateY(-25px) scale(.85); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(.12); opacity: 0; filter: blur(5px); } }
+@keyframes bc-camera-bump { 0%,62% { transform: translate(-50%,-50%) scale(1); } 70% { transform: translate(-50%,-50%) scale(1.05) rotate(-1deg); } 78% { transform: translate(-50%,-50%) scale(.98) rotate(1deg); } 100% { transform: translate(-50%,-50%) scale(3.8); border-radius: 8px; opacity: 1; color: #111113; background: #fff; border-color: #fff; box-shadow: 0 0 80px rgba(255,255,255,.32); } }
+
+.bc-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 -4px;
+  padding: 4px;
+}
+
+.bc-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.bc-filter {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid var(--bc-line);
+  color: var(--bc-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.bc-filter:hover,
+.bc-filter:focus-visible {
+  border-color: rgba(245, 241, 234, 0.3);
+  color: var(--bc-text);
+}
+
+.bc-filter.is-on {
+  background: var(--bc-text);
+  border-color: var(--bc-text);
+  color: #101012;
+}
+
+.bc-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+.bc-empty {
+  margin: 28px 0 0;
+  padding: 28px 20px;
+  border: 1px dashed var(--bc-line);
+  border-radius: 14px;
+  color: var(--bc-dim);
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* The whole tile is the button: art fills it, the label rides a scrim along
+   the bottom edge. Pointer devices earn the label on hover/focus; touch
+   screens keep it visible — never gate information behind hover alone. */
+.bc-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(245, 241, 234, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bc-card);
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.2, 0.85, 0.2, 1), border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.bc-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bc-tile-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 22px 9px 8px;
+  background: linear-gradient(to top, rgba(10, 10, 12, 0.85), rgba(10, 10, 12, 0));
+  color: var(--offwhite);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  /* Wrap rather than truncate — the cut's name is the whole point. */
+}
+
+.bc-tile-badge {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(14, 14, 16, 0.78);
+  border: 1px solid rgba(232, 97, 77, 0.55);
+  color: var(--bc-accent);
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.bc-tile:hover,
+.bc-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(232, 97, 77, 0.7);
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.8);
+}
+
+.bc-tile:focus-visible {
+  outline: 2px solid var(--bc-accent);
+  outline-offset: 2px;
+}
+
+.bc-tile:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bc-tile-label {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .bc-tile:hover .bc-tile-label,
+  .bc-tile:focus-visible .bc-tile-label {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The lookbook block on the choice screen: heading row + the bc-grid of
+   tappable tiles. Every cut is one tap from the try-on — no detours. */
+.bc-lookbook {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+  /* Arrives with the rest of the experience column, a beat behind the CTAs. */
+  animation: bc-white-from-right 620ms 250ms cubic-bezier(.16,1,.3,1) both;
+}
+
+.bc-look-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bc-look-head .bc-side-heading {
+  margin: 0;
+}
+
+.bc-look-hint {
+  font-size: 12px;
+  color: var(--bc-faint);
+  white-space: nowrap;
+}
+
+.bc-trim-hint {
+  margin: -8px 0 0;
+  font-size: 12px;
+  color: var(--bc-faint);
+  line-height: 1.5;
+  animation: bc-white-from-left 500ms 200ms cubic-bezier(.16,1,.3,1) both;
+}
+
+/* .bc-choice-btn doubles as an anchor (the trim screen's booking CTA). */
+a.bc-choice-btn {
+  text-decoration: none;
+}
+
+/* ── desktop: the diagonal split ── */
+@container bcard (min-width: 960px) {
+  /* The seam: the experience side's lighter panel, clipped along a long
+     diagonal, with a coral hairline riding the edge. Absolute (not fixed) —
+     the container's layout containment would make fixed behave the same
+     anyway, and absolute is honest about it. */
+  .bc-seam {
+    display: block;
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+    background: var(--bc-panel);
+    clip-path: polygon(47% 0, 100% 0, 100% 100%, 40% 100%);
+  }
+
+  .bc-banner {
+    /* Match the seam's 47% top / 40% bottom trajectory over this shorter
+       image region so the preview terminates precisely at the slash. */
+    clip-path: polygon(0 0, 47% 0, 45.2% 100%, 0 100%);
+    /* The banner layer spans the whole card before it is clipped, so `cover`
+       enlarges the source more than the visible left panel needs. Scale only
+       the photo back on desktop while the two darkening gradients still fill
+       the complete banner region. */
+    background-size: 100% 100%, 100% 100%, 48% auto;
+    background-position: center, center, left 38%;
+  }
+
+  .bc-seam::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(232, 97, 77, 0.75), rgba(232, 97, 77, 0.12) 55%, rgba(245, 241, 234, 0.1));
+    clip-path: polygon(47% 0, calc(47% + 2px) 0, calc(40% + 2px) 100%, 40% 100%);
+  }
+
+  .bc-layout {
+    display: grid;
+    grid-template-columns: 37% minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* The side re-materializes as one sticky column left of the seam. */
+  .bc-side {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    grid-column: 1;
+    position: sticky;
+    top: 0;
+    max-height: 100dvh;
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding: clamp(40px, 6cqh, 72px) 8px clamp(40px, 6cqh, 72px) clamp(32px, 4cqw, 72px);
+  }
+
+  .bc-side::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bc-who,
+  .bc-details,
+  .bc-exp {
+    order: 0;
+    padding: 0;
+  }
+
+  .bc-who {
+    gap: 18px;
+  }
+
+  .bc-avatar {
+    width: 128px;
+    height: 128px;
+  }
+
+  .bc-exp {
+    grid-column: 2;
+    /* Clear the seam's upper reach (47%) from the column's start (37%). */
+    padding: clamp(48px, 7cqh, 84px) clamp(32px, 4cqw, 72px) 96px clamp(88px, 13.5cqw, 200px);
+    min-height: 100dvh;
+  }
+
+  .bc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-tile,
+  .bc-tile-label,
+  .bc-link,
+  .bc-filter {
+    transition: none;
+  }
+  .bc-tile:active,
+  .bc-tile:hover,
+  .bc-link:active {
+    transform: none;
+  }
+  .bc-tile-label {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================
+   BARBER BUILDER — /barber. Two columns on desktop (form + live preview),
+   stacked on mobile with the preview on top.
+   ============================================================ */
+.barber-builder {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 24px calc(60px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 40px;
+  align-items: start;
+}
+
+.barber-builder-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.barber-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.barber-field-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--char);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.barber-field-hint {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--smoke);
+  text-transform: none;
+}
+
+.barber-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(42, 32, 26, 0.14);
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-dmsans), sans-serif;
+  font-size: 15px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.barber-input:focus {
+  outline: none;
+  border-color: var(--tomato);
+  box-shadow: 0 0 0 3px rgba(217, 78, 58, 0.15);
+}
+
+.barber-slug-status {
+  font-size: 12.5px;
+  color: var(--smoke);
+}
+.barber-slug-status.is-ok { color: var(--moss); }
+.barber-slug-status.is-bad { color: var(--cherry); }
+
+.barber-builder-section {
+  border-top: 1px solid rgba(42, 32, 26, 0.1);
+  padding-top: 14px;
+  margin-top: 4px;
+}
+
+.barber-builder-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.barber-builder-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--char);
+}
+
+.barber-builder-count {
+  font-size: 11px;
+  color: var(--smoke);
+}
+
+.barber-link-row {
+  display: grid;
+  grid-template-columns: auto 130px minmax(0, 1fr) 40px;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.barber-link-custom-label {
+  grid-column: 2 / -1;
+}
+
+/* Reorder rail: two tiny arrows stacked left of the row. */
+.barber-link-order {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.barber-order-btn {
+  width: 26px;
+  height: 21px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--smoke);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.barber-order-btn:hover:not(:disabled) {
+  color: var(--ink);
+  background: rgba(42, 32, 26, 0.08);
+}
+
+.barber-order-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.barber-link-kind {
+  min-width: 0;
+}
+
+.barber-service-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 40px;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.barber-icon-btn {
+  min-height: 44px;
+  width: 40px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(42, 32, 26, 0.14);
+  background: transparent;
+  color: var(--smoke);
+  cursor: pointer;
+  font-size: 14px;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.barber-icon-btn:hover { color: var(--cherry); border-color: var(--cherry); }
+
+.barber-add-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.barber-style-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 248, 234, 0.5);
+  border: 1px solid rgba(42, 32, 26, 0.08);
+}
+
+.barber-style-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.barber-style-pick img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--chalk);
+  box-shadow: 0 4px 12px -4px rgba(42, 32, 26, 0.3);
+}
+.barber-style-pick span {
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--char);
+}
+.barber-style-pick.is-on {
+  border-color: var(--tomato);
+  background: rgba(217, 78, 58, 0.08);
+}
+.barber-style-pick:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.barber-builder-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.barber-publish-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--char);
+  margin-right: auto;
+}
+.barber-publish-toggle input { width: 18px; height: 18px; accent-color: var(--tomato); }
+
+/* Mirror-card panel (post-publish) */
+.barber-mirror-panel {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--cream);
+  border: 1.5px solid rgba(217, 78, 58, 0.28);
+  box-shadow: var(--shadow-md);
+}
+.barber-mirror-qr {
+  flex-shrink: 0;
+  width: 132px;
+  height: 132px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  display: grid;
+  place-items: center;
+}
+.barber-mirror-qr img { width: 100%; height: 100%; display: block; }
+.barber-mirror-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.barber-mirror-url {
+  align-self: flex-start;
+  background: rgba(217, 78, 58, 0.1);
+  border: 1px solid rgba(217, 78, 58, 0.25);
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--cherry);
+  cursor: pointer;
+}
+.barber-mirror-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* Stats */
+.barber-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 22px;
+}
+.barber-stat {
+  text-align: center;
+  padding: 14px 8px;
+  border-radius: 14px;
+  background: var(--biscuit);
+  border: 1.5px solid rgba(42, 32, 26, 0.1);
+}
+.barber-stat-value {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--tomato);
+  line-height: 1;
+}
+.barber-stat-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--smoke);
+}
+
+/* Live preview column */
+.barber-builder-preview { position: sticky; top: 20px; }
+.barber-preview-frame {
+  border-radius: 28px;
+  background: var(--biscuit);
+  border: 1.5px solid rgba(42, 32, 26, 0.12);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  max-height: calc(100dvh - 60px);
+  overflow-y: auto;
+}
+/* The card's hero is full-bleed; the frame's rounded corners do the cropping. */
+
+/* ── the builder's shape: title row, card sections, save chip ── */
+.barber-builder-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+/* Each editing group is a collapsible card — the form reads as a short stack
+   of named steps instead of one endless scroll. */
+.barber-section {
+  border: 1.5px solid rgba(42, 32, 26, 0.12);
+  border-radius: 18px;
+  background: var(--cream);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.barber-section[open] {
+  border-color: rgba(42, 32, 26, 0.18);
+  box-shadow: var(--shadow-md);
+}
+
+.barber-section-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+  border-radius: 18px;
+  transition: background 140ms ease;
+}
+
+.barber-section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.barber-section-summary:hover {
+  background: rgba(42, 32, 26, 0.04);
+}
+
+.barber-section[open] > .barber-section-summary {
+  border-radius: 18px 18px 0 0;
+}
+
+.barber-section-chev {
+  flex-shrink: 0;
+  color: var(--smoke);
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.barber-section[open] .barber-section-chev {
+  transform: rotate(180deg);
+}
+
+.barber-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 18px 18px;
+  animation: barber-body-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes barber-body-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Save chip — the always-honest answer to "what does the public card say?" */
+.barber-save-chip {
+  align-self: flex-start;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border: 1px solid rgba(42, 32, 26, 0.14);
+  color: var(--smoke);
+  background: rgba(42, 32, 26, 0.04);
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.barber-save-chip.is-dirty {
+  color: var(--cherry);
+  border-color: rgba(196, 69, 54, 0.4);
+  background: rgba(196, 69, 54, 0.07);
+}
+
+.barber-save-chip.is-saving {
+  color: var(--char);
+  animation: barber-chip-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes barber-chip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.barber-save-chip.is-saved {
+  color: var(--moss);
+  border-color: rgba(107, 140, 79, 0.45);
+  background: rgba(107, 140, 79, 0.09);
+}
+
+/* ── avatar uploader: the round drop target + its explainer ── */
+.barber-avatar-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.barber-avatar-drop {
+  position: relative;
+  flex-shrink: 0;
+  width: 84px;
+  height: 84px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px dashed rgba(42, 32, 26, 0.3);
+  background: rgba(42, 32, 26, 0.05);
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.barber-avatar-drop:hover:not(:disabled),
+.barber-avatar-drop:focus-visible {
+  border-color: var(--tomato);
+  transform: scale(1.03);
+}
+
+.barber-avatar-drop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Once a photo is in, the frame goes solid — it's a portrait, not a target. */
+.barber-avatar-drop:has(img) {
+  border-style: solid;
+  border-color: rgba(42, 32, 26, 0.16);
+}
+
+.barber-avatar-drop-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--smoke);
+}
+
+.barber-avatar-drop-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 248, 234, 0.55);
+}
+
+.barber-avatar-drop-busy::after {
+  content: '';
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(42, 32, 26, 0.2);
+  border-top-color: var(--tomato);
+  animation: barber-spin 800ms linear infinite;
+}
+
+@keyframes barber-spin {
+  to { transform: rotate(360deg); }
+}
+
+.barber-avatar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.barber-avatar-meta p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--char);
+}
+
+.barber-avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.barber-avatar-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--cherry);
+}
+
+.chip-suggest.is-danger {
+  color: var(--cherry);
+}
+
+.chip-suggest.is-danger:hover:not(:disabled) {
+  border-color: var(--cherry);
+}
+
+/* ── insights: the "is the QR earning its place?" panel ── */
+.barber-insights {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--cream);
+  border: 1.5px solid rgba(42, 32, 26, 0.12);
+  box-shadow: var(--shadow-sm);
+}
+
+.barber-insights .barber-stats {
+  margin-top: 10px;
+}
+
+.barber-stat-delta {
+  display: block;
+  margin-top: 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+
+.barber-stat-delta.is-up { color: var(--moss); }
+.barber-stat-delta.is-down { color: var(--cherry); }
+
+.barber-top-styles {
+  margin-top: 18px;
+}
+
+.barber-top-styles ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.barber-top-styles li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.barber-top-styles img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--chalk);
+}
+
+.barber-top-styles li .font-mono {
+  margin-left: auto;
+  color: var(--smoke);
+  font-size: 12px;
+}
+
+.barber-insight-notes {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.barber-insight-notes li {
+  padding-left: 12px;
+  border-left: 3px solid rgba(217, 78, 58, 0.55);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--char);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barber-section-body,
+  .barber-save-chip.is-saving {
+    animation: none;
+  }
+  .barber-section-chev,
+  .barber-avatar-drop {
+    transition: none;
+  }
+  .barber-avatar-drop:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Dark mode */
+html.dark .barber-input {
+  background: var(--surface);
+  border-color: rgba(245, 241, 234, 0.16);
+  color: var(--offwhite);
+}
+html.dark .barber-input:focus { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(232, 97, 77, 0.2); }
+html.dark .barber-mirror-panel { background: var(--surface); border-color: rgba(232, 97, 77, 0.35); }
+html.dark .barber-mirror-url { background: rgba(232, 97, 77, 0.14); border-color: rgba(232, 97, 77, 0.35); color: var(--coral); }
+html.dark .barber-stat { background: var(--surface); border-color: rgba(245, 241, 234, 0.12); }
+html.dark .barber-stat-value { color: var(--coral); }
+html.dark .barber-preview-frame { background: var(--void); border-color: rgba(245, 241, 234, 0.12); }
+html.dark .barber-style-picker { background: rgba(26, 26, 28, 0.6); border-color: rgba(245, 241, 234, 0.1); }
+html.dark .barber-style-pick span { color: rgba(245, 241, 234, 0.8); }
+
+/* Ink-tinted hairlines vanish on charcoal — swap them for light ones, and
+   brighten the status hues that were tuned for the warm paper background. */
+html.dark .barber-section { border-color: rgba(245, 241, 234, 0.12); }
+html.dark .barber-section[open] { border-color: rgba(245, 241, 234, 0.2); }
+html.dark .barber-section-summary:hover { background: rgba(245, 241, 234, 0.05); }
+html.dark .barber-order-btn:hover:not(:disabled) { color: var(--ink); background: rgba(245, 241, 234, 0.1); }
+html.dark .barber-avatar-drop { border-color: rgba(245, 241, 234, 0.3); background: rgba(245, 241, 234, 0.06); }
+html.dark .barber-avatar-drop:hover:not(:disabled),
+html.dark .barber-avatar-drop:focus-visible { border-color: var(--coral); }
+html.dark .barber-avatar-drop:has(img) { border-color: rgba(245, 241, 234, 0.18); }
+html.dark .barber-avatar-drop-busy { background: rgba(14, 14, 16, 0.55); }
+html.dark .barber-avatar-drop-busy::after { border-color: rgba(245, 241, 234, 0.2); border-top-color: var(--coral); }
+html.dark .barber-avatar-error,
+html.dark .chip-suggest.is-danger { color: #f0a296; }
+html.dark .chip-suggest.is-danger:hover:not(:disabled) { border-color: #f0a296; }
+html.dark .barber-save-chip { border-color: rgba(245, 241, 234, 0.16); background: rgba(245, 241, 234, 0.05); }
+html.dark .barber-save-chip.is-dirty { color: #f0a296; border-color: rgba(232, 97, 77, 0.4); background: rgba(232, 97, 77, 0.1); }
+html.dark .barber-save-chip.is-saved { color: #9fc47e; border-color: rgba(159, 196, 126, 0.35); background: rgba(107, 140, 79, 0.14); }
+html.dark .barber-insights { border-color: rgba(245, 241, 234, 0.12); }
+html.dark .barber-stat-delta.is-up { color: #9fc47e; }
+html.dark .barber-stat-delta.is-down { color: #f0a296; }
+html.dark .barber-banner-drop { border-color: rgba(245, 241, 234, 0.28); background: rgba(245, 241, 234, 0.05); color: var(--char); }
+
+@media (max-width: 900px) {
+  .barber-builder {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  /* Preview first on mobile so the barber sees the result as they build. */
+  .barber-builder-preview { position: static; order: -1; }
+  .barber-preview-frame { max-height: none; }
+  .barber-link-row { grid-template-columns: auto 104px minmax(0, 1fr) 40px; }
+}
+
+/* ============================================================
+   BARBER TRY-ON — the embedded selfie → generate → 3D flow.
+
+   Renders in place of the lookbook inside the card's experience panel (right
+   of the seam on desktop, the flow section on mobile) — never a modal. Owns
+   the intro interstitial, the selfie capture + validation states, the staged
+   progress tracker, and the 3D result. Inherits the .bc-root design tokens.
+   ============================================================ */
+.bt-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 560px;
+  animation: bt-panel-in 260ms ease both;
+}
+
+@keyframes bt-panel-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Each step of the flow makes the same soft entrance the panel does, so
+   capture → check → progress → result reads as one continuous journey
+   instead of hard swaps. */
+.bt-capture,
+.bt-check,
+.bt-loading,
+.bt-auth,
+.bt-result {
+  animation: bt-panel-in 300ms cubic-bezier(.16,1,.3,1) both;
+}
+
+.bt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bt-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--bc-line);
+  background: transparent;
+  color: var(--bc-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.bt-back:hover,
+.bt-back:focus-visible {
+  border-color: rgba(245, 241, 234, 0.3);
+  color: var(--bc-text);
+}
+
+.bt-cut {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--bc-accent);
+  text-align: right;
+}
+
+/* ── intro: "Let's see how it looks on you!" ── */
+.bt-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 56px 16px;
+  text-align: center;
+  animation: bt-pop-in 480ms cubic-bezier(0.34, 1.4, 0.44, 1) both;
+}
+
+@keyframes bt-pop-in {
+  from { opacity: 0; transform: scale(0.92) translateY(14px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.bt-intro-art {
+  width: 132px;
+  height: 132px;
+  border-radius: 22px;
+  object-fit: cover;
+  border: 1px solid rgba(245, 241, 234, 0.14);
+  box-shadow: 0 24px 48px -20px rgba(0, 0, 0, 0.8);
+}
+
+.bt-intro-line {
+  font-family: var(--bc-display);
+  font-size: clamp(1.5rem, 6cqw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--bc-text);
+  margin: 0;
+  max-width: 18ch;
+}
+
+/* ── inline auth ── */
+.bt-auth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.bt-auth-copy {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--bc-dim);
+  max-width: 40ch;
+}
+
+/* ── capture step ── */
+.bt-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bt-step-title {
+  font-family: var(--bc-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--bc-text);
+  margin: 0;
+}
+
+.selfie-capture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.selfie-stage {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 1;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--bc-line);
+}
+
+.selfie-requirements {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  background: rgba(20,20,22,.34);
+  box-shadow: inset 0 1px rgba(255,255,255,.16), 0 10px 30px rgba(0,0,0,.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+}
+.selfie-requirement { position: relative; display: grid; place-items: center; width: 30px; height: 30px; color: white; border-radius: 50%; background: rgba(255,255,255,.08); cursor: help; transition: transform 240ms cubic-bezier(.16,1,.3,1), background 180ms ease; }
+.selfie-requirement:hover { transform: scale(1.14); background: rgba(255,255,255,.18); }
+.selfie-checkmark { position: absolute; right: -1px; bottom: -1px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: #9fc47e; color: #101012; font-size: 9px; font-weight: 900; }
+
+.selfie-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror preview — people expect a mirror */
+}
+
+.selfie-guide {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.selfie-guide-oval {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  width: 62%;
+  height: 66%;
+  transform: translateX(-50%);
+  border: 2px dashed rgba(245, 241, 234, 0.55);
+  border-radius: 50%;
+}
+
+.selfie-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(245, 241, 234, 0.9);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 12px;
+  border-radius: 9999px;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.selfie-shutter {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(245, 241, 234, 0.94);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.selfie-shutter-ring {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2.5px solid #101012;
+}
+
+.selfie-shutter:hover:not(:disabled) { background: #fff; }
+.selfie-shutter:active:not(:disabled) { transform: translateX(-50%) scale(0.92); }
+.selfie-shutter:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.selfie-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--bc-line);
+  background: transparent;
+  color: var(--bc-dim);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.selfie-upload:hover:not(:disabled),
+.selfie-upload:focus-visible:not(:disabled) {
+  border-color: rgba(245, 241, 234, 0.35);
+  color: var(--bc-text);
+}
+.selfie-upload { min-height: auto; padding: 4px 2px; border: 0; border-radius: 0; font-size: 12px; text-decoration: underline; text-underline-offset: 4px; }
+.selfie-match { width: min(100%, 360px); min-height: 50px; border: 1px solid var(--bc-accent); border-radius: 14px; background: var(--bc-accent); color: #160907; font-family: var(--bc-display); font-size: 14px; font-weight: 700; cursor: pointer; transition: transform 180ms cubic-bezier(.16,1,.3,1), background 180ms ease; }
+.selfie-match:hover:not(:disabled), .selfie-match:focus-visible:not(:disabled) { transform: translateY(-2px); background: #f07764; }
+.selfie-match:disabled { opacity: .46; cursor: wait; }
+
+.selfie-no-camera {
+  font-size: 13px;
+  color: var(--bc-dim);
+  margin: 0;
+  text-align: center;
+}
+.selfie-starting { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; color: rgba(255,255,255,.76); font-size: 13px; background: radial-gradient(circle at center, #242428, #0b0b0c); }
+.selfie-camera-recovery { width: min(100%, 360px); aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 28px; border: 1px solid rgba(255,255,255,.16); border-radius: 20px; text-align: center; color: var(--bc-text); background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)); box-shadow: inset 0 1px rgba(255,255,255,.12); backdrop-filter: blur(20px); }
+.selfie-camera-recovery-icon { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 17px; color: #111113; background: #fff; box-shadow: 0 14px 32px rgba(0,0,0,.24); }
+.selfie-camera-recovery strong { font-size: 16px; }
+.selfie-camera-recovery p { max-width: 30ch; margin: 0; color: var(--bc-dim); font-size: 12px; line-height: 1.5; }
+.selfie-retry { min-height: 42px; padding: 9px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,.25); color: var(--bc-text); background: rgba(255,255,255,.08); font-weight: 650; cursor: pointer; }
+.selfie-retry:hover, .selfie-retry:focus-visible { background: white; color: #111113; }
+
+/* ── photo check / confirm ── */
+.bt-check {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.bt-check-frame {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 3 / 4;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--bc-line);
+  background: var(--bc-card);
+}
+
+.bt-check-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bt-check-status {
+  font-size: 14px;
+  color: var(--bc-dim);
+  margin: 0;
+  text-align: center;
+}
+
+.bt-check-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #9fc47e;
+  font-weight: 600;
+}
+
+.bt-check-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ── shared buttons ── */
+.bt-btn {
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--bc-line);
+  background: transparent;
+  color: var(--bc-text);
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.bt-btn:hover:not(:disabled),
+.bt-btn:focus-visible:not(:disabled) {
+  border-color: rgba(245, 241, 234, 0.35);
+}
+
+.bt-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.bt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bt-btn.is-primary {
+  background: var(--bc-accent);
+  border-color: var(--bc-accent);
+  color: #160907;
+}
+
+.bt-btn.is-primary:hover:not(:disabled) {
+  background: #ef7460;
+  border-color: #ef7460;
+}
+
+.bt-btn.is-book {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bc-text);
+  border-color: var(--bc-text);
+  color: #101012;
+}
+
+.bt-btn.is-book:hover,
+.bt-btn.is-book:focus-visible {
+  background: #fff;
+  border-color: #fff;
+}
+
+/* ── staged progress (no fake percentages) ── */
+.bt-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 40px 16px 56px;
+}
+
+.bt-loading-art {
+  width: 96px;
+  height: 96px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(245, 241, 234, 0.14);
+  animation: bt-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes bt-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+
+.bt-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bt-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bt-stage-dot {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--bc-line);
+  color: #160907;
+  transition: background 240ms ease, border-color 240ms ease;
+}
+
+.bt-stage.is-done .bt-stage-dot {
+  background: var(--bc-accent);
+  border-color: var(--bc-accent);
+}
+
+.bt-stage.is-active .bt-stage-dot {
+  border-color: var(--bc-accent);
+  animation: bt-dot-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes bt-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 97, 77, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(232, 97, 77, 0); }
+}
+
+.bt-stage-label {
+  font-size: 14px;
+  color: var(--bc-faint);
+  transition: color 240ms ease;
+}
+
+.bt-stage.is-active .bt-stage-label {
+  color: var(--bc-text);
+}
+
+.bt-stage.is-done .bt-stage-label {
+  color: var(--bc-dim);
+}
+
+/* ── result ── */
+.bt-result {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bt-result-frame {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--bc-card);
+  border: 1px solid var(--bc-line);
+  aspect-ratio: 1 / 1;
+}
+
+.bt-result-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── the real thing: an interactive 3D splat, not a flat photo ── */
+.bt-result-frame.is-3d {
+  aspect-ratio: 4 / 5;
+  background: #141416;
+}
+
+.bt-scene {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.bt-scene-arrive { animation: bt-render-face 820ms cubic-bezier(.16,1,.3,1) both; transform-origin: 50% 50%; }
+@keyframes bt-render-face { from { opacity: 0; transform: perspective(900px) rotateY(-32deg) scale(.94); filter: blur(7px); } to { opacity: 1; transform: perspective(900px) rotateY(0) scale(1); filter: blur(0); } }
+
+.bt-scene-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 241, 234, 0.75);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 5px 10px;
+  border-radius: 9999px;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.bt-result-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 14, 16, 0.78);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.bt-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bt-view-btn {
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--bc-line);
+  background: transparent;
+  color: var(--bc-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.bt-view-btn:hover,
+.bt-view-btn:focus-visible {
+  border-color: rgba(245, 241, 234, 0.3);
+  color: var(--bc-text);
+}
+
+.bt-view-btn.is-on {
+  background: var(--bc-text);
+  border-color: var(--bc-text);
+  color: #101012;
+}
+
+.bt-error {
+  font-size: 13px;
+  color: #f0a296;
+  background: rgba(232, 97, 77, 0.1);
+  border: 1px solid rgba(232, 97, 77, 0.3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0;
+}
+
+.bt-prompt {
+  display: flex;
+  gap: 8px;
+}
+
+.bt-prompt-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--bc-line);
+  background: var(--bc-card);
+  color: var(--bc-text);
+  font-size: 14px;
+}
+
+.bt-prompt-input::placeholder {
+  color: var(--bc-faint);
+}
+
+.bt-prompt-input:focus {
+  outline: none;
+  border-color: var(--bc-accent);
+  box-shadow: 0 0 0 3px rgba(232, 97, 77, 0.18);
+}
+
+.bt-prompt-go {
+  min-width: 64px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: var(--bc-accent);
+  color: #160907;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.bt-prompt-go:hover:not(:disabled) { background: #ef7460; }
+.bt-prompt-go:active:not(:disabled) { transform: scale(0.96); }
+.bt-prompt-go:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.bt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bt-style-browser { display: flex; flex-direction: column; gap: 10px; padding-top: 2px; }
+.bt-style-tabs { display: flex; border-bottom: 1px solid var(--bc-line); }
+.bt-style-tabs button { position: relative; flex: 1; min-height: 44px; border: 0; background: transparent; color: var(--bc-faint); font: 600 13px var(--font-dmsans); cursor: pointer; }
+.bt-style-tabs button::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 2px; background: var(--bc-accent); transform: scaleX(0); transition: transform 240ms cubic-bezier(.16,1,.3,1); }
+.bt-style-tabs button.is-on { color: var(--bc-text); }
+.bt-style-tabs button.is-on::after { transform: scaleX(1); }
+.bt-style-grid { display: grid; grid-auto-flow: column; grid-auto-columns: 92px; gap: 9px; overflow-x: auto; padding: 3px 2px 8px; scrollbar-width: thin; }
+.bt-menu-cut { position: relative; padding: 0; border: 1px solid var(--bc-line); border-radius: 13px; overflow: hidden; background: var(--bc-card); color: var(--bc-text); cursor: pointer; transition: transform 200ms cubic-bezier(.16,1,.3,1), border-color 180ms ease; }
+.bt-menu-cut:hover:not(:disabled) { transform: translateY(-3px); border-color: var(--bc-accent); }
+.bt-menu-cut.is-current { border-color: var(--bc-accent); box-shadow: 0 0 0 1px var(--bc-accent); }
+.bt-menu-cut img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.bt-menu-cut span { display: block; padding: 7px; font-size: 10px; line-height: 1.25; text-align: left; }
+.bt-style-empty { grid-column: 1 / -1; width: 280px; margin: 0; padding: 12px; color: var(--bc-dim); font-size: 12px; line-height: 1.45; }
+
+.barber-banner-field { display: flex; flex-direction: column; gap: 9px; }
+.barber-banner-drop { position: relative; width: 100%; aspect-ratio: 3 / 1; overflow: hidden; border: 1px dashed rgba(42,32,26,.28); border-radius: 14px; background: rgba(42,32,26,.045); color: var(--char); cursor: pointer; }
+.barber-banner-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.barber-banner-drop::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, rgba(0,0,0,.52)); }
+.barber-banner-edit { position: absolute; z-index: 1; left: 12px; bottom: 9px; color: white; font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
+
+.bt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--bc-line);
+  background: var(--bc-card);
+  color: var(--bc-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.bt-chip img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bt-chip:hover:not(:disabled),
+.bt-chip:focus-visible:not(:disabled) {
+  border-color: rgba(232, 97, 77, 0.55);
+  color: var(--bc-text);
+}
+
+.bt-chip:active:not(:disabled) { transform: scale(0.97); }
+.bt-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.bt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bt-sent {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(107, 140, 79, 0.16);
+  border: 1px solid rgba(107, 140, 79, 0.38);
+  color: #9fc47e;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.bt-phone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bt-phone span {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--bc-faint);
+}
+
+.bt-phone-input {
+  min-height: 44px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--bc-line);
+  background: var(--bc-card);
+  color: var(--bc-text);
+  font-size: 15px;
+}
+
+.bt-phone-input:focus {
+  outline: none;
+  border-color: var(--bc-accent);
+  box-shadow: 0 0 0 3px rgba(232, 97, 77, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-panel,
+  .bt-intro,
+  .bt-capture,
+  .bt-check,
+  .bt-loading,
+  .bt-auth,
+  .bt-result,
+  .bc-lookbook,
+  .bc-trim-hint {
+    animation-duration: 1ms;
+  }
+  .bt-loading-art,
+  .bt-stage.is-active .bt-stage-dot {
+    animation: none;
+  }
+  .bt-btn,
+  .bt-back,
+  .bt-view-btn,
+  .bt-chip,
+  .bt-prompt-go,
+  .selfie-shutter,
+  .selfie-upload {
+    transition: none;
+  }
+  .bt-btn:active,
+  .bt-chip:active,
+  .bt-prompt-go:active {
+    transform: none;
+  }
+}
+
+/* ─── BarberBooking — the native slot picker on /b/<slug> (dark card) ─── */
+.bb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--bc-panel);
+  border: 1px solid var(--bc-line);
+}
+.bb-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bb-zone-hint {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--bc-faint);
+}
+.bb-empty {
+  margin: 0;
+  color: var(--bc-dim);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.bb-days {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.bb-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 66px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--bc-line);
+  background: var(--bc-card);
+  color: var(--bc-dim);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.bb-day:hover,
+.bb-day:focus-visible {
+  border-color: rgba(232, 97, 77, 0.55);
+  color: var(--bc-text);
+}
+.bb-day.is-on {
+  border-color: var(--bc-accent);
+  background: rgba(232, 97, 77, 0.14);
+  color: var(--bc-text);
+}
+.bb-day-dow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.bb-day-date {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.bb-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 8px;
+}
+.bb-slot {
+  min-height: 44px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--bc-line);
+  background: transparent;
+  color: var(--bc-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.bb-slot:hover:not(:disabled),
+.bb-slot:focus-visible {
+  border-color: rgba(232, 97, 77, 0.55);
+}
+.bb-slot.is-on {
+  border-color: var(--bc-accent);
+  background: rgba(232, 97, 77, 0.16);
+}
+.bb-slot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.bb-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(217, 78, 58, 0.14);
+  border: 1px solid rgba(217, 78, 58, 0.4);
+  color: #f2a08e;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.bb-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+.bb-auth-copy {
+  margin: 0;
+  color: var(--bc-dim);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.bb-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--bc-line);
+}
+.bb-confirm-when {
+  margin: 6px 0 0;
+  color: var(--bc-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+.bb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bb-field > span {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--bc-faint);
+}
+.bb-input {
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--bc-line);
+  background: var(--bc-card);
+  color: var(--bc-text);
+  font-size: 15px;
+}
+.bb-input:focus {
+  outline: 0;
+  border-color: var(--bc-accent);
+  box-shadow: 0 0 0 3px rgba(232, 97, 77, 0.15);
+}
+.bb-book-btn {
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 97, 77, 0.6);
+  background: var(--bc-accent);
+  color: #160907;
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+.bb-book-btn:hover:not(:disabled),
+.bb-book-btn:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+.bb-book-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bb-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 10px 4px;
+}
+.bb-done-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(107, 140, 79, 0.18);
+  border: 1px solid rgba(107, 140, 79, 0.45);
+  color: #9fc47e;
+}
+.bb-done-title {
+  margin: 2px 0 0;
+  font-family: var(--bc-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+.bb-done-when {
+  margin: 0;
+  color: var(--bc-dim);
+  font-size: 14.5px;
+}
+.bb-done-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+.bb-cal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 97, 77, 0.6);
+  background: var(--bc-accent);
+  color: #160907;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: filter 160ms ease;
+}
+.bb-cal-btn:hover,
+.bb-cal-btn:focus-visible {
+  filter: brightness(1.06);
+}
+.bb-cal-btn.is-quiet {
+  background: transparent;
+  border-color: var(--bc-line);
+  color: var(--bc-text);
+  font-weight: 600;
+}
+.bb-done-note {
+  margin: 6px 0 0;
+  color: var(--bc-faint);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-day,
+  .bb-slot,
+  .bb-book-btn,
+  .bb-cal-btn {
+    transition: none;
+  }
+  .bb-book-btn:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ─── Builder: Appointments section + bookings/requests panels (warm) ─── */
+.barber-booking-basics {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.barber-booking-days {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.barber-booking-day {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(42, 32, 26, 0.1);
+  background: var(--cream);
+}
+.barber-booking-day.is-off {
+  opacity: 0.62;
+}
+.barber-booking-day-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink);
+  min-width: 118px;
+  cursor: pointer;
+}
+.barber-booking-hours {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.barber-booking-hours .barber-input {
+  width: 108px;
+  font-variant-numeric: tabular-nums;
+}
+.barber-booking-closed {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--smoke);
+}
+.barber-bookings,
+.barber-sends {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.barber-booking-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(42, 32, 26, 0.1);
+  background: var(--cream);
+}
+.barber-booking-when {
+  font-size: 12.5px;
+  color: var(--cherry);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.barber-booking-who {
+  flex: 1;
+  min-width: 180px;
+  font-size: 13.5px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+.barber-booking-contact {
+  color: var(--char);
+}
+.barber-booking-note {
+  display: block;
+  color: var(--smoke);
+  font-size: 12.5px;
+}
+.barber-send-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(42, 32, 26, 0.1);
+  background: var(--cream);
+}
+.barber-send-row img {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #1c1c20;
+}
+.barber-send-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.barber-send-req {
+  color: var(--char);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.barber-send-meta {
+  color: var(--smoke);
+  font-size: 11px;
+}
+@media (max-width: 560px) {
+  .barber-booking-basics {
+    grid-template-columns: 1fr;
+  }
+  .barber-booking-day {
+    flex-wrap: wrap;
   }
 }

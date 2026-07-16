@@ -496,4 +496,271 @@ export const es: Record<string, string> = {
   'Setting every strand…': 'Colocando cada mechón…',
   'Spinning the chair around…': 'Girando la silla…',
   'Holding up the mirror…': 'Levantando el espejo…',
+
+  // ── Barber card (public /b/<slug>) ──
+  'Try on {cut}': 'Pruébate {cut}',
+  'Links': 'Enlaces',
+  'This barber hasn’t added recommendations yet.':
+    'Este barbero aún no ha agregado recomendaciones.',
+  'Explore the best hairstyles for you': 'Explora los mejores peinados para ti',
+  'All': 'Todos',
+  'Tap any cut to see it on your own head.':
+    'Toca cualquier corte para verlo en tu propia cabeza.',
+  'Virtual try-on': 'Prueba virtual',
+  'Fitting room by ShapeUp': 'Probador de ShapeUp',
+  'Photo of {name}': 'Foto de {name}',
+  'Services': 'Servicios',
+  'Filter styles': 'Filtrar estilos',
+  'Barber’s pick': 'Recomendación del barbero',
+  'Barber’s picks': 'Recomendaciones del barbero',
+  'Men’s': 'Hombres',
+  'Women’s': 'Mujeres',
+  'What are we doing today?': '¿Qué hacemos hoy?',
+  'Keep it familiar, or discover the cuts that suit you best.':
+    'Mantén lo de siempre, o descubre los cortes que mejor te quedan.',
+  'Just doing a trim.': 'Solo un recorte.',
+  'Show me my best hairstyles': 'Muéstrame mis mejores peinados',
+  'From the menu': 'Del menú',
+  'Tap a cut to try it on': 'Toca un corte para probártelo',
+  'Sure. What kind of trim?': 'Claro. ¿Qué tipo de recorte?',
+  'Leave a note for your barber': 'Deja una nota para tu barbero',
+  'Clean up the sides, keep the length…': 'Limpia los lados, mantén el largo…',
+  'Show it to them from the chair — nothing to send.':
+    'Muéstrasela desde la silla — no hay nada que enviar.',
+  'While you wait — see your best hairstyles':
+    'Mientras esperas — mira tus mejores peinados',
+  'Finding the cuts that fit you.': 'Buscando los cortes que te quedan.',
+  'Preparing the selfie camera': 'Preparando la cámara para selfies',
+
+  // ── Barber try-on (embedded selfie -> generate -> send flow) ──
+  'Try it on yourself': 'Pruébalo en ti mismo',
+  'All styles': 'Todos los estilos',
+  'Take a selfie': 'Toma una selfie',
+  'Your photo': 'Tu foto',
+  '{n} ahead of you': '{n} delante de ti',
+  'Let’s see how it looks on you!': '¡Veamos cómo te queda!',
+  'Preparing your preview': 'Preparando tu vista previa',
+  'Applying the hairstyle': 'Aplicando el peinado',
+  'Building your 3D look': 'Creando tu look en 3D',
+  'Checking your photo…': 'Revisando tu foto…',
+  'Photo looks good': 'La foto se ve bien',
+  'Keep your full head in frame': 'Mantén toda la cabeza dentro del encuadre',
+  'Use this photo': 'Usar esta foto',
+  'Camera unavailable — upload a photo instead.':
+    'La cámara no está disponible — sube una foto.',
+  'Take the photo': 'Tomar la foto',
+  'Upload a photo': 'Subir una foto',
+  'View controls': 'Controles de vista',
+  'Before': 'Antes',
+  'Reset view': 'Restablecer vista',
+  'Retake selfie': 'Tomar otra selfie',
+  'Your original photo': 'Tu foto original',
+  'Drag to rotate · scroll to zoom': 'Arrastra para girar · desliza para acercar',
+  'Book with {name}': 'Reservar con {name}',
+  'One quick sign-in — it’s how we send you the result and let this barber know what you want.':
+    'Un inicio de sesión rápido — así te enviamos el resultado y le mostramos a este barbero lo que quieres.',
+  'Uploading…': 'Subiendo…',
+  'Take or choose a photo': 'Toma o elige una foto',
+  'Editing your photo…': 'Editando tu foto…',
+  'Building your 3D cut…': 'Construyendo tu corte en 3D…',
+  'In line for the 3D render — {n} ahead of you…': 'En la fila para el render 3D — {n} delante de ti…',
+  'Drag to rotate': 'Arrastra para rotar',
+  'The 3D render didn’t come through, but here’s your photo.':
+    'El render 3D no llegó, pero aquí tienes tu foto.',
+  'You, wearing {cut}': 'Tú, con {cut}',
+  'Shorter on the sides, keep the top…': 'Más corto en los lados, conserva el top…',
+  'Describe a change': 'Describe un cambio',
+  'Go': 'Ir',
+  'Send this to my barber': 'Enviar esto a mi barbero',
+  'Sent! They’ll see exactly what you want before you sit down.':
+    '¡Enviado! Verán exactamente lo que quieres antes de que te sientes.',
+  'Sent to {name}’s ShapeUp inbox — they’ll see it before your cut.':
+    'Enviado a la bandeja de ShapeUp de {name} — lo verá antes de tu corte.',
+  'Couldn’t send that — screenshot this and show them in the chair instead.':
+    'No se pudo enviar — toma una captura de pantalla y muéstrasela en la silla.',
+  'Phone (optional)': 'Teléfono (opcional)',
+  'That edit didn’t work — try a different photo or cut.':
+    'Ese cambio no funcionó — prueba con otra foto o corte.',
+  'Something went wrong. Check your connection and try again.':
+    'Algo salió mal. Revisa tu conexión e inténtalo de nuevo.',
+  'Couldn’t upload that photo — try again.': 'No se pudo subir esa foto — inténtalo de nuevo.',
+
+  // ── Barber booking (/b/<slug> scheduler) ──
+  'Book a time': 'Reservar una hora',
+  'Book a chair': 'Reserva tu silla',
+  '{city} time': 'hora de {city}',
+  'No open times in the next two weeks — reach out directly.':
+    'No hay horarios libres en las próximas dos semanas — contáctalo directamente.',
+  'Pick a day': 'Elige un día',
+  'Pick a time': 'Elige una hora',
+  'One quick sign-in so {name} knows the booking is real.':
+    'Un inicio de sesión rápido para que {name} sepa que la reserva es real.',
+  'Service (optional)': 'Servicio (opcional)',
+  'Just a cut': 'Solo un corte',
+  'Booking…': 'Reservando…',
+  'Book {time}': 'Reservar {time}',
+  'You’re booked.': 'Reserva confirmada.',
+  'Add to Google Calendar': 'Agregar a Google Calendar',
+  'Apple / Outlook (.ics)': 'Apple / Outlook (.ics)',
+  '{name} got the details — just show up.': '{name} ya tiene los detalles — solo preséntate.',
+  'Haircut with {name}': 'Corte con {name}',
+  'Cut I tried on: {cut}': 'Corte que me probé: {cut}',
+
+  // ── Barber builder: appointments ──
+  'Appointments': 'Citas',
+  'Let clients book times on my card': 'Permitir que los clientes reserven horas en mi tarjeta',
+  'Clients pick a real open slot; you both get a confirmation with a calendar invite. No other app needed.':
+    'Los clientes eligen un horario libre real; ambos reciben una confirmación con invitación de calendario. Sin otra app.',
+  'Timezone': 'Zona horaria',
+  'Slot length': 'Duración del turno',
+  '{n} minutes': '{n} minutos',
+  'Sunday': 'Domingo',
+  'Monday': 'Lunes',
+  'Tuesday': 'Martes',
+  'Wednesday': 'Miércoles',
+  'Thursday': 'Jueves',
+  'Friday': 'Viernes',
+  'Saturday': 'Sábado',
+  'Opens': 'Abre',
+  'Closes': 'Cierra',
+  'Closed': 'Cerrado',
+  "That timezone isn't recognized.": 'Esa zona horaria no se reconoce.',
+  'Pick a slot length from the list.': 'Elige una duración de turno de la lista.',
+  'At most one window per day of the week.': 'Como máximo un horario por día de la semana.',
+  'Days must be Sunday through Saturday.': 'Los días deben ser de domingo a sábado.',
+  'Hours must look like 09:00.': 'Las horas deben tener el formato 09:00.',
+  'Each day must open before it closes.': 'Cada día debe abrir antes de cerrar.',
+  'Add at least one open day to take bookings.':
+    'Agrega al menos un día abierto para recibir reservas.',
+  'Upcoming appointments': 'Próximas citas',
+  'Nothing on the books yet — slots are live on your card.':
+    'Aún no hay citas — los horarios ya están activos en tu tarjeta.',
+  'Cancel {name}’s appointment? They’ll be emailed that the time is off.':
+    '¿Cancelar la cita de {name}? Se le avisará por correo que la hora quedó libre.',
+  'Cancelling…': 'Cancelando…',
+  'Client requests': 'Solicitudes de clientes',
+  'Cuts clients sent from your card — what they want before they sit down.':
+    'Cortes que los clientes enviaron desde tu tarjeta — lo que quieren antes de sentarse.',
+  'Client preview: {cut}': 'Vista previa del cliente: {cut}',
+  'View 360°': 'Ver 360°',
+  '{n}m ago': 'hace {n} min',
+  '{n}h ago': 'hace {n} h',
+  '{n}d ago': 'hace {n} días',
+
+  // ── Barber builder (/barber) ──
+  'Build your barber card': 'Crea tu tarjeta de barbero',
+  'Sign in to claim your link and print your mirror QR.':
+    'Inicia sesión para reclamar tu enlace e imprimir el QR de tu espejo.',
+  'Your barber card': 'Tu tarjeta de barbero',
+  'Profile photo': 'Foto de perfil',
+  'Profile': 'Perfil',
+  'Upload': 'Subir',
+  'Add a profile photo': 'Agregar una foto de perfil',
+  'Replace your profile photo': 'Reemplazar tu foto de perfil',
+  'Replace': 'Reemplazar',
+  'Clients trust a face. Square crop, up to 8 MB.':
+    'Los clientes confían en un rostro. Recorte cuadrado, hasta 8 MB.',
+  'Looking sharp. Tap the photo to replace it.':
+    'Se ve genial. Toca la foto para reemplazarla.',
+  'That file isn’t an image — try a JPG or PNG.':
+    'Ese archivo no es una imagen — prueba con JPG o PNG.',
+  'That photo is too large — keep it under 8 MB.':
+    'Esa foto es demasiado grande — debe pesar menos de 8 MB.',
+  'Remove your profile photo?': '¿Quitar tu foto de perfil?',
+  'Business details': 'Detalles del negocio',
+  'Location': 'Ubicación',
+  'Telegraph Ave, Oakland': 'Telegraph Ave, Oakland',
+  'shown under your name': 'se muestra debajo de tu nombre',
+  'Hours': 'Horario',
+  'Tue–Sat · 9–6': 'Mar–Sáb · 9–6',
+  'Services & pricing': 'Servicios y precios',
+  'Add a service': 'Agregar un servicio',
+  'Service name': 'Nombre del servicio',
+  'Skin fade': 'Degradado al ras',
+  'Price': 'Precio',
+  'Remove this service?': '¿Quitar este servicio?',
+  'Booking & links': 'Reservas y enlaces',
+  'Move up': 'Mover arriba',
+  'Move down': 'Mover abajo',
+  'Remove this link from your card?': '¿Quitar este enlace de tu tarjeta?',
+  'Notifications': 'Notificaciones',
+  'Recommended cuts': 'Cortes recomendados',
+  'These lead your card as “Barber’s picks” — clients tap them to try them on.':
+    'Estos aparecen primero como “Recomendaciones del barbero” — los clientes los tocan para probárselos.',
+  'Unsaved changes': 'Cambios sin guardar',
+  'Insights': 'Estadísticas',
+  'This week': 'Esta semana',
+  'vs last week': 'vs. la semana pasada',
+  'Booking taps': 'Toques en reservas',
+  'Previews finished': 'Vistas previas completadas',
+  'Most-tried styles': 'Estilos más probados',
+  'Clients often leave before finishing a preview — remind them it takes under a minute.':
+    'Los clientes suelen salir antes de terminar la vista previa — recuérdales que tarda menos de un minuto.',
+  'Scans are up from last week ({a} → {b}).':
+    'Los escaneos subieron desde la semana pasada ({a} → {b}).',
+  'Your booking link got {n} taps this week.':
+    'Tu enlace de reservas recibió {n} toques esta semana.',
+  '{n} clients joined ShapeUp through your card.':
+    '{n} clientes se unieron a ShapeUp mediante tu tarjeta.',
+  '“{cut}” is your most-tried style.': '“{cut}” es tu estilo más probado.',
+  'A free page for your clients — and a fitting room that shows them the cut on their own head.':
+    'Una página gratis para tus clientes — y un probador que les muestra el corte en su propia cabeza.',
+  'Your link': 'Tu enlace',
+  'Your name': 'Tu nombre',
+  'Name': 'Nombre',
+  'Shop': 'Barbería',
+  'Bio': 'Biografía',
+  'Ten years on Telegraph Ave. Walk-ins welcome.':
+    'Diez años en la Av. Telegraph. Sin cita también.',
+  'Notify me at': 'Notifícame en',
+  'private — never shown on your card': 'privado — nunca se muestra en tu tarjeta',
+  'When a client picks a cut on your card, we’ll email you the result and their contact info — so you know exactly what to do before they sit down.':
+    'Cuando un cliente elige un corte en tu tarjeta, te enviamos por correo el resultado y su contacto — para que sepas exactamente qué hacer antes de que se siente.',
+  'Link type': 'Tipo de enlace',
+  'Remove': 'Quitar',
+  'Label (e.g. My portfolio)': 'Etiqueta (ej. Mi portafolio)',
+  'Link label': 'Etiqueta del enlace',
+  'Cuts you do': 'Cortes que haces',
+  'Clients tap these to try them on. Pick your go-to cuts.':
+    'Los clientes los tocan para probarlos. Elige tus cortes habituales.',
+  'Live': 'En vivo',
+  'Save changes': 'Guardar cambios',
+  'Publish card': 'Publicar tarjeta',
+  'Checking…': 'Comprobando…',
+  'Available': 'Disponible',
+  'That name is taken.': 'Ese nombre ya está tomado.',
+  'QR code for your card': 'Código QR de tu tarjeta',
+  'Your card is live': 'Tu tarjeta está en vivo',
+  'Copied!': '¡Copiado!',
+  'Download mirror card': 'Descargar tarjeta de espejo',
+  'View card ↗': 'Ver tarjeta ↗',
+  'Print it and tape it to your mirror. Clients scan it from the chair.':
+    'Imprímela y pégala en tu espejo. Los clientes la escanean desde la silla.',
+  'Scans': 'Escaneos',
+  'Try-ons': 'Pruebas',
+  'Link taps': 'Toques de enlace',
+  'Clients joined': 'Clientes registrados',
+
+  // ── For barbers (pitch page) ──
+  'Build your card': 'Crea tu tarjeta',
+  'Free for barbers': 'Gratis para barberos',
+  'Your clients stop describing the cut.': 'Tus clientes dejan de describir el corte.',
+  'They show you.': 'Te lo muestran.',
+  'A free page for your chair — booking, socials, Venmo, all in one link — with a fitting room built in. A client scans the QR on your mirror, taps a cut, and sees it on their own head. No more “a little off the top.”':
+    'Una página gratis para tu silla — reservas, redes, Venmo, todo en un enlace — con probador incluido. Un cliente escanea el QR de tu espejo, toca un corte y lo ve en su propia cabeza. Se acabó el “un poquito de arriba”.',
+  'Build your card — free': 'Crea tu tarjeta — gratis',
+  'Claim your link': 'Reclama tu enlace',
+  'Pick your name — tryshapeup.cc/b/you. Add booking, Instagram, Venmo, call and text. Free, forever.':
+    'Elige tu nombre — tryshapeup.cc/b/tu. Agrega reservas, Instagram, Venmo, llamadas y mensajes. Gratis, para siempre.',
+  'Add the cuts you do': 'Agrega los cortes que haces',
+  'Choose your go-to styles. Clients tap one and see it on their own head — before you pick up the clippers.':
+    'Elige tus estilos habituales. Los clientes tocan uno y lo ven en su propia cabeza — antes de que tomes la máquina.',
+  'Tape the QR to your mirror': 'Pega el QR en tu espejo',
+  'Print the card. Every client in your chair scans it, shows you exactly what they want, and lands on your page.':
+    'Imprime la tarjeta. Cada cliente en tu silla la escanea, te muestra exactamente lo que quiere y llega a tu página.',
+  'It’s the free tool your clients actually want.':
+    'Es la herramienta gratis que tus clientes realmente quieren.',
+  'Every client who scans your QR and signs up is tracked back to you. Watch it on your dashboard.':
+    'Cada cliente que escanea tu QR y se registra se atribuye a ti. Míralo en tu panel.',
+  'Get started': 'Comenzar',
 };
