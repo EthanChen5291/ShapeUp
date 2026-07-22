@@ -34,6 +34,8 @@ export interface BookingConfig {
   enabled: boolean;
   timezone: string;
   slotMinutes: number;
+  /** Barber-entered display price, e.g. "$45". ShapeUp does not collect payment. */
+  price?: string;
   days: BookingDay[];
 }
 
@@ -235,6 +237,7 @@ export function normalizeBookingConfig(raw: {
   enabled: boolean;
   timezone: string;
   slotMinutes: number;
+  price?: string;
   days: { day: number; start: string; end: string }[];
 }): BookingConfigCheck {
   if (!isValidTimeZone(raw.timezone)) {
@@ -271,6 +274,7 @@ export function normalizeBookingConfig(raw: {
       enabled: raw.enabled,
       timezone: raw.timezone,
       slotMinutes: raw.slotMinutes,
+      price: raw.price?.trim().slice(0, 20) || undefined,
       days: [...raw.days]
         .sort((a, b) => a.day - b.day)
         .map((d) => ({ day: d.day, start: d.start, end: d.end })),

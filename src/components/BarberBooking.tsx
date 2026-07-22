@@ -22,7 +22,6 @@ import { useUser } from '@clerk/nextjs';
 import { useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { api } from '@convex/_generated/api';
-import SignUpWidget from '@/components/SignUpWidget';
 import { upcomingDays, type BookingConfig } from '@/lib/bookingSlots';
 import { buildIcs, googleCalendarUrl } from '@/lib/calendarLinks';
 import { useT } from '@/lib/i18n';
@@ -34,7 +33,7 @@ export interface BarberBookingProps {
   location?: string;
   services?: { name: string; price?: string }[];
   /** The page's booking config (enabled implied by presence). */
-  booking: { timezone: string; slotMinutes: number; days: { day: number; start: string; end: string }[] };
+  booking: { timezone: string; slotMinutes: number; price?: string; days: { day: number; start: string; end: string }[] };
   /** When set (the cut just tried on), carried into the booking note. */
   cutLabel?: string;
   /** Builder preview: render the grid, never book. */
@@ -94,7 +93,7 @@ export default function BarberBooking({
   onBooked,
 }: BarberBookingProps) {
   const t = useT();
-  const { isSignedIn, user } = useUser();
+  const { user } = useUser();
   const book = useMutation(api.barberBooking.book);
 
   // Live schedule + booked intervals; the page's config is the fallback so the
@@ -105,6 +104,7 @@ export default function BarberBooking({
       enabled: true,
       timezone: availability?.timezone ?? booking.timezone,
       slotMinutes: availability?.slotMinutes ?? booking.slotMinutes,
+      price: availability?.price ?? booking.price,
       days: availability?.days ?? booking.days,
     }),
     [availability, booking],
@@ -114,10 +114,11 @@ export default function BarberBooking({
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [service, setService] = useState('');
   const [error, setError] = useState('');
-  const [bookedSlot, setBookedSlot] = useState<{ startMs: number; endMs: number } | null>(null);
+  const [bookedSlot, setBookedSlot] = useState<{ startMs: number; endMs: number; price?: string } | null>(null);
 
   const days = useMemo(
     () => upcomingDays(config, Date.now(), availability?.booked ?? []),
@@ -129,6 +130,8 @@ export default function BarberBooking({
   const viewerZone =
     typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
   const crossZone = viewerZone !== undefined && viewerZone !== config.timezone;
+  const selectedServicePrice = services?.find((item) => item.name === service)?.price;
+  const displayedPrice = selectedServicePrice ?? config.price;
 
   // A selected slot can vanish under us (someone books it live) — drop back.
   const activeSlotGone =
@@ -140,6 +143,9 @@ export default function BarberBooking({
     setError('');
     setPhase('confirm');
     if (!clientName && user?.fullName) setClientName(user.fullName);
+    if (!clientEmail && user?.primaryEmailAddress?.emailAddress) {
+      setClientEmail(user.primaryEmailAddress.emailAddress);
+    }
   };
 
   const confirm = async () => {
@@ -151,6 +157,7 @@ export default function BarberBooking({
         slug,
         startMs: selectedSlot,
         clientName: clientName.trim(),
+        clientEmail: clientEmail.trim(),
         clientPhone: clientPhone.trim() || undefined,
         service: service || undefined,
         note: cutLabel ? t('Cut I tried on: {cut}', { cut: cutLabel }) : undefined,
@@ -197,6 +204,7 @@ export default function BarberBooking({
           <span className="bb-done-mark" aria-hidden><CheckIcon /></span>
           <p className="bb-done-title">{t('You’re booked.')}</p>
           <p className="bb-done-when font-sans">{whenLabel}</p>
+          {bookedSlot.price ? <p className="bb-price font-mono">{bookedSlot.price}</p> : null}
           {crossZone ? (
             <p className="bb-zone-hint font-mono">{t('{city} time', { city: zoneCity(config.timezone) })}</p>
           ) : null}
@@ -222,11 +230,14 @@ export default function BarberBooking({
     <section className="bb-panel" aria-label={t('Book a time')} id="bb-book">
       <div className="bb-head">
         <h2 className="bc-side-heading font-mono">{t('Book a chair')}</h2>
-        {crossZone ? (
-          <span className="bb-zone-hint font-mono">
-            {t('{city} time', { city: zoneCity(config.timezone) })}
-          </span>
-        ) : null}
+        <div className="bb-head-meta">
+          {config.price ? <span className="bb-price font-mono">{config.price}</span> : null}
+          {crossZone ? (
+            <span className="bb-zone-hint font-mono">
+              {t('{city} time', { city: zoneCity(config.timezone) })}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {openDays.length === 0 ? (
@@ -283,14 +294,6 @@ export default function BarberBooking({
 
           {/* confirm step */}
           {(phase === 'confirm' || phase === 'booking') && selectedSlot !== null && !activeSlotGone ? (
-            !isSignedIn ? (
-              <div className="bb-auth">
-                <p className="bb-auth-copy font-sans">
-                  {t('One quick sign-in so {name} knows the booking is real.', { name: barberName })}
-                </p>
-                <SignUpWidget onEnter={() => {}} />
-              </div>
-            ) : (
               <form
                 className="bb-confirm"
                 onSubmit={(e) => {
@@ -318,6 +321,19 @@ export default function BarberBooking({
                     required
                     disabled={phase === 'booking'}
                     autoComplete="name"
+                  />
+                </label>
+                <label className="bb-field">
+                  <span className="font-mono">{t('Your email')}</span>
+                  <input
+                    className="bb-input font-sans"
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    maxLength={254}
+                    required
+                    disabled={phase === 'booking'}
+                    autoComplete="email"
                   />
                 </label>
                 <label className="bb-field">
@@ -354,14 +370,15 @@ export default function BarberBooking({
                 <button
                   type="submit"
                   className="bb-book-btn"
-                  disabled={phase === 'booking' || !clientName.trim()}
+                  disabled={phase === 'booking' || !clientName.trim() || !clientEmail.trim()}
                 >
                   {phase === 'booking'
                     ? t('Booking…')
-                    : t('Book {time}', { time: slotLabel(selectedSlot, config.timezone) })}
+                    : displayedPrice
+                      ? t('Book {time} · {price}', { time: slotLabel(selectedSlot, config.timezone), price: displayedPrice })
+                      : t('Book {time}', { time: slotLabel(selectedSlot, config.timezone) })}
                 </button>
               </form>
-            )
           ) : null}
         </>
       )}

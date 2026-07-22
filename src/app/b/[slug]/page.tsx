@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@convex/_generated/api';
 import BarberCard, { type BarberCardData } from '@/components/BarberCard';
+import { isAppleWalletConfigured } from '@/lib/appleWallet';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,18 +70,29 @@ export async function generateMetadata({
 
 export default async function BarberCardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ batchE2e?: string }>;
 }) {
   const { slug } = await params;
+  const query = await searchParams;
   const card = await fetchCard(slug);
   if (!card) notFound();
+  const e2eBatchMode =
+    process.env.BARBER_E2E_FIXTURE === '1' &&
+    slug === E2E_CARD.slug &&
+    query.batchE2e === '1';
 
   return (
     // The card commits to the dark studio look regardless of the app theme —
     // the page background lives on .bc-root itself.
     <div style={{ minHeight: '100dvh', background: '#0F0F10' }}>
-      <BarberCard page={card} />
+      <BarberCard
+        page={card}
+        walletEnabled={isAppleWalletConfigured()}
+        e2eBatchMode={e2eBatchMode}
+      />
     </div>
   );
 }

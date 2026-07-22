@@ -27,10 +27,13 @@
 // the page.
 // ============================================================
 
-import { useEffect, useRef, useState } from 'react';
-import { useMutation } from 'convex/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { HAIRSTYLES, hairstyleBySlug, type Hairstyle } from '@/data/hairstyles';
+import BarberAuthPopup from '@/components/BarberAuthPopup';
+import BarberBatchFlow from '@/components/BarberBatchFlow';
 import BarberTryOn from '@/components/BarberTryOn';
 import BarberBooking from '@/components/BarberBooking';
 import type { LinkKind } from '@/lib/barberLinks';
@@ -46,6 +49,8 @@ export interface BarberCardData {
   location?: string;
   hours?: string;
   services?: { name: string; price?: string }[];
+  offersPerms?: boolean;
+  theme?: 'night' | 'heritage' | 'sage';
   links: { kind: string; label: string; url: string }[];
   styles: string[];
   referralCode?: string;
@@ -53,6 +58,7 @@ export interface BarberCardData {
   booking?: {
     timezone: string;
     slotMinutes: number;
+    price?: string;
     days: { day: number; start: string; end: string }[];
   };
 }
@@ -61,6 +67,10 @@ export interface BarberCardData {
 interface BarberCardProps {
   page: BarberCardData;
   preview?: boolean;
+  /** Only true when the server has the Apple signing credentials installed. */
+  walletEnabled?: boolean;
+  /** Server-gated browser fixture; never enabled on a real public card. */
+  e2eBatchMode?: boolean;
 }
 
 // ── icons (stroke 2, 20px, one family — never emoji) ──
@@ -171,23 +181,59 @@ function monogram(name: string): string {
     .join('');
 }
 
-type EntryMode = 'choice' | 'trim' | 'orbit' | 'tryon';
+type EntryMode = 'choice' | 'trim' | 'rundown' | 'tryon';
+type AuthIntent = 'trim' | 'batch';
 
-export default function BarberCard({ page, preview = false }: BarberCardProps) {
+export default function BarberCard({
+  page,
+  preview = false,
+  walletEnabled = false,
+  e2eBatchMode = false,
+}: BarberCardProps) {
   const t = useT();
+  const { isSignedIn } = useUser();
+  const signedIn = Boolean(isSignedIn || e2eBatchMode);
   const recordEvent = useMutation(api.barberPages.recordEvent);
+  const getOrCreate = useMutation(api.users.getOrCreate);
+  const latestBatch = useQuery(
+    api.barberBatch.latestForPage,
+    signedIn && !preview && !e2eBatchMode ? { slug: page.slug } : 'skip',
+  );
   const countedView = useRef(false);
 
   const [activeTryOn, setActiveTryOn] = useState<Hairstyle | null>(null);
-  const [entryMode, setEntryMode] = useState<EntryMode>('choice');
+  const [entryMode, setEntryMode] = useState<EntryMode>(e2eBatchMode ? 'rundown' : 'choice');
+  const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
   const [trimNote, setTrimNote] = useState('');
   // The client's hosted selfie, kept for the whole visit so "try another cut"
   // never asks them to re-shoot their face.
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const expRef = useRef<HTMLElement>(null);
   const bookingRef = useRef<HTMLDivElement>(null);
+  const attributedRef = useRef(false);
+  const dismissedResumeRef = useRef(false);
 
-  // "Book with {name}" CTAs: native scheduler when the barber turned it on
+  // A sign-in on this card never passes through the app homepage, so preserve
+  // the same referral-attribution mutation used by the single-cut flow.
+  useEffect(() => {
+    if (!isSignedIn || attributedRef.current) return;
+    attributedRef.current = true;
+    void getOrCreate({ referralCode: page.referralCode }).catch((error) => {
+      console.error('[BarberCard] referral attribution failed:', error);
+    });
+  }, [getOrCreate, isSignedIn, page.referralCode]);
+
+  // Signed-in visitors resume the newest active or ready batch on this page.
+  useEffect(() => {
+    if (
+      preview || dismissedResumeRef.current || activeTryOn || entryMode !== 'choice' ||
+      !latestBatch ||
+      (latestBatch.status !== 'analyzing' && latestBatch.status !== 'generating' && latestBatch.status !== 'ready')
+    ) return;
+    setEntryMode('rundown');
+  }, [activeTryOn, entryMode, latestBatch, preview]);
+
+  // "Book appointment" CTAs: native scheduler when the barber turned it on
   // (scroll the panel into view), otherwise their external booking link.
   const scrollToBooking = () => {
     const el = bookingRef.current;
@@ -220,6 +266,47 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
 
   const ref = page.referralCode;
 
+  const finishEntry = useCallback((intent: AuthIntent) => {
+    dismissedResumeRef.current = false;
+    setEntryMode(intent === 'trim' ? 'trim' : 'rundown');
+  }, []);
+
+  const clearStoredIntent = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.removeItem(`barber-card-intent:${page.slug}`);
+  }, [page.slug]);
+
+  const finishAuthenticatedEntry = useCallback(() => {
+    if (!authIntent) return;
+    finishEntry(authIntent);
+    setAuthIntent(null);
+    clearStoredIntent();
+  }, [authIntent, clearStoredIntent, finishEntry]);
+
+  // A redirect-based sign-in reloads this page. Restore which of the two
+  // choices the visitor made and continue from that exact point.
+  useEffect(() => {
+    if (!signedIn || authIntent || typeof window === 'undefined') return;
+    const stored = window.sessionStorage.getItem(`barber-card-intent:${page.slug}`);
+    if (stored === 'trim' || stored === 'batch') setAuthIntent(stored);
+  }, [authIntent, page.slug, signedIn]);
+
+  useEffect(() => {
+    if (signedIn && authIntent) finishAuthenticatedEntry();
+  }, [authIntent, finishAuthenticatedEntry, signedIn]);
+
+  const requestEntry = (intent: AuthIntent) => {
+    if (preview) return;
+    if (signedIn) {
+      finishEntry(intent);
+      return;
+    }
+    setAuthIntent(intent);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(`barber-card-intent:${page.slug}`, intent);
+    }
+  };
+
   /** Tapping a cut swaps the lookbook for the try-on, in place. A no-op in the
    *  builder's live preview — sign-in + camera have no business in that frame. */
   const openTryOn = (cut: Hairstyle) => {
@@ -230,25 +317,21 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
   };
 
   const startBestStyles = () => {
-    if (preview) return;
-    setEntryMode('orbit');
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    window.setTimeout(() => openTryOn(picks[0] ?? HAIRSTYLES[0]), reduced ? 80 : 2180);
+    requestEntry('batch');
   };
 
   // This page is the barber's recommendation ticket, not the full ShapeUp
   // catalog. Only their selected cuts belong here; unknown/stale slugs are
   // dropped safely so a removed hairstyle can never render a broken card.
   const picks = page.styles.map(hairstyleBySlug).filter((cut) => cut !== undefined);
-  const orbitCuts = (picks.length ? picks : HAIRSTYLES).slice(0, 7);
   // What the choice screen offers for a direct tap: the barber's picks, or a
   // taste of the menu when they haven't chosen any (the full menu lives inside
   // the try-on's "Menu" tab).
-  const lookbook = picks.length ? picks : HAIRSTYLES.slice(0, 8);
+  const lookbook = picks.length ? picks : HAIRSTYLES.slice(0, 7);
 
   const bookingUrl = page.links.find((link) => link.kind === 'booking')?.url;
   return (
-    <div className={`bc-root${preview ? ' is-embedded' : ''}`}>
+    <div className={`bc-root is-theme-${page.theme ?? 'night'}${preview ? ' is-embedded' : ''}`}>
       {/* Dark editorial banner behind the barber's identity. On desktop it is
           clipped to the left side of the diagonal seam; on mobile it spans
           the full card width and fades out through the name. */}
@@ -338,6 +421,23 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
               </div>
             ) : null}
 
+            {walletEnabled && !preview ? (
+              <a
+                className="bc-wallet"
+                href={`/api/barber/${encodeURIComponent(page.slug)}/wallet`}
+                aria-label={t('Download {name}’s Apple Wallet pass', { name: page.displayName })}
+              >
+                <span className="bc-wallet-pass" aria-hidden>
+                  <span className="bc-wallet-pass-mark">S</span>
+                </span>
+                <span className="bc-wallet-copy">
+                  <span className="bc-wallet-kicker font-mono">{t('Keep this card')}</span>
+                  <span className="bc-wallet-label font-sans">{t('Save to Apple Wallet')}</span>
+                </span>
+                <span className="bc-wallet-arrow" aria-hidden>↓</span>
+              </a>
+            ) : null}
+
             {page.links.length > 0 ? (
               <nav className="bc-links" aria-label={t('Links')}>
                 {page.links.map((link, i) => (
@@ -386,28 +486,25 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
               onBook={page.booking ? scrollToBooking : undefined}
               initialSelfieUrl={selfieUrl}
               onSelfie={setSelfieUrl}
-              onClose={() => setActiveTryOn(null)}
+              onClose={() => {
+                setActiveTryOn(null);
+                setEntryMode('choice');
+              }}
               barberPicks={picks}
               menuCuts={HAIRSTYLES}
             />
-          ) : entryMode === 'orbit' ? (
-            <div className="bc-orbit" role="status" aria-label={t('Preparing the selfie camera')}>
-              <div className="bc-orbit-ring">
-                {orbitCuts.map((cut, i) => (
-                  <img
-                    key={cut.slug}
-                    className="bc-orbit-cut"
-                    src={`/hair-previews/${cut.slug}.png`}
-                    alt=""
-                    style={{ '--orbit-i': i, '--orbit-n': orbitCuts.length } as React.CSSProperties}
-                  />
-                ))}
-                <span className="bc-orbit-camera" aria-hidden>
-                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-2h5.6L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="4"/></svg>
-                </span>
-              </div>
-              <p className="bc-orbit-copy">{t('Finding the cuts that fit you.')}</p>
-            </div>
+          ) : entryMode === 'rundown' && !preview ? (
+            <BarberBatchFlow
+              barberSlug={page.slug}
+              barberName={page.displayName}
+              bookingUrl={bookingUrl}
+              onBook={page.booking ? scrollToBooking : undefined}
+              onClose={() => {
+                dismissedResumeRef.current = true;
+                setEntryMode('choice');
+              }}
+              e2eMode={e2eBatchMode}
+            />
           ) : entryMode === 'trim' ? (
             <div className="bc-trim">
               <button className="bc-inline-back" type="button" onClick={() => setEntryMode('choice')}>← {t('Back')}</button>
@@ -416,14 +513,13 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
                 <span className="font-mono">{t('Leave a note for your barber')}</span>
                 <textarea value={trimNote} onChange={(e) => setTrimNote(e.target.value)} placeholder={t('Clean up the sides, keep the length…')} />
               </label>
-              <p className="bc-trim-hint font-sans">{t('Show it to them from the chair — nothing to send.')}</p>
               {page.booking ? (
                 <button
                   className="bc-choice-btn is-accent"
                   type="button"
                   onClick={scrollToBooking}
                 >
-                  <span>{t('Book with {name}', { name: page.displayName })}</span><span aria-hidden>↓</span>
+                  <span>{t('Book appointment')}</span><span aria-hidden>↓</span>
                 </button>
               ) : bookingUrl ? (
                 <a
@@ -436,9 +532,10 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
                     count('bookingClick');
                   }}
                 >
-                  <span>{t('Book with {name}', { name: page.displayName })}</span><span aria-hidden>↗</span>
+                  <span>{t('Book appointment')}</span><span aria-hidden>↗</span>
                 </a>
               ) : null}
+              <p className="bc-trim-hint font-sans">{t('Show it to them from the chair — nothing to send.')}</p>
               <button className="bc-choice-btn is-quiet" type="button" onClick={startBestStyles}>
                 <span>{t('While you wait — see your best hairstyles')}</span><span aria-hidden>✦</span>
               </button>
@@ -451,7 +548,7 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
                 <p className="bc-book-sub font-sans">{t('Keep it familiar, or discover the cuts that suit you best.')}</p>
               </div>
               <div className="bc-choice-stack">
-                <button className="bc-choice-btn" type="button" onClick={() => setEntryMode('trim')}>
+                <button className="bc-choice-btn" type="button" onClick={() => requestEntry('trim')}>
                   <span>{t('Just doing a trim.')}</span><span aria-hidden>↗</span>
                 </button>
                 <button className="bc-choice-btn is-accent" type="button" onClick={startBestStyles}>
@@ -459,16 +556,10 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
                 </button>
               </div>
 
-              {/* The lookbook proper: every cut is one tap from being on the
-                  client's own head — no orbit, no detour. */}
+              {/* Every cut stays one tap from the try-on. The compact rail
+                  keeps the choices immediately beneath the discovery CTA. */}
               <div className="bc-lookbook">
-                <div className="bc-look-head">
-                  <h3 className="bc-side-heading font-mono">
-                    {picks.length ? t('Barber’s picks') : t('From the menu')}
-                  </h3>
-                  <span className="bc-look-hint font-sans">{t('Tap a cut to try it on')}</span>
-                </div>
-                <ul className="bc-grid">
+                <ul className="bc-grid bc-cut-rail" aria-label={t('Hairstyles to try on')}>
                   {lookbook.map((cut) => (
                     <li key={cut.slug}>
                       <button
@@ -488,6 +579,15 @@ export default function BarberCard({ page, preview = false }: BarberCardProps) {
           )}
         </section>
       </main>
+
+      <BarberAuthPopup
+        open={Boolean(authIntent && !signedIn && !preview)}
+        onClose={() => {
+          setAuthIntent(null);
+          clearStoredIntent();
+        }}
+        onAuthenticated={finishAuthenticatedEntry}
+      />
     </div>
   );
 }

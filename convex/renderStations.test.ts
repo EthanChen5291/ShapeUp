@@ -13,6 +13,10 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe('renderStations', () => {
+  test('advertises four customer-level render stations', () => {
+    expect(RENDER_STATION_CAPACITY).toBe(4);
+  });
+
   test('claims up to capacity are active; the next is queued behind them', async () => {
     const t = convexTest(schema, modules);
 
@@ -61,7 +65,7 @@ describe('renderStations', () => {
     const stale = await t.mutation(api.renderStations.claim, {});
     vi.setSystemTime(1001);
     const fresh = await t.mutation(api.renderStations.claim, {});
-    // Both live, both active (capacity is 2).
+    // Both live, both active within the four-station capacity.
     expect(fresh.activeCount).toBe(2);
 
     // Jump past the liveness window without heartbeating `stale`.

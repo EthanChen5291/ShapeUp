@@ -30,6 +30,7 @@ const BOOKING = {
   enabled: true,
   timezone: "UTC",
   slotMinutes: 30,
+  price: "$35",
   days: [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, start: "09:00", end: "17:00" })),
 };
 
@@ -83,10 +84,11 @@ describe("getAvailability", () => {
       slug: "marcus",
       startMs: slot,
       clientName: "Dre",
+      clientEmail: "dre@example.com",
     });
 
     const availability = await t.query(api.barberBooking.getAvailability, { slug: "marcus" });
-    expect(availability).toMatchObject({ timezone: "UTC", slotMinutes: 30 });
+    expect(availability).toMatchObject({ timezone: "UTC", slotMinutes: 30, price: "$35" });
     expect(availability!.days).toHaveLength(7);
     expect(availability!.booked).toContainEqual({ startMs: slot, endMs: slot + 30 * 60_000 });
     // Intervals only — nothing about who booked.
@@ -95,17 +97,30 @@ describe("getAvailability", () => {
 });
 
 describe("book", () => {
-  test("requires sign-in", async () => {
+  test("lets a guest book with an email", async () => {
     const t = convexTest(schema, modules);
     const marcus = await user(t, "marcus");
     await marcus.mutation(api.barberPages.upsert, CARD);
-    await expect(
-      t.mutation(api.barberBooking.book, {
-        slug: "marcus",
-        startMs: nextOpenSlot(),
-        clientName: "Dre",
-      }),
-    ).rejects.toThrow(/sign in/i);
+    await t.mutation(api.barberBooking.book, {
+      slug: "marcus",
+      startMs: nextOpenSlot(),
+      clientName: "Dre",
+      clientEmail: "dre@example.com",
+    });
+    const bookings = await marcus.query(api.barberBooking.listMyBookings, {});
+    expect(bookings?.[0]).toMatchObject({ clientName: "Dre", clientEmail: "dre@example.com" });
+  });
+
+  test("requires a valid customer email", async () => {
+    const t = convexTest(schema, modules);
+    const marcus = await user(t, "marcus");
+    await marcus.mutation(api.barberPages.upsert, CARD);
+    await expect(t.mutation(api.barberBooking.book, {
+      slug: "marcus",
+      startMs: nextOpenSlot(),
+      clientName: "Dre",
+      clientEmail: "not-an-email",
+    })).rejects.toThrow(/valid email/i);
   });
 
   test("rejects an off-grid time", async () => {
@@ -118,6 +133,7 @@ describe("book", () => {
         slug: "marcus",
         startMs: nextOpenSlot() + 10 * 60_000,
         clientName: "Dre",
+        clientEmail: "dre@example.com",
       }),
     ).rejects.toThrow(/isn't available/i);
   });
@@ -133,14 +149,15 @@ describe("book", () => {
       slug: "marcus",
       startMs: slot,
       clientName: "Dre",
+      clientEmail: "client1@example.com",
       service: "Skin fade",
       note: "walk-in friendly?",
     });
-    expect(result).toEqual({ startMs: slot, endMs: slot + 30 * 60_000 });
+    expect(result).toEqual({ startMs: slot, endMs: slot + 30 * 60_000, price: "$40" });
 
     const kay = await user(t, "client2");
     await expect(
-      kay.mutation(api.barberBooking.book, { slug: "marcus", startMs: slot, clientName: "Kay" }),
+      kay.mutation(api.barberBooking.book, { slug: "marcus", startMs: slot, clientName: "Kay", clientEmail: "client2@example.com" }),
     ).rejects.toThrow(/just took that time/i);
 
     const bookings = await marcus.query(api.barberBooking.listMyBookings, {});
@@ -149,6 +166,7 @@ describe("book", () => {
       clientName: "Dre",
       clientEmail: "client1@example.com",
       service: "Skin fade",
+      price: "$40",
       note: "walk-in friendly?",
       startMs: slot,
     });
@@ -163,6 +181,7 @@ describe("book", () => {
       slug: "marcus",
       startMs: nextOpenSlot(),
       clientName: "Dre",
+      clientEmail: "dre@example.com",
       service: "Free haircut forever",
     });
     const bookings = await marcus.query(api.barberBooking.listMyBookings, {});
@@ -179,6 +198,7 @@ describe("book", () => {
         slug: "marcus",
         startMs: nextOpenSlot(),
         clientName: "Dre",
+        clientEmail: "dre@example.com",
       }),
     ).rejects.toThrow(/isn't taking bookings/i);
   });
@@ -192,7 +212,7 @@ describe("cancel", () => {
 
     const slot = nextOpenSlot();
     const dre = await user(t, "client1");
-    await dre.mutation(api.barberBooking.book, { slug: "marcus", startMs: slot, clientName: "Dre" });
+    await dre.mutation(api.barberBooking.book, { slug: "marcus", startMs: slot, clientName: "Dre", clientEmail: "client1@example.com" });
 
     const bookings = await marcus.query(api.barberBooking.listMyBookings, {});
     const bookingId = bookings![0].id;
@@ -208,7 +228,7 @@ describe("cancel", () => {
 
     // The slot is bookable again.
     const kay = await user(t, "client2");
-    await kay.mutation(api.barberBooking.book, { slug: "marcus", startMs: slot, clientName: "Kay" });
+    await kay.mutation(api.barberBooking.book, { slug: "marcus", startMs: slot, clientName: "Kay", clientEmail: "client2@example.com" });
   });
 });
 

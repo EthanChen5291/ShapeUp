@@ -532,6 +532,106 @@ export const es: Record<string, string> = {
   'Finding the cuts that fit you.': 'Buscando los cortes que te quedan.',
   'Preparing the selfie camera': 'Preparando la cámara para selfies',
 
+  // ── Barber batch flow ──
+  'Close sign-in': 'Cerrar inicio de sesión',
+  'Save your place': 'Guarda tu lugar',
+  'One quick sign-in to continue.': 'Un inicio de sesión rápido para continuar.',
+  'Your preview stays private and your choice stays connected to this barber.':
+    'Tu vista previa se mantiene privada y tu elección queda vinculada con este barbero.',
+  'One selfie · eight ideas': 'Una selfie · ocho ideas',
+  'Here’s how it works.': 'Así funciona.',
+  'Take or upload one selfie': 'Toma o sube una selfie',
+  'We show you 8 hairstyles picked for your face and hair.':
+    'Te mostramos 8 peinados elegidos para tu rostro y cabello.',
+  'Choose your favorite and make final touches.':
+    'Elige tu favorito y haz los retoques finales.',
+  "We'll send it to your barber along with the appointment.":
+    'Se lo enviaremos a tu barbero junto con la cita.',
+  "Let's go.": 'Vamos.',
+  'Keep your hairline, both temples, and full face visible.':
+    'Mantén visibles la línea del cabello, ambas sienes y todo el rostro.',
+  'That photo didn’t load — try another one.':
+    'Esa foto no se cargó — prueba con otra.',
+  'Personal analysis': 'Análisis personal',
+  'Finding what works with your hair.': 'Buscando lo que funciona con tu cabello.',
+  'Reading your hair and face': 'Analizando tu cabello y rostro',
+  'Choosing 8 realistic styles': 'Eligiendo 8 estilos realistas',
+  'Building every look': 'Creando cada look',
+  '{ready} of 8 ready': '{ready} de 8 listos',
+  'Your looks from earlier': 'Tus looks anteriores',
+  'Your best matches': 'Tus mejores opciones',
+  'Your chair is filling up.': 'Tu silla se está llenando.',
+  'Eight cuts, picked for you.': 'Ocho cortes, elegidos para ti.',
+  'Start over': 'Empezar de nuevo',
+  'Straight': 'Liso',
+  'Wavy': 'Ondulado',
+  'Curly': 'Rizado',
+  'Coily': 'Crespo',
+  'dense': 'denso',
+  'medium density': 'densidad media',
+  'low density': 'baja densidad',
+  'intact hairline': 'línea del cabello intacta',
+  'mature hairline': 'línea del cabello madura',
+  'receding hairline': 'línea del cabello en retroceso',
+  'these 8 work with that': 'estos 8 funcionan con eso',
+  'Your 8 hairstyle matches': 'Tus 8 peinados ideales',
+  'Your best hairstyle matches': 'Tus mejores peinados',
+  'Style {n} is still being built': 'El estilo {n} aún se está creando',
+  'Style {n}': 'Estilo {n}',
+  'Rendering': 'Renderizando',
+  'Editing': 'Editando',
+  'Waiting': 'En espera',
+  'This look needs another pass.': 'Este look necesita otro intento.',
+  'Retry {title}': 'Reintentar {title}',
+  'Retrying…': 'Reintentando…',
+  'Retry': 'Reintentar',
+  'Open {title} in 3D': 'Abrir {title} en 3D',
+  '{title} 360 preview': 'Vista 360 de {title}',
+  '{title} preview': 'Vista previa de {title}',
+  'Preview ready': 'Vista previa lista',
+  'All 8 looks': 'Los 8 looks',
+  'Best matches': 'Mejores opciones',
+  'Your pick': 'Tu elección',
+  'Make a small adjustment': 'Haz un pequeño ajuste',
+  'Final Touches': 'Retoques finales',
+  'Applying…': 'Aplicando…',
+  'Sending 360…': 'Enviando 360…',
+  'Send 360 to {name}': 'Enviar 360 a {name}',
+  'That selfie needs another try.': 'Esa selfie necesita otro intento.',
+  'Your looks could not be finished. Please try again.':
+    'No se pudieron terminar tus looks. Inténtalo de nuevo.',
+  'That adjustment did not finish. Try again from the grid.':
+    'Ese ajuste no terminó. Inténtalo de nuevo desde la cuadrícula.',
+  'That adjustment did not finish. Please try again.':
+    'Ese ajuste no terminó. Inténtalo de nuevo.',
+  'This look could not be retried.': 'No se pudo reintentar este look.',
+  'Check your connection and retry this look.':
+    'Revisa tu conexión y vuelve a intentar este look.',
+  '{density} density': 'densidad {density}',
+  '{state} hairline': 'línea del cabello {state}',
+  '{top}" top / {sides}" sides / {back}" back':
+    '{top}" arriba / {sides}" lados / {back}" atrás',
+  '{shape} face': 'rostro {shape}',
+  'Growth: {patterns}': 'Crecimiento: {patterns}',
+  'high': 'alta',
+  'med': 'media',
+  'low': 'baja',
+  'intact': 'intacta',
+  'mature': 'madura',
+  'receding': 'en retroceso',
+  'Before we continue': 'Antes de continuar',
+  'A quick note on your face data': 'Una nota rápida sobre los datos de tu rostro',
+  'Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third parties.':
+    'Nuestro renderizado 3D procesa datos biométricos — específicamente, la geometría facial usada para crear la vista previa de tu corte. Estos datos no se venden ni se comparten con terceros.',
+  'Used solely for your haircut preview': 'Se usan solo para la vista previa de tu corte',
+  'Stored in your account; delete anytime': 'Se guardan en tu cuenta; bórralos cuando quieras',
+  'Not used to train models or identify you': 'No se usan para entrenar modelos ni identificarte',
+  'By tapping “I agree” you consent to this processing under our':
+    'Al tocar “Acepto”, autorizas este procesamiento según nuestra',
+  'I agree': 'Acepto',
+  'Could not save consent. Please try again.':
+    'No se pudo guardar el consentimiento. Inténtalo de nuevo.',
+
   // ── Barber try-on (embedded selfie -> generate -> send flow) ──
   'Try it on yourself': 'Pruébalo en ti mismo',
   'All styles': 'Todos los estilos',
@@ -557,6 +657,7 @@ export const es: Record<string, string> = {
   'Your original photo': 'Tu foto original',
   'Drag to rotate · scroll to zoom': 'Arrastra para girar · desliza para acercar',
   'Book with {name}': 'Reservar con {name}',
+  'Book appointment': 'Reservar cita',
   'One quick sign-in — it’s how we send you the result and let this barber know what you want.':
     'Un inicio de sesión rápido — así te enviamos el resultado y le mostramos a este barbero lo que quieres.',
   'Uploading…': 'Subiendo…',
@@ -588,6 +689,7 @@ export const es: Record<string, string> = {
   // ── Barber booking (/b/<slug> scheduler) ──
   'Book a time': 'Reservar una hora',
   'Book a chair': 'Reserva tu silla',
+  'Book {time} · {price}': 'Reservar a las {time} · {price}',
   '{city} time': 'hora de {city}',
   'No open times in the next two weeks — reach out directly.':
     'No hay horarios libres en las próximas dos semanas — contáctalo directamente.',
@@ -608,6 +710,8 @@ export const es: Record<string, string> = {
 
   // ── Barber builder: appointments ──
   'Appointments': 'Citas',
+  'Appointment price': 'Precio de la cita',
+  'shown before booking': 'se muestra antes de reservar',
   'Let clients book times on my card': 'Permitir que los clientes reserven horas en mi tarjeta',
   'Clients pick a real open slot; you both get a confirmation with a calendar invite. No other app needed.':
     'Los clientes eligen un horario libre real; ambos reciben una confirmación con invitación de calendario. Sin otra app.',
@@ -679,6 +783,7 @@ export const es: Record<string, string> = {
   'Skin fade': 'Degradado al ras',
   'Price': 'Precio',
   'Remove this service?': '¿Quitar este servicio?',
+  'We offer perms / texture services': 'Ofrecemos permanentes / servicios de textura',
   'Booking & links': 'Reservas y enlaces',
   'Move up': 'Mover arriba',
   'Move down': 'Mover abajo',
@@ -730,6 +835,9 @@ export const es: Record<string, string> = {
   'Available': 'Disponible',
   'That name is taken.': 'Ese nombre ya está tomado.',
   'QR code for your card': 'Código QR de tu tarjeta',
+  'Keep this card': 'Guarda esta tarjeta',
+  'Save to Apple Wallet': 'Guardar en Apple Wallet',
+  'Download {name}’s Apple Wallet pass': 'Descargar el pase de Apple Wallet de {name}',
   'Your card is live': 'Tu tarjeta está en vivo',
   'Copied!': '¡Copiado!',
   'Download mirror card': 'Descargar tarjeta de espejo',

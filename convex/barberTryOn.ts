@@ -25,6 +25,7 @@ import { normalizeSlug } from "./lib/barberLinks";
 import { buildBarberEmail } from "./lib/barberEmail";
 import { enforceMutationRateLimit } from "./lib/rateLimit";
 import type { Id } from "./_generated/dataModel";
+import type { ActionCtx } from "./_generated/server";
 
 /** Where the client's selfie gets uploaded before it's sent to gemini-hair-edit. */
 export const generateUploadUrl = mutation({
@@ -69,6 +70,9 @@ export const recordSend = internalMutation({
     imageUrl: v.string(),
     videoUrl: v.optional(v.string()),
     clientRequest: v.optional(v.string()),
+    styleTitle: v.optional(v.string()),
+    stylePrompt: v.optional(v.string()),
+    hairProfile: v.optional(v.string()),
     clientEmail: v.optional(v.string()),
     clientPhone: v.optional(v.string()),
   },
@@ -85,6 +89,13 @@ export const markSendEmailed = internalMutation({
   args: { sendId: v.id("barberSends") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.sendId, { emailed: true });
+  },
+});
+
+export const updateSendVideo = internalMutation({
+  args: { sendId: v.id("barberSends"), videoUrl: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.sendId, { videoUrl: args.videoUrl });
   },
 });
 
@@ -119,6 +130,9 @@ export const listMySends = query({
       imageUrl: s.imageUrl,
       videoUrl: s.videoUrl,
       clientRequest: s.clientRequest,
+      styleTitle: s.styleTitle,
+      stylePrompt: s.stylePrompt,
+      hairProfile: s.hairProfile,
       clientEmail: s.clientEmail,
       clientPhone: s.clientPhone,
       createdAt: s.createdAt,
@@ -139,6 +153,27 @@ export type SendToBarberResult =
   | { ok: false; reason: "unknown_page" };
 
 /**
+ * Copy a short-lived render URL into Convex storage without routing the media
+ * through the client's browser. Failure is non-fatal: the original URL is
+ * still better than dropping the entire barber send.
+ */
+async function mirrorRemoteMedia(
+  ctx: ActionCtx,
+  url: string | undefined,
+): Promise<string | undefined> {
+  if (!url) return undefined;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error(`media fetch returned ${response.status}`);
+    const storageId = await ctx.storage.store(await response.blob());
+    return (await ctx.storage.getUrl(storageId)) ?? url;
+  } catch (err) {
+    console.warn("[barberTryOn] Could not mirror 360 video; keeping source URL", err);
+    return url;
+  }
+}
+
+/**
  * Deliver the cut a client just previewed on themselves to the barber: a
  * durable barberSends row first (the barber's inbox in the builder), then a
  * best-effort notification email on top. Only an unknown/unpublished slug is
@@ -152,6 +187,9 @@ export const sendToBarber = action({
     imageUrl: v.string(),
     videoUrl: v.optional(v.string()),
     clientRequest: v.optional(v.string()),
+    styleTitle: v.optional(v.string()),
+    stylePrompt: v.optional(v.string()),
+    hairProfile: v.optional(v.string()),
     clientEmail: v.optional(v.string()),
     clientPhone: v.optional(v.string()),
   },
@@ -171,15 +209,28 @@ export const sendToBarber = action({
     }
 
     const clientRequest = args.clientRequest?.trim().slice(0, 500) || undefined;
+    const styleTitle = args.styleTitle?.trim().slice(0, 80) || undefined;
+    const stylePrompt = args.stylePrompt?.trim().slice(0, 4_000) || undefined;
+    const hairProfile = args.hairProfile?.trim().slice(0, 1_500) || undefined;
+    // The inbox row comes first. From this point onward, media mirroring and
+    // email are best-effort notifications and can never turn a delivered send
+    // into a client-visible failure.
     const sendId: Id<"barberSends"> = await ctx.runMutation(internal.barberTryOn.recordSend, {
       pageId: barberContact.pageId,
       cutLabel: args.cutLabel,
       imageUrl: args.imageUrl,
       videoUrl: args.videoUrl,
       clientRequest,
+      styleTitle,
+      stylePrompt,
+      hairProfile,
       clientEmail: args.clientEmail,
       clientPhone: args.clientPhone,
     });
+    const durableVideoUrl = await mirrorRemoteMedia(ctx, args.videoUrl);
+    if (durableVideoUrl && durableVideoUrl !== args.videoUrl) {
+      await ctx.runMutation(internal.barberTryOn.updateSendVideo, { sendId, videoUrl: durableVideoUrl });
+    }
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!barberContact.contactEmail || !apiKey) {
@@ -193,21 +244,31 @@ export const sendToBarber = action({
       displayName: barberContact.displayName,
       cutLabel: args.cutLabel,
       imageUrl: args.imageUrl,
-      videoUrl: args.videoUrl,
+      videoUrl: durableVideoUrl,
       clientRequest,
+      styleTitle,
+      stylePrompt,
+      hairProfile,
       clientEmail: args.clientEmail,
       clientPhone: args.clientPhone,
     });
 
     const from = process.env.RESEND_FROM_EMAIL ?? "ShapeUp <notifications@tryshapeup.cc>";
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to: barberContact.contactEmail, subject, html }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from, to: barberContact.contactEmail, subject, html }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (err) {
+      console.error("[barberTryOn] Resend request failed:", err);
+      return { ok: true, emailed: false };
+    }
 
     if (!res.ok) {
       console.error("[barberTryOn] Resend send failed:", res.status, await res.text().catch(() => ""));

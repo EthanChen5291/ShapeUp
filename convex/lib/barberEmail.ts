@@ -21,6 +21,10 @@ export interface BarberEmailInput {
   videoUrl?: string;
   /** The exact request/prompt the client used for the final render. */
   clientRequest?: string;
+  /** Batch recommendation details, present only for the multi-style handoff. */
+  styleTitle?: string;
+  stylePrompt?: string;
+  hairProfile?: string;
   /** However the client chose to be reached — at least one should be present. */
   clientEmail?: string;
   clientPhone?: string;
@@ -37,6 +41,11 @@ function escapeHtml(s: string): string {
 export function buildBarberEmail(input: BarberEmailInput): { subject: string; html: string } {
   const contactLine = [input.clientEmail, input.clientPhone].filter(Boolean).join(" · ") || "no contact info given";
   const request = input.clientRequest?.trim() || input.cutLabel;
+  const batchRows: [string, string][] = [];
+  if (input.styleTitle?.trim()) batchRows.push(["Selected style", input.styleTitle.trim()]);
+  if (input.stylePrompt?.trim()) batchRows.push(["Exact style prompt", input.stylePrompt.trim()]);
+  if (input.hairProfile?.trim()) batchRows.push(["Hair profile", input.hairProfile.trim()]);
+  const batchDetails = batchRows.length > 0 ? detailRows(batchRows) : "";
 
   const subject = `A client wants "${input.cutLabel}" — from your ShapeUp card`;
 
@@ -65,6 +74,8 @@ export function buildBarberEmail(input: BarberEmailInput): { subject: string; ht
           <div style="margin-top:7px;font-family:Georgia,serif;font-size:17px;line-height:1.45;color:#2c211b;">“${escapeHtml(request)}”</div>
         </div>
 
+        ${batchDetails}
+
         <div style="margin-top:18px;padding:16px 18px;border:1px solid #eadfd5;border-radius:12px;">
           <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8a796c;font-weight:800;">Client contact</div>
           <div style="margin-top:7px;font-size:14px;font-weight:700;color:#2c211b;">${escapeHtml(contactLine)}</div>
@@ -88,6 +99,7 @@ export interface BookingEmailInput {
   clientEmail?: string;
   clientPhone?: string;
   service?: string;
+  price?: string;
   note?: string;
   startMs: number;
   endMs: number;
@@ -101,7 +113,7 @@ function bookingEvent(input: BookingEmailInput, forBarber: boolean) {
     title: forBarber
       ? `${input.clientName} — ${input.service ?? "haircut"} (ShapeUp)`
       : `Haircut with ${input.barberName}`,
-    details: [input.service, input.note, "Booked via ShapeUp"].filter(Boolean).join(" · "),
+    details: [input.service, input.price, input.note, "Booked via ShapeUp"].filter(Boolean).join(" · "),
     location: input.location ?? input.shopName,
     startMs: input.startMs,
     endMs: input.endMs,
@@ -163,6 +175,7 @@ export function buildBookingBarberEmail(input: BookingEmailInput): { subject: st
     ["Contact", contactLine],
   ];
   if (input.service) rows.push(["Service", input.service]);
+  if (input.price) rows.push(["Price", input.price]);
   if (input.note) rows.push(["Note", input.note.slice(0, 500)]);
   const body = `
     <p style="margin:0 0 8px;font-size:16px;">Hi ${escapeHtml(input.barberName)},</p>
@@ -191,6 +204,7 @@ export function buildBookingClientEmail(input: BookingEmailInput): { subject: st
   ];
   if (input.location) rows.push(["Where", input.location]);
   if (input.service) rows.push(["Service", input.service]);
+  if (input.price) rows.push(["Price", input.price]);
   const body = `
     <p style="margin:0 0 8px;font-size:16px;">Hi ${escapeHtml(input.clientName)},</p>
     <p style="margin:0;color:#6f6258;font-size:14px;line-height:1.6;">You're on ${escapeHtml(input.barberName)}'s books.</p>

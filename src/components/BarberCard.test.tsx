@@ -1,11 +1,46 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const recordEventMock = vi.fn(() => Promise.resolve(null));
-vi.mock('convex/react', () => ({ useMutation: () => recordEventMock }));
+const getOrCreateMock = vi.fn(() => Promise.resolve(null));
+let latestBatchMock: null | { _id: string; status: 'analyzing' | 'generating' | 'ready' } = null;
+const mutationsByRef: Record<string, unknown> = {
+  'barberPages:recordEvent': recordEventMock,
+  'users:getOrCreate': getOrCreateMock,
+};
+vi.mock('convex/react', () => ({
+  useMutation: (ref: string) => mutationsByRef[ref],
+  useQuery: () => latestBatchMock,
+}));
 vi.mock('@convex/_generated/api', () => ({
-  api: { barberPages: { recordEvent: 'barberPages:recordEvent' } },
+  api: {
+    barberPages: { recordEvent: 'barberPages:recordEvent' },
+    barberBatch: { latestForPage: 'barberBatch:latestForPage' },
+    users: { getOrCreate: 'users:getOrCreate' },
+  },
+}));
+
+let mockAuth = { isSignedIn: true };
+vi.mock('@clerk/nextjs', () => ({ useUser: () => mockAuth }));
+
+vi.mock('@/components/SignUpWidget', () => ({
+  default: ({ onEnter }: { onEnter: () => void }) => (
+    <button type="button" data-testid="signup-widget-stub" onClick={onEnter}>complete sign-in</button>
+  ),
+}));
+
+const barberBatchFlowPropsSpy = vi.fn();
+vi.mock('@/components/BarberBatchFlow', () => ({
+  default: (props: { onClose: () => void }) => {
+    barberBatchFlowPropsSpy(props);
+    return (
+      <div data-testid="barber-batch-flow-stub">
+        batch-rundown
+        <button type="button" onClick={props.onClose}>close-batch</button>
+      </div>
+    );
+  },
 }));
 
 const barberTryOnPropsSpy = vi.fn();
@@ -56,15 +91,17 @@ const PAGE = {
   styles: ['burst-fade-textured-fringe', 'blowout-taper'],
 };
 
-async function enterBestStyles() {
-  vi.useFakeTimers();
+function enterBestStyles() {
   fireEvent.click(screen.getByRole('button', { name: 'Show me my best hairstyles' }));
-  expect(screen.getByRole('status', { name: 'Preparing the selfie camera' })).toBeInTheDocument();
-  await act(async () => vi.advanceTimersByTime(2250));
-  vi.useRealTimers();
+  expect(screen.getByTestId('barber-batch-flow-stub')).toBeInTheDocument();
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockAuth = { isSignedIn: true };
+  latestBatchMock = null;
+  window.sessionStorage.clear();
+});
 afterEach(() => cleanup());
 
 describe('BarberCard', () => {
@@ -92,11 +129,11 @@ describe('BarberCard', () => {
     expect(experience.queryByText('Cut + beard')).not.toBeInTheDocument();
   });
 
-  it('passes only valid recommendations, in chosen order, as barber picks', async () => {
+  it('passes only valid recommendations, in chosen order, as barber picks', () => {
     render(
       <BarberCard page={{ ...PAGE, styles: ['blowout-taper', 'not-a-real-cut', 'burst-fade-textured-fringe'] }} />,
     );
-    await enterBestStyles();
+    fireEvent.click(screen.getByRole('button', { name: 'Try on blowout taper' }));
     const props = barberTryOnPropsSpy.mock.calls[0][0] as { barberPicks: { slug: string }[] };
     expect(props.barberPicks.map((cut) => cut.slug)).toEqual(['blowout-taper', 'burst-fade-textured-fringe']);
   });
@@ -108,7 +145,8 @@ describe('BarberCard', () => {
 
   it('opens the try-on directly from a tapped lookbook tile — no orbit detour', () => {
     render(<BarberCard page={PAGE} />);
-    expect(screen.getByText('Barber’s picks')).toBeInTheDocument();
+    expect(screen.queryByText('Barber’s picks')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tap a cut to try it on')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try on blowout taper' }));
     expect(screen.getByTestId('barber-tryon-stub')).toHaveTextContent('blowout taper');
     expect(recordEventMock).toHaveBeenCalledWith({
@@ -120,21 +158,22 @@ describe('BarberCard', () => {
 
   it('offers a taste of the menu as tappable tiles when the barber has no picks', () => {
     const { container } = render(<BarberCard page={{ ...PAGE, styles: [] }} />);
-    expect(screen.getByText('From the menu')).toBeInTheDocument();
-    expect(container.querySelectorAll('.bc-tile')).toHaveLength(8);
+    expect(screen.queryByText('From the menu')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('.bc-tile')).toHaveLength(7);
+    expect(container.querySelector('.bc-cut-rail')).not.toBeNull();
   });
 
   it('gives the trim branch somewhere to go: booking and the try-on, no dead end', () => {
     render(<BarberCard page={PAGE} />);
     fireEvent.click(screen.getByRole('button', { name: 'Just doing a trim.' }));
 
-    const booking = screen.getByRole('link', { name: /Book with Marcus Rivera/ });
+    const booking = screen.getByRole('link', { name: /Book appointment/ });
     expect(booking).toHaveAttribute('href', 'https://booksy.com/marcus');
     fireEvent.click(booking);
     expect(recordEventMock).toHaveBeenCalledWith({ slug: 'marcus', kind: 'bookingClick', cutSlug: undefined });
 
     fireEvent.click(screen.getByRole('button', { name: /While you wait/ }));
-    expect(screen.getByRole('status', { name: 'Preparing the selfie camera' })).toBeInTheDocument();
+    expect(screen.getByTestId('barber-batch-flow-stub')).toBeInTheDocument();
   });
 
   it('omits the trim branch booking CTA when the barber has no booking link', () => {
@@ -152,35 +191,33 @@ describe('BarberCard', () => {
     expect(container.innerHTML).not.toContain('landing_face2');
   });
 
-  it('opens the inline flow after the orbit and returns to the two choices', async () => {
+  it('opens the new rundown entry mode and returns to the two choices', () => {
     render(<BarberCard page={PAGE} />);
-    await enterBestStyles();
-    expect(screen.getByTestId('barber-tryon-stub')).toHaveTextContent('burst fade, textured fringe');
-    expect(barberTryOnPropsSpy).toHaveBeenCalledWith(
+    enterBestStyles();
+    expect(barberBatchFlowPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         barberSlug: 'marcus',
         barberName: 'Marcus Rivera',
-        referralCode: 'ABC123',
         bookingUrl: 'https://booksy.com/marcus',
       }),
     );
-    fireEvent.click(screen.getByText('all-styles'));
-    expect(screen.queryByTestId('barber-tryon-stub')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('close-batch'));
+    expect(screen.queryByTestId('barber-batch-flow-stub')).not.toBeInTheDocument();
     expect(screen.getByText('What are we doing today?')).toBeInTheDocument();
   });
 
-  it('passes the other valid recommendations to the flow', async () => {
+  it('keeps lookbook tiles on the unchanged single-cut flow', () => {
     render(<BarberCard page={PAGE} />);
-    await enterBestStyles();
+    fireEvent.click(screen.getByRole('button', { name: 'Try on burst fade, textured fringe' }));
     const props = barberTryOnPropsSpy.mock.calls[0][0] as { otherCuts: { slug: string }[] };
     expect(props.otherCuts.map((cut) => cut.slug)).toEqual(['blowout-taper']);
   });
 
-  it('records view, style-specific try-on, link, and booking events', async () => {
+  it('records view, style-specific try-on, link, and booking events', () => {
     render(<BarberCard page={PAGE} />);
     expect(recordEventMock).toHaveBeenCalledWith({ slug: 'marcus', kind: 'view' });
 
-    await enterBestStyles();
+    fireEvent.click(screen.getByRole('button', { name: 'Try on burst fade, textured fringe' }));
     expect(recordEventMock).toHaveBeenCalledWith({
       slug: 'marcus',
       kind: 'tryOn',
@@ -190,6 +227,56 @@ describe('BarberCard', () => {
     fireEvent.click(screen.getByRole('link', { name: /Book an appointment/ }));
     expect(recordEventMock).toHaveBeenCalledWith({ slug: 'marcus', kind: 'linkClick', cutSlug: undefined });
     expect(recordEventMock).toHaveBeenCalledWith({ slug: 'marcus', kind: 'bookingClick', cutSlug: undefined });
+  });
+
+  it.each([
+    ['Just doing a trim.', 'trim'],
+    ['Show me my best hairstyles', 'batch'],
+  ])('gates %s in the shared auth popup and continues after sign-in', async (label, intent) => {
+    mockAuth = { isSignedIn: false };
+    const { rerender } = render(<BarberCard page={PAGE} />);
+
+    fireEvent.click(screen.getByRole('button', { name: label }));
+    expect(screen.getByRole('dialog', { name: 'One quick sign-in to continue.' })).toBeInTheDocument();
+    expect(screen.getByTestId('signup-widget-stub')).toBeInTheDocument();
+    expect(screen.queryByTestId('barber-batch-flow-stub')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sure. What kind of trim?')).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem('barber-card-intent:marcus')).toBe(intent);
+
+    mockAuth = { isSignedIn: true };
+    rerender(<BarberCard page={PAGE} />);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    if (intent === 'batch') {
+      expect(screen.getByTestId('barber-batch-flow-stub')).toBeInTheDocument();
+    } else {
+      expect(screen.getByText('Sure. What kind of trim?')).toBeInTheDocument();
+    }
+  });
+
+  it('lets signed-in visitors use either entry choice without opening auth', () => {
+    const { unmount } = render(<BarberCard page={PAGE} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Just doing a trim.' }));
+    expect(screen.getByText('Sure. What kind of trim?')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    unmount();
+    render(<BarberCard page={PAGE} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show me my best hairstyles' }));
+    expect(screen.getByTestId('barber-batch-flow-stub')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('preserves referral attribution once after card-level sign-in', () => {
+    const { rerender } = render(<BarberCard page={PAGE} />);
+    rerender(<BarberCard page={PAGE} />);
+    expect(getOrCreateMock).toHaveBeenCalledTimes(1);
+    expect(getOrCreateMock).toHaveBeenCalledWith({ referralCode: 'ABC123' });
+  });
+
+  it('resumes an earlier active batch on mount', async () => {
+    latestBatchMock = { _id: 'batch-1', status: 'ready' };
+    render(<BarberCard page={PAGE} />);
+    expect(await screen.findByTestId('barber-batch-flow-stub')).toBeInTheDocument();
   });
 
   it('renders the native scheduler and routes the trim CTA to it when booking is on', () => {
@@ -212,8 +299,8 @@ describe('BarberCard', () => {
 
     // The trim branch books natively (a button, not the external link).
     fireEvent.click(screen.getByRole('button', { name: 'Just doing a trim.' }));
-    expect(screen.queryByRole('link', { name: /Book with Marcus Rivera/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Book with Marcus Rivera/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Book appointment/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Book appointment/ })).toBeInTheDocument();
   });
 
   it('carries the tried-on cut into the native booking', () => {
@@ -235,6 +322,15 @@ describe('BarberCard', () => {
   it('hides the scheduler when the barber has not enabled booking', () => {
     render(<BarberCard page={PAGE} />);
     expect(screen.queryByTestId('barber-booking-stub')).not.toBeInTheDocument();
+  });
+
+  it('offers the signed Wallet pass only on a configured public card', () => {
+    const { rerender } = render(<BarberCard page={PAGE} walletEnabled />);
+    expect(screen.getByRole('link', { name: 'Download Marcus Rivera’s Apple Wallet pass' }))
+      .toHaveAttribute('href', '/api/barber/marcus/wallet');
+
+    rerender(<BarberCard page={PAGE} walletEnabled preview />);
+    expect(screen.queryByRole('link', { name: /Apple Wallet pass/ })).not.toBeInTheDocument();
   });
 
   it('keeps builder preview inert while rendering the real public structure', () => {

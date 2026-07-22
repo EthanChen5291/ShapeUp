@@ -11,7 +11,7 @@ export default function SignUpPage() {
 
   // Already signed in? Skip the form entirely.
   useEffect(() => {
-    if (isSignedIn) router.replace('/dashboard');
+    if (isSignedIn) router.replace('/barber');
   }, [isSignedIn, router]);
 
   return (
@@ -25,7 +25,7 @@ export default function SignUpPage() {
         background: 'var(--ink, #14100c)',
       }}
     >
-      <SignUpWidget onEnter={() => router.push('/dashboard')} redirectUrlComplete="/dashboard" />
+      <SignUpWidget onEnter={() => router.push('/barber')} redirectUrlComplete="/barber" />
     </main>
   );
 }

@@ -63,10 +63,13 @@ type PublicBarberPage = {
   location?: string;
   hours?: string;
   services?: { name: string; price?: string }[];
+  offersPerms: boolean;
+  theme: "night" | "heritage" | "sage";
   /** Present only when the barber turned native scheduling on. */
   booking?: {
     timezone: string;
     slotMinutes: number;
+    price?: string;
     days: { day: number; start: string; end: string }[];
   };
 };
@@ -132,10 +135,13 @@ export const getBySlug = query({
       location: page.location,
       hours: page.hours,
       services: page.services,
+      offersPerms: page.offersPerms ?? false,
+      theme: page.theme ?? "night",
       booking: page.booking?.enabled
         ? {
             timezone: page.booking.timezone,
             slotMinutes: page.booking.slotMinutes,
+            price: page.booking.price,
             days: page.booking.days,
           }
         : undefined,
@@ -338,6 +344,8 @@ export const getMine = query({
       location: page.location,
       hours: page.hours,
       services: page.services,
+      offersPerms: page.offersPerms ?? false,
+      theme: page.theme ?? "night",
       booking: page.booking,
       insights,
     };
@@ -366,10 +374,6 @@ export const upsert = mutation({
     ),
     styles: v.array(v.string()),
     published: v.boolean(),
-    // The barber's own inbox, for "a client picked a cut" notifications —
-    // never shown on the public card. Optional: cards work without it, they
-    // just can't be emailed a result.
-    contactEmail: v.optional(v.string()),
     // Redesign fields — all optional:
     // The client uploads via barberTryOn.generateUploadUrl then passes the ID.
     avatarStorageId: v.optional(v.id("_storage")),
@@ -381,18 +385,35 @@ export const upsert = mutation({
     services: v.optional(
       v.array(v.object({ name: v.string(), price: v.optional(v.string()) })),
     ),
+    offersPerms: v.optional(v.boolean()),
+    theme: v.optional(
+      v.union(v.literal("night"), v.literal("heritage"), v.literal("sage")),
+    ),
     // Native scheduling config — validated hard by normalizeBookingConfig.
     booking: v.optional(
       v.object({
         enabled: v.boolean(),
         timezone: v.string(),
         slotMinutes: v.number(),
+        price: v.optional(v.string()),
         days: v.array(v.object({ day: v.number(), start: v.string(), end: v.string() })),
       }),
     ),
   },
   handler: async (ctx, args): Promise<{ slug: string }> => {
     const user = await requireUser(ctx);
+    const identity = await ctx.auth.getUserIdentity();
+    const accountEmail = (identity?.email ?? user.email)?.trim().toLowerCase().slice(0, MAX_CONTACT_EMAIL);
+    if (!accountEmail || !CONTACT_EMAIL_RE.test(accountEmail)) {
+      throw new ConvexError(
+        "Your ShapeUp account needs a valid email before you can publish a barber card.",
+      );
+    }
+    // The barber inbox is an identity field, not editable page content. Keep the
+    // user row fresh and always route client activity to the account owner.
+    if (user.email !== accountEmail) {
+      await ctx.db.patch(user._id, { email: accountEmail });
+    }
     await enforceMutationRateLimit(ctx, `barberUpsert:${user._id}`, 20, 60_000);
 
     const slugCheck = normalizeSlug(args.slug);
@@ -427,11 +448,6 @@ export const upsert = mutation({
     // here — convex/ can't import from src/ — but the card only renders art for
     // slugs it recognizes, and `?cut=` is re-checked on the way back in.
     const styles = [...new Set(args.styles)].slice(0, MAX_STYLES);
-
-    const contactEmail = args.contactEmail?.trim().toLowerCase().slice(0, MAX_CONTACT_EMAIL) || undefined;
-    if (contactEmail && !CONTACT_EMAIL_RE.test(contactEmail)) {
-      throw new ConvexError("That doesn't look like a valid email address.");
-    }
 
     // Scheduling config: absent leaves the stored value alone (older builder
     // clients don't send it); present is fully re-validated.
@@ -485,7 +501,7 @@ export const upsert = mutation({
       links,
       styles,
       published: args.published,
-      contactEmail,
+      contactEmail: accountEmail,
       location,
       hours,
       services,
@@ -495,6 +511,8 @@ export const upsert = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         ...fields,
+        ...(args.offersPerms !== undefined ? { offersPerms: args.offersPerms } : {}),
+        ...(args.theme !== undefined ? { theme: args.theme } : {}),
         ...(booking !== undefined ? { booking } : {}),
         ...(shouldWriteAvatar ? avatarPatch : {}),
         ...(shouldWriteBanner ? bannerPatch : {}),
@@ -502,6 +520,8 @@ export const upsert = mutation({
     } else {
       await ctx.db.insert("barberPages", {
         ...fields,
+        offersPerms: args.offersPerms ?? false,
+        theme: args.theme ?? "night",
         ...(booking !== undefined ? { booking } : {}),
         ...avatarPatch,
         ...bannerPatch,

@@ -61,6 +61,36 @@ interface FaceObservation {
   count: number;                // faces seen
 }
 
+type FaceCheckResult = 'ok' | 'no-face' | 'unchecked';
+type FaceCheckLandmarker = {
+  detectForVideo: (
+    image: HTMLImageElement,
+    timestamp: number,
+  ) => { faceLandmarks?: Array<Array<{ x: number; y: number; z?: number }>> };
+};
+type NativeFaceChecker = {
+  detect: (image: HTMLImageElement) => Promise<Array<{ boundingBox: DOMRectReadOnly }>>;
+};
+
+export async function evaluateFaceCheck(
+  image: HTMLImageElement,
+  landmarker: FaceCheckLandmarker | null,
+  nativeDetector: NativeFaceChecker | null,
+): Promise<FaceCheckResult> {
+  try {
+    if (landmarker) {
+      const result = landmarker.detectForVideo(image, performance.now());
+      return (result.faceLandmarks?.length ?? 0) > 0 ? 'ok' : 'no-face';
+    }
+    if (nativeDetector) {
+      return (await nativeDetector.detect(image)).length > 0 ? 'ok' : 'no-face';
+    }
+  } catch {
+    return 'unchecked';
+  }
+  return 'unchecked';
+}
+
 export interface LiveScanCameraProps {
   hairType: string;
   onScanComplete: (profile: UserHeadProfile, sessionId: string | null, url: string | null, scanS3Key: string | null) => void;

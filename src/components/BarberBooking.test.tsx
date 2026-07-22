@@ -24,14 +24,11 @@ vi.mock('convex/react', () => ({
   useQuery: () => availabilityValue,
 }));
 
-let mockAuth: { isSignedIn: boolean; user: null | { fullName: string } } = {
+let mockAuth: { isSignedIn: boolean; user: null | { fullName: string; primaryEmailAddress: { emailAddress: string } } } = {
   isSignedIn: true,
-  user: { fullName: 'Dre Client' },
+  user: { fullName: 'Dre Client', primaryEmailAddress: { emailAddress: 'dre@example.com' } },
 };
 vi.mock('@clerk/nextjs', () => ({ useUser: () => mockAuth }));
-vi.mock('@/components/SignUpWidget', () => ({
-  default: () => <div data-testid="signup-widget-stub" />,
-}));
 
 const { default: BarberBooking } = await import('./BarberBooking');
 
@@ -40,6 +37,7 @@ const { default: BarberBooking } = await import('./BarberBooking');
 const BOOKING = {
   timezone: 'UTC',
   slotMinutes: 30,
+  price: '$35',
   days: [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, start: '09:00', end: '17:00' })),
 };
 
@@ -69,13 +67,14 @@ function slotText(startMs: number): string {
 beforeEach(() => {
   vi.clearAllMocks();
   availabilityValue = undefined; // query still loading — prop config drives the grid
-  mockAuth = { isSignedIn: true, user: { fullName: 'Dre Client' } };
+  mockAuth = { isSignedIn: true, user: { fullName: 'Dre Client', primaryEmailAddress: { emailAddress: 'dre@example.com' } } };
 });
 afterEach(() => cleanup());
 
 describe('BarberBooking', () => {
   it('renders day chips and the first day’s slots from the page config alone', () => {
     render(<BarberBooking {...baseProps} />);
+    expect(screen.getByText('$35')).toBeInTheDocument();
     const days = expectedDays();
     expect(days.length).toBeGreaterThan(0);
     const firstDaySlots = days[0].slotStartsMs;
@@ -101,13 +100,14 @@ describe('BarberBooking', () => {
   it('books a slot with the confirm form, prefilled from Clerk, then offers calendar links', async () => {
     const days = expectedDays();
     const slot = days[0].slotStartsMs[0];
-    bookMock.mockResolvedValueOnce({ startMs: slot, endMs: slot + 30 * 60_000 });
+    bookMock.mockResolvedValueOnce({ startMs: slot, endMs: slot + 30 * 60_000, price: '$40' });
 
     render(<BarberBooking {...baseProps} cutLabel="blowout taper" />);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${slotText(slot).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }));
 
     const nameInput = screen.getByLabelText('Your name') as HTMLInputElement;
     expect(nameInput.value).toBe('Dre Client');
+    expect(screen.getByLabelText('Your email')).toHaveValue('dre@example.com');
     fireEvent.change(screen.getByLabelText('Phone (optional)'), { target: { value: '4155550134' } });
     fireEvent.change(screen.getByLabelText('Service (optional)'), { target: { value: 'Skin fade' } });
     fireEvent.click(screen.getByRole('button', { name: /^Book / }));
@@ -117,6 +117,7 @@ describe('BarberBooking', () => {
         slug: 'marcus',
         startMs: slot,
         clientName: 'Dre Client',
+        clientEmail: 'dre@example.com',
         clientPhone: '4155550134',
         service: 'Skin fade',
         note: 'Cut I tried on: blowout taper',
@@ -124,6 +125,7 @@ describe('BarberBooking', () => {
     );
 
     expect(await screen.findByText('You’re booked.')).toBeInTheDocument();
+    expect(screen.getByText('$40')).toBeInTheDocument();
     const gcal = screen.getByRole('link', { name: /Add to Google Calendar/ });
     expect(gcal).toHaveAttribute('href', expect.stringContaining('calendar.google.com/calendar/render'));
     const ics = screen.getByRole('link', { name: /\.ics/ });
@@ -131,13 +133,13 @@ describe('BarberBooking', () => {
     expect(ics.getAttribute('href')).toContain('data:text/calendar');
   });
 
-  it('gates the confirm step behind sign-in without hiding the slots', () => {
+  it('lets a signed-out customer book as a guest', () => {
     mockAuth = { isSignedIn: false, user: null };
     const slot = expectedDays()[0].slotStartsMs[0];
     render(<BarberBooking {...baseProps} />);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${slotText(slot).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }));
-    expect(screen.getByTestId('signup-widget-stub')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Your name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Your email')).toBeInTheDocument();
     expect(bookMock).not.toHaveBeenCalled();
   });
 

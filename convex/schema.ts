@@ -1,5 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+  barberBatchItemStatusValidator,
+  barberBatchStatusValidator,
+  hairProfileValidator,
+} from "./lib/barberBatch";
 
 export default defineSchema({
   users: defineTable({
@@ -149,22 +154,35 @@ export default defineSchema({
     count: v.number(),
   }).index("by_key", ["key"]),
 
-  // Permanent ledger of free-generation grants, keyed by an anti-Sybil signal
-  // (a hashed device fingerprint or hashed IP). Lets us cap free GPU runs per
-  // physical device / network even when a user spins up many accounts.
-  // See convex/freeGen.ts.
+  // Permanent ledger of free entitlements, keyed by an anti-Sybil signal.
+  // Batch-specific signal types keep the monthly batch allowance independent
+  // from ordinary generation grants while reusing the same transactional
+  // signalHash pattern. See convex/freeGen.ts and convex/barberBatch.ts.
   freeGenGrants: defineTable({
-    signalType: v.union(v.literal("fingerprint"), v.literal("ip"), v.literal("phone")),
+    signalType: v.union(
+      v.literal("fingerprint"),
+      v.literal("ip"),
+      v.literal("phone"),
+      v.literal("barberBatchUser"),
+      v.literal("barberBatchFingerprint"),
+      v.literal("barberBatchIp"),
+    ),
     signalHash: v.string(),
     userId: v.id("users"),
     grantedAt: v.number(),
   }).index("by_signal", ["signalType", "signalHash"]),
 
   // Denormalized GPU-seconds counter, one row per monthly bucket ("YYYY-MM").
-  // Used to cap demo Modal spend — see convex/gpuUsage.ts.
+  // Used to cap primary-worker spend — see convex/gpuUsage.ts.
   gpuUsage: defineTable({
     bucket: v.string(),
     seconds: v.number(),
+  }).index("by_bucket", ["bucket"]),
+
+  // Visibility-only image-edit count, one row per UTC calendar month.
+  imageEditUsage: defineTable({
+    bucket: v.string(),
+    edits: v.number(),
   }).index("by_bucket", ["bucket"]),
 
   projects: defineTable({
@@ -229,8 +247,8 @@ export default defineSchema({
 
   // In-flight 3D renders (the GPU-bound facelift step). One row per active render;
   // the client heartbeats `heartbeatAt` while its render runs and deletes the row
-  // when it finishes. The Modal backend caps concurrent GPUs at
-  // RENDER_STATION_CAPACITY (server/modal_facelift.py `max_containers`), so once
+  // when it finishes. The primary worker exposes a bounded render pool, so once
+  // RENDER_STATION_CAPACITY rows are live,
   // that many rows are live the next render is queued behind them. Ordering the
   // live rows by `_creationTime` (FIFO) lets us tell each client whether it holds
   // a station or is waiting, and at what position. High-churn heartbeats live on
@@ -281,6 +299,10 @@ export default defineSchema({
     services: v.optional(
       v.array(v.object({ name: v.string(), price: v.optional(v.string()) })),
     ), // the barber's service menu
+    offersPerms: v.optional(v.boolean()),
+    theme: v.optional(
+      v.union(v.literal("night"), v.literal("heritage"), v.literal("sage")),
+    ), // visual preset for the public card
     // Native appointment slots (see convex/lib/bookingSlots.ts). Weekly hours in
     // the barber's own timezone; actual bookings live in barberBookings. `days`
     // is at most 7 entries, so an inline object is fine per the array-size rule.
@@ -289,6 +311,7 @@ export default defineSchema({
         enabled: v.boolean(),
         timezone: v.string(), // IANA zone, validated at write time
         slotMinutes: v.number(), // one of SLOT_MINUTES_OPTIONS
+        price: v.optional(v.string()), // display-only; payment is handled by the barber
         days: v.array(
           v.object({
             day: v.number(), // 0 (Sun) – 6 (Sat)
@@ -302,6 +325,35 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_owner", ["ownerUserId"]),
 
+  // One durable batch per accepted selfie analysis. The eight independently
+  // progressing styles live in barberBatchItems so concurrent item updates do
+  // not contend on this stable parent document.
+  barberBatches: defineTable({
+    userId: v.id("users"),
+    pageId: v.id("barberPages"),
+    selfieStorageId: v.id("_storage"),
+    status: barberBatchStatusValidator,
+    rejectionReason: v.optional(v.string()),
+    hairProfile: v.optional(hairProfileValidator),
+    createdAt: v.number(),
+  })
+    .index("by_user_and_created_at", ["userId", "createdAt"])
+    .index("by_page", ["pageId"]),
+
+  barberBatchItems: defineTable({
+    batchId: v.id("barberBatches"),
+    idx: v.number(),
+    title: v.string(),
+    prompt: v.string(),
+    why: v.optional(v.string()),
+    status: barberBatchItemStatusValidator,
+    imageStorageId: v.optional(v.id("_storage")),
+    splatS3Key: v.optional(v.string()),
+    videoS3Key: v.optional(v.string()),
+    error: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+  }).index("by_batch", ["batchId"]),
+
   // A client's finished try-on, sent to the barber's chair-side inbox. This row
   // is the durable delivery — the notification email in convex/barberTryOn.ts
   // is best-effort on top, so "send to barber" works even when Resend isn't
@@ -312,6 +364,9 @@ export default defineSchema({
     imageUrl: v.string(), // re-hosted in Convex storage by the client before sending
     videoUrl: v.optional(v.string()),
     clientRequest: v.optional(v.string()),
+    styleTitle: v.optional(v.string()),
+    stylePrompt: v.optional(v.string()),
+    hairProfile: v.optional(v.string()),
     clientEmail: v.optional(v.string()),
     clientPhone: v.optional(v.string()),
     emailed: v.boolean(),
@@ -325,11 +380,14 @@ export default defineSchema({
     pageId: v.id("barberPages"),
     startMs: v.number(), // UTC epoch of the slot start
     endMs: v.number(),
-    clientUserId: v.id("users"),
+    // Optional because customers can book as guests; the barber is the only
+    // party required to have a ShapeUp account.
+    clientUserId: v.optional(v.id("users")),
     clientName: v.string(),
     clientEmail: v.optional(v.string()),
     clientPhone: v.optional(v.string()),
     service: v.optional(v.string()), // a name from the barber's service menu
+    price: v.optional(v.string()), // snapshot of the displayed price when booked
     note: v.optional(v.string()),
     status: v.union(v.literal("booked"), v.literal("cancelled")),
     createdAt: v.number(),

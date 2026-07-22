@@ -2,7 +2,7 @@
 // renderStations — live occupancy of the GPU render "chairs".
 //
 // The 3D facelift step runs on the primary GPU worker with a hard cap of
-// `max_containers` GPUs (server/modal_facelift.py). When every GPU is
+// container cap. When every render slot is
 // busy, the worker silently QUEUES the next request inside the synchronous
 // /process_image call — the caller just waits, with no signal that it's
 // in line. To surface that wait in the UI we track occupancy ourselves:
@@ -23,10 +23,9 @@ import { v } from "convex/values";
 import { mutation, query, type QueryCtx, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
-// Must match `max_containers` in server/modal_facelift.py. If you raise the
-// GPU cap there, raise this too (or the UI will queue users who actually
-// have a free chair waiting).
-export const RENDER_STATION_CAPACITY = 2;
+// Batch orchestration exposes four customer-level render slots. The primary
+// worker may queue excess requests internally until its deployment catches up.
+export const RENDER_STATION_CAPACITY = 4;
 
 // How fresh a heartbeat must be to count as live. The client pings every
 // ~3s (see EditPanel), so 12s tolerates a few dropped beats / a slow tab

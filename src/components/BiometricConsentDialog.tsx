@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '@/lib/i18n';
 
 export interface BiometricConsentDialogProps {
   onAccept: () => void;
@@ -32,6 +33,7 @@ function CheckRow({ children }: { children: React.ReactNode }) {
 }
 
 export default function BiometricConsentDialog({ onAccept, onCancel }: BiometricConsentDialogProps) {
+  const t = useT();
   const [accepting, setAccepting] = useState(false);
 
   const handleAccept = async () => {
@@ -46,7 +48,10 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
       onClick={(e) => e.stopPropagation()}
     >
       <div
-        className="relative flex flex-col gap-5 rounded-3xl"
+        className="biometric-consent-dialog relative flex flex-col gap-5 rounded-3xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="biometric-consent-title"
         style={{
           background: 'var(--cream)',
           border: '1px solid rgba(42,32,26,0.1)',
@@ -58,29 +63,30 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
         }}
       >
         <div className="flex flex-col gap-1.5">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">Before we continue</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--smoke)]">{t('Before we continue')}</span>
           <h2
+            id="biometric-consent-title"
             className="font-sans text-[var(--ink)]"
             style={{ fontSize: 23, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.01em' }}
           >
-            A quick note on your face data
+            {t('A quick note on your face data')}
           </h2>
         </div>
 
         <p className="font-sans text-[14px] text-[var(--char)] leading-relaxed">
-          Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third parties.
+          {t('Our 3D rendering processes biometric data — specifically, facial geometry used to render your haircut preview. This data is not sold or shared with third parties.')}
         </p>
 
         <ul className="font-sans text-[13px] text-[var(--smoke)] leading-relaxed list-none flex flex-col gap-2">
-          <CheckRow>Used solely for your haircut preview</CheckRow>
-          <CheckRow>Stored in your account; delete anytime</CheckRow>
-          <CheckRow>Not used to train models or identify you</CheckRow>
+          <CheckRow>{t('Used solely for your haircut preview')}</CheckRow>
+          <CheckRow>{t('Stored in your account; delete anytime')}</CheckRow>
+          <CheckRow>{t('Not used to train models or identify you')}</CheckRow>
         </ul>
 
         <p className="font-mono text-[10px] text-[var(--smoke)]">
-          By tapping &ldquo;I agree&rdquo; you consent to this processing under our{' '}
+          {t('By tapping “I agree” you consent to this processing under our')}{' '}
           <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">
-            Privacy Policy
+            {t('Privacy Policy')}
           </a>
           .
         </p>
@@ -97,7 +103,7 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
               cursor: 'pointer',
             }}
           >
-            Cancel
+            {t('Cancel')}
           </button>
           <button
             onClick={handleAccept}
@@ -110,7 +116,7 @@ export default function BiometricConsentDialog({ onAccept, onCancel }: Biometric
               cursor: accepting ? 'default' : 'pointer',
             }}
           >
-            {accepting ? 'Saving…' : 'I agree'}
+            {accepting ? t('Saving…') : t('I agree')}
           </button>
         </div>
       </div>

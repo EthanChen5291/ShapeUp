@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useConvex, useMutation, useQuery } from 'convex/react';
+import { useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
@@ -40,9 +40,11 @@ import {
   normalizeSlug,
   suggestSlug,
 } from '@/lib/barberLinks';
+import type { LinktreeImport } from '@/lib/linktreeImport';
+import type { BioDetails } from '@/lib/bioExtraction';
 import { drawMirrorCard, qrDataUrl } from '@/lib/mirrorCard';
 import { SLOT_MINUTES_OPTIONS, normalizeBookingConfig } from '@/lib/bookingSlots';
-import { formatEventTime } from '@/lib/calendarLinks';
+import { formatEventTime, googleCalendarUrl } from '@/lib/calendarLinks';
 import { useT, type TFunction } from '@/lib/i18n';
 
 const SITE_ORIGIN =
@@ -61,6 +63,8 @@ interface ServiceRow {
   name: string;
   price: string;
 }
+
+type CardTheme = 'night' | 'heritage' | 'sage';
 
 /** One editable weekday row in the Appointments section (index = 0..6, Sun..Sat). */
 interface BookingDayRow {
@@ -101,9 +105,11 @@ function timeZoneChoices(current: string): string[] {
 
 export default function BarberBuilderPage() {
   const { isSignedIn, isLoaded } = useUser();
+  const { isAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
 
-  if (!isLoaded) return <Shell>{null}</Shell>;
+  if (!isLoaded || isConvexAuthLoading) return <Shell>{null}</Shell>;
   if (!isSignedIn) return <SignedOut />;
+  if (!isAuthenticated) return <Shell>{null}</Shell>;
   return <Builder />;
 }
 
@@ -123,11 +129,11 @@ function Shell({ children }: { children: React.ReactNode }) {
       >
         <LogoHomeLink />
         <Link
-          href="/dashboard"
+          href="/"
           className="font-mono"
           style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--char)', textDecoration: 'none' }}
         >
-          Dashboard →
+          Marketing site →
         </Link>
       </header>
       {children}
@@ -204,9 +210,11 @@ async function cropBanner(file: File): Promise<Blob> {
 // ── the builder proper ──
 function Builder() {
   const t = useT();
+  const { user: clerkUser } = useUser();
   const convex = useConvex();
   const mine = useQuery(api.barberPages.getMine);
   const referralStats = useQuery(api.users.getReferralStats);
+  const getOrCreateUser = useMutation(api.users.getOrCreate);
   const upsert = useMutation(api.barberPages.upsert);
   const generateUploadUrl = useMutation(api.barberTryOn.generateUploadUrl);
 
@@ -216,16 +224,19 @@ function Builder() {
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
   const [hours, setHours] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [offersPerms, setOffersPerms] = useState(false);
   const [styles, setStyles] = useState<string[]>([]);
+  const [theme, setTheme] = useState<CardTheme>('night');
   const [published, setPublished] = useState(true);
+  const [workspaceTab, setWorkspaceTab] = useState<'design' | 'share' | 'insights'>('design');
 
   // Appointments: weekly hours in the barber's own timezone.
   const [bookingEnabled, setBookingEnabled] = useState(false);
   const [bookingTz, setBookingTz] = useState(detectTimeZone);
   const [bookingSlotMin, setBookingSlotMin] = useState<number>(30);
+  const [bookingPrice, setBookingPrice] = useState('');
   const [bookingDays, setBookingDays] = useState<BookingDayRow[]>(DEFAULT_BOOKING_DAYS);
 
   // Avatar: staged locally (uploaded to storage immediately, attached to the
@@ -245,8 +256,31 @@ function Builder() {
 
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [error, setError] = useState('');
+
+  // Import-from-Linktree onboarding shortcut (see handleImport below).
+  const [importUrl, setImportUrl] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importNotice, setImportNotice] = useState('');
   const [savedSlug, setSavedSlug] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [accountReady, setAccountReady] = useState(false);
+  const accountEmail =
+    clerkUser?.primaryEmailAddress?.emailAddress ??
+    clerkUser?.emailAddresses[0]?.emailAddress ??
+    mine?.contactEmail ??
+    '';
+
+  // A barber can arrive here directly after sign-up, before visiting the main
+  // dashboard (which normally creates the Convex user row). Make /barber a
+  // complete onboarding path in its own right.
+  useEffect(() => {
+    void getOrCreateUser({})
+      .then(() => setAccountReady(true))
+      .catch(() => {
+        setError(t('We couldn’t finish setting up your account. Refresh and try again.'));
+      });
+  }, [getOrCreateUser, t]);
 
   // Hydrate the form from the saved card, exactly once.
   useEffect(() => {
@@ -259,17 +293,19 @@ function Builder() {
       setBio(mine.bio ?? '');
       setLocation(mine.location ?? '');
       setHours(mine.hours ?? '');
-      setContactEmail(mine.contactEmail ?? '');
       setStyles(mine.styles);
+      setTheme(mine.theme ?? 'night');
       setPublished(mine.published);
       setSavedSlug(mine.slug);
       setAvatarPreview(mine.avatarUrl ?? null);
       setBannerPreview(mine.bannerUrl ?? null);
       setServices((mine.services ?? []).map((s) => ({ name: s.name, price: s.price ?? '' })));
+      setOffersPerms(mine.offersPerms ?? false);
       if (mine.booking) {
         setBookingEnabled(mine.booking.enabled);
         setBookingTz(mine.booking.timezone);
         setBookingSlotMin(mine.booking.slotMinutes);
+        setBookingPrice(mine.booking.price ?? '');
         setBookingDays(
           Array.from({ length: 7 }, (_, day) => {
             const saved = mine.booking!.days.find((d) => d.day === day);
@@ -328,11 +364,12 @@ function Builder() {
       enabled: bookingEnabled,
       timezone: bookingTz,
       slotMinutes: bookingSlotMin,
+      price: bookingPrice.trim() || undefined,
       days: bookingDays
         .map((row, day) => (row.on ? { day, start: row.start, end: row.end } : null))
         .filter((d): d is { day: number; start: string; end: string } => d !== null),
     }),
-    [bookingEnabled, bookingTz, bookingSlotMin, bookingDays],
+    [bookingEnabled, bookingTz, bookingSlotMin, bookingPrice, bookingDays],
   );
   const bookingCheck = useMemo(() => normalizeBookingConfig(bookingArg), [bookingArg]);
 
@@ -355,19 +392,22 @@ function Builder() {
       services: services
         .filter((s) => s.name.trim())
         .map((s) => ({ name: s.name, price: s.price.trim() || undefined })),
+      offersPerms,
       links: normalizedLinks,
       styles,
+      theme,
       referralCode,
       booking:
         bookingEnabled && bookingCheck.ok
           ? {
               timezone: bookingArg.timezone,
               slotMinutes: bookingArg.slotMinutes,
+              price: bookingArg.price,
               days: bookingArg.days,
             }
           : undefined,
     };
-  }, [links, normalizedSlug, displayName, shopName, bio, location, hours, avatarPreview, clearAvatar, bannerPreview, clearBanner, services, styles, referralCode, bookingEnabled, bookingCheck, bookingArg, t]);
+  }, [links, normalizedSlug, displayName, shopName, bio, location, hours, avatarPreview, clearAvatar, bannerPreview, clearBanner, services, offersPerms, styles, theme, referralCode, bookingEnabled, bookingCheck, bookingArg, t]);
 
   const addLink = (kind: LinkKind) => {
     setLinks((prev) => (prev.length >= MAX_LINKS ? prev : [...prev, { kind, value: '', label: '' }]));
@@ -413,6 +453,91 @@ function Builder() {
     });
     markDirty();
   };
+
+  // ── import from an existing Linktree: fill only what's still empty ──
+  const handleImport = useCallback(async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+    setImportBusy(true);
+    setImportError('');
+    setImportNotice('');
+    try {
+      const res = await fetch('/api/import-linktree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = (await res.json().catch(() => ({}))) as Partial<LinktreeImport> &
+        Partial<BioDetails> & { error?: string };
+      if (!res.ok) {
+        setImportError(data.error || t('Couldn’t import from that link.'));
+        return;
+      }
+
+      // Fill only fields the barber hasn't touched. We read current state
+      // directly (it's all in this callback's deps) and count synchronously, so
+      // the notice below reflects what actually changed — the setState updaters
+      // run too late to count inside.
+      let filled = 0;
+      if (data.displayName && !displayName.trim()) {
+        setDisplayName(data.displayName);
+        filled++;
+        if (!slugTouched.current && !slug.trim()) {
+          const suggested = suggestSlug(data.displayName);
+          if (suggested) setSlug(suggested);
+        }
+      }
+      if (data.bio && !bio.trim()) {
+        setBio(data.bio.slice(0, 240));
+        filled++;
+      }
+      if (data.location && !location.trim()) {
+        setLocation(data.location);
+        filled++;
+      }
+      if (data.hours && !hours.trim()) {
+        setHours(data.hours);
+        filled++;
+      }
+      // Only fill services when the barber hasn't started their own menu — we
+      // never reorder or overwrite rows they've already typed.
+      if (data.services?.length && !services.some((row) => row.name.trim())) {
+        const rows = data.services
+          .slice(0, MAX_SERVICES)
+          .map((s) => ({ name: s.name, price: s.price ?? '' }));
+        setServices(rows);
+        filled += rows.length;
+      }
+
+      let addedLinks = 0;
+      if (data.links?.length) {
+        const seen = new Set(links.map((r) => r.value.trim().toLowerCase().replace(/\/+$/, '')));
+        const next = [...links];
+        for (const row of data.links) {
+          if (next.length >= MAX_LINKS) break;
+          const key = row.value.trim().toLowerCase().replace(/\/+$/, '');
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          next.push({ kind: row.kind, value: row.value, label: row.label });
+          addedLinks++;
+        }
+        if (addedLinks > 0) setLinks(next);
+      }
+
+      if (filled === 0 && addedLinks === 0) {
+        setImportNotice(t('Nothing new to import — your card already has this.'));
+      } else {
+        setImportNotice(
+          t('Filled in what we could find. Review everything before you save.'),
+        );
+        markDirty();
+      }
+    } catch {
+      setImportError(t('Couldn’t reach the importer — try again.'));
+    } finally {
+      setImportBusy(false);
+    }
+  }, [importUrl, slug, displayName, bio, location, hours, services, links, markDirty, t]);
 
   // ── avatar upload: crop → storage → staged id, preview immediately ──
   const handleAvatarFile = useCallback(
@@ -499,6 +624,8 @@ function Builder() {
     displayName.trim().length > 0 &&
     availability?.available !== false &&
     bookingCheck.ok &&
+    accountReady &&
+    Boolean(accountEmail) &&
     saveState !== 'saving';
 
   const handleSave = useCallback(async () => {
@@ -516,7 +643,6 @@ function Builder() {
         bio: bio || undefined,
         location: location || undefined,
         hours: hours || undefined,
-        contactEmail: contactEmail || undefined,
         avatarStorageId: stagedAvatarId ?? undefined,
         clearAvatar: clearAvatar || undefined,
         bannerStorageId: stagedBannerId ?? undefined,
@@ -524,10 +650,12 @@ function Builder() {
         services: services
           .filter((row) => row.name.trim())
           .map((row) => ({ name: row.name, price: row.price.trim() || undefined })),
+        offersPerms,
         links: links
           .filter((row) => row.value.trim())
           .map((row) => ({ kind: row.kind, value: row.value, label: row.label || undefined })),
         styles,
+        theme,
         published,
         booking: bookingArg,
       });
@@ -539,7 +667,7 @@ function Builder() {
       setError(e instanceof ConvexError ? (e.data as string) : t('Something went wrong. Please try again.'));
       setSaveState('dirty');
     }
-  }, [slugCheck, normalizedSlug, displayName, shopName, bio, location, hours, contactEmail, stagedAvatarId, clearAvatar, stagedBannerId, clearBanner, services, links, styles, published, bookingArg, upsert, t]);
+  }, [slugCheck, normalizedSlug, displayName, shopName, bio, location, hours, stagedAvatarId, clearAvatar, stagedBannerId, clearBanner, services, offersPerms, links, styles, theme, published, bookingArg, upsert, t]);
 
   // Autosave, but only once the card exists — the first save (which claims the
   // slug) stays an explicit button press.
@@ -565,14 +693,92 @@ function Builder() {
           <div className="barber-builder-title-row">
             <div>
               <h1 className="font-display" style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--ink)', margin: '0 0 4px' }}>
-                {savedSlug ? t('Your barber card') : t('Build your barber card')}
+                {t('Card studio')}
               </h1>
               <p className="font-sans" style={{ color: 'var(--char)', margin: 0, lineHeight: 1.6 }}>
-                {t('A free page for your clients — and a fitting room that shows them the cut on their own head.')}
+                {t('Design the page clients see, share it everywhere, then track what turns into a chair.')}
               </p>
             </div>
             {savedSlug ? <SaveChip state={saveState} /> : null}
           </div>
+
+          <div className="barber-workspace-tabs" role="tablist" aria-label={t('Card studio sections')}>
+            {([
+              ['design', t('Design'), t('Card setup')],
+              ['share', t('Share'), t('Link + QR')],
+              ['insights', t('Insights'), t('Performance')],
+            ] as const).map(([value, label, detail]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={workspaceTab === value}
+                className={`barber-workspace-tab${workspaceTab === value ? ' is-active' : ''}`}
+                onClick={() => setWorkspaceTab(value)}
+              >
+                <span className="font-sans">{label}</span>
+                <small className="font-mono">{detail}</small>
+              </button>
+            ))}
+          </div>
+
+          <div className={`barber-workspace-panel${workspaceTab === 'design' ? ' is-active' : ''}`} role="tabpanel">
+
+          <div className="barber-import" role="group" aria-label={t('Import from Linktree')}>
+            <div className="barber-import-copy">
+              <span className="font-mono barber-builder-label">{t('Already on Linktree?')}</span>
+              <p className="font-sans">{t('Paste your link and we’ll pull in your name, bio, links, and any hours or services from your bio. Nothing you’ve already typed gets overwritten.')}</p>
+            </div>
+            <div className="barber-import-row">
+              <input
+                className="barber-input font-mono"
+                value={importUrl}
+                onChange={(e) => { setImportUrl(e.target.value); setImportError(''); setImportNotice(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !importBusy) { e.preventDefault(); void handleImport(); } }}
+                placeholder="linktr.ee/yourname"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="url"
+                disabled={importBusy}
+                aria-label={t('Your Linktree URL')}
+              />
+              <button
+                type="button"
+                className="chip-suggest"
+                onClick={() => void handleImport()}
+                disabled={importBusy || !importUrl.trim()}
+              >
+                {importBusy ? t('Importing…') : t('Import')}
+              </button>
+            </div>
+            {importError && <p role="alert" className="font-sans barber-import-error">{importError}</p>}
+            {importNotice && <p role="status" className="font-sans barber-import-notice">{importNotice}</p>}
+          </div>
+
+          <Section title={t('Card style')} defaultOpen>
+            <p className="font-sans barber-section-intro">{t('Choose a finish for your public card. Your services, booking, and try-on flow stay exactly where clients expect them.')}</p>
+            <div className="barber-theme-grid" role="radiogroup" aria-label={t('Card style')}>
+              {([
+                ['night', t('After hours'), '#e8614d'],
+                ['heritage', t('Heritage navy'), '#e5a84f'],
+                ['sage', t('Barber green'), '#b9cc70'],
+              ] as const).map(([value, label, accent]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === value}
+                  className={`barber-theme-option${theme === value ? ' is-on' : ''} is-${value}`}
+                  onClick={() => edits(setTheme)(value)}
+                >
+                  <span className="barber-theme-swatch" style={{ '--theme-accent': accent } as React.CSSProperties}><i /><i /><i /></span>
+                  <strong className="font-sans">{label}</strong>
+                  <small className="font-mono">{theme === value ? t('Selected') : t('Preview')}</small>
+                </button>
+              ))}
+            </div>
+          </Section>
 
           {/* ── Profile ── */}
           <Section title={t('Profile')} defaultOpen>
@@ -761,6 +967,14 @@ function Builder() {
                 + {t('Add a service')}
               </button>
             )}
+            <label className="barber-publish-toggle font-sans" style={{ alignSelf: 'flex-start' }}>
+              <input
+                type="checkbox"
+                checked={offersPerms}
+                onChange={(e) => edits(setOffersPerms)(e.target.checked)}
+              />
+              {t('We offer perms / texture services')}
+            </label>
           </Section>
 
           {/* ── Booking & links ── */}
@@ -858,6 +1072,16 @@ function Builder() {
                       ))}
                     </select>
                   </Field>
+                  <Field label={t('Appointment price')} hint={t('shown before booking')}>
+                    <input
+                      className="barber-input"
+                      value={bookingPrice}
+                      onChange={(e) => edits(setBookingPrice)(e.target.value)}
+                      placeholder="$45"
+                      maxLength={20}
+                      aria-label={t('Appointment price')}
+                    />
+                  </Field>
                 </div>
 
                 <div className="barber-booking-days">
@@ -952,19 +1176,18 @@ function Builder() {
 
           {/* ── Notifications ── */}
           <Section title={t('Notifications')}>
-            <Field label={t('Notify me at')} hint={t('private — never shown on your card')}>
+            <Field label={t('ShapeUp account email')} hint={t('required · private')}>
               <input
-                className="barber-input"
+                className="barber-input barber-account-email"
                 type="email"
-                value={contactEmail}
-                onChange={(e) => edits(setContactEmail)(e.target.value)}
-                placeholder="marcus@fadetheory.com"
-                maxLength={254}
-                aria-label={t('Notify me at')}
+                value={accountEmail}
+                readOnly
+                required
+                aria-label={t('ShapeUp account email')}
               />
             </Field>
             <p className="font-sans" style={{ fontSize: 12, color: 'var(--smoke)', margin: '-6px 0 0', lineHeight: 1.5 }}>
-              {t('When a client picks a cut on your card, we’ll email you the result and their contact info — so you know exactly what to do before they sit down.')}
+              {t('Bookings, calendar invites, cancellations, and client requests go to the email you use to sign in to ShapeUp.')}
             </p>
           </Section>
 
@@ -986,20 +1209,43 @@ function Builder() {
               />
               {t('Live')}
             </label>
-            <button className="btn-tomato" type="button" onClick={handleSave} disabled={!canSave} style={{ opacity: canSave ? 1 : 0.5 }}>
+            <button className="btn btn-tomato" type="button" onClick={handleSave} disabled={!canSave} style={{ opacity: canSave ? 1 : 0.5 }}>
               {saveState === 'saving' ? t('Saving…') : savedSlug ? t('Save changes') : t('Publish card')}
             </button>
           </div>
 
-          {savedSlug && (
-            <MirrorCardPanel url={publicUrl} displayName={displayName} shopName={shopName} slug={savedSlug} />
-          )}
+          </div>
 
-          {savedSlug && <InsightsPanel insights={mine?.insights} totals={mine?.totals} referralStats={referralStats} />}
+          <div className={`barber-workspace-panel${workspaceTab === 'share' ? ' is-active' : ''}`} role="tabpanel">
+            {savedSlug ? (
+              <>
+                <WorkspaceIntro eyebrow={t('Distribution')} title={t('Put your card where clients already find you.')} copy={t('Use one link across Instagram, texts, your station mirror, and Apple Wallet. Every visit feeds the same performance view.')} />
+                <MirrorCardPanel url={publicUrl} displayName={displayName} shopName={shopName} slug={savedSlug} />
+                <ShareGuide />
+              </>
+            ) : (
+              <WorkspaceEmpty title={t('Publish before you share.')} copy={t('Finish the basics in Design to claim your URL and generate a mirror-ready QR code.')} action={t('Finish my card')} onAction={() => setWorkspaceTab('design')} />
+            )}
+          </div>
 
-          {savedSlug && bookingEnabled && <BookingsPanel timezone={bookingTz} />}
-
-          {savedSlug && <ClientRequestsPanel />}
+          <div className={`barber-workspace-panel${workspaceTab === 'insights' ? ' is-active' : ''}`} role="tabpanel">
+            {savedSlug ? (
+              <>
+                <WorkspaceIntro eyebrow={t('Performance')} title={t('Know what is filling the chair.')} copy={t('Follow the path from card view to try-on to booking, then tune the cuts and calls-to-action clients respond to.')} />
+                <InsightsPanel insights={mine?.insights} totals={mine?.totals} referralStats={referralStats} />
+                {bookingEnabled && (
+                  <BookingsPanel
+                    timezone={bookingTz}
+                    barberName={displayName}
+                    location={location || shopName || undefined}
+                  />
+                )}
+                <ClientRequestsPanel />
+              </>
+            ) : (
+              <WorkspaceEmpty title={t('Your signal starts after publish.')} copy={t('Once your card is live, views, try-ons, previews, booking taps, appointments, and client requests appear here.')} action={t('Build my card')} onAction={() => setWorkspaceTab('design')} />
+            )}
+          </div>
         </div>
 
         {/* ── live preview column ── */}
@@ -1014,6 +1260,47 @@ function Builder() {
 }
 
 // ── small pieces ──
+function WorkspaceIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
+  return (
+    <div className="barber-workspace-intro">
+      <span className="font-mono">{eyebrow}</span>
+      <h2 className="font-display">{title}</h2>
+      <p className="font-sans">{copy}</p>
+    </div>
+  );
+}
+
+function WorkspaceEmpty({ title, copy, action, onAction }: { title: string; copy: string; action: string; onAction: () => void }) {
+  return (
+    <div className="barber-workspace-empty">
+      <span className="font-mono">01 / DESIGN</span>
+      <h2 className="font-display">{title}</h2>
+      <p className="font-sans">{copy}</p>
+      <button type="button" className="btn btn-tomato" onClick={onAction}>{action} →</button>
+    </div>
+  );
+}
+
+function ShareGuide() {
+  const t = useT();
+  const items = [
+    ['IG', t('Instagram bio'), t('Make the barber card your single profile link so services, prices, and booking stay current in one place.')],
+    ['QR', t('Station mirror'), t('Print the generated card at full size and place it where clients naturally look during the cut.')],
+    ['TXT', t('Text replies'), t('Save the URL as a keyboard shortcut for every “you free this week?” message.')],
+  ];
+  return (
+    <div className="barber-share-guide">
+      {items.map(([badge, title, copy]) => (
+        <article key={badge}>
+          <span className="font-mono">{badge}</span>
+          <h3 className="font-display">{title}</h3>
+          <p className="font-sans">{copy}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function Section({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   return (
     <details className="barber-section" open={defaultOpen}>
@@ -1123,7 +1410,7 @@ function MirrorCardPanel({
           {copied ? t('Copied!') : url.replace(/^https?:\/\//, '')}
         </button>
         <div className="barber-mirror-actions">
-          <button className="btn-tomato" type="button" onClick={download}>
+          <button className="btn btn-tomato" type="button" onClick={download}>
             {t('Download mirror card')}
           </button>
           <Link className="chip-suggest" href={`/b/${slug}`} target="_blank">
@@ -1245,7 +1532,15 @@ function InsightsPanel({
 }
 
 // ── upcoming appointments booked through the card ──
-function BookingsPanel({ timezone }: { timezone: string }) {
+function BookingsPanel({
+  timezone,
+  barberName,
+  location,
+}: {
+  timezone: string;
+  barberName: string;
+  location?: string;
+}) {
   const t = useT();
   const bookings = useQuery(api.barberBooking.listMyBookings);
   const cancelBooking = useMutation(api.barberBooking.cancel);
@@ -1278,19 +1573,36 @@ function BookingsPanel({ timezone }: { timezone: string }) {
               <div className="barber-booking-who font-sans">
                 <strong>{b.clientName}</strong>
                 {b.service ? <span> · {b.service}</span> : null}
+                {b.price ? <span> · {b.price}</span> : null}
                 {(b.clientPhone || b.clientEmail) ? (
                   <span className="barber-booking-contact"> · {b.clientPhone ?? b.clientEmail}</span>
                 ) : null}
                 {b.note ? <span className="barber-booking-note">“{b.note}”</span> : null}
               </div>
-              <button
-                type="button"
-                className="chip-suggest is-danger"
-                onClick={() => void cancel(b.id, b.clientName)}
-                disabled={busyId === b.id}
-              >
-                {busyId === b.id ? t('Cancelling…') : t('Cancel')}
-              </button>
+              <div className="barber-booking-actions">
+                <a
+                  className="chip-suggest"
+                  href={googleCalendarUrl({
+                    title: t('{client} with {barber}', { client: b.clientName, barber: barberName }),
+                    details: [b.service, b.price, b.note, t('Booked via ShapeUp')].filter(Boolean).join(' · '),
+                    location,
+                    startMs: b.startMs,
+                    endMs: b.endMs,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('Add to calendar ↗')}
+                </a>
+                <button
+                  type="button"
+                  className="chip-suggest is-danger"
+                  onClick={() => void cancel(b.id, b.clientName)}
+                  disabled={busyId === b.id}
+                >
+                  {busyId === b.id ? t('Cancelling…') : t('Cancel')}
+                </button>
+              </div>
             </li>
           ))}
         </ul>

@@ -236,6 +236,7 @@ export default function BarberTryOn({
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(initialSelfieUrl);
   const [resultImageUrl, setResultImageUrl] = useState<string | null>(null);
+  const [hostedResultImageUrl, setHostedResultImageUrl] = useState<string | null>(null);
   const [splatSrc, setSplatSrc] = useState<string | null>(null);
   const [turntableVideoUrl, setTurntableVideoUrl] = useState<string | null>(null);
   const [lastAppliedPrompt, setLastAppliedPrompt] = useState(cut.label);
@@ -313,9 +314,23 @@ export default function BarberTryOn({
           setPhase(resultImageUrl ? 'result' : 'capture');
           return;
         }
-        setResultImageUrl(editData.newImageUrl);
+        const editedImageUrl = editData.newImageUrl as string;
+        setResultImageUrl(editedImageUrl);
+        setHostedResultImageUrl(null);
         setSplatSrc(null);
         setPhase('rendering');
+
+        // Make the still durable before mounting the memory-heavy splat viewer.
+        // Doing this on "send" used to hold the image + video blobs alongside
+        // WebGL resources, which could evict the renderer on mobile browsers.
+        try {
+          const imageRes = await fetch(editedImageUrl);
+          if (!imageRes.ok) throw new Error('Could not read generated image');
+          setHostedResultImageUrl(await upload(await imageRes.blob()));
+        } catch (err) {
+          // Sending gets one last retry below; the preview itself remains usable.
+          console.warn('[BarberTryOn] Could not pre-host result image:', err);
+        }
 
         await claimRenderStation();
         try {
@@ -344,7 +359,7 @@ export default function BarberTryOn({
         setPhase(resultImageUrl ? 'result' : 'capture');
       }
     },
-    [resultImageUrl, t, warmUp, claimRenderStation, releaseRenderStation, count],
+    [resultImageUrl, t, warmUp, claimRenderStation, releaseRenderStation, count, upload],
   );
 
   // ── intro: "Let's see how it looks on you!" then onward ──
@@ -442,6 +457,7 @@ export default function BarberTryOn({
 
   const retakeFromResult = useCallback(() => {
     setResultImageUrl(null);
+    setHostedResultImageUrl(null);
     setSplatSrc(null);
     setTurntableVideoUrl(null);
     setSceneFailed(false);
@@ -487,22 +503,24 @@ export default function BarberTryOn({
     setPhase('sending');
     setSendOutcome(null);
     try {
-      const imageBlob = await (await fetch(resultImageUrl)).blob();
-      const hostedUrl = await upload(imageBlob);
-      let hosted360Url = turntableVideoUrl ?? undefined;
-      if (turntableVideoUrl) {
-        try {
-          const videoBlob = await (await fetch(turntableVideoUrl)).blob();
-          hosted360Url = await upload(videoBlob);
-        } catch {
-          // The signed render URL is still useful if durable re-hosting fails.
-        }
+      let hostedUrl = hostedResultImageUrl;
+      if (!hostedUrl) {
+        // Release WebGL before the fallback blob copy. This path is only needed
+        // when pre-hosting failed (for example after a transient upload error).
+        setShowBefore(true);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        const imageRes = await fetch(resultImageUrl);
+        if (!imageRes.ok) throw new Error('Could not read generated image');
+        hostedUrl = await upload(await imageRes.blob());
+        setHostedResultImageUrl(hostedUrl);
       }
       const result = await sendToBarber({
         slug: barberSlug,
         cutLabel: activeCut.label,
         imageUrl: hostedUrl,
-        videoUrl: hosted360Url,
+        // Convex mirrors this server-side so the browser never holds the large
+        // MP4 blob at the same time as the WebGL renderer.
+        videoUrl: turntableVideoUrl ?? undefined,
         clientRequest: prompt.trim() || lastAppliedPrompt,
         clientEmail: user?.primaryEmailAddress?.emailAddress,
         clientPhone: clientPhone.trim() || undefined,
@@ -513,7 +531,7 @@ export default function BarberTryOn({
     } finally {
       setPhase('sent');
     }
-  }, [resultImageUrl, turntableVideoUrl, upload, sendToBarber, barberSlug, activeCut, prompt, lastAppliedPrompt, user, clientPhone]);
+  }, [resultImageUrl, hostedResultImageUrl, turntableVideoUrl, upload, sendToBarber, barberSlug, activeCut, prompt, lastAppliedPrompt, user, clientPhone]);
 
   const busy = GENERATING_PHASES.includes(phase) || phase === 'sending';
   const generating = GENERATING_PHASES.includes(phase);
@@ -617,6 +635,7 @@ export default function BarberTryOn({
                       params={PLACEHOLDER_HAIR_PARAMS}
                       splatSrcOverride={splatSrc}
                       disableDefaultHairLayers
+                      disableKeyboardControls
                       renderQuality="balanced"
                       background="#141416"
                     />

@@ -203,7 +203,7 @@ def ply_to_splat(ply_bytes: bytes) -> bytes:
     scaledown_window=10,
     # Hard cap on concurrent GPUs — bounds peak demo spend regardless of load.
     # The app-side monthly GPU-seconds guard (convex/gpuUsage.ts) bounds total.
-    max_containers=2,
+    max_containers=4,
     enable_memory_snapshot=True,
     experimental_options={"enable_gpu_snapshot": True},
     volumes={WEIGHTS_DIR: weights_volume},

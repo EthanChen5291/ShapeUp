@@ -50,6 +50,30 @@ Run ESLint:
 npm run lint
 ```
 
+## Apple Wallet barber cards
+
+Published barber cards can expose a signed `.pkpass` download. The action is
+shown only when all signing settings are present, so local development and
+deployments without Apple credentials continue to work normally.
+
+Create a Pass Type ID and Pass Type ID certificate in the Apple Developer
+portal, convert the signing certificate, private key, and Apple WWDR
+intermediate certificate to PEM, then set:
+
+```bash
+APPLE_WALLET_TEAM_ID=ABCDE12345
+APPLE_WALLET_PASS_TYPE_ID=pass.cc.tryshapeup.barber
+APPLE_WALLET_SIGNER_CERT_BASE64=<base64-encoded signer certificate PEM>
+APPLE_WALLET_SIGNER_KEY_BASE64=<base64-encoded private key PEM>
+APPLE_WALLET_SIGNER_KEY_PASSPHRASE=<optional private key passphrase>
+APPLE_WALLET_WWDR_CERT_BASE64=<base64-encoded Apple WWDR certificate PEM>
+```
+
+Keep the certificate and key in deployment secrets; never commit them. The
+download endpoint is `/api/barber/<slug>/wallet`. Before launch, download the
+official localized Add to Apple Wallet SVG from Apple's badge guidelines and
+use it for any Apple-branded marketing treatment.
+
 ## Notes
 
 - Convex functions live in `convex/`.

@@ -492,6 +492,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
   const [orbitSpeedIdx, setOrbitSpeedIdx] = useState(1);
 
   useEffect(() => {
+    if (disableKeyboardControls) return;
     const onKey = (e: KeyboardEvent) => {
       if (isTyping()) return;
       if (e.code === 'KeyH') setCursorHidden(v => !v);
@@ -499,7 +500,7 @@ export default function HairScene({ params: _params, colorRGB: _colorRGB, profil
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [disableKeyboardControls]);
 
   const toggleLayer = (id: string) =>
     setVisibleLayers(prev => {

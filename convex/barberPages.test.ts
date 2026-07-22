@@ -130,31 +130,29 @@ describe("upsert", () => {
     expect(new Set(page?.styles).size).toBe(12);
   });
 
-  test("stores a normalized contact email but never leaks it to the public card", async () => {
+  test("binds the private contact email to the ShapeUp account and never leaks it publicly", async () => {
     const t = convexTest(schema, modules);
     const marcus = await barber(t, "marcus");
-    await marcus.mutation(api.barberPages.upsert, { ...CARD, contactEmail: " Marcus@Fades.com " });
+    await marcus.mutation(api.barberPages.upsert, CARD);
 
     const mine = await marcus.query(api.barberPages.getMine, {});
-    expect(mine?.contactEmail).toBe("marcus@fades.com");
+    expect(mine?.contactEmail).toBe("marcus@example.com");
 
     const publicPage = await t.query(api.barberPages.getBySlug, { slug: "marcus" });
     expect(publicPage).not.toHaveProperty("contactEmail");
   });
 
-  test("rejects a malformed contact email", async () => {
+  test("requires an email on the barber's ShapeUp account", async () => {
     const t = convexTest(schema, modules);
-    const marcus = await barber(t, "marcus");
+    const marcus = t.withIdentity({
+      subject: "marcus",
+      tokenIdentifier: "https://clerk.test|marcus",
+      nickname: "marcus",
+    });
+    await marcus.mutation(api.users.getOrCreate, {});
     await expect(
-      marcus.mutation(api.barberPages.upsert, { ...CARD, contactEmail: "not-an-email" }),
-    ).rejects.toThrow(/valid email/i);
-  });
-
-  test("contact email is optional — a card saves fine without one", async () => {
-    const t = convexTest(schema, modules);
-    const marcus = await barber(t, "marcus");
-    await marcus.mutation(api.barberPages.upsert, CARD);
-    expect((await marcus.query(api.barberPages.getMine, {}))?.contactEmail).toBeUndefined();
+      marcus.mutation(api.barberPages.upsert, CARD),
+    ).rejects.toThrow(/account needs a valid email/i);
   });
 });
 
@@ -444,6 +442,19 @@ describe("recordEvent — new event kinds", () => {
 // ── upsert new fields ─────────────────────────────────────────
 
 describe("upsert — location, hours, services", () => {
+  test("round-trips the perms and texture-services setting", async () => {
+    const t = convexTest(schema, modules);
+    const marcus = await barber(t, "marcus");
+    await marcus.mutation(api.barberPages.upsert, { ...CARD, offersPerms: true });
+
+    expect((await marcus.query(api.barberPages.getMine, {}))?.offersPerms).toBe(true);
+    expect((await t.query(api.barberPages.getBySlug, { slug: "marcus" }))?.offersPerms).toBe(true);
+
+    await marcus.mutation(api.barberPages.upsert, { ...CARD, offersPerms: false });
+    expect((await marcus.query(api.barberPages.getMine, {}))?.offersPerms).toBe(false);
+    expect((await t.query(api.barberPages.getBySlug, { slug: "marcus" }))?.offersPerms).toBe(false);
+  });
+
   test("stores and trims location and hours", async () => {
     const t = convexTest(schema, modules);
     const marcus = await barber(t, "marcus");

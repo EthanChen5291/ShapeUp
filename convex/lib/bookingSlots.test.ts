@@ -140,13 +140,17 @@ describe("normalizeBookingConfig", () => {
   test("accepts and sorts a valid config", () => {
     const result = normalizeBookingConfig({
       ...RAW,
+      price: "  $45  ",
       days: [
         { day: 5, start: "10:00", end: "16:00" },
         { day: 2, start: "09:00", end: "18:00" },
       ],
     });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.config.days.map((d) => d.day)).toEqual([2, 5]);
+    if (result.ok) {
+      expect(result.config.days.map((d) => d.day)).toEqual([2, 5]);
+      expect(result.config.price).toBe("$45");
+    }
   });
 
   test.each([

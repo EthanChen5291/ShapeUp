@@ -10,8 +10,8 @@
 // Trust model, matching the rest of the card:
 //  - getAvailability is PUBLIC: a logged-out stranger must be able to see
 //    open times. It returns booked intervals only — never who booked them.
-//  - book requires a signed-in client (same bar as the try-on flow), is
-//    rate-limited per user, and re-validates the requested slot against the
+//  - book accepts signed-in or guest clients, is rate-limited per page+email,
+//    and re-validates the requested slot against the
 //    same pure slot math the card used to render it (convex/lib/bookingSlots).
 //    The overlap check runs inside the mutation's transaction, so two clients
 //    tapping the same slot can't both win.
@@ -44,6 +44,9 @@ import {
 
 const MAX_NAME = 80;
 const MAX_NOTE = 300;
+const MAX_EMAIL = 254;
+const EMAIL_RE =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
 
 async function requireUser(ctx: MutationCtx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
@@ -89,6 +92,7 @@ export const getAvailability = query({
   ): Promise<{
     timezone: string;
     slotMinutes: number;
+    price?: string;
     days: { day: number; start: string; end: string }[];
     booked: { startMs: number; endMs: number }[];
   } | null> => {
@@ -106,28 +110,31 @@ export const getAvailability = query({
     return {
       timezone: page.booking.timezone,
       slotMinutes: page.booking.slotMinutes,
+      price: page.booking.price,
       days: page.booking.days,
       booked,
     };
   },
 });
 
-/** Claim a slot. Signed-in clients only — same bar as the try-on itself. */
+/** Claim a slot. Customers can book as guests; the barber account owns it. */
 export const book = mutation({
   args: {
     slug: v.string(),
     startMs: v.number(),
     clientName: v.string(),
+    clientEmail: v.string(),
     clientPhone: v.optional(v.string()),
     service: v.optional(v.string()),
     note: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ startMs: number; endMs: number }> => {
-    const user = await requireUser(ctx);
-    await enforceMutationRateLimit(ctx, `barberBook:${user._id}`, 5, 60_000);
-
+  handler: async (ctx, args): Promise<{ startMs: number; endMs: number; price?: string }> => {
     const clientName = args.clientName.trim().slice(0, MAX_NAME);
     if (!clientName) throw new ConvexError("Add your name so the barber knows who's coming.");
+    const clientEmail = args.clientEmail.trim().toLowerCase().slice(0, MAX_EMAIL);
+    if (!EMAIL_RE.test(clientEmail)) {
+      throw new ConvexError("Add a valid email so we can send your confirmation.");
+    }
 
     const normalized = normalizeSlug(args.slug);
     if (!normalized.ok) throw new ConvexError("That page doesn't exist.");
@@ -138,6 +145,20 @@ export const book = mutation({
     if (!page || !page.published || !page.booking?.enabled) {
       throw new ConvexError("This barber isn't taking bookings here right now.");
     }
+    await enforceMutationRateLimit(
+      ctx,
+      `barberBook:${page._id}:${clientEmail}`,
+      5,
+      60_000,
+    );
+
+    const identity = await ctx.auth.getUserIdentity();
+    const user = identity
+      ? await ctx.db
+          .query("users")
+          .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+          .unique()
+      : null;
     const config: BookingConfig = page.booking;
 
     const now = Date.now();
@@ -161,16 +182,20 @@ export const book = mutation({
     // Only offer services that are actually on the menu.
     const knownService =
       service && page.services?.some((s) => s.name === service) ? service : undefined;
+    const price =
+      (knownService ? page.services?.find((s) => s.name === knownService)?.price : undefined) ??
+      page.booking.price;
 
     const bookingId = await ctx.db.insert("barberBookings", {
       pageId: page._id,
       startMs: args.startMs,
       endMs,
-      clientUserId: user._id,
+      clientUserId: user?._id,
       clientName,
-      clientEmail: user.email,
+      clientEmail,
       clientPhone: args.clientPhone?.trim().slice(0, 30) || undefined,
       service: knownService,
+      price,
       note: args.note?.trim().slice(0, MAX_NOTE) || undefined,
       status: "booked",
       createdAt: now,
@@ -181,7 +206,7 @@ export const book = mutation({
       kind: "booked",
     });
 
-    return { startMs: args.startMs, endMs };
+    return { startMs: args.startMs, endMs, price };
   },
 });
 
@@ -220,6 +245,7 @@ export const listMyBookings = query({
         clientEmail: r.clientEmail,
         clientPhone: r.clientPhone,
         service: r.service,
+        price: r.price,
         note: r.note,
       }));
   },
@@ -254,6 +280,7 @@ export const getBookingForEmail = internalQuery({
     if (!booking) return null;
     const page = await ctx.db.get(booking.pageId);
     if (!page) return null;
+    const owner = await ctx.db.get(page.ownerUserId);
     return {
       booking: {
         startMs: booking.startMs,
@@ -262,13 +289,16 @@ export const getBookingForEmail = internalQuery({
         clientEmail: booking.clientEmail,
         clientPhone: booking.clientPhone,
         service: booking.service,
+        price: booking.price,
         note: booking.note,
       },
       page: {
         displayName: page.displayName,
         shopName: page.shopName,
         location: page.location,
-        contactEmail: page.contactEmail,
+        // Account email is authoritative. The page field remains as a legacy
+        // fallback for cards created before account-bound notifications.
+        contactEmail: owner?.email ?? page.contactEmail,
         timezone: page.booking?.timezone ?? "UTC",
       },
     };
@@ -316,6 +346,7 @@ export const sendBookingEmails = internalAction({
       clientEmail: data.booking.clientEmail,
       clientPhone: data.booking.clientPhone,
       service: data.booking.service,
+      price: data.booking.price,
       note: data.booking.note,
       startMs: data.booking.startMs,
       endMs: data.booking.endMs,
@@ -326,7 +357,7 @@ export const sendBookingEmails = internalAction({
     const ics = buildIcs({
       uid: `${args.bookingId}@tryshapeup.cc`,
       title: `Haircut — ${data.booking.clientName} with ${data.page.displayName}`,
-      details: [data.booking.service, data.booking.note, "Booked via ShapeUp"]
+      details: [data.booking.service, data.booking.price, data.booking.note, "Booked via ShapeUp"]
         .filter(Boolean)
         .join(" · "),
       location: data.page.location ?? data.page.shopName,

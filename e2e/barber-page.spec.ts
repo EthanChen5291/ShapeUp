@@ -22,10 +22,10 @@ test('the public barber ticket preserves the barber/ShapeUp split and starts the
   expect(await page.content()).not.toContain('landing_face2');
 
   await experience.getByRole('button', { name: 'Show me my best hairstyles' }).click();
-  await expect(experience.locator('.bc-orbit')).toBeVisible();
-  await expect(experience.getByText('Let’s see how it looks on you!')).toBeVisible();
-  await expect(experience.locator('[data-testid="signup-widget-stub"]')).toHaveCount(0);
-  await expect(experience).toContainText(/sign|account|continue/i, { timeout: 10_000 });
+  const authDialog = page.getByRole('dialog', { name: 'One quick sign-in to continue.' });
+  await expect(authDialog).toBeVisible();
+  await expect(authDialog).toContainText(/continue|email/i);
+  await expect(experience.locator('.bbf-rundown')).toHaveCount(0);
 });
 
 test('the public ticket uses the required vertical order on mobile', async ({ page }) => {

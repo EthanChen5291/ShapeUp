@@ -6,6 +6,16 @@ import { isAdminUserId } from './lib/adminAllowlist';
 const isAdminRoute = createRouteMatcher(['/admin(.*)', '/api/admin(.*)']);
 
 export default clerkMiddleware(async (auth, req) => {
+  // The public product is now deliberately narrow. Preserve old URLs without
+  // preserving the old consumer app as a second competing product surface.
+  const path = req.nextUrl.pathname;
+  if (path === '/dashboard' || path.startsWith('/studio/') || path === '/preview') {
+    return NextResponse.redirect(new URL('/barber', req.url));
+  }
+  if (path === '/pricing' || path === '/for-barbers') {
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
   if (isAdminRoute(req)) {
     const { userId } = await auth();
     console.log('[admin-mw]', req.nextUrl.pathname, 'userId=', userId, 'isAdmin=', isAdminUserId(userId));

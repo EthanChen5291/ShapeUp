@@ -20,6 +20,10 @@ export const RATE_LIMITS = {
   editIp: { limit: 60, windowMs: 60_000, label: 'edit:ip' },
   summaryUser: { limit: 10, windowMs: 60_000, label: 'summary:user' },
   summaryIp: { limit: 30, windowMs: 60_000, label: 'summary:ip' },
+  // Linktree import: one outbound scrape + an optional LLM bio parse per press.
+  // Onboarding is a handful of tries, so keep it tight — this is not a hot path.
+  importUser: { limit: 8, windowMs: 60_000, label: 'import:user' },
+  importIp: { limit: 20, windowMs: 60_000, label: 'import:ip' },
   saveScanUser: { limit: 10, windowMs: 60 * 60_000, label: 'save-scan:user' },
   saveScanIp: { limit: 30, windowMs: 60 * 60_000, label: 'save-scan:ip' },
   faceliftUser: { limit: 5, windowMs: 10 * 60_000, label: 'facelift:user' },
@@ -30,6 +34,7 @@ export const RATE_LIMITS = {
   // real generation quota.
   faceliftWarmupUser: { limit: 40, windowMs: 10 * 60_000, label: 'facelift-warmup:user' },
   faceliftWarmupIp: { limit: 120, windowMs: 10 * 60_000, label: 'facelift-warmup:ip' },
+  barberBatchRetryUser: { limit: 10, windowMs: 60 * 60_000, label: 'barber-batch-retry:user' },
 } as const;
 
 export function getClientIp(req: NextRequest | Request): string {

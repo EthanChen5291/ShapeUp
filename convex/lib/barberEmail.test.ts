@@ -55,6 +55,34 @@ describe("buildBarberEmail", () => {
     expect(html).toContain("Just clean the neckline");
   });
 
+  it("adds the selected batch style, exact prompt, and hair profile when provided", () => {
+    const { html } = buildBarberEmail({
+      displayName: "Marcus",
+      cutLabel: "recommended style",
+      imageUrl: "https://example.com/x.png",
+      styleTitle: "Soft Burst Crop",
+      stylePrompt: "Keep 2.5 inches on top with a low burst taper.",
+      hairProfile: "3B · high density · mature temples",
+    });
+    expect(html).toContain("Selected style");
+    expect(html).toContain("Soft Burst Crop");
+    expect(html).toContain("Exact style prompt");
+    expect(html).toContain("Keep 2.5 inches on top with a low burst taper.");
+    expect(html).toContain("Hair profile");
+    expect(html).toContain("3B · high density · mature temples");
+  });
+
+  it("does not add batch-only sections to existing sends", () => {
+    const { html } = buildBarberEmail({
+      displayName: "Marcus",
+      cutLabel: "blowout taper",
+      imageUrl: "https://example.com/x.png",
+    });
+    expect(html).not.toContain("Selected style");
+    expect(html).not.toContain("Exact style prompt");
+    expect(html).not.toContain("Hair profile");
+  });
+
   it("escapes hostile input in the barber name and cut label", () => {
     const { html } = buildBarberEmail({
       displayName: '<script>alert(1)</script>',
@@ -74,6 +102,7 @@ const BOOKING: BookingEmailInput = {
   clientEmail: "dre@example.com",
   clientPhone: "4155550134",
   service: "Skin fade",
+  price: "$40",
   note: "First visit",
   startMs: Date.UTC(2026, 6, 14, 16, 0), // Tue 9:00 AM in LA
   endMs: Date.UTC(2026, 6, 14, 16, 30),
@@ -88,6 +117,7 @@ describe("booking emails", () => {
     expect(html).toContain("9:00");
     expect(html).toContain("dre@example.com · 4155550134");
     expect(html).toContain("Skin fade");
+    expect(html).toContain("$40");
     expect(html).toContain("calendar.google.com/calendar/render");
   });
 
@@ -96,6 +126,7 @@ describe("booking emails", () => {
     expect(subject).toContain("Marcus");
     expect(html).toContain("Hi Dre,");
     expect(html).toContain("Telegraph Ave, Oakland");
+    expect(html).toContain("$40");
     expect(html).toContain("calendar.google.com/calendar/render");
   });
 

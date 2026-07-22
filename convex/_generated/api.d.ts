@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as barberBatch from "../barberBatch.js";
 import type * as barberBooking from "../barberBooking.js";
 import type * as barberPages from "../barberPages.js";
 import type * as barberTryOn from "../barberTryOn.js";
@@ -18,8 +19,10 @@ import type * as feedback from "../feedback.js";
 import type * as freeGen from "../freeGen.js";
 import type * as gpuUsage from "../gpuUsage.js";
 import type * as http from "../http.js";
+import type * as imageEditUsage from "../imageEditUsage.js";
 import type * as lib_adminAuth from "../lib/adminAuth.js";
 import type * as lib_allowlist from "../lib/allowlist.js";
+import type * as lib_barberBatch from "../lib/barberBatch.js";
 import type * as lib_barberEmail from "../lib/barberEmail.js";
 import type * as lib_barberInsights from "../lib/barberInsights.js";
 import type * as lib_barberLinks from "../lib/barberLinks.js";
@@ -50,6 +53,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  barberBatch: typeof barberBatch;
   barberBooking: typeof barberBooking;
   barberPages: typeof barberPages;
   barberTryOn: typeof barberTryOn;
@@ -59,8 +63,10 @@ declare const fullApi: ApiFromModules<{
   freeGen: typeof freeGen;
   gpuUsage: typeof gpuUsage;
   http: typeof http;
+  imageEditUsage: typeof imageEditUsage;
   "lib/adminAuth": typeof lib_adminAuth;
   "lib/allowlist": typeof lib_allowlist;
+  "lib/barberBatch": typeof lib_barberBatch;
   "lib/barberEmail": typeof lib_barberEmail;
   "lib/barberInsights": typeof lib_barberInsights;
   "lib/barberLinks": typeof lib_barberLinks;

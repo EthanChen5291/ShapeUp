@@ -69,6 +69,9 @@ describe("sendToBarber", () => {
       cutLabel: "blowout taper",
       imageUrl: "https://example.com/x.png",
       clientRequest: "keep the top long",
+      styleTitle: "Soft Burst Crop",
+      stylePrompt: "Keep 2.5 inches on top with a low burst taper.",
+      hairProfile: "3B · high density · mature temples",
       clientEmail: "client1@example.com",
     });
     expect(result).toEqual({ ok: true, emailed: false });
@@ -79,6 +82,9 @@ describe("sendToBarber", () => {
       cutLabel: "blowout taper",
       imageUrl: "https://example.com/x.png",
       clientRequest: "keep the top long",
+      styleTitle: "Soft Burst Crop",
+      stylePrompt: "Keep 2.5 inches on top with a low burst taper.",
+      hairProfile: "3B · high density · mature temples",
       clientEmail: "client1@example.com",
     });
   });
@@ -94,10 +100,10 @@ describe("sendToBarber", () => {
     expect(result).toEqual({ ok: false, reason: "unknown_page" });
   });
 
-  test("still saves (emailed:false) when RESEND_API_KEY is unset, even with a contact email on file", async () => {
+  test("still saves (emailed:false) when RESEND_API_KEY is unset, even with the account email on file", async () => {
     const t = convexTest(schema, modules);
     const marcus = await barber(t, "marcus");
-    await marcus.mutation(api.barberPages.upsert, { ...CARD, contactEmail: "marcus@fades.com" });
+    await marcus.mutation(api.barberPages.upsert, CARD);
 
     const client = await barber(t, "client1");
     const result = await client.action(api.barberTryOn.sendToBarber, {

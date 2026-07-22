@@ -40,20 +40,20 @@ const montserrat = Montserrat({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://tryshapeup.cc'),
-  title: 'ShapeUp',
-  description: 'An AI barber. Your sharpest cut yet.',
+  title: 'ShapeUp Barber Cards',
+  description: 'Your barber link, booking page, visual consultation, QR code, and performance stats in one place.',
   openGraph: {
     type: 'website',
-    title: 'ShapeUp',
-    description: 'An AI barber. Your sharpest cut yet.',
+    title: 'ShapeUp Barber Cards',
+    description: 'One barber link for bookings, services, visual consultations, QR sharing, and stats.',
     url: 'https://tryshapeup.cc',
     siteName: 'ShapeUp',
     images: [{ url: '/shapeup_logo.png', width: 1200, height: 630, alt: 'ShapeUp' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ShapeUp',
-    description: 'An AI barber. Your sharpest cut yet.',
+    title: 'ShapeUp Barber Cards',
+    description: 'One barber link for bookings, services, visual consultations, QR sharing, and stats.',
     images: ['/shapeup_logo.png'],
   },
 };
@@ -74,8 +74,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       // hosted Account Portal.
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      signInFallbackRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/dashboard"
+      signInFallbackRedirectUrl="/barber"
+      signUpFallbackRedirectUrl="/barber"
     >
       <html lang="en" className={`${fraunces.variable} ${dmSans.variable} ${jetbrains.variable} ${montserrat.variable}`}>
         <body style={{ fontFamily: 'var(--font-dmsans), system-ui, sans-serif' }}>

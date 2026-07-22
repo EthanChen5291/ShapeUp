@@ -113,9 +113,7 @@ vi.stubGlobal('fetch', vi.fn(async (input: unknown, init?: RequestInit) => {
   if (url.startsWith('data:')) {
     return { ok: true, blob: async () => new Blob(['result'], { type: 'image/png' }) };
   }
-  if (url === 'https://s3.example.com/turntable.mp4') {
-    return { ok: true, blob: async () => new Blob(['360-video'], { type: 'video/mp4' }) };
-  }
+  if (url === 'https://s3.example.com/turntable.mp4') throw new Error('video must be mirrored server-side');
   throw new Error(`unexpected fetch: ${url}`);
 }));
 
@@ -197,6 +195,7 @@ describe('BarberTryOn', () => {
       expect.objectContaining({
         splatSrcOverride: `/api/proxy-ply?url=${encodeURIComponent('https://s3.example.com/result.splat')}`,
         disableDefaultHairLayers: true,
+        disableKeyboardControls: true,
       }),
     );
     expect(recordEventMock).toHaveBeenCalledWith({ slug: 'marcus', kind: 'selfieStart' });
@@ -285,7 +284,7 @@ describe('BarberTryOn', () => {
         slug: 'marcus',
         cutLabel: 'blowout taper',
         clientRequest: 'blowout taper',
-        videoUrl: 'https://storage.example.com/original-selfie.png',
+        videoUrl: 'https://s3.example.com/turntable.mp4',
         clientEmail: 'client@example.com',
       }),
     ));
